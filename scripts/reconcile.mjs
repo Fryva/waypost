@@ -3,7 +3,7 @@
 // Re-derives every derived view from the vault's source of truth:
 // kanban.md, folder-index README tables, code-map.md, graph.md. Hand-edits
 // therefore can never *permanently* desync the views (PS-IMPROVE story-002,
-// ADR-004/005: vault-side repairs belong to reconcile, not doctor --fix).
+// upstream ADR-004/005: vault-side repairs belong to reconcile, not doctor --fix).
 //
 // Two modes (spec: atomic-regeneration-of-derived-views):
 //   compute (default) — read-only. Output JSON lists each target with
@@ -17,7 +17,7 @@
 //     via lib.mjs writeFileAtomic. Report per target {path, changed,
 //     written, error?} — no content on stdout. Continue-on-error; exits 1
 //     iff a selected target failed, so a cron caller notices. Headless use
-//     is sanctioned by ADR-009 ("reconcile as a scheduled repair job").
+//     is sanctioned by upstream ADR-009 ("reconcile as a scheduled repair job").
 //
 // --only <sel>[,…] limits either mode to: kanban | codemap | graph |
 //   indexes | indexes=<folder-path>. Unknown selectors, and explicitly
@@ -190,7 +190,7 @@ export function rebuildIndexRows(original, folder, artifacts) {
       ? a.kind === "epic" && a.rel.startsWith(`${folder.path}/`)
       : a.kind === folder.kind && a.rel === `${folder.path}/${basename(a.rel)}`);
   // Ordering per SPEC-002 contract 8: date ascending (date:, else created:),
-  // display number then slug as tiebreak — the grandfathered ADR-001…N order
+  // display number then slug as tiebreak — the grandfathered upstream ADR-001…N order
   // survives because same-date groups tiebreak by number.
   const decorated = inFolder.map((a) => {
     const file = basename(a.rel);
@@ -246,7 +246,7 @@ export function rebuildIndex(cfg, folder, artifacts) {
 // Never writes from stale bytes; after `attempts` collisions it reports an
 // error instead. The microseconds between the final re-read and the rename,
 // and a crash mid-sequence, are the residual risk the spec accepts (no
-// locks, per ADR-010). `rebuild` is (bytes) => {content}|{unusable} —
+// locks, per upstream ADR-010). `rebuild` is (bytes) => {content}|{unusable} —
 // production passes rebuildIndexRows, tests inject a mutating hook.
 export function writeIndexWithRetry(readmePath, rebuild, { attempts = 3 } = {}) {
   let base;

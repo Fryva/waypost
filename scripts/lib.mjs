@@ -297,7 +297,7 @@ export function listOf(fm, key) {
   }
 }
 
-// ─── Vault-side policy config (ADR-007 Decision 4) ─────────────────────
+// ─── Vault-side policy config (upstream ADR-007 Decision 4) ─────────────────────
 //
 // <vault>/.projectstore.json — vault ROOT, dot-prefixed: git commits it (so
 // the policy survives clones and second machines), Obsidian hides it, and it
@@ -324,7 +324,7 @@ export function writeVaultConfig(vault, cfg) {
   writeFileSync(vaultConfigPath(vault), JSON.stringify(cfg, null, 2) + "\n", "utf8");
 }
 
-// Legacy exemption (ADR-007 Decision 6): a story is exempt from spec-first
+// Legacy exemption (upstream ADR-007 Decision 6): a story is exempt from spec-first
 // and lifecycle gates iff it was already done before the policy existed —
 // status done AND (no closed_at at all, or closed_at earlier than
 // spec_policy_since). Stories in progress/review at enable time are IN scope.
@@ -386,14 +386,14 @@ export function nowIso() {
   return new Date().toISOString();
 }
 
-// ─── Artifact identity (ADR-010 / SPEC-002) ────────────────────────────
+// ─── Artifact identity (upstream ADR-010 / SPEC-002) ────────────────────────────
 //
 // Identity lives in the slug, not in an allocated number. Two filename eras
 // coexist indefinitely (grandfathering — no renames): numbered
-// `ADR-003-foo.md` / `story-006-foo.md` and slug-only `foo.md` /
+// `upstream ADR-003-foo.md` / `story-006-foo.md` and slug-only `foo.md` /
 // `story-foo.md`. Comparison therefore works on CANDIDATE SETS, not single
 // strings: a numbered-era name contributes both its full stem and its
-// number-stripped slug, so `ADR-003-foo.md` collides with `foo.md` and
+// number-stripped slug, so `upstream ADR-003-foo.md` collides with `foo.md` and
 // `story-006-foo.md` collides with `story-foo.md`. A digit-leading slug
 // (`story-2024-review.md`) is formally ambiguous between the eras — it
 // contributes both readings and is flagged, never silently collapsed to one.
@@ -468,7 +468,7 @@ export function legalArtifactName(name) {
 // Display number of an artifact: an explicit frontmatter `number:` wins,
 // else the legacy filename number; null when neither exists — the badge
 // then simply does not render (SPEC-002 contract 8). Numbers are reference
-// metadata like a Jira key, not identity (ADR-010).
+// metadata like a Jira key, not identity (upstream ADR-010).
 export function displayNumberOf(fm, name, opts = {}) {
   const n = fm && fm.number != null ? String(fm.number).trim() : "";
   if (n && n !== "null") return n;
@@ -648,7 +648,7 @@ const relDirSegments = (rel) => {
 // work, exactly as kanban skips them). Derived views and READMEs are
 // never nodes. Node keys are full vault-relative paths — never short
 // names: epic.md ×4 and README.md ×9 collide in the reference vault
-// today, and slug-first identity (ADR-010) makes bare numbers weaker
+// today, and slug-first identity (upstream ADR-010) makes bare numbers weaker
 // over time.
 export function buildNodeIndex(cfg, layout) {
   const vault = cfg.vault_path;

@@ -71,16 +71,24 @@ Claude plugin layer, and finally to cwd / repo root).
 
 ## Agent roles, everywhere
 
-Five read-only roles — `critic`, `planner`, `reviewer`, `librarian`,
-`archaeologist` — defined once in `agents/*.md` with neutral frontmatter
-(`model: reasoning|balanced|fast`, `effort`, `access`, `tools`).
+Five roles — `critic`, `planner`, `reviewer`, `librarian`, `archaeologist` —
+defined once in `agents/*.md` with neutral frontmatter
+(`model: reasoning|balanced|fast`, `effort`, `access`, `tools`). They are
+read-only *by contract*: where the harness has a tool map (OpenCode) edits are
+denied outright, and everywhere the shell stays available — these roles need
+`git diff` — so "never write" is stated in the role prompt, not enforced by it.
 
 ```bash
 mps agents list                       # roster + install state per harness
 mps agents install --harness all      # or claude,opencode,codex
 mps agents show critic adr/foo.md     # the raw prompt, for a harness with neither
 mps agents model default sonnet       # pin a model, then re-install
+mps agents model harness:opencode anthropic/claude-sonnet-4-5
 ```
+
+`default` and per-role pins are harness-blind, so they only apply to harnesses
+with a published tier naming (today: Claude Code). For the others, name the
+model per harness — a bare `sonnet` is not an id OpenCode can resolve.
 
 | Harness | File | What it becomes |
 |---|---|---|
@@ -89,9 +97,12 @@ mps agents model default sonnet       # pin a model, then re-install
 | Codex | `.codex/prompts/mps-<role>.md` | a custom prompt (`/mps-critic`) |
 | anything else | — | `codex exec "$(mps agents show critic) <target>"` |
 
-Generated files carry a provenance line with the source hash, so `mps doctor`
-can tell current from stale and `mps agents uninstall` never deletes a file it
-did not write.
+Generated files carry a provenance line with a hash of the render, so
+`mps doctor` sees any drift — an edited file, a changed role, a changed model,
+a changed adapter. A file under the `mps-` prefix *without* that line is
+someone's own: install skips it, `--fix` skips it, uninstall never deletes it.
+With no harness detected and none named, `install` refuses rather than
+scattering all three directories into the project.
 
 ## Layout (`engineering`)
 

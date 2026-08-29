@@ -28,16 +28,20 @@ its own format — never a second copy to maintain:
    `stale`, `foreign` or `absent`.
 
 2. **Install** into the harnesses this project actually uses (that is the
-   default; `--harness claude,opencode,codex` or `--harness all` overrides):
+   default; `--harness claude,opencode,codex` or `--harness all` overrides).
+   With nothing detected and nothing named, install refuses and lists the
+   choices — it will not scatter three directories into the project:
 
    ```bash
    mps agents install
    ```
 
    Idempotent: a role whose rendering has not changed is left untouched. Each
-   generated file carries a provenance line with the source hash — that is how
-   `mps doctor` tells "installed and current" from "installed and stale", and
-   how `mps agents uninstall` knows which files are ours to remove.
+   generated file carries a provenance line with a hash of the render — that is
+   how `mps doctor` tells "installed and current" from "installed and stale"
+   (including after a model or adapter change), and how `mps agents uninstall`
+   knows which files are ours to remove. A file under the `mps-` prefix without
+   that line is reported as `skipped (not ours)` and left alone.
 
    For Codex, also offer the one-liner that makes them slash commands:
    `cp .codex/prompts/mps-*.md ~/.codex/prompts/`.
@@ -60,8 +64,14 @@ its own format — never a second copy to maintain:
    ```bash
    mps agents model default sonnet      # every role
    mps agents model reviewer opus       # one role
+   mps agents model harness:opencode anthropic/claude-sonnet-4-5
    mps agents install                   # re-render with the new model
    ```
+
+   `default` and per-role pins reach only harnesses with a published tier
+   naming (today: Claude Code) — a bare Claude id is not something OpenCode can
+   resolve. Say it per harness there. The CLI prints which harnesses a pin
+   applies to.
 
    Say the trade-off honestly when asked: these roles do not write code — they
    are critics, planners and reviewers, and they earn their cost on strong
@@ -80,8 +90,10 @@ silently removes it.
 
 ## Notes
 
-- The roles are read-only by contract. They report; every write goes back
-  through the approval-gated `mps` flow.
+- The roles are read-only by contract: edits are denied by the tool map where
+  the harness has one, the shell stays available (they need `git diff`), and
+  "never write" is carried by the role prompt. They report; every write goes
+  back through the approval-gated `mps` flow.
 - Generated role files are ordinary files in the repo — committing them is how a
   team gets the same roles. The bind config and `.mps/state/` are not: those are
   machine-local and belong in `.gitignore`.

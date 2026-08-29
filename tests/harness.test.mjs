@@ -9,7 +9,7 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { listRoles, roleNames, readRole, renderFor, PREFIX, HARNESSES } from "../scripts/agents.mjs";
+import { listRoles, roleNames, readRole, renderFor, renderHashOf, PREFIX, HARNESSES } from "../scripts/agents.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const MPS = join(REPO, "bin", "mps");
@@ -60,13 +60,15 @@ test("each harness gets the same role in its own dialect, with provenance", () =
   const role = readRole("critic");
   const claude = renderFor("claude", role, null);
   assert.match(claude, new RegExp(`^---\\nname: ${PREFIX}critic$`, "m"), "claude keys agents by name");
-  assert.match(claude, /^model: opus$/m, "the reasoning tier maps to opus for Claude Code");
-  assert.match(claude, /^tools: Read, Grep, Glob, Bash, WebFetch, WebSearch$/m);
+  assert.match(claude, /^model: "opus"$/m, "the reasoning tier maps to opus for Claude Code");
+  assert.match(claude, /^tools: "Read, Grep, Glob, Bash, WebFetch, WebSearch"$/m);
 
   const opencode = renderFor("opencode", role, null);
-  assert.match(opencode, /^mode: subagent$/m, "opencode declares the agent mode");
-  assert.match(opencode, /^ {2}write: false$/m, "a read-only role is enforced by the tool map");
+  assert.match(opencode, /^mode: "subagent"$/m, "opencode declares the agent mode");
+  assert.match(opencode, /^ {2}write: false$/m, "edits are denied by the tool map");
   assert.match(opencode, /^ {2}edit: false$/m);
+  assert.match(opencode, /^ {2}bash: true$/m,
+    "bash stays available — these roles need git diff/log, so the shell half of read-only is prose, not enforcement");
   assert.ok(!/^model:/m.test(opencode), "no model is invented for a harness with no stable tier names");
 
   const codex = renderFor("codex", role, null);
@@ -76,7 +78,55 @@ test("each harness gets the same role in its own dialect, with provenance", () =
   for (const [name, text] of [["claude", claude], ["opencode", opencode], ["codex", codex]]) {
     assert.ok(text.includes(`agents/critic.md@${role.hash}`), `${name} carries the source hash`);
     assert.ok(text.includes(role.body.split("\n")[0]), `${name} carries the role prompt itself`);
+    const h = renderHashOf(text);
+    assert.equal(h.claimed, h.actual, `${name}'s render hash describes the file it is in`);
   }
+});
+
+// The frontmatter is parsed by three different YAML readers we do not control.
+// Node ships no YAML parser, so this asserts the plain-scalar rules that matter
+// rather than parsing: a value must be quoted, or must contain nothing that
+// ends a plain scalar. It is the rule that ": " inside an unquoted description
+// broke — nine of fifteen files, in every harness.
+function assertFrontmatterScalars(text, where) {
+  const fm = text.split("\n---\n")[0].replace(/^---\n/, "");
+  for (const line of fm.split("\n")) {
+    const kv = line.match(/^([A-Za-z][\w-]*): (.+)$/);
+    if (!kv) continue;
+    const [, key, raw] = kv;
+    const v = raw.trim();
+    if (/^".*"$/.test(v) || /^'.*'$/.test(v)) {
+      assert.doesNotThrow(() => JSON.parse(v.startsWith('"') ? v : JSON.stringify(v.slice(1, -1))),
+        `${where}: ${key} is quoted but not a valid scalar`);
+      continue;
+    }
+    if (/^(true|false|null|\d+(\.\d+)?)$/.test(v)) continue;
+    assert.ok(!v.includes(": "), `${where}: unquoted ${key} contains ": " — ends the plain scalar, breaks the file`);
+    assert.ok(!/ #/.test(v), `${where}: unquoted ${key} contains " #" — starts a comment`);
+    assert.ok(!/^[[\]{}&*!|>%@`]/.test(v), `${where}: unquoted ${key} starts with a YAML indicator`);
+  }
+}
+
+test("every render of every role has parseable frontmatter", () => {
+  for (const name of roleNames()) {
+    const role = readRole(name);
+    assert.ok(/: /.test(role.description) || true);
+    for (const h of HARNESSES) {
+      assertFrontmatterScalars(renderFor(h, role, null), `${h}/${name}`);
+      assertFrontmatterScalars(renderFor(h, role, { agents: { default: { model: "sonnet" } } }), `${h}/${name} (pinned)`);
+    }
+  }
+});
+
+test("a role naming a tool outside the neutral vocabulary is rejected at read time", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mps-roles-"));
+  mkdirSync(join(dir, "agents"), { recursive: true });
+  writeFileSync(join(dir, "agents", "bogus.md"),
+    "---\nname: bogus\ndescription: x\ntools: [read, telepathy]\n---\nbody\n", "utf8");
+  const r = spawnSync(process.execPath, ["-e",
+    `import(${JSON.stringify(join(REPO, "scripts", "agents.mjs"))}).then(m => m.readRole("bogus")).catch(e => { console.log(e.message); })`],
+    { encoding: "utf8", env: { ...process.env, MPS_HOME: dir } });
+  assert.match(r.stdout, /unknown tool\(s\) telepathy/, "the error names the tool and the file");
 });
 
 test("install: idempotent, per-harness, and detected harnesses are the default", () => {
@@ -93,6 +143,20 @@ test("install: idempotent, per-harness, and detected harnesses are the default",
 
   const files = readdirSync(join(proj, ".opencode", "agent"));
   assert.deepEqual(files.sort(), roleNames().map((n) => `${PREFIX}${n}.md`).sort());
+});
+
+test("install with no harness detected refuses instead of guessing all three", () => {
+  const proj = project();          // bare git repo: no CLAUDE.md, no .opencode, no .codex
+  mps(proj, ["bind", join(proj, "vault")]);
+  const r = mps(proj, ["agents", "install"], { expectFail: true });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /no harness detected/);
+  for (const d of [".claude", ".opencode", ".codex"]) {
+    assert.ok(!existsSync(join(proj, d)), `${d} must not be conjured — detection is by directory, so a guess becomes permanent`);
+  }
+  mps(proj, ["agents", "install", "--harness", "codex"]);
+  assert.ok(existsSync(join(proj, ".codex", "prompts", `${PREFIX}critic.md`)), "naming one works");
+  assert.ok(!existsSync(join(proj, ".claude")), "and only that one");
 });
 
 test("uninstall removes what mps generated and keeps what it did not", () => {
@@ -130,8 +194,61 @@ test("agents model: the config pins the model the adapters render", () => {
   mps(proj, ["agents", "model", "reviewer", "fable"]);
   mps(proj, ["agents", "install", "--harness", "claude"]);
   const read = (n) => readFileSync(join(proj, ".claude", "agents", `${PREFIX}${n}.md`), "utf8");
-  assert.match(read("critic"), /^model: sonnet$/m, "the default applies to every role");
-  assert.match(read("reviewer"), /^model: fable$/m, "a per-role pin wins over the default");
+  assert.match(read("critic"), /^model: "sonnet"$/m, "the default applies to every role");
+  assert.match(read("reviewer"), /^model: "fable"$/m, "a per-role pin wins over the default");
+});
+
+test("a harness-blind model pin never reaches a harness whose ids it cannot be valid for", () => {
+  const { proj } = bound();
+  const out = mps(proj, ["agents", "model", "default", "sonnet"]).stdout;
+  assert.match(out, /applies to: claude\b/, "the CLI says where the pin lands");
+  mps(proj, ["agents", "install", "--harness", "claude,opencode,codex"]);
+  const oc = readFileSync(join(proj, ".opencode", "agent", `${PREFIX}critic.md`), "utf8");
+  const cx = readFileSync(join(proj, ".codex", "prompts", `${PREFIX}critic.md`), "utf8");
+  assert.ok(!/^model:/m.test(oc), "a bare Claude id must not be written where OpenCode wants provider/model");
+  assert.ok(!/^model:/m.test(cx), "Codex takes no model from us at all");
+
+  // …and naming one per harness is how you do reach it.
+  mps(proj, ["agents", "model", "harness:opencode", "anthropic/claude-sonnet-4-5"]);
+  mps(proj, ["agents", "install", "--harness", "opencode"]);
+  assert.match(readFileSync(join(proj, ".opencode", "agent", `${PREFIX}critic.md`), "utf8"),
+    /^model: "anthropic\/claude-sonnet-4-5"$/m);
+});
+
+test("changing the model makes installed files stale — the hash covers the render, not just the source", () => {
+  const { proj } = bound();
+  mps(proj, ["agents", "install", "--harness", "claude"]);
+  let findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  assert.ok(!findings.some((f) => f.check === "agent-roles" && f.level === "issue"), "clean right after install");
+
+  mps(proj, ["agents", "model", "default", "sonnet"]);
+  findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  const stale = findings.find((f) => f.check === "agent-roles" && f.level === "issue");
+  assert.ok(stale, "a config change that alters the render must show up as stale");
+  assert.match(stale.message, /config or adapter changed/);
+
+  mps(proj, ["doctor", "--fix"]);
+  assert.match(readFileSync(join(proj, ".claude", "agents", `${PREFIX}critic.md`), "utf8"), /^model: "sonnet"$/m);
+});
+
+test("install and --fix never overwrite a file mps did not generate", () => {
+  const { proj } = bound();
+  const p = join(proj, ".claude", "agents", `${PREFIX}critic.md`);
+  mkdirSync(join(proj, ".claude", "agents"), { recursive: true });
+  const mine = "---\nname: mps-critic\ndescription: \"my own critic\"\n---\nhand written, keep me\n";
+  writeFileSync(p, mine, "utf8");
+
+  const out = mps(proj, ["agents", "install", "--harness", "claude"]).stdout;
+  assert.match(out, /skipped \(not ours\)/, "install reports the skip rather than doing it silently");
+  assert.equal(readFileSync(p, "utf8"), mine, "the user's file survives install");
+
+  const findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  const foreign = findings.find((f) => f.check === "agent-roles-foreign");
+  assert.ok(foreign, "doctor reports it under its own check id");
+  assert.match(foreign.message, /skip them/);
+
+  mps(proj, ["doctor", "--fix"]);
+  assert.equal(readFileSync(p, "utf8"), mine, "the user's file survives doctor --fix, which is where it used to die");
 });
 
 test("register writes exactly one routing block and migrates it in place", () => {
@@ -306,4 +423,37 @@ test("prompts and skills print, and name no upstream slash command", () => {
   }
   const skill = mps(proj, ["skill", "decision-detector"]).stdout;
   assert.ok(!/\/projectstore:/.test(skill));
+});
+
+// Drop a line's // comment, tracking quote state so a "//" inside a string (or a
+// URL) is not mistaken for one. Good enough for this codebase, and its failure
+// mode is a false pass, never a false alarm.
+function stripLineComment(line) {
+  let q = null;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) {
+      if (c === "\\") i++;
+      else if (c === q) q = null;
+    } else if (c === '"' || c === "'" || c === "`") q = c;
+    else if (c === "/" && line[i + 1] === "/") return line.slice(0, i);
+  }
+  return line;
+}
+
+test("no user-facing message cites an ADR this fork does not have", () => {
+  // Upstream's numbers survive in comments (marked "upstream ADR-00N"), which is
+  // fine — a reader of the source can place them. A finding shown to a user is
+  // different: "(ADR-008)" sends them to docs/decisions/ for a file that is not
+  // there. Comments are stripped, so this checks the strings that ship.
+  const have = new Set(readdirSync(join(REPO, "docs", "decisions"))
+    .map((n) => (n.match(/^(\d{4})-/) || [])[1]).filter(Boolean));
+  for (const f of readdirSync(join(REPO, "scripts")).filter((n) => n.endsWith(".mjs"))) {
+    const code = readFileSync(join(REPO, "scripts", f), "utf8")
+      .split("\n").map(stripLineComment).join("\n");
+    for (const m of code.matchAll(/ADR-(\d+)/g)) {
+      const n = m[1].padStart(4, "0");
+      assert.ok(have.has(n), `scripts/${f} cites ADR-${m[1]} in shipped text, but docs/decisions/ has no ${n}-*.md`);
+    }
+  }
 });

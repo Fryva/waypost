@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // projectstore — codemap.mjs
 // Derives code-map.md — the epic↔code overview — from epic/story frontmatter
-// `code_refs` (ADR-004). Same one-way pattern as kanban.mjs: frontmatter is
+// `code_refs` (upstream ADR-004). Same one-way pattern as kanban.mjs: frontmatter is
 // the source of truth, this file is a regenerated view.
 //
 // Output: JSON { path, content, stats } — compute only. The applier is

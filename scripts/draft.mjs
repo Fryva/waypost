@@ -5,7 +5,7 @@
 // and arguments, produces a JSON draft on stdout describing the target file
 // and its rendered content. Does NOT touch the disk — no writes AND no
 // mkdir: declining the approval gate must leave the vault byte-for-byte
-// unchanged (ADR-001 review / PS-IMPROVE story-006). Directory creation is
+// unchanged (upstream ADR-001 review / PS-IMPROVE story-006). Directory creation is
 // the caller's job after approval (the Write tool creates parents).
 //
 // Output schema:
@@ -20,7 +20,7 @@
 //                                       //   applies the row by regenerating the
 //                                       //   table, never by an Edit append, and
 //                                       //   prose must not derive this path itself
-//                                       //   (ADR-009: no logic in prose). Note the
+//                                       //   (upstream ADR-009: no logic in prose). Note the
 //                                       //   folder is NOT the kind: runbook lives
 //                                       //   in ops/.
 //     "line": "| [foo](./foo.md) | Foo | proposed | 2026-05-19 |"
@@ -31,7 +31,7 @@
 //                                       //   to the row that lands.
 //   },
 //   "collision": {                      // null, or the normalized-identity clash
-//     "with": "ADR-003-foo.md",        //   (SPEC-002 contract 4 — computed in
+//     "with": "upstream ADR-003-foo.md",        //   (SPEC-002 contract 4 — computed in
 //     "identity": "foo",               //   lib.mjs; command prose only renders
 //     "selfMatch": false,              //   it, an exact `test -e` cannot see
 //     "digitLeading": false            //   cross-era collisions)
@@ -101,7 +101,7 @@ function indexPath(vault, folderPath) {
 // ─── Builders (layout-driven — PS-SPEC story-001) ──────────────────────
 //
 // Any kind declared in the layout with a folder builds here with a slug-only
-// filename (ADR-010: identity lives in the slug; sequential numbering is
+// filename (upstream ADR-010: identity lives in the slug; sequential numbering is
 // removed from creation — collision-free by construction, no read-then-write
 // race between concurrent writers). Layout keys `numbered`/`prefix`/`pad`
 // remain declared for grandfathered labels and legacy-strip matching, but
@@ -201,7 +201,7 @@ function buildSimple(kind, cfg, layout, args) {
   const fileName = folder.date_prefix ? `${date}-${slug}.md` : `${slug}.md`;
   const vars = {
     ...commonVars(cfg),
-    id: slug, // exact machine id (ADR-010): the slug itself, no allocated number
+    id: slug, // exact machine id (upstream ADR-010): the slug itself, no allocated number
     slug,
     title,
   };
@@ -249,7 +249,7 @@ function main() {
       const known = layout.folders.map((f) => f.kind).filter((k) => k !== "epic");
       die(`Unknown kind: ${kind}. This layout (${cfg.layout}) declares: epic, story, ${known.join(", ")}.`);
     }
-    // `numbered` folders route through buildSimple too (ADR-010): the key
+    // `numbered` folders route through buildSimple too (upstream ADR-010): the key
     // stays declared in layouts for grandfathered labels, creation ignores it.
     result = buildSimple(kind, cfg, layout, rest);
   }
