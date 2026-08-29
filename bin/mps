@@ -256,8 +256,13 @@ function handleStatus() {
   process.stdout.write(`vault   ${cfg.vault_path || "(unset)"}${cfg.vault_path && !existsSync(cfg.vault_path) ? "  ⚠️ missing" : ""}\n`);
   process.stdout.write(`layout  ${cfg.layout || "engineering"}\n`);
   process.stdout.write(`lang    ${cfg.language || "en"}\n`);
-  const model = cfg.agents && cfg.agents.default && cfg.agents.default.model;
-  if (model) process.stdout.write(`agents  default model: ${model}\n`);
+  const a = cfg.agents || {};
+  const pins = [
+    ...(a.default && a.default.model ? [`default=${a.default.model}`] : []),
+    ...Object.entries(a.per_agent || {}).map(([k, v]) => v && v.model ? `${k}=${v.model}` : null),
+    ...Object.entries(a.per_harness || {}).map(([k, v]) => v && v.model ? `harness:${k}=${v.model}` : null),
+  ].filter(Boolean);
+  if (pins.length) process.stdout.write(`models  ${pins.join(" · ")}\n`);
   process.stdout.write("\n");
   run("agents", ["list"]);
 }
@@ -290,7 +295,9 @@ ROLES (same roles in every harness)
                            .codex/prompts  [--harness claude,opencode,codex|all]
   agents uninstall         remove generated role files
   agents register          write the routing block into AGENTS.md / CLAUDE.md
-  agents model <role|default> <id>   pin a model for the roles
+  agents model <role|default|harness:<name>> <id>
+                           pin a model; role/default reach only harnesses with
+                           a published tier naming, harness:<name> the rest
 
 PROCEDURES
   prompt [name]            print a workflow procedure (the verified loop's steps)

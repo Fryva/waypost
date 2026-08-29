@@ -1268,7 +1268,12 @@ export function applyFixes(cfg, proj, findings) {
   // `agent-roles` only — never `agent-roles-foreign`, whose whole content is
   // "there is a file here that is not ours". install skips those anyway; not
   // triggering on them keeps the two facts independent.
-  if (has("agent-roles")) {
+  //
+  // And never on `info` either: the info case is "this harness has no mps roles
+  // at all", which is a choice the user has not made yet. Repairing it turned
+  // `--fix` into an installer — after `mps agents uninstall`, the next `--fix`
+  // put all fifteen files back.
+  if (has("agent-roles", "issue") || has("agent-roles", "warn")) {
     const harnesses = detectHarnesses(proj);
     if (harnesses.length) {
       const r = spawnSync(process.execPath,

@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -59,7 +59,7 @@ test("every bundled role is neutral: no harness-specific paths or slash commands
 test("each harness gets the same role in its own dialect, with provenance", () => {
   const role = readRole("critic");
   const claude = renderFor("claude", role, null);
-  assert.match(claude, new RegExp(`^---\\nname: ${PREFIX}critic$`, "m"), "claude keys agents by name");
+  assert.match(claude, new RegExp(`^---\\nname: "${PREFIX}critic"$`, "m"), "claude keys agents by name");
   assert.match(claude, /^model: "opus"$/m, "the reasoning tier maps to opus for Claude Code");
   assert.match(claude, /^tools: "Read, Grep, Glob, Bash, WebFetch, WebSearch"$/m);
 
@@ -249,6 +249,60 @@ test("install and --fix never overwrite a file mps did not generate", () => {
 
   mps(proj, ["doctor", "--fix"]);
   assert.equal(readFileSync(p, "utf8"), mine, "the user's file survives doctor --fix, which is where it used to die");
+});
+
+test("a model cannot be pinned for a harness whose files cannot carry one", () => {
+  const { proj } = bound();
+  const r = mps(proj, ["agents", "model", "harness:codex", "some/model"], { expectFail: true });
+  assert.notEqual(r.status, 0, "accepting a key we then discard is worse than refusing it");
+  assert.match(r.stderr, /carry no model/);
+  const cfg = JSON.parse(readFileSync(join(proj, ".mps", "projectstore.json"), "utf8"));
+  assert.ok(!(cfg.agents && cfg.agents.per_harness && cfg.agents.per_harness.codex),
+    "and nothing was written to the config");
+  mps(proj, ["agents", "model", "harness:opencode", "anthropic/claude-sonnet-4-5"]);
+});
+
+test("uninstall leaves no empty directory for detection to trip over", () => {
+  const { proj } = bound();
+  mps(proj, ["agents", "install", "--harness", "all"]);
+  mps(proj, ["agents", "uninstall", "--harness", "all"]);
+  for (const d of [".claude", ".opencode", ".codex"]) {
+    assert.ok(!existsSync(join(proj, d)),
+      `${d} survived uninstall — detection is by directory, so the harness would come back`);
+  }
+  // …and the repair path must not reinstall behind the user's back either.
+  mps(proj, ["doctor", "--fix"]);
+  assert.equal(readdirSync(proj).filter((n) => [".claude", ".opencode", ".codex"].includes(n)).length, 0,
+    "doctor --fix put the roles back after an explicit uninstall");
+});
+
+test("doctor --fix repairs drift but never installs roles a project has not asked for", () => {
+  const { proj } = bound();
+  writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");   // a harness in use, no roles
+  const findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  const info = findings.find((f) => f.check === "agent-roles" && f.level === "info");
+  assert.ok(info, "the offer is made as info");
+
+  mps(proj, ["doctor", "--fix"]);
+  assert.ok(!existsSync(join(proj, ".claude", "agents")), "an info-level offer is not a repair");
+
+  // A partially installed set IS drift, and --fix does repair that.
+  mps(proj, ["agents", "install", "--harness", "claude"]);
+  rmSync(join(proj, ".claude", "agents", `${PREFIX}critic.md`));
+  mps(proj, ["doctor", "--fix"]);
+  assert.ok(existsSync(join(proj, ".claude", "agents", `${PREFIX}critic.md`)), "a missing file is restored");
+});
+
+test("a role declaring a vendor model id instead of a tier is rejected", () => {
+  const dir = mkdtempSync(join(tmpdir(), "mps-roles-"));
+  mkdirSync(join(dir, "agents"), { recursive: true });
+  writeFileSync(join(dir, "agents", "upstreamish.md"),
+    "---\nname: upstreamish\ndescription: x\nmodel: opus\ntools: [read]\n---\nbody\n", "utf8");
+  const r = spawnSync(process.execPath, ["-e",
+    `import(${JSON.stringify(join(REPO, "scripts", "agents.mjs"))}).then(m => m.readRole("upstreamish")).catch(e => console.log(e.message))`],
+    { encoding: "utf8", env: { ...process.env, MPS_HOME: dir } });
+  assert.match(r.stdout, /not a neutral tier/,
+    "an upstream role file must fail loudly, not render with the model silently dropped");
 });
 
 test("register writes exactly one routing block and migrates it in place", () => {
