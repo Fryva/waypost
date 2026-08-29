@@ -1,0 +1,344 @@
+#!/usr/bin/env node
+// mps — MultiProjectStore: harness-agnostic project store & verified loop.
+// One entry point for Claude Code, Codex and OpenCode. The dispatcher owns
+// every write to disk; the scripts under scripts/ stay pure compute printing
+// JSON, which is what lets doctor re-run them to detect drift.
+//
+// Subcommands: see help() at the bottom, or `mps help`.
+
+import { resolve, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const SCRIPT = (name) => join(ROOT, "scripts", `${name}.mjs`);
+const VERSION = (() => {
+  try { return JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version; }
+  catch { return "0.0.0"; }
+})();
+
+function fail(msg) {
+  process.stderr.write(`mps: ${msg}\n`);
+  process.exit(1);
+}
+
+// Run a core script. `capture` pipes stdout so the dispatcher can act on the
+// JSON; otherwise the child owns the terminal. Either way the child's exit
+// code is ours — a harness scripting `mps doctor && ...` must see failures.
+function run(script, args = [], { capture = false } = {}) {
+  const r = spawnSync(process.execPath, [SCRIPT(script), ...args], {
+    encoding: "utf8",
+    stdio: capture ? ["inherit", "pipe", "inherit"] : "inherit",
+    env: { ...process.env, MPS_HOME: process.env.MPS_HOME || ROOT },
+  });
+  if (r.error) fail(`${script}: ${r.error.message}`);
+  if (r.status !== 0) process.exit(r.status ?? 1);
+  return capture ? r.stdout : "";
+}
+
+function runJson(script, args = []) {
+  const out = run(script, args, { capture: true });
+  try {
+    return JSON.parse(out);
+  } catch {
+    process.stdout.write(out);
+    fail(`${script}: expected JSON on stdout`);
+  }
+}
+
+function projectRoot() {
+  return process.env.MPS_PROJECT_DIR || process.env.CLAUDE_PROJECT_DIR || process.cwd();
+}
+
+function configPath() {
+  const r = projectRoot();
+  const mps = join(r, ".mps", "projectstore.json");
+  if (existsSync(mps)) return mps;
+  const legacy = join(r, ".claude", "projectstore.json");
+  return existsSync(legacy) ? legacy : mps;
+}
+
+function readConfig() {
+  const p = configPath();
+  if (!existsSync(p)) return null;
+  try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
+}
+
+function flag(args, name) {
+  return args.includes(name);
+}
+
+function opt(args, name, dflt = null) {
+  const i = args.indexOf(name);
+  if (i !== -1 && args[i + 1] && !args[i + 1].startsWith("--")) return args[i + 1];
+  const eq = args.find((a) => a.startsWith(`${name}=`));
+  return eq ? eq.slice(name.length + 1) : dflt;
+}
+
+function positionals(args) {
+  const out = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a.startsWith("--")) { if (!a.includes("=") && args[i + 1] && !args[i + 1].startsWith("--")) i++; continue; }
+    out.push(a);
+  }
+  return out;
+}
+
+// ─── bind ──────────────────────────────────────────────────────────────
+
+function handleBind(args) {
+  const [vault] = positionals(args);
+  if (!vault) fail('bind <vault-path> [--layout engineering] [--lang en|ru|es|de|fr|zh]');
+  const abs = resolve(vault.replace(/^~(?=\/|$)/, process.env.HOME || "~"));
+  const layout = opt(args, "--layout", "engineering");
+  const lang = opt(args, "--lang", "en");
+  if (!existsSync(join(ROOT, "scaffold", "layouts", `${layout}.json`))) {
+    fail(`unknown layout "${layout}" — available: ${readdirSync(join(ROOT, "scaffold", "layouts")).map((n) => n.replace(/\.json$/, "")).join(", ")}`);
+  }
+  if (!existsSync(join(ROOT, "templates", lang))) {
+    fail(`unknown language "${lang}" — available: ${readdirSync(join(ROOT, "templates")).filter((n) => !n.includes(".")).join(", ")}`);
+  }
+  const existing = readConfig();
+  if (existing && existing.vault_path && resolve(existing.vault_path) !== abs && !flag(args, "--force")) {
+    fail(`already bound to ${existing.vault_path} — re-run with --force to rebind to ${abs}`);
+  }
+  mkdirSync(abs, { recursive: true });
+  const cfgPath = join(projectRoot(), ".mps", "projectstore.json");
+  mkdirSync(dirname(cfgPath), { recursive: true });
+  const cfg = {
+    ...(existing || {}),
+    vault_path: abs,
+    layout,
+    language: lang,
+    default_author: (existing && existing.default_author) || gitUser(),
+    mps: { version: VERSION },
+  };
+  writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + "\n", "utf8");
+  process.stdout.write(`bound  ${abs}\nconfig ${cfgPath}\n`);
+  process.env.MPS_PROJECT_DIR = projectRoot();
+  handleScaffold([]);
+  process.stdout.write(
+    "\nnext:\n" +
+    "  mps agents install         install the roles into the harnesses this project uses\n" +
+    '  mps draft adr "<title>" --write\n' +
+    "  mps doctor\n",
+  );
+}
+
+function gitUser() {
+  const r = spawnSync("git", ["config", "--get", "user.name"], { encoding: "utf8" });
+  return (r.stdout || "").trim() || process.env.USER || "unknown";
+}
+
+// ─── scaffold ──────────────────────────────────────────────────────────
+
+// The deterministic half of upstream's /bind: layout folders and their index
+// READMEs. Prose lives in prompts/bind.md; the directories are mechanical, so
+// they are the CLI's job and never an LLM's.
+function handleScaffold(args) {
+  const cfg = readConfig();
+  if (!cfg || !cfg.vault_path) fail("no bound vault — run `mps bind <vault-path>` first");
+  const layout = JSON.parse(readFileSync(join(ROOT, "scaffold", "layouts", `${cfg.layout || "engineering"}.json`), "utf8"));
+  const lang = cfg.language || "en";
+  const created = [];
+  for (const folder of layout.folders) {
+    const dir = join(cfg.vault_path, folder.path);
+    if (!existsSync(dir)) { mkdirSync(dir, { recursive: true }); created.push(folder.path + "/"); }
+    if (!folder.readme) continue;
+    const p = join(dir, "README.md");
+    if (existsSync(p)) continue;
+    const tmpl = readFileSync(join(ROOT, "templates", lang, "folder-readme.md.tmpl"), "utf8");
+    const title = folder.path.charAt(0).toUpperCase() + folder.path.slice(1);
+    // doctor reads the first prose paragraph as the folder's purpose, so the
+    // default has to say what the folder holds, not merely name it.
+    writeFileSync(p, tmpl
+      .replace(/\{\{folder_name\}\}/g, title)
+      .replace(/\{\{folder_description\}\}/g,
+        `\`${folder.kind}\` artifacts of the \`${layout.name}\` layout, maintained by mps.`), "utf8");
+    created.push(`${folder.path}/README.md`);
+  }
+  if (!created.length) process.stdout.write("scaffold: vault already complete\n");
+  else process.stdout.write(`scaffold: created ${created.length} item(s)\n  ${created.join("\n  ")}\n`);
+  if (flag(args, "--json")) process.stdout.write(JSON.stringify({ created }, null, 2) + "\n");
+}
+
+// ─── draft ─────────────────────────────────────────────────────────────
+
+function handleDraft(args) {
+  const pos = positionals(args);
+  const [kind, ...rest] = pos;
+  if (!kind || !rest.length) {
+    fail('draft <adr|spec|epic|story|research|concept|meeting|runbook> "<title>" [--write]\n' +
+         '       draft epic <EPIC-ID> "<title>"   |   draft story <EPIC-ID> "<title>"');
+  }
+  const out = runJson("draft", [kind, ...rest]);
+  if (!flag(args, "--write")) {
+    process.stdout.write(JSON.stringify(out, null, 2) + "\n");
+    return;
+  }
+  if (out.collision) {
+    fail(`topic collision: "${out.collision.identity || kind}" already exists as ${out.collision.with}. ` +
+         "Extend that artifact, or pick a different title.");
+  }
+  if (existsSync(out.path)) fail(`refusing to overwrite ${out.path}`);
+  mkdirSync(dirname(out.path), { recursive: true });
+  writeFileSync(out.path, out.content, "utf8");
+  process.stdout.write(`created ${out.path}\n`);
+  for (const w of out.warnings || []) process.stdout.write(`⚠️  ${w}\n`);
+  // The index row and the board are derived views: regenerate rather than
+  // patch, so a hand-edit can never leave them permanently out of step.
+  run("reconcile", ["--write"], { capture: true });
+  process.stdout.write("derived views reconciled (indexes, kanban, code-map, graph)\n");
+}
+
+// ─── story gates ───────────────────────────────────────────────────────
+
+function handleStory(args) {
+  const [mode, storyPath] = positionals(args);
+  if (!["plan", "close"].includes(mode) || !storyPath) {
+    fail("story <plan|close> <story-path> [--write]");
+  }
+  const out = runJson("story-section", [mode, storyPath]);
+  if (!flag(args, "--write")) {
+    process.stdout.write(JSON.stringify({ ...out, content: undefined }, null, 2) + "\n");
+    process.stdout.write("(preview only — re-run with --write to apply)\n");
+    return;
+  }
+  if (!out.changed) { process.stdout.write(`unchanged ${out.path}\n`); return; }
+  writeFileSync(out.path, out.content, "utf8");
+  process.stdout.write(`${mode}  ${out.path}\n  ${(out.notes || []).join("\n  ")}\n`);
+  run("reconcile", ["--write"], { capture: true });
+}
+
+// ─── derived views ─────────────────────────────────────────────────────
+
+const DERIVED = { kanban: "kanban", graph: "graph", codemap: "codemap" };
+
+function handleDerived(cmd, args) {
+  if (flag(args, "--json")) { process.stdout.write(run(DERIVED[cmd] === "codemap" ? "codemap" : cmd, [], { capture: true })); return; }
+  const out = runJson("reconcile", ["--write", "--only", DERIVED[cmd]]);
+  const target = out[cmd === "codemap" ? "codemap" : cmd] || {};
+  if (target.error) fail(`${cmd}: ${target.error}`);
+  if (target.skipped) { process.stdout.write(`${cmd}: ${target.skipped}\n`); return; }
+  process.stdout.write(`${target.written ? "written" : "unchanged"} ${target.path || cmd}\n`);
+}
+
+// ─── prompts & skills ──────────────────────────────────────────────────
+
+function printDoc(dir, name, suffix) {
+  const base = join(ROOT, dir);
+  const names = readdirSync(base)
+    .map((n) => n.replace(/\.md$/, ""))
+    .filter((n) => !n.startsWith("."))
+    .sort();
+  if (!name) {
+    process.stdout.write(`${dir}:\n  ${names.join("\n  ")}\n\nPrint one with: mps ${dir === "prompts" ? "prompt" : "skill"} <name>\n`);
+    return;
+  }
+  const p = suffix ? join(base, name, suffix) : join(base, `${name}.md`);
+  if (!existsSync(p)) fail(`no such ${dir === "prompts" ? "prompt" : "skill"}: ${name} (have: ${names.join(", ")})`);
+  process.stdout.write(readFileSync(p, "utf8"));
+}
+
+// ─── status ────────────────────────────────────────────────────────────
+
+function handleStatus() {
+  const p = configPath();
+  const cfg = readConfig();
+  process.stdout.write(`mps ${VERSION}\n`);
+  if (!cfg) {
+    process.stdout.write(`config  (none — run \`mps bind <vault-path>\`)\n        expected at ${p}\n`);
+    return;
+  }
+  process.stdout.write(`config  ${p}\n`);
+  process.stdout.write(`vault   ${cfg.vault_path || "(unset)"}${cfg.vault_path && !existsSync(cfg.vault_path) ? "  ⚠️ missing" : ""}\n`);
+  process.stdout.write(`layout  ${cfg.layout || "engineering"}\n`);
+  process.stdout.write(`lang    ${cfg.language || "en"}\n`);
+  const model = cfg.agents && cfg.agents.default && cfg.agents.default.model;
+  if (model) process.stdout.write(`agents  default model: ${model}\n`);
+  process.stdout.write("\n");
+  run("agents", ["list"]);
+}
+
+function help() {
+  process.stdout.write(`mps — MultiProjectStore ${VERSION}
+
+USAGE
+  mps <command> [args]
+
+VAULT
+  bind <vault-path>        bind a vault and scaffold the layout (alias: init)
+                           [--layout <name>] [--lang <en|ru|es|de|fr|zh>] [--force]
+  scaffold                 (re)create the layout's folders and index READMEs
+  status                   bound-vault summary + agent-role install state
+  draft <kind> "<title>"   render an artifact; --write creates it and reconciles
+                           kinds: adr spec epic story research concept meeting runbook
+  story <plan|close> <p>   story lifecycle gate; --write applies
+  kanban | graph | codemap regenerate one derived view (--json to preview only)
+  reconcile [--write]      re-derive every view (indexes, kanban, code-map, graph)
+  brief                    session-start orientation packet (run it when you
+                           start work: where things live, what is in flight)
+  doctor [flags]           deterministic diagnostics (--install|--vault|--fix)
+  diff-refs [flags]        changed-file evidence for code_refs
+
+ROLES (same roles in every harness)
+  agents list              roles + per-harness install state
+  agents show <role>       print the role prompt (fresh-context handoff)
+  agents install           render roles into .claude/agents, .opencode/agent,
+                           .codex/prompts  [--harness claude,opencode,codex|all]
+  agents uninstall         remove generated role files
+  agents register          write the routing block into AGENTS.md / CLAUDE.md
+  agents model <role|default> <id>   pin a model for the roles
+
+PROCEDURES
+  prompt [name]            print a workflow procedure (the verified loop's steps)
+  skill [name]             print a skill (proactive procedure)
+  sessions [--touch]       active-session registry (--prune, --json)
+  tokens [flags]           what the loop cost, from Claude Code transcripts
+                           (Claude-only: no other harness writes them)
+
+HARNESS-AGNOSTIC
+  No hooks, no status line, no slash commands: the CLI is the interface, and
+  the roles are rendered into whatever each harness understands.
+  Project root: MPS_PROJECT_DIR (else cwd). Tool root: MPS_HOME.
+`);
+}
+
+function main() {
+  const argv = process.argv.slice(2);
+  const iProject = argv.indexOf("--project");
+  if (iProject !== -1 && argv[iProject + 1]) process.env.MPS_PROJECT_DIR = resolve(argv[iProject + 1]);
+  const iHome = argv.indexOf("--home");
+  if (iHome !== -1 && argv[iHome + 1]) process.env.MPS_HOME = resolve(argv[iHome + 1]);
+  const args = argv.filter((a, i) =>
+    !["--project", "--home"].includes(a) && !["--project", "--home"].includes(argv[i - 1]));
+  const [cmd = "help", ...rest] = args;
+
+  switch (cmd) {
+    case "bind": case "init": handleBind(rest); break;
+    case "scaffold": handleScaffold(rest); break;
+    case "draft": handleDraft(rest); break;
+    case "story": handleStory(rest); break;
+    case "kanban": case "graph": case "codemap": handleDerived(cmd, rest); break;
+    case "reconcile": run("reconcile", rest); break;
+    case "doctor": run("doctor", rest); break;
+    case "diff-refs": run("diff-refs", rest); break;
+    case "agents": run("agents", rest); break;
+    case "sessions": run("sessions", rest); break;
+    case "brief": run("brief", rest); break;
+    case "tokens": run("tokens", rest); break;
+    case "prompt": printDoc("prompts", positionals(rest)[0]); break;
+    case "skill": printDoc("skills", positionals(rest)[0], "SKILL.md"); break;
+    case "status": handleStatus(); break;
+    case "version": case "--version": case "-v": process.stdout.write(`${VERSION}\n`); break;
+    case "help": case "--help": case "-h": help(); break;
+    default:
+      process.stderr.write(`mps: unknown command "${cmd}"\n\n`);
+      help();
+      process.exit(1);
+  }
+}
+
+main();

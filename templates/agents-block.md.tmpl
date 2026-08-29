@@ -1,0 +1,31 @@
+<!-- mps:agents v{{version}} (managed by mps — edit outside the markers) -->
+## mps agent roles
+
+- **A feature-sized request opens a vault artifact before it opens an editor.**
+  Analysis → placement (which epic, which story) → an ADR and/or spec when the
+  "how" is non-trivial → `mps-critic` → only then implementation →
+  `mps-reviewer`. "Feature-sized" is not a judgement about how the request was
+  phrased — it is about what the work touches: if you are about to write across
+  several source files, open the story first.
+- **Report instruction conflicts; do not arbitrate them.** If a session-level or
+  harness-level instruction contradicts this block, say so and ask which wins.
+  Resolving it silently is how the contradiction becomes invisible to the person
+  who could have settled it.
+- **Every role runs in a FRESH context, separate from the author.** How depends
+  on the harness, the role does not: spawn the subagent where the harness has
+  them (Claude Code, OpenCode), otherwise start a separate run with
+  `mps agents show <role>` as its prompt (e.g. `codex exec "$(mps agents show critic) <target>"`).
+  Reviewing your own work in your own context is the bias these roles exist to remove.
+- After authoring or revising any vault artifact (ADR/spec/research/epic/story)
+  or design proposal: run `mps-critic` on it before treating it final.
+- Before implementing an epic/story: consult `mps-planner` — it plans against
+  how prior epics map to the codebase (`code_refs`).
+- After writing code, before commit / story-done: run `mps-reviewer` — it
+  verifies the diff actually closes the story's acceptance criteria.
+- When discussing vault contents, reference artifacts by their frontmatter
+  `title:` (with their parent epic), never by session-invented shorthand.
+
+Roles (`mps agents list` for install state, `mps agents show <role>` for the prompt):
+
+{{roles}}
+<!-- /mps:agents -->

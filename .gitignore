@@ -1,0 +1,6 @@
+node_modules/
+*.log
+# Machine-local bind + runtime state. Generated agent role files
+# (.claude/agents, .opencode/agent, .codex/prompts) are NOT ignored:
+# committing them is how a team gets the same roles.
+.mps/
