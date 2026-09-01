@@ -9,7 +9,8 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { listRoles, roleNames, readRole, renderFor, renderHashOf, PREFIX, HARNESSES } from "../scripts/agents.mjs";
+import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
+  harnessIds, harness as harnessOf, PREFIX, HARNESSES } from "../scripts/agents.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const MPS = join(REPO, "bin", "mps");
@@ -101,6 +102,10 @@ function assertFrontmatterScalars(text, where) {
       continue;
     }
     if (/^(true|false|null|\d+(\.\d+)?)$/.test(v)) continue;
+    if (v.startsWith("[")) {           // a flow sequence, emitted as JSON
+      assert.doesNotThrow(() => JSON.parse(v), `${where}: ${key} looks like a list but is not valid JSON/YAML flow`);
+      continue;
+    }
     assert.ok(!v.includes(": "), `${where}: unquoted ${key} contains ": " — ends the plain scalar, breaks the file`);
     assert.ok(!/ #/.test(v), `${where}: unquoted ${key} contains " #" — starts a comment`);
     assert.ok(!/^[[\]{}&*!|>%@`]/.test(v), `${where}: unquoted ${key} starts with a YAML indicator`);
@@ -108,13 +113,28 @@ function assertFrontmatterScalars(text, where) {
 }
 
 test("every render of every role has parseable frontmatter", () => {
+  // Only the shapes that HAVE frontmatter: an aggregate entry is an object and
+  // a TOML command is not YAML at all — those are covered by the registry test.
+  const yamlish = harnessIds().filter((id) => ["frontmatter-md", "prompt-md"].includes(harnessOf(id).roles.shape));
+  assert.ok(yamlish.length >= 3);
   for (const name of roleNames()) {
     const role = readRole(name);
-    assert.ok(/: /.test(role.description) || true);
-    for (const h of HARNESSES) {
+    for (const h of yamlish) {
       assertFrontmatterScalars(renderFor(h, role, null), `${h}/${name}`);
       assertFrontmatterScalars(renderFor(h, role, { agents: { default: { model: "sonnet" } } }), `${h}/${name} (pinned)`);
     }
+  }
+});
+
+test("a TOML command file is valid TOML, and the prompt inside it is closed", () => {
+  for (const name of roleNames()) {
+    const text = renderFor("gemini", readRole(name), null);
+    const lines = text.split("\n");
+    assert.match(lines[0], /^description = "/, "description is a quoted TOML string");
+    assert.doesNotThrow(() => JSON.parse(lines[0].replace(/^description = /, "")));
+    assert.equal((text.match(/^"""$/gm) || []).length, 1, "the prompt's closing delimiter appears exactly once");
+    assert.match(text, /^prompt = """$/m);
+    assert.ok(!text.split('prompt = """')[1].includes('"""\n\n'), "nothing follows the closed prompt");
   }
 });
 
@@ -127,6 +147,71 @@ test("a role naming a tool outside the neutral vocabulary is rejected at read ti
     `import(${JSON.stringify(join(REPO, "scripts", "agents.mjs"))}).then(m => m.readRole("bogus")).catch(e => { console.log(e.message); })`],
     { encoding: "utf8", env: { ...process.env, MPS_HOME: dir } });
   assert.match(r.stdout, /unknown tool\(s\) telepathy/, "the error names the tool and the file");
+});
+
+test("the harness registry is data, and every entry renders every role", () => {
+  const ids = harnessIds();
+  assert.ok(ids.length >= 8, `the registry ships a real spread of harnesses, got ${ids.length}`);
+  for (const id of ids) {
+    const h = harnessOf(id);
+    assert.ok(h.detect && h.detect.length, `${id}: declares how it is detected`);
+    assert.ok(h.roles && h.roles.shape, `${id}: declares a role shape`);
+    for (const name of roleNames()) {
+      const out = renderFor(id, readRole(name), null);
+      const text = typeof out === "string" ? out : JSON.stringify(out, null, 2);
+      assert.ok(installedRoleOf(text), `${id}/${name}: carries provenance whatever the shape`);
+      const hh = renderHashOf(text);
+      assert.equal(hh.claimed, hh.actual, `${id}/${name}: the render hash describes what it is in`);
+      assert.ok(text.includes(readRole(name).body.split("\n")[0]), `${id}/${name}: carries the prompt`);
+    }
+  }
+});
+
+test("a project can add a harness without touching the code", () => {
+  const { proj } = bound();
+  mkdirSync(join(proj, ".mps", "harnesses"), { recursive: true });
+  mkdirSync(join(proj, ".myagent"), { recursive: true });
+  writeFileSync(join(proj, ".mps", "harnesses", "myagent.json"), JSON.stringify({
+    id: "myagent", name: "My Agent", detect: [".myagent"],
+    roles: { shape: "prompt-md", dir: ".myagent/roles", file: "{prefix}{role}.md", model: false,
+             fields: [["description", "{description}"]] },
+  }), "utf8");
+
+  const listed = mps(proj, ["harnesses"]).stdout;
+  assert.match(listed, /myagent/, "the registry picks up a project-local entry");
+  mps(proj, ["agents", "install"]);
+  const p = join(proj, ".myagent", "roles", `${PREFIX}critic.md`);
+  assert.ok(existsSync(p), "and installs into it, with no code change");
+  assert.ok(installedRoleOf(readFileSync(p, "utf8")), "with the same provenance contract");
+  mps(proj, ["agents", "uninstall", "--harness", "myagent"]);
+  assert.ok(!existsSync(p));
+});
+
+test("an aggregate harness merges into its shared file and leaves other entries alone", () => {
+  const { proj } = bound();
+  mps(proj, ["agents", "install", "--harness", "roo"]);
+  const read = () => JSON.parse(readFileSync(join(proj, ".roomodes"), "utf8"));
+  assert.deepEqual(read().customModes.map((m) => m.slug).sort(),
+    roleNames().map((n) => PREFIX + n).sort(), "every role became a mode");
+
+  const doc = read();
+  doc.customModes.push({ slug: "my-mode", name: "mine", roleDefinition: "hand written" });
+  writeFileSync(join(proj, ".roomodes"), JSON.stringify(doc, null, 2), "utf8");
+  mps(proj, ["agents", "install", "--harness", "roo"]);
+  assert.ok(read().customModes.some((m) => m.slug === "my-mode"), "a user's own mode survives install");
+
+  mps(proj, ["agents", "uninstall", "--harness", "roo"]);
+  assert.deepEqual(read().customModes.map((m) => m.slug), ["my-mode"],
+    "uninstall removes only the modes mps generated");
+});
+
+test("uninstall clears nested empty directories, whatever the file is named", () => {
+  const { proj } = bound();
+  mps(proj, ["agents", "install", "--harness", "gemini"]);     // .gemini/commands/mps/<role>.toml — no prefix in the name
+  assert.ok(existsSync(join(proj, ".gemini", "commands", "mps", "critic.toml")));
+  mps(proj, ["agents", "uninstall", "--harness", "gemini"]);
+  assert.ok(!existsSync(join(proj, ".gemini")),
+    "a namespace directory left behind would make detection resurrect the harness");
 });
 
 test("install: idempotent, per-harness, and detected harnesses are the default", () => {
@@ -460,10 +545,10 @@ test("help lists every command the dispatcher actually implements", () => {
   const proj = project();
   const help = mps(proj, ["help"]).stdout;
   for (const cmd of ["bind", "scaffold", "status", "draft", "story", "kanban", "graph", "codemap",
-    "reconcile", "doctor", "diff-refs", "agents", "prompt", "skill", "sessions", "brief"]) {
+    "reconcile", "doctor", "diff-refs", "agents", "harnesses", "prompt", "skill", "sessions", "brief"]) {
     assert.ok(help.includes(cmd), `help mentions ${cmd}`);
   }
-  for (const h of HARNESSES) assert.ok(help.includes(h) || h === "claude", `help mentions ${h}`);
+  assert.ok(help.includes("harnesses"), "help points at the registry rather than enumerating it");
 });
 
 test("prompts and skills print, and name no upstream slash command", () => {

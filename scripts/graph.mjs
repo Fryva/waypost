@@ -29,7 +29,7 @@ import {
 import { walkVaultFiles } from "./doctor.mjs";
 
 function die(msg) {
-  process.stderr.write(`projectstore/graph: ${msg}\n`);
+  process.stderr.write(`mps graph: ${msg}\n`);
   process.exit(1);
 }
 

@@ -80,7 +80,8 @@ denied outright, and everywhere the shell stays available — these roles need
 
 ```bash
 mps agents list                       # roster + install state per harness
-mps agents install --harness all      # or claude,opencode,codex
+mps harnesses                         # every harness it can render into
+mps agents install --harness cursor   # or a list, or `all`
 mps agents show critic adr/foo.md     # the raw prompt, for a harness with neither
 mps agents model default sonnet       # pin a model, then re-install
 mps agents model harness:opencode anthropic/claude-sonnet-4-5
@@ -90,12 +91,27 @@ mps agents model harness:opencode anthropic/claude-sonnet-4-5
 with a published tier naming (today: Claude Code). For the others, name the
 model per harness — a bare `sonnet` is not an id OpenCode can resolve.
 
-| Harness | File | What it becomes |
-|---|---|---|
-| Claude Code | `.claude/agents/mps-<role>.md` | a subagent |
-| OpenCode | `.opencode/agent/mps-<role>.md` | a `mode: subagent` agent with a tool map |
-| Codex | `.codex/prompts/mps-<role>.md` | a custom prompt (`/mps-critic`) |
-| anything else | — | `codex exec "$(mps agents show critic) <target>"` |
+A harness is **data**, not code — `harnesses/<id>.json` says where its role
+files go and what shape they are, so supporting one more agent CLI is a JSON
+file, and a project can add or override an entry in `.mps/harnesses/`:
+
+| id | Harness | Roles land in | Status |
+|----|---------|---------------|--------|
+| `claude` | Claude Code | `.claude/agents/mps-<role>.md` | verified |
+| `opencode` | OpenCode | `.opencode/agent/mps-<role>.md` | verified |
+| `codex` | Codex CLI | `.codex/prompts/mps-<role>.md` | verified |
+| `cursor` | Cursor | `.cursor/rules/mps-<role>.mdc` | best-effort |
+| `windsurf` | Windsurf | `.windsurf/workflows/mps-<role>.md` | best-effort |
+| `copilot` | GitHub Copilot | `.github/chatmodes/mps-<role>.chatmode.md` | best-effort |
+| `gemini` | Gemini CLI | `.gemini/commands/mps/<role>.toml` | best-effort |
+| `cline` | Cline | `.clinerules/workflows/mps-<role>.md` | best-effort |
+| `roo` | Roo Code | `.roomodes` (merged, your own modes untouched) | best-effort |
+| anything else | — | `<your-cli> "$(mps agents show critic) <target>"` |
+
+`mps harnesses` prints the list with what this project actually uses marked, and
+`docs/harnesses.md` has the schema for adding your own. *verified* means the
+format was checked against that harness's documentation; *best-effort* means it
+follows the documented shape but has not been run there.
 
 Generated files carry a provenance line with a hash of the render, so
 `mps doctor` sees any drift — an edited file, a changed role, a changed model,

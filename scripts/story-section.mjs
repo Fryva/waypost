@@ -34,7 +34,7 @@ import {
 } from "./lib.mjs";
 
 function die(msg) {
-  process.stderr.write(`projectstore/story-section: ${msg}\n`);
+  process.stderr.write(`mps story-section: ${msg}\n`);
   process.exit(1);
 }
 

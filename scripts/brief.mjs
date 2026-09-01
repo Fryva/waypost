@@ -30,7 +30,14 @@ async function main() {
     process.exit(1);
   }
   const i = args.indexOf("--budget");
-  const budgetMs = i !== -1 && args[i + 1] ? Number(args[i + 1]) : 400;
+  let budgetMs = 400;
+  if (i !== -1) {
+    budgetMs = Number(args[i + 1]);
+    if (!Number.isFinite(budgetMs) || budgetMs <= 0) {
+      process.stderr.write(`mps brief: --budget takes a positive number of milliseconds, got "${args[i + 1]}"\n`);
+      process.exit(1);
+    }
+  }
   const { facts, text } = await brief(cfg, { budgetMs });
   process.stdout.write(args.includes("--json") ? JSON.stringify(facts, null, 2) + "\n" : text);
 }

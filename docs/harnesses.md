@@ -1,0 +1,112 @@
+# Harnesses
+
+MPS renders one set of agent roles into whatever the harness in front of you
+understands. A harness is **data**, not code: `harnesses/<id>.json` says where
+its role files live, what shape they are and whether they can carry a model.
+Adding support for one more agent CLI is a JSON file.
+
+```bash
+mps harnesses                       # what is known, where roles land, how to invoke
+mps agents install --harness cursor # render into one
+mps agents install                  # …or into whatever this project uses
+```
+
+## What ships
+
+| id | Harness | Roles land in | Shape | Status |
+|----|---------|---------------|-------|--------|
+| `claude` | Claude Code | `.claude/agents/mps-<role>.md` | subagent | verified |
+| `opencode` | OpenCode | `.opencode/agent/mps-<role>.md` | subagent | verified |
+| `codex` | Codex CLI | `.codex/prompts/mps-<role>.md` | prompt | verified |
+| `cursor` | Cursor | `.cursor/rules/mps-<role>.mdc` | rule | best-effort |
+| `windsurf` | Windsurf | `.windsurf/workflows/mps-<role>.md` | workflow | best-effort |
+| `copilot` | GitHub Copilot | `.github/chatmodes/mps-<role>.chatmode.md` | chat mode | best-effort |
+| `gemini` | Gemini CLI | `.gemini/commands/mps/<role>.toml` | command | best-effort |
+| `cline` | Cline | `.clinerules/workflows/mps-<role>.md` | workflow | best-effort |
+| `roo` | Roo Code | `.roomodes` (merged) | custom mode | best-effort |
+
+**verified** means the file format was checked against that harness's own
+documentation. **best-effort** means it follows the documented shape but has not
+been run inside that harness by this project's author — if your version wants a
+different key, override the entry (below) and, ideally, send the fix upstream.
+
+Any harness not in the table still works, with no adapter at all:
+
+```bash
+<your-cli> "$(mps agents show critic) docs/decisions/0003-….md"
+```
+
+That is the floor the whole design rests on — a role is a prompt, and every
+adapter is a convenience on top of it.
+
+## Adding or overriding one
+
+Drop a JSON file in `<project>/.mps/harnesses/<id>.json`. A project entry with
+the same id replaces the bundled one, so this is also how you fix a format that
+changed under you without waiting for a release.
+
+```json
+{
+  "id": "myagent",
+  "name": "My Agent",
+  "detect": [".myagent", "MYAGENT.md"],
+  "instructions": [".myagent/rules.md"],
+  "invoke": "/mps-<role> <target>",
+  "roles": {
+    "shape": "prompt-md",
+    "dir": ".myagent/roles",
+    "file": "{prefix}{role}.md",
+    "model": false,
+    "fields": [["description", "{description}"]]
+  }
+}
+```
+
+### Fields
+
+| Key | Meaning |
+|-----|---------|
+| `id` | registry key; the value `--harness <id>` takes |
+| `detect` | paths that mean "this project uses this harness" (directory or file) |
+| `instructions` | files the routing block is written into by `mps agents register` |
+| `invoke` | one line telling a human (and the block) how to reach a role there |
+| `after_install` | printed after install — for a manual step the CLI cannot do |
+| `verified` | `true` only when the format was checked against the harness's docs |
+| `roles.shape` | `frontmatter-md`, `prompt-md`, `toml-prompt` or `aggregate-json` |
+| `roles.dir` / `roles.file` | where a role lands; `{prefix}` and `{role}` substitute |
+| `roles.model` | `false` if the format carries no model, else `{ "tiers": {…} }` |
+| `roles.tools` | `{ "style": "claude" \| "opencode-map" \| "copilot-list" }`, or omitted |
+| `roles.fields` | ordered `[key, template]` frontmatter; empty values are dropped |
+| `roles.entry` | `aggregate-json` only: the object written per role |
+
+Templates substitute `{prefix}`, `{role}`, `{name}`, `{description}`, `{mode}`,
+`{effort}`, `{model}`, `{tools}`, `{body}`. A field whose value comes out empty
+is omitted entirely — that is how "this harness has no model" and "this role
+declares no effort" end up being the same rule.
+
+### Shapes
+
+- **`frontmatter-md`** — one file per role: YAML frontmatter, then the prompt.
+  Claude Code, OpenCode, Cursor, Copilot.
+- **`prompt-md`** — one file per role, plus a preamble carrying `$ARGUMENTS` and
+  the read-only contract in prose. Codex, Windsurf, Cline.
+- **`toml-prompt`** — `description` + `prompt = """…"""`. Gemini CLI.
+- **`aggregate-json`** — every role is an entry in one shared JSON array, merged
+  rather than overwritten: entries whose key starts with `mps-` are ours,
+  everything else in the file is left alone. Roo Code.
+
+## Guarantees that hold for every harness
+
+- **Provenance.** Every generated file (or entry) carries a line naming the
+  source role and a hash of the render. `mps doctor` compares against what
+  install would write *now*, so a changed role, model or adapter shows up as
+  stale.
+- **Nothing of yours is overwritten.** A file under the `mps-` prefix without
+  that provenance line is skipped by install, skipped by `doctor --fix`, and
+  never deleted by uninstall.
+- **No harness is conjured.** With nothing detected and no `--harness`, install
+  refuses rather than scattering directories. Uninstall removes the directories
+  it emptied, so detection cannot resurrect a harness you removed.
+- **Read-only is a contract.** Where the harness has a tool map, edits are
+  denied there; the shell stays available because these roles need `git diff`,
+  so "never write" is also carried by the prompt itself.

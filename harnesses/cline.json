@@ -1,0 +1,19 @@
+{
+  "id": "cline",
+  "name": "Cline",
+  "home": "https://cline.bot",
+  "verified": false,
+  "detect": [".clinerules"],
+  "instructions": [".clinerules/mps-agents.md", "AGENTS.md"],
+  "invoke": "/mps-<role>.md (workflow), or paste `mps agents show <role>` into a new task",
+  "roles": {
+    "shape": "prompt-md",
+    "dir": ".clinerules/workflows",
+    "file": "{prefix}{role}.md",
+    "model": false,
+    "fields": [
+      ["description", "{description}"]
+    ]
+  },
+  "notes": "Cline workflows live beside the rules and are invoked by filename."
+}

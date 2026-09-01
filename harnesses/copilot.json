@@ -1,0 +1,22 @@
+{
+  "id": "copilot",
+  "name": "GitHub Copilot (VS Code / CLI)",
+  "home": "https://github.com/features/copilot",
+  "verified": false,
+  "detect": [".github/copilot-instructions.md", ".github/chatmodes", ".github/prompts"],
+  "instructions": [".github/copilot-instructions.md", "AGENTS.md"],
+  "invoke": "pick the `mps-<role>` chat mode, or paste `mps agents show <role>`",
+  "roles": {
+    "shape": "frontmatter-md",
+    "dir": ".github/chatmodes",
+    "file": "{prefix}{role}.chatmode.md",
+    "model": { "tiers": {} },
+    "tools": { "style": "copilot-list" },
+    "fields": [
+      ["description", "{description}"],
+      ["model", "{model}"],
+      ["tools", "{tools}"]
+    ]
+  },
+  "notes": "Chat modes are the closest thing to a role. Tool names are Copilot's own vocabulary and are mapped best-effort; check them against your Copilot version."
+}

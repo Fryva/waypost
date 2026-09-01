@@ -25,7 +25,7 @@ import {
 } from "./lib.mjs";
 
 function die(msg) {
-  process.stderr.write(`projectstore/kanban: ${msg}\n`);
+  process.stderr.write(`mps kanban: ${msg}\n`);
   process.exit(1);
 }
 

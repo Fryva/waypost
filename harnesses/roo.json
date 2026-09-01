@@ -1,0 +1,23 @@
+{
+  "id": "roo",
+  "name": "Roo Code",
+  "home": "https://roocode.com",
+  "verified": false,
+  "detect": [".roomodes", ".roo"],
+  "instructions": [".roo/rules/mps-agents.md", "AGENTS.md"],
+  "invoke": "switch to the `mps-<role>` mode",
+  "roles": {
+    "shape": "aggregate-json",
+    "file": ".roomodes",
+    "array": "customModes",
+    "key": "slug",
+    "model": false,
+    "entry": {
+      "slug": "{prefix}{role}",
+      "name": "mps {role}",
+      "roleDefinition": "{body}",
+      "groups": ["read", "command"]
+    }
+  },
+  "notes": "Roo keeps every custom mode in one file, so mps merges into it: entries whose slug starts with mps- are ours, everything else is left untouched."
+}

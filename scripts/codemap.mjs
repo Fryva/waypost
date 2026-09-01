@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { readConfig, loadLayout, folderByKind, parseFrontmatter, nowIso } from "./lib.mjs";
 
 function die(msg) {
-  process.stderr.write(`projectstore/codemap: ${msg}\n`);
+  process.stderr.write(`mps codemap: ${msg}\n`);
   process.exit(1);
 }
 

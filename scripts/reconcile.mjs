@@ -45,7 +45,7 @@ import {
 import { scanArtifacts } from "./doctor.mjs";
 
 function die(msg) {
-  process.stderr.write(`projectstore/reconcile: ${msg}\n`);
+  process.stderr.write(`mps reconcile: ${msg}\n`);
   process.exit(1);
 }
 

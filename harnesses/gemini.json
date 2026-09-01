@@ -1,0 +1,17 @@
+{
+  "id": "gemini",
+  "name": "Gemini CLI",
+  "home": "https://github.com/google-gemini/gemini-cli",
+  "verified": false,
+  "detect": [".gemini", "GEMINI.md"],
+  "instructions": ["GEMINI.md", "AGENTS.md"],
+  "invoke": "/mps:<role> <target>",
+  "roles": {
+    "shape": "toml-prompt",
+    "dir": ".gemini/commands/mps",
+    "file": "{role}.toml",
+    "model": false,
+    "prefix_in_name": false
+  },
+  "notes": "Gemini CLI custom commands are TOML; the directory name becomes the command namespace, so the roles are /mps:critic rather than /mps-critic."
+}

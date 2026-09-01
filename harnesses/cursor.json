@@ -1,0 +1,20 @@
+{
+  "id": "cursor",
+  "name": "Cursor",
+  "home": "https://cursor.com",
+  "verified": false,
+  "detect": [".cursor", ".cursorrules"],
+  "instructions": [".cursor/rules/mps-agents.mdc", "AGENTS.md"],
+  "invoke": "@mps-<role> to pull the rule into context, or paste `mps agents show <role>` into a new chat",
+  "roles": {
+    "shape": "frontmatter-md",
+    "dir": ".cursor/rules",
+    "file": "{prefix}{role}.mdc",
+    "model": false,
+    "fields": [
+      ["description", "{description}"],
+      ["alwaysApply", "false"]
+    ]
+  },
+  "notes": "Cursor has no per-project subagent file format; a rule carries the role prompt and is pulled in on demand. Custom modes are configured in the UI, not in the repo."
+}

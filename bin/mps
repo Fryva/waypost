@@ -65,13 +65,25 @@ function readConfig() {
   try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
 }
 
+// Options that take a value. Everything else starting with `--` is a boolean,
+// which is what separates `draft --write adr "T"` (three tokens, one flag) from
+// `draft --lang ru adr "T"` (four tokens, one flag with a value). Guessing
+// "the token after any flag is its value" ate the first positional whenever a
+// boolean flag was written before it.
+const VALUED = new Set(["--harness", "--layout", "--lang", "--only", "--id", "--file",
+  "--budget", "--project", "--home", "--since"]);
+
 function flag(args, name) {
-  return args.includes(name);
+  return args.includes(name) || args.some((a) => a === `${name}=true`);
 }
 
 function opt(args, name, dflt = null) {
   const i = args.indexOf(name);
-  if (i !== -1 && args[i + 1] && !args[i + 1].startsWith("--")) return args[i + 1];
+  if (i !== -1) {
+    const v = args[i + 1];
+    if (v === undefined) fail(`${name} requires a value`);
+    return v;
+  }
   const eq = args.find((a) => a.startsWith(`${name}=`));
   return eq ? eq.slice(name.length + 1) : dflt;
 }
@@ -80,7 +92,7 @@ function positionals(args) {
   const out = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a.startsWith("--")) { if (!a.includes("=") && args[i + 1] && !args[i + 1].startsWith("--")) i++; continue; }
+    if (a.startsWith("--")) { if (VALUED.has(a)) i++; continue; }
     out.push(a);
   }
   return out;
@@ -188,9 +200,30 @@ function handleDraft(args) {
   process.stdout.write(`created ${out.path}\n`);
   for (const w of out.warnings || []) process.stdout.write(`⚠️  ${w}\n`);
   // The index row and the board are derived views: regenerate rather than
-  // patch, so a hand-edit can never leave them permanently out of step.
-  run("reconcile", ["--write"], { capture: true });
-  process.stdout.write("derived views reconciled (indexes, kanban, code-map, graph)\n");
+  // patch, so a hand-edit can never leave them permanently out of step. The
+  // artifact is already on disk at this point, so a reconcile failure must be
+  // reported against it rather than exiting as if the write had not happened.
+  reconcileAfterWrite();
+}
+
+function reconcileAfterWrite() {
+  const r = spawnSync(process.execPath, [SCRIPT("reconcile"), "--write"], {
+    encoding: "utf8", env: { ...process.env, MPS_HOME: process.env.MPS_HOME || ROOT },
+  });
+  let failed = [];
+  try {
+    const out = JSON.parse(r.stdout || "{}");
+    failed = [out.kanban, out.codemap, out.graph, ...(out.indexes || [])]
+      .filter((t) => t && t.error).map((t) => `${t.path || t.target || "?"}: ${t.error}`);
+  } catch { /* fall through to the exit code */ }
+  if (r.status === 0 && !failed.length) {
+    process.stdout.write("derived views reconciled (indexes, kanban, code-map, graph)\n");
+    return;
+  }
+  process.stderr.write("mps: the artifact was written, but reconciling the derived views failed:\n"
+    + (failed.length ? failed.map((f) => `  ${f}\n`).join("") : `  ${(r.stderr || "").trim()}\n`)
+    + "  fix the cause, then run `mps reconcile --write`.\n");
+  process.exitCode = 1;
 }
 
 // ─── story gates ───────────────────────────────────────────────────────
@@ -209,7 +242,7 @@ function handleStory(args) {
   if (!out.changed) { process.stdout.write(`unchanged ${out.path}\n`); return; }
   writeFileSync(out.path, out.content, "utf8");
   process.stdout.write(`${mode}  ${out.path}\n  ${(out.notes || []).join("\n  ")}\n`);
-  run("reconcile", ["--write"], { capture: true });
+  reconcileAfterWrite();
 }
 
 // ─── derived views ─────────────────────────────────────────────────────
@@ -217,9 +250,9 @@ function handleStory(args) {
 const DERIVED = { kanban: "kanban", graph: "graph", codemap: "codemap" };
 
 function handleDerived(cmd, args) {
-  if (flag(args, "--json")) { process.stdout.write(run(DERIVED[cmd] === "codemap" ? "codemap" : cmd, [], { capture: true })); return; }
+  if (flag(args, "--json")) { process.stdout.write(run(cmd, [], { capture: true })); return; }
   const out = runJson("reconcile", ["--write", "--only", DERIVED[cmd]]);
-  const target = out[cmd === "codemap" ? "codemap" : cmd] || {};
+  const target = out[cmd] || {};
   if (target.error) fail(`${cmd}: ${target.error}`);
   if (target.skipped) { process.stdout.write(`${cmd}: ${target.skipped}\n`); return; }
   process.stdout.write(`${target.written ? "written" : "unchanged"} ${target.path || cmd}\n`);
@@ -237,6 +270,9 @@ function printDoc(dir, name, suffix) {
     process.stdout.write(`${dir}:\n  ${names.join("\n  ")}\n\nPrint one with: mps ${dir === "prompts" ? "prompt" : "skill"} <name>\n`);
     return;
   }
+  // A name, never a path: `mps prompt ../README` used to print whatever the
+  // traversal landed on.
+  if (!/^[\w.-]+$/.test(name) || name.includes("..")) fail(`not a valid name: ${name}`);
   const p = suffix ? join(base, name, suffix) : join(base, `${name}.md`);
   if (!existsSync(p)) fail(`no such ${dir === "prompts" ? "prompt" : "skill"}: ${name} (have: ${names.join(", ")})`);
   process.stdout.write(readFileSync(p, "utf8"));
@@ -291,8 +327,10 @@ VAULT
 ROLES (same roles in every harness)
   agents list              roles + per-harness install state
   agents show <role>       print the role prompt (fresh-context handoff)
-  agents install           render roles into .claude/agents, .opencode/agent,
-                           .codex/prompts  [--harness claude,opencode,codex|all]
+  harnesses                every harness mps can render roles for, and where
+                           they land (* = detected here)
+  agents install           render the roles into the harnesses this project
+                           uses  [--harness <id>[,<id>…]|all]
   agents uninstall         remove generated role files
   agents register          write the routing block into AGENTS.md / CLAUDE.md
   agents model <role|default|harness:<name>> <id>
@@ -308,7 +346,8 @@ PROCEDURES
 
 HARNESS-AGNOSTIC
   No hooks, no status line, no slash commands: the CLI is the interface, and
-  the roles are rendered into whatever each harness understands.
+  the roles are rendered into whatever each harness understands. A harness is a
+  JSON file in harnesses/ — add your own in .mps/harnesses/ (mps harnesses).
   Project root: MPS_PROJECT_DIR (else cwd). Tool root: MPS_HOME.
 `);
 }
@@ -333,6 +372,7 @@ function main() {
     case "doctor": run("doctor", rest); break;
     case "diff-refs": run("diff-refs", rest); break;
     case "agents": run("agents", rest); break;
+    case "harnesses": run("agents", ["harnesses", ...rest]); break;
     case "sessions": run("sessions", rest); break;
     case "brief": run("brief", rest); break;
     case "tokens": run("tokens", rest); break;

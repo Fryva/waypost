@@ -1,0 +1,21 @@
+{
+  "id": "codex",
+  "name": "Codex CLI",
+  "home": "https://developers.openai.com/codex/cli",
+  "verified": true,
+  "detect": [".codex"],
+  "instructions": ["AGENTS.md"],
+  "invoke": "/mps-<role> <target>, or codex exec \"$(mps agents show <role>) <target>\"",
+  "after_install": "Codex reads prompts from ~/.codex/prompts — copy them there to get slash commands:\n  cp .codex/prompts/mps-*.md ~/.codex/prompts/",
+  "roles": {
+    "shape": "prompt-md",
+    "dir": ".codex/prompts",
+    "file": "{prefix}{role}.md",
+    "model": false,
+    "model_note": "A Codex prompt file carries no model — the model belongs to the Codex session.",
+    "fields": [
+      ["description", "{description}"],
+      ["argument-hint", "<file or topic to work on>"]
+    ]
+  }
+}

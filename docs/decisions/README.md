@@ -22,6 +22,7 @@ MultiProjectStore (MPS) фиксирует архитектурные решен
 | [0002](0002-vault-layout-policy.md) | proposed | 2026-08-28 | Layout `engineering` как стандарт по умолчанию, vault — markdown в git |
 | [0003](0003-agent-roles-across-harnesses.md) | proposed | 2026-08-29 | Роли агентов: одно нейтральное определение + адаптеры под харнесы |
 | [0004](0004-path-and-name-split.md) | proposed | 2026-08-29 | Разделение имён: vault ProjectStore-совместим, обвязка проекта — `.mps/` |
+| [0005](0005-harness-registry.md) | proposed | 2026-09-01 | Харнес — это данные: реестр `harnesses/*.json` вместо ветки в рендерере |
 
 ## Проверка перед завершением
 

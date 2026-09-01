@@ -56,6 +56,7 @@ reviewer → done. Каждый шаг проверки — отдельный �
 | `mps doctor [--install\|--vault] [--fix]` | детерминированная диагностика |
 | `mps diff-refs` | изменённые файлы как доказательная база для `code_refs` |
 | `mps agents …` | роли: list / show / install / register / model |
+| `mps harnesses` | реестр харнесов: куда кладутся роли и как их звать |
 | `mps prompt [name]` / `mps skill [name]` | процедуры цикла и скиллы |
 | `mps sessions [--touch] [--file]` | реестр активных сессий |
 | `mps status` | сводка привязки и состояния ролей |
@@ -67,11 +68,20 @@ reviewer → done. Каждый шаг проверки — отдельный �
 (`model: reasoning|balanced|fast`, `effort`, `access`, `tools`). `mps agents install`
 рендерит его в формат каждого харнеса:
 
+Сам харнес — тоже данные: `harnesses/<id>.json` (ADR-0005). Поставляются `claude`,
+`opencode`, `codex` (verified), `cursor`, `windsurf`, `copilot`, `gemini`, `cline`, `roo`
+(best-effort); свой добавляется файлом в `.mps/harnesses/` — см. `docs/harnesses.md`.
+`mps harnesses` печатает список и отмечает, что обнаружено в проекте.
+
 | Харнес | Файл | Во что превращается |
 |---|---|---|
 | Claude Code | `.claude/agents/mps-<role>.md` | субагент (`mps-critic`, …) |
 | OpenCode | `.opencode/agent/mps-<role>.md` | агент `mode: subagent` с картой инструментов |
 | Codex | `.codex/prompts/mps-<role>.md` | пользовательский промпт (`/mps-critic`) |
+| Cursor / Windsurf / Cline | правило или workflow | контекст роли по требованию |
+| GitHub Copilot | `.github/chatmodes/…` | chat mode |
+| Gemini CLI | `.gemini/commands/mps/<role>.toml` | команда `/mps:<role>` |
+| Roo Code | `.roomodes` | custom mode (слияние, чужие режимы не трогаются) |
 | любой другой | — | `mps agents show <role>` как системный промпт |
 
 Каждый сгенерированный файл несёт строку происхождения с хешем источника —

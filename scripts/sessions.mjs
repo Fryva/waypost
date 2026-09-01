@@ -64,7 +64,8 @@ function main() {
     if (!touchSession(vault, sid)) writeSession(vault, sid, projectRoot());
     out.touched = true;
     const fi = args.indexOf("--file");
-    if (fi !== -1 && args[fi + 1]) {
+    if (fi !== -1) {
+      if (!args[fi + 1]) die("--file requires a path");
       const abs = resolve(args[fi + 1]);
       if (!isInsideVault(abs, vault)) die(`--file is outside the vault: ${abs}`);
       appendActivity(vault, sid, abs, "Write");

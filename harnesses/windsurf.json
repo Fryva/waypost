@@ -1,0 +1,19 @@
+{
+  "id": "windsurf",
+  "name": "Windsurf",
+  "home": "https://windsurf.com",
+  "verified": false,
+  "detect": [".windsurf", ".windsurfrules"],
+  "instructions": [".windsurf/rules/mps-agents.md", "AGENTS.md"],
+  "invoke": "/mps-<role> (workflow), or paste `mps agents show <role>` into a fresh conversation",
+  "roles": {
+    "shape": "prompt-md",
+    "dir": ".windsurf/workflows",
+    "file": "{prefix}{role}.md",
+    "model": false,
+    "fields": [
+      ["description", "{description}"]
+    ]
+  },
+  "notes": "Workflows are invoked as slash commands; they run in the current conversation, so the fresh-context contract is on the caller."
+}

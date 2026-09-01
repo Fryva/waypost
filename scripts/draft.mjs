@@ -59,7 +59,7 @@ import {
 } from "./lib.mjs";
 
 function die(msg, code = 1) {
-  process.stderr.write(`projectstore/draft: ${msg}\n`);
+  process.stderr.write(`mps draft: ${msg}\n`);
   process.exit(code);
 }
 
