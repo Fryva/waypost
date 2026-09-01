@@ -60,7 +60,8 @@ slash-команд как обязательного интерфейса.
 
 Определение роли одно — `agents/<role>.md`; `mps agents install` рендерит его в формат
 того харнеса, которым пользуется проект. Список — `mps harnesses` (Claude Code, OpenCode,
-Codex, Cursor, Windsurf, Copilot, Gemini CLI, Cline, Roo Code), и это данные, а не код:
+Codex, Cursor, Windsurf, Copilot, Gemini CLI, Cline, Roo Code, Qwen Code, Trae, Tongyi Lingma,
+CodeBuddy, iFlow), и это данные, а не код:
 харнес описывается JSON-файлом в `harnesses/`, свой можно добавить в `.mps/harnesses/`
 (`docs/harnesses.md`). Где ролей как сущности нет — `mps agents show <role>` даёт готовый
 промпт для отдельного запуска.
@@ -162,7 +163,13 @@ Vault может лежать в iCloud/Dropbox/на сетевой шаре, а
   обязательный интерфейс; не добавлять запись в `.claude/` для не-Claude харнесов.
 - Новая роль — файл в `agents/` с нейтральным frontmatter, а не правка адаптеров.
 - Новый харнес — JSON в `harnesses/` (или `.mps/harnesses/` в проекте), а не ветка в
-  рендерере; поле `verified` ставить только после проверки формата по документации харнеса.
+  рендерере; `confidence: verified` ставить только после сверки формата с документацией
+  харнеса, иначе `documented` (формат из документации, но не запускалось) или `experimental`
+  (путь выведен по соглашению) — и тогда в `notes` написать, что именно предположено.
+- **Поставщик модели ≠ харнес.** DeepSeek, Kimi, GLM, MiniMax, DashScope — это модели, которые
+  работают внутри чужого харнеса (чаще всего Claude Code с Anthropic-совместимым эндпойнтом).
+  Роли ставятся для харнеса, а провайдер попадает в запись коммита трейлером `Mps-Provider`
+  (`mps log --provider kimi`). Записи провайдеров — `harnesses/providers/*.json`.
 - Vault-совместимость с исходным ProjectStore сохраняется (ADR-0004): служебные имена внутри
   vault не переименовывать.
 - Сохранять пользовательские незакоммиченные изменения и отделять их от собственных.

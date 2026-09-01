@@ -6,7 +6,7 @@
 - Supersedes: —
 - Superseded by: —
 - Related: ADR-0003 (роли), `harnesses/*.json`, `scripts/agents.mjs`, `docs/harnesses.md`
-- code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "harnesses/cursor.json", "harnesses/windsurf.json", "harnesses/copilot.json", "harnesses/gemini.json", "harnesses/cline.json", "harnesses/roo.json", "scripts/agents.mjs", "docs/harnesses.md", "tests/harness.test.mjs"]
+- code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "harnesses/cursor.json", "harnesses/windsurf.json", "harnesses/copilot.json", "harnesses/gemini.json", "harnesses/cline.json", "harnesses/roo.json", "harnesses/qwen.json", "harnesses/trae.json", "harnesses/lingma.json", "harnesses/codebuddy.json", "harnesses/iflow.json", "harnesses/providers/deepseek.json", "harnesses/providers/kimi.json", "harnesses/providers/glm.json", "harnesses/providers/minimax.json", "harnesses/providers/dashscope.json", "scripts/agents.mjs", "scripts/commit.mjs", "docs/harnesses.md", "tests/harness.test.mjs"]
 
 ## Context
 
@@ -56,11 +56,25 @@ Cursor, Copilot), файл-промпт со слэш-вызовом (Codex, Win
 
 ## Decision
 
-Принять вариант 1. Поставляются девять записей: `claude`, `opencode`, `codex` — со статусом
-`verified` (формат сверен с документацией харнеса); `cursor`, `windsurf`, `copilot`,
-`gemini`, `cline`, `roo` — со статусом `best-effort`: форма взята из документации, но внутри
-самих этих CLI не запускалась. Статус печатается в `mps harnesses` и стоит в JSON, чтобы
-разница не терялась.
+Принять вариант 1. Статус каждой записи стоит в JSON и печатается в `mps harnesses`, чтобы
+разница не терялась; уровней три, потому что двух не хватило:
+
+- `verified` — формат сверен с документацией харнеса: `claude`, `opencode`, `codex`;
+- `documented` — вендор документирует этот формат, запись ему следует, но внутри самого CLI
+  не запускалась: `cursor`, `windsurf`, `copilot`, `gemini`, `cline`, `roo`, `qwen`;
+- `experimental` — путь выведен по соглашению о каталогах, которое инструмент использует:
+  `trae`, `lingma`, `codebuddy`, `iflow`. В `notes` записано, что именно предположено, и что
+  чинится переопределением в `.mps/harnesses/`.
+
+**Поставщик модели — не харнес (дополнение 2026-09-01).** DeepSeek, Kimi (Moonshot), GLM
+(Zhipu), MiniMax, Qwen через DashScope поставляют модели, а не агентские CLI: они работают
+внутри чужого харнеса, чаще всего Claude Code с Anthropic-совместимым эндпойнтом. Регистрировать
+их как харнесы значило бы обещать файлы ролей, которым некуда лечь. Поэтому у записи есть
+`kind: "provider"`: такие записи не участвуют в `install`/`status`/doctor, перечисляются
+отдельным разделом и определяются по окружению (`match.env`, `match.url_contains`).
+Практический смысл — в записи истории: `mps commit` пишет трейлер `Mps-Provider`, а
+`mps log --provider deepseek` читает его обратно. Один и тот же харнес за разными моделями
+ведёт себя по-разному, и через полгода это не восстановить ниоткуда больше.
 
 Гарантии ADR-0003 распространяются на все записи и проверяются тестом по всему реестру:
 провенанс с хешем рендера в любом шейпе (в TOML — комментарий, в JSON — строка внутри
@@ -92,8 +106,16 @@ Cursor, Copilot), файл-промпт со слэш-вызовом (Codex, Win
 - `tests/harness.test.mjs`: каждая запись реестра рендерит каждую роль с провенансом и
   сходящимся хешем; проектная запись подхватывается и устанавливается без правки кода;
   агрегат сливается и не трогает чужие режимы; вложенные каталоги удаляются; TOML валиден
-  и промпт закрыт; frontmatter-шейпы проходят проверку скаляров. 205 тестов зелёные.
+  и промпт закрыт; frontmatter-шейпы проходят проверку скаляров; запись без полей не порождает
+  пустой блок `---\n---`; провайдеры не попадают в список харнесов и определяются по эндпойнту
+  или ключу, а без улик не определяются вовсе; каждая непроверенная запись обязана иметь
+  `notes`. 231 тест зелёный.
 - Живьём проверено: установка во все девять, идемпотентность, `uninstall` дочиста,
   `doctor` без находок после установки.
-- Не проверено: поведение внутри Cursor, Windsurf, Copilot, Gemini CLI, Cline и Roo Code —
-  ровно то, что означает `best-effort` в таблице.
+- Живьём проверена установка ролей во все записи, включая китайские: `.qwen/commands/mps/*.toml`,
+  `.trae/rules/`, `.lingma/rules/`, `.codebuddy/rules/`, `.iflow/commands/mps/`; и запись
+  провайдера в коммит при `ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic`.
+- Не проверено: поведение внутри самих Cursor, Windsurf, Copilot, Gemini CLI, Cline, Roo Code,
+  Qwen Code, Trae, Lingma, CodeBuddy и iFlow — ровно то, что означают уровни `documented` и
+  `experimental` в таблице. Для четырёх последних не сверены и пути: они выведены по
+  соглашению о каталогах.

@@ -2,7 +2,7 @@
   "id": "opencode",
   "name": "OpenCode",
   "home": "https://opencode.ai",
-  "verified": true,
+  "confidence": "verified",
   "detect": [
     ".opencode",
     "opencode.json",

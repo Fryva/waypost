@@ -1,0 +1,13 @@
+{
+  "id": "kimi",
+  "kind": "provider",
+  "name": "Kimi (Moonshot AI)",
+  "vendor": "Moonshot AI",
+  "home": "https://platform.moonshot.ai",
+  "runs_in": ["claude", "cline", "roo", "opencode"],
+  "match": {
+    "env": ["MOONSHOT_API_KEY", "KIMI_API_KEY"],
+    "url_contains": ["moonshot.cn", "moonshot.ai"]
+  },
+  "notes": "Kimi K2 is commonly driven through Claude Code against Moonshot's Anthropic-compatible endpoint (ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic). Install the roles for the harness you actually run — `mps agents install --harness claude` — and mps will record kimi as the provider."
+}

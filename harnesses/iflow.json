@@ -1,0 +1,18 @@
+{
+  "id": "iflow",
+  "name": "iFlow CLI (心流)",
+  "home": "https://github.com/iflow-ai/iflow-cli",
+  "vendor": "iFlow",
+  "confidence": "experimental",
+  "detect": [".iflow", "IFLOW.md"],
+  "env": ["IFLOW_CLI"],
+  "instructions": ["IFLOW.md", "AGENTS.md"],
+  "invoke": "/mps:<role> <target>",
+  "roles": {
+    "shape": "toml-prompt",
+    "dir": ".iflow/commands/mps",
+    "file": "{role}.toml",
+    "model": false
+  },
+  "notes": "Same CLI family as Gemini/Qwen Code (TOML commands, uppercase context file). Paths are inferred from that family, not verified against iFlow's own documentation — if your version differs, override this entry in .mps/harnesses/iflow.json."
+}

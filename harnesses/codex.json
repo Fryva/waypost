@@ -2,7 +2,7 @@
   "id": "codex",
   "name": "Codex CLI",
   "home": "https://developers.openai.com/codex/cli",
-  "verified": true,
+  "confidence": "verified",
   "detect": [
     ".codex"
   ],

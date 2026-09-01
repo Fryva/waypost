@@ -68,10 +68,15 @@ reviewer → done. Каждый шаг проверки — отдельный �
 (`model: reasoning|balanced|fast`, `effort`, `access`, `tools`). `mps agents install`
 рендерит его в формат каждого харнеса:
 
-Сам харнес — тоже данные: `harnesses/<id>.json` (ADR-0005). Поставляются `claude`,
-`opencode`, `codex` (verified), `cursor`, `windsurf`, `copilot`, `gemini`, `cline`, `roo`
-(best-effort); свой добавляется файлом в `.mps/harnesses/` — см. `docs/harnesses.md`.
-`mps harnesses` печатает список и отмечает, что обнаружено в проекте.
+Сам харнес — тоже данные: `harnesses/<id>.json` (ADR-0005). Поставляются `claude`, `opencode`,
+`codex` (verified); `cursor`, `windsurf`, `copilot`, `gemini`, `cline`, `roo`, `qwen`
+(documented); `trae`, `lingma`, `codebuddy`, `iflow` (experimental). Свой добавляется файлом в
+`.mps/harnesses/` — см. `docs/harnesses.md`. `mps harnesses` печатает список и отмечает, что
+обнаружено в проекте.
+
+Отдельно — поставщики моделей (`harnesses/providers/*.json`): DeepSeek, Kimi, GLM, MiniMax,
+DashScope. Это не харнесы: роли ставятся для того харнеса, который реально запущен, а провайдер
+определяется по эндпойнту/ключу и попадает в коммит трейлером `Mps-Provider`.
 
 | Харнес | Файл | Во что превращается |
 |---|---|---|

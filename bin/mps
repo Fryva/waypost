@@ -365,7 +365,7 @@ WORKING IN SEVERAL HARNESSES AT ONCE
                            [--dry-run] [-- <paths>]
   merge <ref>              merge, re-derive the views, then commit — so the
                            board in the merge commit matches the merged vault
-  log [--story|--harness|--session <v>]
+  log [--story|--harness|--provider|--session <v>]
                            the history, read back through those trailers
   sessions --claim <story> tell the other live sessions what you are on
   lease <path…>            announce the files you are editing right now, so a

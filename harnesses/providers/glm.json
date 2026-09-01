@@ -1,0 +1,13 @@
+{
+  "id": "glm",
+  "kind": "provider",
+  "name": "GLM (Zhipu AI / Z.ai)",
+  "vendor": "Zhipu AI",
+  "home": "https://open.bigmodel.cn",
+  "runs_in": ["claude", "cline", "roo", "opencode"],
+  "match": {
+    "env": ["ZHIPUAI_API_KEY", "GLM_API_KEY"],
+    "url_contains": ["bigmodel.cn", "z.ai"]
+  },
+  "notes": "GLM coding plans expose an Anthropic-compatible endpoint, so the usual setup is Claude Code pointed at it."
+}

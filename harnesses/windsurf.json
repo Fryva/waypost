@@ -2,7 +2,7 @@
   "id": "windsurf",
   "name": "Windsurf",
   "home": "https://windsurf.com",
-  "verified": false,
+  "confidence": "documented",
   "detect": [
     ".windsurf",
     ".windsurfrules"

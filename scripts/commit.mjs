@@ -11,9 +11,15 @@
 // What a commit records, as git trailers — machine-readable, greppable with
 // `git log --grep` or `git interpret-trailers`, and invisible to the prose:
 //
-//   Mps-Harness: claude          which harness the work happened in
-//   Mps-Session: mbp-42311       which session, so parallel work is separable
-//   Mps-Story:   PS-1/story-x    the story it serves, when it serves one
+//   Mps-Harness:  claude         which harness the work happened in
+//   Mps-Session:  mbp-42311      which session, so parallel work is separable
+//   Mps-Story:    PS-1/story-x   the story it serves, when it serves one
+//   Mps-Provider: kimi           which model provider produced it, when the
+//                                harness is pointed at one (DeepSeek, Kimi,
+//                                GLM, MiniMax, DashScope…): the same harness
+//                                behaves very differently behind a different
+//                                model, and a reviewer six months later has no
+//                                other way to know which one wrote this.
 //
 // Deliberately NOT enforced: the subject line's wording. A convention nobody
 // can follow from a fourth harness is worse than none — a human writing the
@@ -28,7 +34,8 @@
 // CLI: node commit.mjs -m <msg> [--story <path|id>] [--all] [--force]
 //                      [--all | --tracked] [--dry-run] [--no-reconcile] [-- <pathspec>…]
 //      node commit.mjs --merge <ref> [-m <msg>]
-//      node commit.mjs --log [--story <id>] [--session <id>] [--harness <id>] [-n <count>]
+//      node commit.mjs --log [--story <id>] [--session <id>] [--harness <id>]
+//                            [--provider <id>] [-n <count>]
 
 import { existsSync, readFileSync } from "node:fs";
 import { join, relative, resolve, basename } from "node:path";
@@ -37,7 +44,7 @@ import { fileURLToPath } from "node:url";
 import {
   readConfig, projectRoot, ignoreEpipe, listVaultStoryFiles, parseFrontmatter,
 } from "./lib.mjs";
-import { registry, harness } from "./agents.mjs";
+import { registry, harness, detectProvider } from "./agents.mjs";
 import { sessionId, claimsOf } from "./sessions.mjs";
 import { readLeases, vaultRel } from "./presence.mjs";
 
@@ -98,10 +105,11 @@ export function storyPathOf(ref, cfg) {
   return existsSync(p) ? p : null;
 }
 
-export function composeMessage(subject, { harness: h, session, story, coauthor }) {
+export function composeMessage(subject, { harness: h, session, story, provider, coauthor }) {
   const trailers = [
     `Mps-Harness: ${h}`,
     `Mps-Session: ${session}`,
+    ...(provider ? [`Mps-Provider: ${provider}`] : []),
     ...(story ? [`Mps-Story: ${story}`] : []),
     ...(coauthor ? [`Co-Authored-By: ${coauthor}`] : []),
   ];
@@ -209,7 +217,7 @@ function main() {
   }
 
   const message = composeMessage(subject, {
-    harness: h, session: self, story,
+    harness: h, session: self, story, provider: detectProvider(),
     coauthor: (cfg && cfg.commit && cfg.commit.coauthor) || process.env.MPS_COAUTHOR || null,
   });
 
@@ -225,7 +233,9 @@ function main() {
     process.exit(r.status || 1);
   }
   const sha = (git(["rev-parse", "--short", "HEAD"]).stdout || "").trim();
-  process.stdout.write(`recorded ${sha}  harness=${h} session=${self}${story ? ` story=${story}` : ""}\n`);
+  const prov = detectProvider();
+  process.stdout.write(`recorded ${sha}  harness=${h}${prov ? ` provider=${prov}` : ""} session=${self}`
+    + `${story ? ` story=${story}` : ""}\n`);
 }
 
 // Merge without committing, let the driver resolve the derived views, then
@@ -266,23 +276,28 @@ function log(argv) {
     ["Mps-Story", opt("--story")],
     ["Mps-Session", opt("--session")],
     ["Mps-Harness", opt("--harness")],
+    ["Mps-Provider", opt("--provider")],
   ].filter(([, v]) => v);
   const r = git(["log", `-n${Number(n) * (filters.length ? 20 : 1)}`,
     "--format=%h%x1f%an%x1f%ad%x1f%s%x1f%(trailers:key=Mps-Harness,valueonly,separator=%x2c)"
-    + "%x1f%(trailers:key=Mps-Session,valueonly,separator=%x2c)%x1f%(trailers:key=Mps-Story,valueonly,separator=%x2c)",
+    + "%x1f%(trailers:key=Mps-Session,valueonly,separator=%x2c)%x1f%(trailers:key=Mps-Story,valueonly,separator=%x2c)"
+    + "%x1f%(trailers:key=Mps-Provider,valueonly,separator=%x2c)",
     "--date=short"]);
   if (!r || r.status !== 0) die("git log failed — is this a repository with commits?");
   const rows = (r.stdout || "").split("\n").filter(Boolean).map((line) => {
-    const [sha, author, date, subject, harness, session, story] = line.split("\x1f");
-    return { sha, author, date, subject, harness: harness.trim(), session: session.trim(), story: story.trim() };
+    const [sha, author, date, subject, harness, session, story, provider] = line.split("\x1f");
+    return { sha, author, date, subject, harness: harness.trim(), session: session.trim(),
+      story: story.trim(), provider: (provider || "").trim() };
   }).filter((row) => filters.every(([k, v]) =>
-    (k === "Mps-Story" ? row.story : k === "Mps-Session" ? row.session : row.harness).includes(v)))
+    (k === "Mps-Story" ? row.story
+      : k === "Mps-Session" ? row.session
+      : k === "Mps-Provider" ? row.provider : row.harness).includes(v)))
     .slice(0, Number(n));
 
   if (argv.includes("--json")) { process.stdout.write(JSON.stringify(rows, null, 2) + "\n"); return; }
   if (!rows.length) { process.stdout.write("no commits match\n"); return; }
   for (const row of rows) {
-    const tag = [row.harness || "—", row.story || null].filter(Boolean).join(" · ");
+    const tag = [row.harness || "—", row.provider || null, row.story || null].filter(Boolean).join(" · ");
     process.stdout.write(`${row.sha}  ${row.date}  ${(tag).padEnd(34)} ${row.subject}\n`);
   }
   const untagged = rows.filter((r2) => !r2.harness).length;

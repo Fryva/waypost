@@ -105,13 +105,26 @@ file, and a project can add or override an entry in `.mps/harnesses/`:
 | `copilot` | GitHub Copilot | `.github/chatmodes/mps-<role>.chatmode.md` | best-effort |
 | `gemini` | Gemini CLI | `.gemini/commands/mps/<role>.toml` | best-effort |
 | `cline` | Cline | `.clinerules/workflows/mps-<role>.md` | best-effort |
-| `roo` | Roo Code | `.roomodes` (merged, your own modes untouched) | best-effort |
+| `roo` | Roo Code | `.roomodes` (merged, your own modes untouched) | documented |
+| `qwen` | Qwen Code (Alibaba) | `.qwen/commands/mps/<role>.toml` | documented |
+| `trae` | Trae (ByteDance) | `.trae/rules/mps-<role>.md` | experimental |
+| `lingma` | Tongyi Lingma | `.lingma/rules/mps-<role>.md` | experimental |
+| `codebuddy` | CodeBuddy (Tencent) | `.codebuddy/rules/mps-<role>.md` | experimental |
+| `iflow` | iFlow CLI | `.iflow/commands/mps/<role>.toml` | experimental |
 | anything else | — | `<your-cli> "$(mps agents show critic) <target>"` |
+
+**Vendors are not harnesses.** DeepSeek, Kimi, GLM, MiniMax and Qwen-via-DashScope
+ship models that run inside one of the harnesses above — usually Claude Code
+against an Anthropic-compatible endpoint. Nothing installs for them; instead
+`mps commit` records which one produced the work (`Mps-Provider: kimi`), and
+`mps log --provider deepseek` reads it back.
 
 `mps harnesses` prints the list with what this project actually uses marked, and
 `docs/harnesses.md` has the schema for adding your own. *verified* means the
-format was checked against that harness's documentation; *best-effort* means it
-follows the documented shape but has not been run there.
+format was checked against that harness's documentation, *documented* means the
+vendor documents it but it has not been run here, and *experimental* means the
+path is inferred from a directory convention — that one may need a one-line
+override, and the entry says what was assumed.
 
 Generated files carry a provenance line with a hash of the render, so
 `mps doctor` sees any drift — an edited file, a changed role, a changed model,

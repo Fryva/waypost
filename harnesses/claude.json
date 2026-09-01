@@ -2,7 +2,7 @@
   "id": "claude",
   "name": "Claude Code",
   "home": "https://claude.com/claude-code",
-  "verified": true,
+  "confidence": "verified",
   "detect": [
     ".claude",
     "CLAUDE.md"

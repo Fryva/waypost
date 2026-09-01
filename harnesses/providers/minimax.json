@@ -1,0 +1,13 @@
+{
+  "id": "minimax",
+  "kind": "provider",
+  "name": "MiniMax",
+  "vendor": "MiniMax",
+  "home": "https://platform.minimaxi.com",
+  "runs_in": ["claude", "cline", "opencode"],
+  "match": {
+    "env": ["MINIMAX_API_KEY"],
+    "url_contains": ["minimax.io", "minimaxi.com"]
+  },
+  "notes": "Same shape as the other providers: a model endpoint driven from an existing harness."
+}

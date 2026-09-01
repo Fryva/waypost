@@ -2,7 +2,7 @@
   "id": "copilot",
   "name": "GitHub Copilot (VS Code / CLI)",
   "home": "https://github.com/features/copilot",
-  "verified": false,
+  "confidence": "documented",
   "detect": [
     ".github/copilot-instructions.md",
     ".github/chatmodes",

@@ -2,7 +2,7 @@
   "id": "cursor",
   "name": "Cursor",
   "home": "https://cursor.com",
-  "verified": false,
+  "confidence": "documented",
   "detect": [
     ".cursor",
     ".cursorrules"

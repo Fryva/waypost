@@ -1,0 +1,31 @@
+{
+  "id": "codebuddy",
+  "name": "CodeBuddy (腾讯云代码助手)",
+  "home": "https://copilot.tencent.com",
+  "vendor": "Tencent",
+  "confidence": "experimental",
+  "detect": [
+    ".codebuddy"
+  ],
+  "env": [
+    "CODEBUDDY_CLI"
+  ],
+  "instructions": [
+    ".codebuddy/rules/mps-agents.md",
+    "AGENTS.md"
+  ],
+  "invoke": "reference the mps-<role> rule, or paste `mps agents show <role>` into a new session",
+  "roles": {
+    "shape": "prompt-md",
+    "dir": ".codebuddy/rules",
+    "file": "{prefix}{role}.md",
+    "model": false,
+    "fields": [
+      [
+        "description",
+        "{description}"
+      ]
+    ]
+  },
+  "notes": "Path inferred from the .codebuddy/ project directory convention; not verified against Tencent's documentation. Override in .mps/harnesses/codebuddy.json if your build reads a different directory."
+}

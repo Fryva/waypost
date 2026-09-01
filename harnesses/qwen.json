@@ -1,0 +1,18 @@
+{
+  "id": "qwen",
+  "name": "Qwen Code (通义千问 Code)",
+  "home": "https://github.com/QwenLM/qwen-code",
+  "vendor": "Alibaba",
+  "confidence": "documented",
+  "detect": [".qwen", "QWEN.md"],
+  "env": ["QWEN_CODE", "QWEN_CLI"],
+  "instructions": ["QWEN.md", "AGENTS.md"],
+  "invoke": "/mps:<role> <target>",
+  "roles": {
+    "shape": "toml-prompt",
+    "dir": ".qwen/commands/mps",
+    "file": "{role}.toml",
+    "model": false
+  },
+  "notes": "Qwen Code is a fork of Gemini CLI, so its custom commands are TOML under .qwen/commands and the directory becomes the namespace (/mps:critic). Context file is QWEN.md."
+}

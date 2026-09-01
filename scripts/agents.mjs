@@ -59,7 +59,12 @@ export const PREFIX = "mps-";
 export const TIERS = ["reasoning", "balanced", "fast"];
 
 function registryDirs() {
-  return [join(pluginRoot(), "harnesses"), join(projectRoot(), ".mps", "harnesses")];
+  return [
+    join(pluginRoot(), "harnesses"),
+    join(pluginRoot(), "harnesses", "providers"),
+    join(projectRoot(), ".mps", "harnesses"),
+    join(projectRoot(), ".mps", "harnesses", "providers"),
+  ];
 }
 
 let _registry = null;
@@ -87,11 +92,50 @@ export function harness(id) {
   return h;
 }
 
-// Ordered ids. Bundled-and-verified first, then the rest alphabetically: the
-// list is printed to users, and "what is known to work" is the useful order.
+// A vendor is not a harness. DeepSeek, Kimi, GLM and MiniMax ship MODELS that
+// run inside somebody else's harness — usually Claude Code against an
+// Anthropic-compatible endpoint. Registering them as harnesses would promise
+// role files that have nowhere to go; registering them as providers lets mps
+// name which model produced a commit while installing into the harness that is
+// actually running.
+export const isProvider = (h) => (typeof h === "string" ? harness(h) : h).kind === "provider";
+
+// How sure we are about an entry's file format, and the reason each level
+// exists: `verified` was read against the vendor's own documentation,
+// `documented` follows a format that vendor documents but has not been run
+// here, `experimental` is inferred from a directory convention and is the one
+// most likely to need an override.
+export const CONFIDENCE = ["verified", "documented", "experimental"];
+export const confidenceOf = (h) =>
+  h.confidence || (h.verified ? "verified" : "experimental");
+
+// Ordered ids, most-trusted first: the list is printed to users, and "what is
+// known to work" is the useful order. Providers are not in it — nothing
+// installs into them.
 export const harnessIds = () => [...registry().values()]
-  .sort((a, b) => (Number(Boolean(b.verified)) - Number(Boolean(a.verified))) || a.id.localeCompare(b.id))
+  .filter((h) => !isProvider(h))
+  .sort((a, b) => (CONFIDENCE.indexOf(confidenceOf(a)) - CONFIDENCE.indexOf(confidenceOf(b)))
+    || a.id.localeCompare(b.id))
   .map((h) => h.id);
+
+export const providerIds = () => [...registry().values()]
+  .filter(isProvider).map((h) => h.id).sort();
+
+// Which model provider this session is pointed at, if any. Read from the
+// environment the way harness detection is: an endpoint override or a vendor
+// key. `MPS_PROVIDER` wins, because a guess in a permanent record is worse than
+// a blank.
+export function detectProvider(env = process.env) {
+  if (env.MPS_PROVIDER) return env.MPS_PROVIDER;
+  const urls = ["ANTHROPIC_BASE_URL", "ANTHROPIC_API_URL", "OPENAI_BASE_URL", "OPENAI_API_BASE",
+    "OPENAI_API_HOST", "LLM_BASE_URL"].map((k) => env[k]).filter(Boolean).join(" ").toLowerCase();
+  for (const id of providerIds()) {
+    const m = harness(id).match || {};
+    if ((m.env || []).some((k) => env[k])) return id;
+    if (urls && (m.url_contains || []).some((u) => urls.includes(String(u).toLowerCase()))) return id;
+  }
+  return null;
+}
 
 // Kept as a live getter so the registry stays the single source; existing
 // callers (doctor, tests) read it as a list.
@@ -321,7 +365,11 @@ function fill(tpl, vars) {
   return String(tpl).replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? "" : String(vars[k])));
 }
 
+// No fields means no frontmatter: an empty `---\n---` block is not "no
+// metadata", it is a metadata block that parses to nothing, and a harness that
+// reads rules as plain markdown then shows two dashes to the model.
 function frontmatter(fields, vars, role, spec) {
+  if (!fields || !fields.length) return null;
   const lines = ["---"];
   for (const [key, tpl] of fields || []) {
     let value;
@@ -362,10 +410,14 @@ function renderRole(h, role, model) {
     model, body: role.body,
   };
   switch (spec.shape) {
-    case "frontmatter-md":
-      return `${frontmatter(spec.fields, vars, role, spec)}\n<!-- ${MARK} -->\n\n${role.body}`;
-    case "prompt-md":
-      return `${frontmatter(spec.fields, vars, role, spec)}\n<!-- ${MARK} -->\n\n${preamble(role, h)}${role.body}`;
+    case "frontmatter-md": {
+      const fm = frontmatter(spec.fields, vars, role, spec);
+      return `${fm ? fm + "\n" : ""}<!-- ${MARK} -->\n\n${role.body}`;
+    }
+    case "prompt-md": {
+      const fm = frontmatter(spec.fields, vars, role, spec);
+      return `${fm ? fm + "\n" : ""}<!-- ${MARK} -->\n\n${preamble(role, h)}${role.body}`;
+    }
     case "toml-prompt": {
       const q = (v) => JSON.stringify(String(v));
       return [
@@ -706,23 +758,37 @@ function main() {
         const h = harness(id);
         const spec = roleSpec(h);
         return {
-          id, name: h.name || id, verified: Boolean(h.verified),
+          id, name: h.name || id, vendor: h.vendor || null, confidence: confidenceOf(h),
           shape: spec.shape, target: spec.shape === "aggregate-json" ? spec.file : spec.dir,
           takes_model: harnessTakesModel(id), detect: h.detect || [], invoke: h.invoke || null,
           source: h.source, notes: h.notes || null,
         };
       });
-      if (json) { process.stdout.write(JSON.stringify(rows, null, 2) + "\n"); return; }
+      const provs = providerIds().map((id) => {
+        const h = harness(id);
+        return { id, name: h.name || id, vendor: h.vendor || null, kind: "provider",
+          runs_in: h.runs_in || [], detected: detectProvider() === id, notes: h.notes || null };
+      });
+      if (json) { process.stdout.write(JSON.stringify({ harnesses: rows, providers: provs }, null, 2) + "\n"); return; }
       const used = new Set(detectHarnesses());
       for (const r of rows) {
         process.stdout.write(
-          `${(used.has(r.id) ? "* " : "  ")}${r.id.padEnd(10)} ${(r.verified ? "verified   " : "best-effort")} ${String(r.target).padEnd(22)} ${r.name}\n`);
-        if (r.invoke) process.stdout.write(`             invoke: ${r.invoke}\n`);
+          `${(used.has(r.id) ? "* " : "  ")}${r.id.padEnd(11)} ${r.confidence.padEnd(12)} ${String(r.target).padEnd(24)} ${r.name}\n`);
+        if (r.invoke) process.stdout.write(`              invoke: ${r.invoke}\n`);
+      }
+      const here = detectProvider();
+      process.stdout.write("\nMODEL PROVIDERS (not harnesses — they run inside one of the above)\n");
+      for (const p of provs) {
+        process.stdout.write(`${p.detected ? "* " : "  "}${p.id.padEnd(11)} ${String(p.vendor || "").padEnd(16)} ${p.name}`
+          + `${p.runs_in.length ? `  — usually via ${p.runs_in.slice(0, 3).join(", ")}` : ""}\n`);
       }
       process.stdout.write(
-        "\n* = detected in this project. `verified` means the file format was checked against the harness's\n"
-        + "own documentation; `best-effort` means it follows the documented shape but has not been run there.\n"
-        + "Add or override one with a JSON file in .mps/harnesses/ — see docs/harnesses.md.\n");
+        "\n* = detected in this project (harnesses) or in this environment (providers).\n"
+        + "verified = format checked against the vendor's documentation · documented = the vendor documents\n"
+        + "this format, but it has not been run here · experimental = inferred from a directory convention,\n"
+        + "most likely to need an override. Add or override an entry with a JSON file in .mps/harnesses/\n"
+        + "(providers in .mps/harnesses/providers/) — see docs/harnesses.md.\n"
+        + (here ? `\nThis session looks like it is talking to ${here}; install the roles for the harness you\nactually run (\`mps agents install\`), and mps will record ${here} as the provider on each commit.\n` : ""));
       return;
     }
     case "show": {

@@ -1,0 +1,32 @@
+{
+  "id": "trae",
+  "name": "Trae (ByteDance)",
+  "home": "https://trae.ai",
+  "vendor": "ByteDance",
+  "confidence": "experimental",
+  "detect": [
+    ".trae"
+  ],
+  "env": [
+    "TRAE_AGENT",
+    "TRAE_IDE"
+  ],
+  "instructions": [
+    ".trae/rules/project_rules.md",
+    "AGENTS.md"
+  ],
+  "invoke": "reference the mps-<role> rule, or paste `mps agents show <role>` into a new chat",
+  "roles": {
+    "shape": "prompt-md",
+    "dir": ".trae/rules",
+    "file": "{prefix}{role}.md",
+    "model": false,
+    "fields": [
+      [
+        "description",
+        "{description}"
+      ]
+    ]
+  },
+  "notes": "Trae keeps project rules in .trae/rules/ (project_rules.md is the one it always loads). Roles are written beside it as separate rule files; whether your Trae version auto-loads every file in that directory or only project_rules.md is worth checking once."
+}

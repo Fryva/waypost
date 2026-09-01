@@ -1,0 +1,13 @@
+{
+  "id": "dashscope",
+  "kind": "provider",
+  "name": "Qwen via DashScope (阿里云百炼)",
+  "vendor": "Alibaba Cloud",
+  "home": "https://dashscope.console.aliyun.com",
+  "runs_in": ["qwen", "cline", "roo", "opencode", "claude"],
+  "match": {
+    "env": ["DASHSCOPE_API_KEY"],
+    "url_contains": ["dashscope.aliyuncs.com", "dashscope-intl.aliyuncs.com"]
+  },
+  "notes": "The Qwen models behind the `qwen` harness entry, and behind any other harness pointed at DashScope."
+}

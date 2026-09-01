@@ -2,7 +2,7 @@
   "id": "gemini",
   "name": "Gemini CLI",
   "home": "https://github.com/google-gemini/gemini-cli",
-  "verified": false,
+  "confidence": "documented",
   "detect": [
     ".gemini",
     "GEMINI.md"

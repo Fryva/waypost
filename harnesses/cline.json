@@ -2,7 +2,7 @@
   "id": "cline",
   "name": "Cline",
   "home": "https://cline.bot",
-  "verified": false,
+  "confidence": "documented",
   "detect": [
     ".clinerules"
   ],

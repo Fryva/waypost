@@ -2,7 +2,7 @@
   "id": "roo",
   "name": "Roo Code",
   "home": "https://roocode.com",
-  "verified": false,
+  "confidence": "documented",
   "detect": [
     ".roomodes",
     ".roo"
