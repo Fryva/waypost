@@ -38,15 +38,17 @@
 //                            [--provider <id>] [-n <count>]
 
 import { existsSync, readFileSync } from "node:fs";
-import { join, relative, resolve, basename } from "node:path";
+import { join, relative, basename } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   readConfig, projectRoot, ignoreEpipe, listVaultStoryFiles, parseFrontmatter,
+  storyRefOf, storyPathOf as storyPathOfLib,
 } from "./lib.mjs";
 import { registry, harness, detectProvider } from "./agents.mjs";
-import { sessionId, claimsOf } from "./sessions.mjs";
+import { sessionId, claimsOf, CLAIM_WINDOW_MS } from "./sessions.mjs";
 import { readLeases, vaultRel } from "./presence.mjs";
+import { runReconcile } from "./reconcile.mjs";
 
 function die(msg) {
   process.stderr.write(`mps commit: ${msg}\n`);
@@ -69,40 +71,29 @@ export function detectSessionHarness(env = process.env) {
 }
 
 // A story reference is stable across harnesses and machines: <epic>/<stem>,
-// derived from the vault-relative path, never an absolute path.
+// derived from the vault-relative path, never an absolute path. storyRefOf
+// (lib.mjs) understands every on-disk shape a story can take; this wrapper
+// adds the one thing specific to the commit protocol: a BARE id or stem with
+// no epic prefix, resolved against every story in the vault so a typo fails
+// here rather than becoming an unresolvable reference in the permanent record.
 export function storyRef(pathOrId, cfg) {
   if (!pathOrId) return null;
   const vault = cfg && cfg.vault_path;
   const raw = String(pathOrId);
-  if (vault) {
-    const abs = resolve(raw);
-    if (abs.startsWith(vault + "/")) {
-      const rel = abs.slice(vault.length + 1);
-      const m = rel.match(/^epics\/([^/]+)\/stories\/(.+)\.md$/);
-      if (m) return `${m[1]}/${m[2]}`;
-    }
-    // A bare id: resolve it against the vault so a typo fails here rather than
-    // becoming an unresolvable reference in the permanent record.
-    // listVaultStoryFiles yields absolute paths; relativize before matching.
-    for (const p of listVaultStoryFiles(vault)) {
-      const m = p.slice(vault.length + 1).match(/^epics\/([^/]+)\/stories\/(.+)\.md$/);
-      if (!m) continue;
-      const ref = `${m[1]}/${m[2]}`;
-      const stem = m[2];
-      if (ref === raw || stem === raw || basename(raw).replace(/\.md$/, "") === stem) return ref;
-    }
+  const direct = storyRefOf(raw, vault);
+  if (direct) return direct;
+  if (!vault) return null;
+  for (const abs of listVaultStoryFiles(vault)) {
+    const ref = storyRefOf(abs, vault);
+    if (!ref) continue;
+    const stem = ref.split("/")[1];
+    if (ref === raw || stem === raw || basename(raw).replace(/\.md$/, "") === stem) return ref;
   }
-  // The shape alone is a reference ONLY when there is no vault to check it
-  // against. With one bound, an unresolvable reference is a typo, and a typo in
-  // a trailer is permanent — better a failed command than a dangling record.
-  if (!vault && /^[\w.-]+\/[\w.-]+$/.test(raw)) return raw;
   return null;
 }
 
 export function storyPathOf(ref, cfg) {
-  if (!ref || !cfg || !cfg.vault_path) return null;
-  const p = join(cfg.vault_path, "epics", ref.split("/")[0], "stories", `${ref.split("/")[1]}.md`);
-  return existsSync(p) ? p : null;
+  return storyPathOfLib(ref, cfg && cfg.vault_path);
 }
 
 export function composeMessage(subject, { harness: h, session, story, provider, coauthor }) {
@@ -125,7 +116,7 @@ export function composeMessage(subject, { harness: h, session, story, provider, 
 // IS the coordination channel; there is no server.
 export function conflicts(story, cfg, self) {
   if (!story || !cfg || !cfg.vault_path) return [];
-  return claimsOf(cfg.vault_path, 30)
+  return claimsOf(cfg.vault_path, { windowMs: CLAIM_WINDOW_MS })
     .filter((c) => c.story === story && c.session !== self);
 }
 
@@ -256,9 +247,28 @@ function merge(argv, mi) {
   if (r.status !== 0 && !existsSync(join(projectRoot(), ".git", "MERGE_HEAD"))) {
     process.exit(r.status || 1);
   }
-  // Re-enter the normal path: it reconciles first, so the board in the merge
-  // commit is derived from the finished merge rather than from the middle of it.
-  const rest = ["-m", opt("-m") || opt("--message") || `merge ${ref}`, "--all"];
+  // Stage exactly what the merge produced: git's own merge result (already in
+  // the index after --no-commit) plus the derived views reconcile had to
+  // rewrite so the board matches the FINISHED worktree, not the mid-merge one.
+  // Never `git add -A` here: the working tree can hold the user's own
+  // uncommitted work in progress, unrelated to this merge, and staging it is
+  // none of this command's business (G-8).
+  const cfg = readConfig();
+  if (cfg && cfg.vault_path) {
+    let out;
+    try { out = runReconcile({ write: true }); }
+    catch (e) { die(`reconcile failed, so the derived views would land stale:\n${e.message}`); }
+    const proj = projectRoot();
+    const written = [out.kanban, out.codemap, out.graph, ...out.indexes]
+      // Only paths inside THIS repo are ours to stage — a vault that lives
+      // outside it (leasesOverStaged reasons about the same split) is not.
+      .filter((t) => t && t.written && t.path && t.path.startsWith(proj + "/"))
+      .map((t) => t.path);
+    if (written.length) git(["add", "--", ...written]);
+  }
+  // Re-enter the normal path for the trailers and the claim/lease checks.
+  // --no-reconcile: the derived views are already reconciled and staged above.
+  const rest = ["-m", opt("-m") || opt("--message") || `merge ${ref}`, "--no-reconcile"];
   process.argv = [process.argv[0], process.argv[1], ...rest];
   main();
 }

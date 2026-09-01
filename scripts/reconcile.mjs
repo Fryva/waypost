@@ -41,6 +41,7 @@ import {
   displayNumberOf,
   compareArtifactOrder,
   writeFileAtomic,
+  escCell,
 } from "./lib.mjs";
 import { scanArtifacts } from "./doctor.mjs";
 
@@ -207,13 +208,16 @@ export function rebuildIndexRows(original, folder, artifacts) {
     const { a, file, date, number } = d;
     if (folder.kind === "epic") {
       const id = a.rel.split("/")[1];
-      rows.push(`| [${id}](./${id}/epic.md) | ${a.fm.title || id} | ${a.fm.status || "planned"} | ${date} |`);
+      rows.push(`| [${id}](./${id}/epic.md) | ${escCell(a.fm.title || id)} | ${a.fm.status || "planned"} | ${date} |`);
     } else {
       // The display number renders only when present — grandfathered
       // SPEC-NNN rows keep their labels, slug-only rows are labelled by slug.
       const label = number && folder.prefix ? `${folder.prefix}${number}` : file.replace(/\.md$/, "");
       const status = a.fm.status || (folder.numbered ? "proposed" : "draft");
-      rows.push(`| [${label}](./${file}) | ${a.fm.title || label} | ${status} | ${date} |`);
+      // A `|` in the title would otherwise split the row into an extra
+      // column; checkIndexes' rowRx tolerates the escape and unescapes
+      // before comparing back against frontmatter.
+      rows.push(`| [${label}](./${file}) | ${escCell(a.fm.title || label)} | ${status} | ${date} |`);
     }
   }
 

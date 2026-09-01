@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { composeMessage, storyRef, detectSessionHarness } from "../scripts/commit.mjs";
+import { storyRefOf, storyPathOf } from "../scripts/lib.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const MPS = join(REPO, "bin", "mps");
@@ -106,6 +107,32 @@ test("a story reference is resolved against the vault, so a typo cannot enter th
   assert.match(r.stderr, /no story matches/);
 });
 
+test("storyRefOf understands all three on-disk story shapes, and storyPathOf is its inverse (G-9)", () => {
+  const vault = mkdtempSync(join(tmpdir(), "mps-ref-"));
+  const plain = join(vault, "epics", "E1", "stories", "s.md");
+  const folderShaped = join(vault, "epics", "E1", "stories", "folder-shaped", "README.md");
+  const standalone = join(vault, "epics", "E1", "story-standalone.md");
+  mkdirSync(dirname(plain), { recursive: true });
+  writeFileSync(plain, "---\ntype: story\n---\n", "utf8");
+  mkdirSync(dirname(folderShaped), { recursive: true });
+  writeFileSync(folderShaped, "---\ntype: story\n---\n", "utf8");
+  writeFileSync(standalone, "---\ntype: story\n---\n", "utf8");
+
+  assert.equal(storyRefOf(plain, vault), "E1/s", "epics/<E>/stories/<s>.md");
+  assert.equal(storyRefOf(folderShaped, vault), "E1/folder-shaped", "epics/<E>/stories/<s>/README.md");
+  assert.equal(storyRefOf(standalone, vault), "E1/story-standalone", "epics/<E>/story-<s>.md, standalone");
+
+  // An already-shaped reference passes straight through once it is verified
+  // to exist against the vault.
+  assert.equal(storyRefOf("E1/s", vault), "E1/s");
+  assert.equal(storyRefOf("E1/nope", vault), null, "a shape that resolves to nothing is not a reference");
+
+  // …and the inverse recovers exactly the file each ref came from.
+  assert.equal(storyPathOf("E1/s", vault), plain);
+  assert.equal(storyPathOf("E1/folder-shaped", vault), folderShaped);
+  assert.equal(storyPathOf("E1/story-standalone", vault), standalone);
+});
+
 test("the harness is taken from the environment the harness itself sets", () => {
   assert.equal(detectSessionHarness({ MPS_HARNESS: "windsurf" }), "windsurf", "an explicit label wins");
   assert.equal(detectSessionHarness({ CLAUDECODE: "1" }), "claude");
@@ -148,6 +175,41 @@ test("the story gate claims on plan and releases on close", () => {
   assert.deepEqual(state.claims, [], "closing it hands the story back");
 });
 
+// Without MPS_SESSION_ID or any terminal env var, bin/mps falls back to
+// deriving one from its own process.ppid — the real parent process here is
+// this test file's node process, constant across every spawnSync below, so
+// the derivation must land on the same id every time (G-1). Before the fix,
+// each script bin/mps spawned computed its OWN id from ITS OWN parent (bin/mps
+// itself, a different pid every call), so a story opened in one call was
+// "claimed by a stranger" by the very next.
+const TERMINAL_ENV_VARS = ["MPS_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID",
+  "TERM_SESSION_ID", "ITERM_SESSION_ID", "TMUX_PANE", "WT_SESSION", "KITTY_WINDOW_ID", "SSH_TTY"];
+
+function withoutSessionEnv(proj) {
+  const env = { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO };
+  for (const k of TERMINAL_ENV_VARS) delete env[k];
+  return env;
+}
+
+test("with no MPS_SESSION_ID and no terminal env, the derived session id is stable, and a story it opened does not block its own commit (G-1)", () => {
+  const proj = repo();
+  const bare = (args) => spawnSync(process.execPath, [MPS, ...args], { encoding: "utf8", cwd: proj, env: withoutSessionEnv(proj) });
+
+  const first = JSON.parse(bare(["sessions", "--json"]).stdout).session_id;
+  const second = JSON.parse(bare(["sessions", "--json"]).stdout).session_id;
+  assert.equal(first, second, "two separate mps invocations from the same process derive the same id");
+
+  mps(proj, ["draft", "story", "PS-1", "Bare", "--write"]);
+  const story = join(proj, "vault", "epics", "PS-1", "stories", "story-bare.md");
+  const planned = bare(["story", "plan", story, "--write"]);
+  assert.equal(planned.status, 0, planned.stderr);
+
+  git(proj, ["add", "-A"]);
+  const dry = bare(["commit", "-m", "x", "--story", "PS-1/story-bare", "--dry-run"]);
+  assert.equal(dry.status, 0, `self-claim must not block its own commit:\n${dry.stderr}`);
+  assert.doesNotMatch(dry.stderr || "", /is claimed by/);
+});
+
 // ─── derived views under merge ─────────────────────────────────────────
 
 test("two branches that both add a story merge without a conflict in the board", () => {
@@ -179,6 +241,34 @@ test("two branches that both add a story merge without a conflict in the board",
   const findings = JSON.parse(mps(proj, ["doctor", "--vault", "--json"]).stdout);
   assert.ok(!findings.some((f) => f.check === "kanban" && f.level === "issue"),
     "…so doctor has nothing to say about the board afterwards");
+});
+
+test("merge stages the merge result and the re-derived views, never a stray uncommitted file (G-8)", () => {
+  const proj = repo();
+  mps(proj, ["doctor", "--fix"]);
+  git(proj, ["add", "-A"]);
+  git(proj, ["commit", "-qm", "wire the merge driver"]);
+
+  git(proj, ["checkout", "-qb", "a"]);
+  mps(proj, ["draft", "story", "PS-1", "From claude", "--write"]);
+  mps(proj, ["commit", "-m", "story a", "--all"], { harness: "claude", session: "s-a" });
+
+  git(proj, ["checkout", "-q", "main"]);
+  git(proj, ["checkout", "-qb", "b"]);
+  mps(proj, ["draft", "story", "PS-1", "From codex", "--write"]);
+  mps(proj, ["commit", "-m", "story b", "--all"], { harness: "codex", session: "s-b" });
+
+  // Work in progress on branch "b", unrelated to the merge — exactly what a
+  // bare `--all` inside merge() used to sweep into the merge commit (G-8).
+  writeFileSync(join(proj, "wip.txt"), "not part of the merge\n", "utf8");
+
+  const merged = mps(proj, ["merge", "a"], { harness: "codex", session: "s-b" });
+  assert.match(merged.stdout, /recorded [0-9a-f]+/, merged.stderr);
+
+  assert.match(git(proj, ["status", "--porcelain"]).stdout, /^\?\? wip\.txt$/m,
+    "the stray file is still untracked — merge never staged it");
+  const committed = git(proj, ["show", "--name-only", "--format=", "HEAD"]).stdout;
+  assert.ok(!committed.includes("wip.txt"), "…and it did not enter the merge commit itself");
 });
 
 test("doctor reports the merge driver, and repairs a stale one", () => {

@@ -23,6 +23,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import {
   readConfig,
   parseFrontmatter,
@@ -61,7 +62,7 @@ function sectionEnd(text, id) {
   return next === -1 ? text.length : m.index + m[0].length + next;
 }
 
-function insertSection(text, id, lang, placeholder, anchors) {
+function insertSection(text, id, lang, placeholder, anchors, fmEnd) {
   if (headingLineRe(id).test(text)) return { text, inserted: false };
   const block = `## ${heading(id, lang)}\n\n${placeholder}\n\n`;
   for (const anchor of anchors) {
@@ -70,9 +71,12 @@ function insertSection(text, id, lang, placeholder, anchors) {
       return { text: text.slice(0, end) + block + text.slice(end), inserted: true };
     }
   }
-  // Fallback: before the trailing `---` footer, else EOF.
-  const footer = text.lastIndexOf("\n---\n");
-  const at = footer > 0 ? footer + 1 : text.length;
+  // Fallback: before the trailing `---` footer, searched only AFTER the
+  // frontmatter block ends. Searching the whole text finds the frontmatter's
+  // OWN closing delimiter on a story with no anchor sections and no footer —
+  // splicing the block inside the YAML instead of the body.
+  const footer = text.indexOf("\n---\n", fmEnd);
+  const at = footer !== -1 ? footer + 1 : text.length;
   return { text: text.slice(0, at) + block + text.slice(at), inserted: true };
 }
 
@@ -87,9 +91,23 @@ function main() {
   const abs = resolve(storyPath);
   if (!existsSync(abs)) die(`story not found: ${abs}`);
 
-  const original = readFileSync(abs, "utf8");
-  const fm = parseFrontmatter(original).data;
+  // The sha256 travels in the JSON output so the writer (bin/mps) can refuse
+  // to apply `content` if the file changed after THIS read — the hash is of
+  // the exact bytes read from disk, before any BOM/CRLF normalization below.
+  const diskText = readFileSync(abs, "utf8");
+  const original_sha256 = createHash("sha256").update(diskText, "utf8").digest("hex");
+
+  // Normalize once, here: strip a BOM and CRLF line endings so every regex
+  // below (all of them \n-only) works on a Windows-authored file exactly as
+  // it works on one written on macOS/Linux. The file is written back LF-only
+  // (the project's own eol=lf policy, doctor --fix writes the .gitattributes
+  // line for it) — a no-op on the second run, once the file has migrated.
+  let raw = diskText;
+  if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
+  const original = raw.replace(/\r\n/g, "\n");
+  const { data: fm, body: fmBody } = parseFrontmatter(original);
   if (fm.type && fm.type !== "story") die(`not a story (type: ${fm.type})`);
+  const fmEnd = original.length - fmBody.length;
 
   let text = original;
   const notes = [];
@@ -99,7 +117,7 @@ function main() {
   if (mode === "plan") {
     const r = insertSection(text, "implementation_plan", lang,
       "<!-- Route through the covering spec's contracts: which contracts, in what order, which files. Filled at the gate. -->",
-      ["decomposition", "description"]);
+      ["decomposition", "description"], fmEnd);
     text = r.text;
     if (r.inserted) notes.push("inserted Implementation Plan section");
     if (!["in-progress", "in_progress", "review", "done"].includes(status)) {
@@ -115,7 +133,7 @@ function main() {
   } else {
     const r = insertSection(text, "final_summary", lang,
       "<!-- What changed, why, tests executed, risks and follow-ups. Filled at the gate. -->",
-      ["acceptance", "decomposition", "description"]);
+      ["acceptance", "decomposition", "description"], fmEnd);
     text = r.text;
     if (r.inserted) notes.push("inserted Final Summary section");
     if (status !== "done") {
@@ -139,6 +157,7 @@ function main() {
     changed: text !== original,
     notes,
     content: text,
+    original_sha256,
   }, null, 2) + "\n");
 }
 

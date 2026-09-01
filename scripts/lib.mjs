@@ -46,6 +46,14 @@ export function configPath() {
   return join(root, ".claude", "projectstore.json");
 }
 
+// `~` is only expanded by an interactive shell — a harness that spawns us
+// directly (spawn/execFile with an argv array, no shell in between) passes it
+// through literally. One helper, reused everywhere a path arrives from argv
+// rather than from a shell (bind's vault argument, --project, --home).
+export function expandHome(p) {
+  return String(p).replace(/^~(?=\/|$)/, process.env.HOME || "~");
+}
+
 // A CLI piped into `head` gets its stdout closed under it. Node's default is
 // an unhandled 'error' event and a stack trace on a perfectly ordinary shell
 // idiom, so every entry point silences EPIPE and exits quietly instead.
@@ -60,13 +68,19 @@ export function ignoreEpipe() {
 
 // ─── Config ────────────────────────────────────────────────────────────
 
+// null means "not bound yet" (mps bind is the right next step) — a caller
+// must never conflate that with "bound, but the config is corrupt", which
+// needs a loud failure instead: silently treating a broken config as unbound
+// invites `mps setup` to rebind over it, discarding whatever settings the
+// file still held (upstream ADR-007 gap).
 export function readConfig() {
   const p = configPath();
   if (!existsSync(p)) return null;
   try {
     return JSON.parse(readFileSync(p, "utf8"));
   } catch (e) {
-    return null;
+    process.stderr.write(`mps: config exists but is unreadable: ${p}: ${e.message}\n`);
+    process.exit(1);
   }
 }
 
@@ -307,6 +321,22 @@ export function listOf(fm, key) {
   }
 }
 
+// ─── Markdown table cell escaping ───────────────────────────────────────
+//
+// A `|` inside a cell (most often a title) splits a markdown table row into
+// an extra column — silently, in every renderer AND in doctor's own row
+// parser. One escaper, shared by every derived-view writer (reconcile,
+// draft, codemap, graph) so `\|` means the same thing everywhere; unescCell
+// is its inverse, for a reader (doctor's checkIndexes) that must compare a
+// rendered cell back against the frontmatter value that produced it.
+export function escCell(s) {
+  return String(s).replace(/\|/g, "\\|");
+}
+
+export function unescCell(s) {
+  return String(s).replace(/\\\|/g, "|");
+}
+
 // ─── Vault-side policy config (upstream ADR-007 Decision 4) ─────────────────────
 //
 // <vault>/.projectstore.json — vault ROOT, dot-prefixed: git commits it (so
@@ -325,7 +355,12 @@ export function readVaultConfig(vault) {
   try {
     const v = JSON.parse(readFileSync(p, "utf8"));
     return v && typeof v === "object" && !Array.isArray(v) ? v : {};
-  } catch {
+  } catch (e) {
+    // Degrade to defaults rather than exit — a corrupt vault-side policy file
+    // must not take doctor itself down, but it silently turns spec_policy:
+    // required into optional, so this is loud on stderr and doctor's own
+    // checkVaultPolicy reports it as a first-class finding.
+    process.stderr.write(`mps: vault policy unreadable, using defaults: ${p}: ${e.message}\n`);
     return {};
   }
 }
@@ -545,6 +580,19 @@ export function findSlugCollision(target, existingNames, opts = {}) {
 // Only `stories/<name>/README.md` counts, not deeper nesting: an
 // `artifacts/` subfolder under a story holds attachments, not more stories.
 
+// Every subdirectory of an epics/ folder eligible to BE an epic: real
+// directories only, `_`/`.`-prefixed ones excluded (`_templates` and
+// friends hold blanks, not work — kanban.mjs's original convention, now the
+// one place doctor's scanArtifacts and codemap share it instead of drifting).
+export function listEpicDirs(epicsRoot) {
+  let names;
+  try { names = readdirSync(epicsRoot).sort(); } catch { return []; }
+  return names.filter((n) => {
+    if (n.startsWith("_") || n.startsWith(".")) return false;
+    try { return statSync(join(epicsRoot, n)).isDirectory(); } catch { return false; }
+  });
+}
+
 export function listStoryFiles(storiesDir) {
   if (!existsSync(storiesDir)) return [];
   const out = [];
@@ -588,6 +636,55 @@ export function listEpicStories(epicDir) {
     out.push({ abs: full, rel: entry, slug: entry.replace(/\.md$/, "") });
   }
   return out;
+}
+
+// A path inside the vault, relative to it, or null when it is not. Normalises
+// `\`→`/` and accepts either a lexical prefix match or a realpath one (macOS
+// /var → /private/var, the same duality isInsideVault resolves) — a bare
+// `startsWith(vault + "/")` gets both of those wrong.
+function vaultRelPath(absPath, vaultPath) {
+  if (!absPath || !vaultPath) return null;
+  const norm = (p) => String(p).replace(/\\/g, "/");
+  const trim = (p) => (p.endsWith("/") ? p.slice(0, -1) : p);
+  const under = (p, v) => (p === v ? "" : p.startsWith(v + "/") ? p.slice(v.length + 1) : null);
+  const lexical = under(trim(norm(absPath)), trim(norm(vaultPath)));
+  if (lexical !== null) return lexical;
+  return under(trim(norm(realPath(absPath))), trim(norm(realPath(vaultPath))));
+}
+
+// A story reference is stable across harnesses and machines: <epic>/<stem>.
+// Understands every on-disk shape a story can take and passes an
+// already-shaped reference straight through:
+//   epics/<E>/stories/<s>.md          -> <E>/<s>
+//   epics/<E>/stories/<s>/README.md   -> <E>/<s>          (folder-shape story)
+//   epics/<E>/story-<s>.md            -> <E>/story-<s>    (standalone story)
+//   <E>/<stem>                        -> itself, checked against the vault
+//                                         when one is bound (a typo fails
+//                                         here rather than entering a
+//                                         permanent record)
+export function storyRefOf(pathOrRef, vault) {
+  const raw = String(pathOrRef || "");
+  if (vault) {
+    const rel = vaultRelPath(resolve(raw), vault);
+    const m = rel && rel.match(/^epics\/([^/]+)\/(.+)$/);
+    if (m) {
+      const story = listEpicStories(join(vault, "epics", m[1])).find((s) => s.rel === m[2]);
+      if (story) return `${m[1]}/${story.slug}`;
+    }
+  }
+  if (!/^[\w.-]+\/[\w.-]+$/.test(raw)) return null;
+  if (!vault) return raw;
+  return storyPathOf(raw, vault) ? raw : null;
+}
+
+// The inverse of storyRefOf: <epic>/<stem> back to the story's absolute path,
+// whichever of the three shapes it is actually filed under.
+export function storyPathOf(ref, vault) {
+  if (!ref || !vault) return null;
+  const [epicId, stem] = String(ref).split("/");
+  if (!epicId || !stem) return null;
+  const story = listEpicStories(join(vault, "epics", epicId)).find((s) => s.slug === stem);
+  return story ? story.abs : null;
 }
 
 // ─── Link graph: extraction, node index, resolver ──────────────────────
@@ -1195,6 +1292,37 @@ export function renderVaultSkeleton(facts) {
   return L.join("\n") + "\n";
 }
 
+// Session identity has to be STABLE for as long as the harness session lives,
+// or every command invents a new session and the registry fills with ghosts of
+// one agent. In order of trust:
+//
+//   --id                    the caller knows best
+//   $MPS_SESSION_ID         set once, by bin/mps's own main() — process.ppid
+//                           there really is the shell/harness that invoked the
+//                           CLI, unlike inside a script bin/mps spawns, whose
+//                           parent pid is bin/mps itself and changes every call
+//   a harness/terminal env var   stable per window across processes
+//   <host>-<parent pid>     last resort, right only when the caller IS that
+//                           original process
+//
+// The harness name is prefixed when known, so `mps sessions` reads as who is
+// working rather than as a list of numbers.
+const TERMINAL_ENV = ["MPS_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID",
+  "TERM_SESSION_ID", "ITERM_SESSION_ID", "TMUX_PANE", "WT_SESSION", "KITTY_WINDOW_ID", "SSH_TTY"];
+
+export function sessionId(argv = process.argv, env = process.env) {
+  const i = argv.indexOf("--id");
+  if (i !== -1 && argv[i + 1]) return argv[i + 1];
+  if (env.MPS_SESSION_ID) return env.MPS_SESSION_ID;
+  const harness = env.MPS_HARNESS || null;
+  for (const k of TERMINAL_ENV) {
+    if (!env[k]) continue;
+    const slug = String(env[k]).replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "").slice(-24);
+    if (slug) return `${harness ? harness + "-" : ""}${slug}`;
+  }
+  return `${harness ? harness + "-" : ""}${hostname().split(".")[0]}-${process.ppid}`;
+}
+
 // ─── Session awareness (layer 2 — multi-Claude coordination) ──────────
 //
 // Each Claude Code session registers itself in
@@ -1562,10 +1690,16 @@ export function lastVaultActivityMs(vaultPath) {
 // ─── Frontmatter parsing (minimal) ─────────────────────────────────────
 
 export function parseFrontmatter(md) {
-  const m = md.match(/^---\n([\s\S]*?)\n---/);
-  if (!m) return { data: {}, body: md };
+  // A BOM (Windows Notepad's default) or CRLF line endings (any Windows
+  // session) make the ^---\n anchor miss entirely — the whole frontmatter
+  // block then silently reads as absent, not as a parse error. Strip the BOM
+  // and accept \r?\n on both delimiters; the body keeps whatever endings the
+  // rest of the file actually uses.
+  const text = md.charCodeAt(0) === 0xfeff ? md.slice(1) : md;
+  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!m) return { data: {}, body: text };
   const data = {};
-  for (const line of m[1].split("\n")) {
+  for (const line of m[1].split(/\r?\n/)) {
     const kv = line.match(/^(\w+):\s*(.*)$/);
     if (!kv) continue;
     let v = kv[2].trim();
@@ -1577,5 +1711,5 @@ export function parseFrontmatter(md) {
     }
     data[kv[1]] = v;
   }
-  return { data, body: md.slice(m[0].length) };
+  return { data, body: text.slice(m[0].length) };
 }

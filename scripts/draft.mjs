@@ -56,6 +56,8 @@ import {
   findSlugCollision,
   displayNumberOf,
   today,
+  pluginRoot,
+  escCell,
 } from "./lib.mjs";
 
 function die(msg, code = 1) {
@@ -86,12 +88,14 @@ function makeIndexLine(kind, fileName, vars, content, folder) {
   // hold for a custom kind too, not just the bundled ones.
   const date = fm.date || fm.created || "";
   if (kind === "epic") {
-    return `| [${vars.id}](./${vars.id}/epic.md) | ${fm.title || vars.id} | ${fm.status || "planned"} | ${date} |`;
+    return `| [${vars.id}](./${vars.id}/epic.md) | ${escCell(fm.title || vars.id)} | ${fm.status || "planned"} | ${date} |`;
   }
   const status = fm.status || (folder.numbered ? "proposed" : "draft");
   const number = displayNumberOf(fm, fileName, { prefix: folder.prefix || null });
   const label = number && folder.prefix ? `${folder.prefix}${number}` : fileName.replace(/\.md$/, "");
-  return `| [${label}](./${fileName}) | ${fm.title || label} | ${status} | ${date} |`;
+  // Byte-identical to reconcile's rebuildIndexRows, which is the contract
+  // this preview must hold: escCell here, unescCell on doctor's read side.
+  return `| [${label}](./${fileName}) | ${escCell(fm.title || label)} | ${status} | ${date} |`;
 }
 
 function indexPath(vault, folderPath) {
@@ -229,13 +233,28 @@ function buildSimple(kind, cfg, layout, args) {
 // ─── Main ──────────────────────────────────────────────────────────────
 
 function main() {
-  const argv = process.argv.slice(2);
-  if (argv.length < 2) die("usage: draft.mjs <kind> <args...>");
+  const raw = process.argv.slice(2);
+  // --lang can appear anywhere in argv (bin/mps's own arg parser already
+  // treats it as valued and leaves it out of the positionals it forwards
+  // first) — strip it here rather than requiring a fixed position.
+  let lang = null;
+  const argv = [];
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] === "--lang") { lang = raw[++i]; continue; }
+    argv.push(raw[i]);
+  }
+  if (argv.length < 2) die("usage: draft.mjs <kind> <args...> [--lang <code>]");
   const kind = argv[0];
   const rest = argv.slice(1);
 
   const cfg = readConfig();
   if (!cfg) die("No projectstore config. Run mps bind <vault-path> first.");
+  if (lang) {
+    if (!existsSync(join(pluginRoot(), "templates", lang))) {
+      die(`unknown language "${lang}" — available: ${readdirSync(join(pluginRoot(), "templates")).filter((n) => !n.includes(".")).join(", ")}`);
+    }
+    cfg.language = lang; // overrides the bound vault's language for this call only
+  }
   const layout = loadLayout(cfg.layout);
 
   let result;

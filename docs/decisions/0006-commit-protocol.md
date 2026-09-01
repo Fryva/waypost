@@ -98,11 +98,20 @@ puts the correct board in the merge commit itself. With a plain `git merge` the
 residual drift is caught by `mps doctor` (the `kanban` check) and fixed by
 `mps reconcile --write` — documented behaviour rather than a silent gap.
 
-Session identity resolves as: `--id` → `$MPS_SESSION_ID` → a terminal/pane id
-(`TERM_SESSION_ID`, `ITERM_SESSION_ID`, `TMUX_PANE`, `WT_SESSION`, …) →
-`<host>-<parent pid>`. Harnesses are encouraged to export `MPS_SESSION_ID`: the
-last fallback is right while one shell drives the CLI and falls apart when every
-call gets a new one.
+Session identity resolves as: `--id` → `$MPS_SESSION_ID` → a harness session env
+var (`CLAUDE_CODE_SESSION_ID`, `CLAUDE_SESSION_ID`, `CODEX_SESSION_ID`) → a
+terminal/pane id (`TERM_SESSION_ID`, `ITERM_SESSION_ID`, `TMUX_PANE`,
+`WT_SESSION`, …) → `<host>-<parent pid>`. The derivation runs exactly once per
+invocation, in `bin/mps`'s own `main()`, where `process.ppid` genuinely is the
+shell or harness that invoked the CLI — not inside a script it spawns, whose
+parent pid would be `bin/mps` itself and different on every single call. The
+result is pinned to `$MPS_SESSION_ID` in that process's environment before
+anything else runs, so every child script one `mps` command spawns (`reconcile`,
+`sessions`, `presence`, …) inherits and agrees on the same id. Harnesses are
+still encouraged to export `MPS_SESSION_ID`: the last-resort fallback is right
+for one process tree driven by one shell, but two separate `mps` invocations
+from two different shells (no harness or terminal env var in either) still
+derive two different ids, since neither shell's pid is known to the other.
 
 ## Consequences
 

@@ -9,7 +9,7 @@
 // reconcile.mjs --write (atomic replace, recompute-at-write), not the
 // harness: no Write-tool step remains in the derived-view flows.
 
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   readConfig,
@@ -18,6 +18,7 @@ import {
   renderTemplate,
   parseFrontmatter,
   nowIso,
+  listEpicDirs,
   listEpicStories,
   slugIdentity,
   displayNumberOf,
@@ -42,9 +43,7 @@ function findStories(vault, epicsPath) {
   // Epics iterate in sorted order and each epic's stories are ordered by
   // created date (number, then slug, as tiebreak — SPEC-002 contract 8), so
   // the board keeps its per-epic grouping and regenerates deterministically.
-  for (const epicId of readdirSync(root).sort()) {
-    // `_templates` and friends hold blanks, not work.
-    if (epicId.startsWith("_") || epicId.startsWith(".")) continue;
+  for (const epicId of listEpicDirs(root)) {
     const epicStories = [];
     for (const story of listEpicStories(join(root, epicId))) {
       const md = readFileSync(story.abs, "utf8");

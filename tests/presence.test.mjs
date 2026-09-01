@@ -9,12 +9,13 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir, hostname } from "node:os";
-import { spawnSync } from "node:child_process";
+import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   beat, peers, acquire, release, readLeases, winnerOf, storageOf, presenceDir, leaseDir, vaultRel,
   LIVE_WINDOW_MS,
 } from "../scripts/presence.mjs";
+import { claimsOf } from "../scripts/sessions.mjs";
 import { checkPortableNames } from "../scripts/doctor.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -40,9 +41,15 @@ function peerFile(vault, { session, seq = 1, at = new Date().toISOString(), host
 // A lease as the other device would have written it: its own host, OS and
 // harness. Writing it locally would describe THIS machine, which is exactly the
 // distinction the protocol is about.
+//
+// The filename is keyed by session (C-1/G-3: two sessions racing on one path
+// must land in two different files, never the same one) — parameterized by
+// `session` rather than a fixed "remote" suffix, so two fake remote leases for
+// the same path (two different sessions) do not collide with each other on
+// disk either.
 function leaseFile(vault, { path, session, host = "otherbox", os = "win32", harness = "cursor", acquired_at = new Date().toISOString() }) {
   mkdirSync(leaseDir(vault), { recursive: true });
-  const slug = `${path.replace(/[^\w.-]+/g, "_").slice(0, 80)}.remote.json`;
+  const slug = `${path.replace(/[^\w.-]+/g, "_").slice(0, 80)}.remote.${String(session).replace(/[^\w.-]+/g, "_")}.json`;
   writeFileSync(join(leaseDir(vault), slug), JSON.stringify({ path, session, host, os, harness, acquired_at }, null, 2), "utf8");
 }
 
@@ -143,6 +150,86 @@ test("two devices that acquire at once converge on one owner, both computing the
   assert.equal(winnerOf(b, a), a, "…and the rule is symmetric, so both sides agree");
   const earlier = { ...b, acquired_at: "2026-09-01T09:59:59.000Z" };
   assert.equal(winnerOf(a, earlier), earlier, "otherwise the earlier acquisition wins");
+});
+
+test("two live sessions racing to acquire the same path converge on exactly one file, and agree on the winner (C-1/G-3)", async () => {
+  const vault = mkdtempSync(join(tmpdir(), "mps-race-"));
+  const barrier = join(vault, ".race-go");
+  const presenceUrl = new URL("../scripts/presence.mjs", import.meta.url).href;
+  // Two REAL, separate node processes — not two calls in this process — so the
+  // race is genuine: both pass their own "no live rival yet" check and both
+  // write before either settles and re-reads, which is exactly the interleaving
+  // that used to let both sides believe they held the lease.
+  const race = (sid) => `
+    import { acquire, beat } from ${JSON.stringify(presenceUrl)};
+    import { existsSync } from "node:fs";
+    beat(${JSON.stringify(vault)}, ${JSON.stringify(sid)}, { harness: "test" });
+    while (!existsSync(${JSON.stringify(barrier)})) { /* spin for the barrier */ }
+    const out = acquire(${JSON.stringify(vault)}, ["race/file.ts"], { sessionId: ${JSON.stringify(sid)}, settleMs: 150 });
+    process.stdout.write(JSON.stringify(out.results[0]));
+  `;
+  const worker = (sid) => new Promise((res, rej) => {
+    const child = spawn(process.execPath, ["--input-type=module", "-e", race(sid)], { stdio: ["ignore", "pipe", "inherit"] });
+    let out = "";
+    child.stdout.on("data", (d) => { out += d; });
+    child.on("close", (code) => (code === 0 ? res(JSON.parse(out)) : rej(new Error(`race worker ${sid} exited ${code}`))));
+  });
+  const pAlpha = worker("alpha");
+  const pBeta = worker("beta");
+  // Let both processes start node and reach the busy-wait, then drop the
+  // barrier so they race as close to simultaneously as possible.
+  await new Promise((r) => setTimeout(r, 300));
+  writeFileSync(barrier, "go", "utf8");
+  const [a, b] = await Promise.all([pAlpha, pBeta]);
+
+  const aOwns = a.ok === true;
+  const bOwns = b.ok === true;
+  assert.notEqual(aOwns, bOwns, "exactly one side keeps the lease once the race settles — never both, never neither");
+  const files = readdirSync(leaseDir(vault)).filter((n) => n.endsWith(".json"));
+  assert.equal(files.length, 1, "the loser removes only its own file, never the winner's");
+  const rec = JSON.parse(readFileSync(join(leaseDir(vault), files[0]), "utf8"));
+  assert.equal(rec.session, aOwns ? "alpha" : "beta", "the file left on disk belongs to whichever side believes it won");
+
+  // The winner can re-acquire cleanly afterwards: no live rival left to contest.
+  const again = acquire(vault, ["race/file.ts"], { sessionId: rec.session, settleMs: 0 });
+  assert.equal(again.results[0].ok, true);
+  assert.equal(again.results[0].contested, false);
+});
+
+test("`mps lease <path>` and `mps lease --json` both work in the documented form (G-2)", () => {
+  const { proj } = project();
+  const run = (args) => spawnSync(process.execPath, [MPS, ...args], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO, MPS_SESSION_ID: "me" },
+  });
+
+  // AGENTS.md, README and help() all document `mps lease <path…>` — a bare
+  // path was previously read as an unknown subcommand of presence.mjs.
+  const leased = run(["lease", "adr/x.md"]);
+  assert.equal(leased.status, 0, leased.stderr);
+  assert.match(leased.stdout, /^leased\s+adr\/x\.md/m);
+
+  // A bare flag with no path has nothing to lease — it lists this session's
+  // own leases instead of failing as "usage: mps lease <path…>".
+  const asJson = run(["lease", "--json"]);
+  assert.equal(asJson.status, 0, asJson.stderr);
+  const rows = JSON.parse(asJson.stdout);
+  assert.ok(Array.isArray(rows) && rows.some((r) => r.path === "adr/x.md" && r.mine));
+});
+
+test("a claim survives 10 minutes of silence — live in claimsOf's 30-minute window, stale in plain presence (C-2)", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    beat(vault, "s1", { claim: { story: "E1/story-x", at: new Date().toISOString() } });
+    const tenMinutesLater = Date.now() + 10 * 60_000; // well past LIVE_WINDOW_MS (2.5 min)
+
+    const claims = claimsOf(vault, { now: tenMinutesLater });
+    assert.ok(claims.some((c) => c.session === "s1" && c.story === "E1/story-x"),
+      "ADR-0006 promises a claim survives 30 minutes of an agent's own silence");
+
+    const view = peers(vault, { self: "me", now: tenMinutesLater });
+    assert.equal(view.peers.find((p) => p.session === "s1").live, false,
+      "the SAME session is stale under plain presence's shorter window (ADR-0007) — one counter, two policies");
+  });
 });
 
 test("releasing frees only this session's leases", () => {

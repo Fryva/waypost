@@ -25,6 +25,7 @@ import {
   extractLinks,
   resolveLinkTarget,
   storyMatchesEntry,
+  escCell,
 } from "./lib.mjs";
 import { walkVaultFiles } from "./doctor.mjs";
 
@@ -154,7 +155,6 @@ export function buildGraph(cfg, layout, { files = null } = {}) {
   const edgeRows = [...edges.values()].sort(
     (a, b) => cmp(a.from, b.from) || cmp(a.kind, b.kind) || cmp(a.to, b.to));
 
-  const esc = (s) => String(s).replace(/\|/g, "\\|");
   const lines = [
     "---",
     "",
@@ -176,7 +176,7 @@ export function buildGraph(cfg, layout, { files = null } = {}) {
     "|------|-------|------|--------|",
   ];
   for (const n of nodeRows) {
-    lines.push(`| ${n.path} | ${esc(n.title)} | ${n.type} | ${n.status ?? "-"} |`);
+    lines.push(`| ${n.path} | ${escCell(n.title)} | ${n.type} | ${n.status ?? "-"} |`);
   }
   lines.push("", "## Edges", "", "| From | Kind | To |", "|------|------|----|");
   for (const e of edgeRows) {

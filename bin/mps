@@ -10,6 +10,10 @@ import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import {
+  parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, storyRefOf, expandHome,
+} from "../scripts/lib.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SCRIPT = (name) => join(ROOT, "scripts", `${name}.mjs`);
@@ -59,10 +63,15 @@ function configPath() {
   return existsSync(legacy) ? legacy : mps;
 }
 
+// null means "not bound" — the right next step is `mps bind`/`mps setup`. A
+// config that exists but does not parse is a different, louder problem: left
+// indistinguishable from "not bound", `mps setup` would silently rebind over
+// it and discard whatever settings the file still held.
 function readConfig() {
   const p = configPath();
   if (!existsSync(p)) return null;
-  try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
+  try { return JSON.parse(readFileSync(p, "utf8")); }
+  catch (e) { fail(`config exists but is unreadable: ${p}: ${e.message}`); }
 }
 
 // Options that take a value. Everything else starting with `--` is a boolean,
@@ -132,7 +141,20 @@ function handleSetup(args) {
     say("  (`mps harnesses --all` lists what is supported)");
   }
 
-  step("repair the mechanical install findings", () => run("doctor", ["--install", "--fix"], { capture: true }));
+  // Not run(): doctor is a diagnostic, and `--fix` only mends what is
+  // mechanical — a harness/spec/layout finding it cannot touch must not turn
+  // `mps setup` into a hard failure for having done the mechanical part of
+  // its job. spawnSync here so setup can read and print the report itself
+  // and add the one line that matters: whether anything still needs a human.
+  step("repair the mechanical install findings", () => {
+    const r = spawnSync(process.execPath, [SCRIPT("doctor"), "--install", "--fix"], {
+      encoding: "utf8", env: { ...process.env, MPS_HOME: process.env.MPS_HOME || ROOT },
+    });
+    process.stdout.write(r.stdout || "");
+    if (r.stderr) process.stderr.write(r.stderr);
+    const m = (r.stdout || "").match(/Summary: (\d+) issue/);
+    if (m && Number(m[1]) > 0) process.stdout.write(`${m[1]} finding(s) remain — mps doctor\n`);
+  });
   if (!dry) {
     process.stdout.write("\nready. Next:\n");
     process.stdout.write("  mps next                      what this project needs right now\n");
@@ -166,6 +188,17 @@ function passThrough(args, names) {
   return out;
 }
 
+// A finding's message, trimmed to its lead clause for a one-line summary:
+// split on " — " first (several finding generators use it deliberately as a
+// clause separator), else on the first SENTENCE-ending period (one followed
+// by whitespace or end of string) — never the first bare ".", which cuts a
+// message off mid-path on anything naming a file (kanban.md, .gitattributes,
+// .mps/…) or a domain-shaped word.
+function leadClause(message) {
+  const dash = message.split(" — ")[0];
+  return dash !== message ? dash : message.split(/\.(?:\s|$)/)[0];
+}
+
 // ─── next: what this project needs right now ───────────────────────────
 //
 // The judgement an agent otherwise has to make from scratch every session, made
@@ -184,7 +217,7 @@ function handleNext(args) {
   const by = (check, level) => findings.filter((f) => f.check === check && (!level || f.level === level));
 
   for (const f of findings.filter((f) => f.level === "issue")) {
-    items.push([1, f.message.split(" — ")[0].slice(0, 110), repairFor(f)]);
+    items.push([1, leadClause(f.message).slice(0, 110), repairFor(f)]);
   }
   const state = (() => {
     try { return JSON.parse(run("sessions", ["--json"], { capture: true })); } catch { return {}; }
@@ -197,10 +230,10 @@ function handleNext(args) {
     items.push([3, "source changes with no story open", 'mps draft story <EPIC> "<title>" --write']);
   }
   for (const f of findings.filter((f) => f.level === "warn" && f.check !== "work-without-story")) {
-    items.push([4, f.message.split(".")[0].slice(0, 110), repairFor(f)]);
+    items.push([4, leadClause(f.message).slice(0, 110), repairFor(f)]);
   }
   for (const f of by("agent-roles", "info").concat(by("agents-block", "info"))) {
-    items.push([5, f.message.split(" — ")[0].slice(0, 110), repairFor(f)]);
+    items.push([5, leadClause(f.message).slice(0, 110), repairFor(f)]);
   }
 
   if (!items.length) {
@@ -230,7 +263,7 @@ function repairFor(f) {
 function handleBind(args) {
   const [vault] = positionals(args);
   if (!vault) fail('bind <vault-path> [--layout engineering] [--lang en|ru|es|de|fr|zh]');
-  const abs = resolve(vault.replace(/^~(?=\/|$)/, process.env.HOME || "~"));
+  const abs = resolve(expandHome(vault));
   const layout = opt(args, "--layout", "engineering");
   const lang = opt(args, "--lang", "en");
   if (!existsSync(join(ROOT, "scaffold", "layouts", `${layout}.json`))) {
@@ -298,9 +331,9 @@ function handleScaffold(args) {
         `\`${folder.kind}\` artifacts of the \`${layout.name}\` layout, maintained by mps.`), "utf8");
     created.push(`${folder.path}/README.md`);
   }
+  if (flag(args, "--json")) { process.stdout.write(JSON.stringify({ created }, null, 2) + "\n"); return; }
   if (!created.length) process.stdout.write("scaffold: vault already complete\n");
   else process.stdout.write(`scaffold: created ${created.length} item(s)\n  ${created.join("\n  ")}\n`);
-  if (flag(args, "--json")) process.stdout.write(JSON.stringify({ created }, null, 2) + "\n");
 }
 
 // ─── draft ─────────────────────────────────────────────────────────────
@@ -309,10 +342,11 @@ function handleDraft(args) {
   const pos = positionals(args);
   const [kind, ...rest] = pos;
   if (!kind || !rest.length) {
-    fail('draft <adr|spec|epic|story|research|concept|meeting|runbook> "<title>" [--write]\n' +
+    fail('draft <adr|spec|epic|story|research|concept|meeting|runbook> "<title>" [--write] [--lang <code>]\n' +
          '       draft epic <EPIC-ID> "<title>"   |   draft story <EPIC-ID> "<title>"');
   }
-  const out = runJson("draft", [kind, ...rest]);
+  const lang = opt(args, "--lang");
+  const out = runJson("draft", [kind, ...rest, ...(lang ? ["--lang", lang] : [])]);
   if (!flag(args, "--write")) {
     if (flag(args, "--json")) { process.stdout.write(JSON.stringify(out, null, 2) + "\n"); return; }
     // A preview used to print the whole rendered artifact — several hundred
@@ -332,7 +366,9 @@ function handleDraft(args) {
   }
   if (existsSync(out.path)) fail(`refusing to overwrite ${out.path}`);
   mkdirSync(dirname(out.path), { recursive: true });
-  writeFileSync(out.path, out.content, "utf8");
+  // sweep:false — this directory is not reconcile's own regeneration loop,
+  // so there is no reason to pay for scanning it for orphaned temps here.
+  writeFileAtomic(out.path, out.content, { sweep: false });
   process.stdout.write(`created ${out.path}\n`);
   for (const w of out.warnings || []) process.stdout.write(`⚠️  ${w}\n`);
   // The index row and the board are derived views: regenerate rather than
@@ -375,17 +411,34 @@ function handleStory(args) {
     process.stdout.write("(preview only — re-run with --write to apply)\n");
     return;
   }
+  // story-section.mjs will transform any file with a frontmatter block, not
+  // only a real vault story — refuse to write anywhere outside the bound
+  // vault rather than trust a positional path the caller supplied.
+  const cfg = readConfig();
+  if (!cfg || !cfg.vault_path || !isInsideVault(resolve(out.path), cfg.vault_path)) {
+    fail(`refusing to write outside the vault: ${out.path}`);
+  }
   if (!out.changed) { process.stdout.write(`unchanged ${out.path}\n`); return; }
-  writeFileSync(out.path, out.content, "utf8");
+  // Re-check against the file story-section actually read: between that read
+  // and this write another session (or a hand edit) may have changed it, and
+  // `content` was computed from the OLD bytes — writing it now would silently
+  // discard the concurrent edit.
+  let current;
+  try { current = readFileSync(out.path, "utf8"); } catch (e) { fail(`${out.path}: ${e.message}`); }
+  if (createHash("sha256").update(current, "utf8").digest("hex") !== out.original_sha256) {
+    fail(`${out.path} changed since it was read — re-run`);
+  }
+  // sweep:false — same reasoning as handleDraft's write.
+  writeFileAtomic(out.path, out.content, { sweep: false });
   process.stdout.write(`${mode}  ${out.path}\n  ${(out.notes || []).join("\n  ")}\n`);
   // Opening a story claims it for this session; closing it releases the claim.
   // Other harnesses on the same vault read that registry, so the gate is also
   // the announcement — nobody has to remember a separate command.
-  claimForStory(mode === "plan" ? out.path : null);
+  claimForStory(mode === "plan" ? out.path : null, cfg.vault_path);
   reconcileAfterWrite();
 }
 
-function claimForStory(storyPath) {
+function claimForStory(storyPath, vault) {
   // Warn, do not refuse: re-planning a story someone else opened changes the
   // file idempotently, and the moment that actually needs a gate is the commit.
   // But the session that is about to duplicate work should hear about it here.
@@ -395,8 +448,8 @@ function claimForStory(storyPath) {
     });
     try {
       const { claims = [], session_id: self } = JSON.parse(r.stdout || "{}");
-      const ref = storyPath.split("/").slice(-3).filter((x) => x !== "stories").join("/").replace(/\.md$/, "");
-      const others = claims.filter((c) => c.story === ref && c.session !== self);
+      const ref = storyRefOf(storyPath, vault);
+      const others = ref ? claims.filter((c) => c.story === ref && c.session !== self) : [];
       if (others.length) {
         process.stderr.write(`⚠️  ${ref} is already claimed by ${others.map((o) => `${o.session} (${o.harness || "?"})`).join(", ")}`
           + " — two sessions on one story is how the same work gets done twice.\n");
@@ -453,7 +506,9 @@ function handleSearch(args) {
   const terms = positionals(args);
   if (!terms.length) fail('search "<text>" [--kind adr|spec|epic|story|…] [--limit 20]');
   const kind = opt(args, "--kind");
-  const limit = Number(opt(args, "--limit", "20"));
+  const limitRaw = opt(args, "--limit", "20");
+  const limit = Number(limitRaw);
+  if (!Number.isInteger(limit) || limit <= 0) fail(`--limit must be a positive integer, got "${limitRaw}"`);
   const re = new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
   const out = [];
   const walk = (dir, rel) => {
@@ -468,13 +523,17 @@ function handleSearch(args) {
       if (!n.endsWith(".md")) continue;
       if (["kanban.md", "graph.md", "code-map.md"].includes(n)) continue;
       let text; try { text = readFileSync(abs, "utf8"); } catch { continue; }
-      const fm = (text.match(/^---\n([\s\S]*?)\n---/) || ["", ""])[1];
-      const field = (k) => ((fm.match(new RegExp(`^${k}:\\s*(.*)$`, "m")) || ["", ""])[1] || "").replace(/^"|"$/g, "");
-      if (kind && field("type") !== kind) continue;
+      // parseFrontmatter, not an inline \n-only regex: a CRLF or BOM file
+      // (the exact shape doctor's own cross-OS checks exist to catch before
+      // it is fixed) used to read as "no frontmatter at all" here, so
+      // `--kind` silently dropped every match and title/status came back
+      // from the filename instead of the artifact's own fields.
+      const fm = parseFrontmatter(text).data;
+      if (kind && String(fm.type ?? "") !== kind) continue;
       const lines = text.split("\n");
       const hitLine = lines.findIndex((l) => re.test(l));
       if (hitLine === -1 && !re.test(r)) continue;
-      out.push({ path: r, title: field("title") || n, status: field("status"),
+      out.push({ path: r, title: String(fm.title ?? "") || n, status: fm.status == null ? "" : String(fm.status),
         line: hitLine === -1 ? null : `${hitLine + 1}: ${lines[hitLine].trim().slice(0, 120)}` });
     }
   };
@@ -649,6 +708,23 @@ HARNESS-AGNOSTIC
 `);
 }
 
+// ─── lease ─────────────────────────────────────────────────────────────
+//
+// AGENTS.md and this file's own help() document `mps lease <path…>` — a path
+// as the first token, not a subcommand. presence.mjs's own CLI takes
+// `lease|acquire|release|list|watch|storage` as its first token, so a path
+// forwarded unchanged reads as an unknown subcommand. Insert the implied
+// "lease" subcommand unless the caller already named a real one, or gave only
+// flags (`mps lease --json`, read as "list mine, as json" — there is no path
+// to lease, so there is nothing to insert "lease" in front of).
+const LEASE_SUBCOMMANDS = new Set(["lease", "acquire", "release", "list", "watch", "storage"]);
+function leaseArgs(rest) {
+  if (!rest.length) return ["list"];
+  if (LEASE_SUBCOMMANDS.has(rest[0])) return rest;
+  if (rest[0].startsWith("--")) return ["list", ...rest];
+  return ["lease", ...rest];
+}
+
 // Presence is only useful if it happens without being asked. Every command that
 // implies work beats the session's heartbeat, so another device sees this
 // session without anyone remembering `mps sessions --touch`. Never fails the
@@ -659,26 +735,42 @@ const QUIET_COMMANDS = new Set(["help", "--help", "-h", "version", "--version", 
 async function heartbeat(cmd) {
   if (QUIET_COMMANDS.has(cmd) || process.env.MPS_NO_BEAT) return;
   try {
-    const [{ readConfig }, { beat }, { sessionId }] = await Promise.all([
-      import(`file://${SCRIPT("lib")}`), import(`file://${SCRIPT("presence")}`), import(`file://${SCRIPT("sessions")}`),
-    ]);
+    // Session id is already resolved and pinned in MPS_SESSION_ID by main()
+    // before this runs (G-1) — no need to import sessions.mjs or lib.mjs just
+    // to derive it again here.
+    const { beat } = await import(`file://${SCRIPT("presence")}`);
     const cfg = readConfig();
     if (cfg && cfg.vault_path && existsSync(cfg.vault_path)) {
-      beat(cfg.vault_path, sessionId(), { harness: process.env.MPS_HARNESS || null });
+      beat(cfg.vault_path, process.env.MPS_SESSION_ID, { harness: process.env.MPS_HARNESS || null });
     }
   } catch { /* presence is advisory; a command must never fail because of it */ }
 }
 
-function main() {
+async function main() {
+  // Resolved ONCE, here, where process.ppid genuinely is the shell or harness
+  // that invoked the CLI — not inside a script bin/mps spawns, whose parent
+  // pid is bin/mps itself and is different on every single invocation (G-1).
+  // Every child this process spawns inherits it via `env: { ...process.env }`.
+  if (!process.env.MPS_SESSION_ID) process.env.MPS_SESSION_ID = sessionId(process.argv);
+
   const argv = process.argv.slice(2);
-  const iProject = argv.indexOf("--project");
-  if (iProject !== -1 && argv[iProject + 1]) process.env.MPS_PROJECT_DIR = resolve(argv[iProject + 1]);
-  const iHome = argv.indexOf("--home");
-  if (iHome !== -1 && argv[iHome + 1]) process.env.MPS_HOME = resolve(argv[iHome + 1]);
-  const args = argv.filter((a, i) =>
-    !["--project", "--home"].includes(a) && !["--project", "--home"].includes(argv[i - 1]));
+  // --project/--home are recognised ONLY in the leading position, before the
+  // command name (either order between the two) — not anywhere in argv, or a
+  // positional argument that happens to equal one of these strings (a search
+  // term, say) would be swallowed as a global flag instead (A-8).
+  let i = 0;
+  while (i < argv.length) {
+    if (argv[i] === "--project" && argv[i + 1] !== undefined) {
+      process.env.MPS_PROJECT_DIR = resolve(expandHome(argv[i + 1]));
+      i += 2;
+    } else if (argv[i] === "--home" && argv[i + 1] !== undefined) {
+      process.env.MPS_HOME = resolve(expandHome(argv[i + 1]));
+      i += 2;
+    } else break;
+  }
+  const args = argv.slice(i);
   const [cmd = "", ...rest] = args;
-  heartbeat(cmd);
+  await heartbeat(cmd);
 
   switch (cmd) {
     case "": handleDefault(); break;
@@ -706,7 +798,7 @@ function main() {
     case "merge": run("commit", ["--merge", ...rest]); break;
     case "log": run("commit", ["--log", ...rest]); break;
     case "merge-derived": run("merge-derived", rest); break;
-    case "lease": run("presence", rest.length ? rest : ["list"]); break;
+    case "lease": run("presence", leaseArgs(rest)); break;
     case "storage": run("presence", ["storage"]); break;
     case "watch": run("presence", ["watch", ...rest]); break;
     case "tokens": run("tokens", rest); break;
@@ -722,4 +814,4 @@ function main() {
   }
 }
 
-main();
+main().catch((e) => fail(e && e.message ? e.message : String(e)));

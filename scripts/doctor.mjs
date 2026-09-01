@@ -16,7 +16,9 @@
 // The SessionStart line counts level==="issue" only.
 //
 // CLI: node doctor.mjs [--install] [--vault] [--startup] [--json]
-//      default = --install --vault. Exit code is always 0 (reporting tool).
+//      default = --install --vault. --json (and --startup) always exit 0 (a
+//      reporting tool); the plain-text report exits 1 when an issue-level
+//      finding exists, so `mps doctor && ...` sees failures.
 
 import {
   existsSync,
@@ -40,6 +42,7 @@ import {
   projectRoot,
   listOf,
   readVaultConfig,
+  vaultConfigPath,
   isLegacyStory,
   sectionOf,
   headingLineRe,
@@ -55,9 +58,13 @@ import {
   buildNodeIndex,
   resolveLinkTarget,
   listVaultStoryFiles,
+  listEpicDirs,
+  listEpicStories,
   openStoryFrom,
   lastVaultActivityMs,
   ENTRY_IGNORE,
+  escCell,
+  unescCell,
   ignoreEpipe,
 } from "./lib.mjs";
 import { uncommittedProjectFiles, lastCommitMs } from "./diff-refs.mjs";
@@ -418,12 +425,14 @@ export function scanArtifacts(cfg, layout) {
     const dir = join(vault, folder.path);
     if (!existsSync(dir)) continue;
     if (folder.kind === "epic") {
-      for (const id of readdirSync(dir)) {
+      for (const id of listEpicDirs(dir)) {
         const epicMd = join(dir, id, "epic.md");
         if (existsSync(epicMd)) push(epicMd, `${folder.path}/${id}/epic.md`, "epic");
-        const storiesDir = join(dir, id, "stories");
-        for (const f of listMd(storiesDir)) {
-          push(join(storiesDir, f), `${folder.path}/${id}/stories/${f}`, "story");
+        // listEpicStories sees all three story shapes (flat, folder, and
+        // standalone epics/<id>/story-*.md) — a manual stories/*.md glob
+        // silently dropped the other two from every vault-side check.
+        for (const s of listEpicStories(join(dir, id))) {
+          push(s.abs, `${folder.path}/${id}/${s.rel}`, "story");
         }
       }
     } else {
@@ -468,14 +477,19 @@ export function checkKanbanSync(cfg) {
 export function checkIndexes(cfg, layout, artifacts) {
   const out = [];
   const vault = cfg.vault_path;
-  const rowRx = /^\|\s*\[([^\]]+)\]\(([^)]+)\)\s*\|([^|]+)\|([^|]+)\|([^|]+)\|/;
+  // The title cell tolerates an escaped `\|` (reconcile/draft escape a `|`
+  // in a title so it cannot split the row into an extra column) — `[^|]+`
+  // alone would stop at the escaped pipe and misread the rest of the row as
+  // the status/date columns, producing a false index finding on a perfectly
+  // reconciled row.
+  const rowRx = /^\|\s*\[([^\]]+)\]\(([^)]+)\)\s*\|((?:\\\||[^|])+)\|([^|]+)\|([^|]+)\|/;
   for (const folder of layout.folders) {
     const readme = join(vault, folder.path, "README.md");
     if (!existsSync(readme)) continue;
     let rows = [];
     for (const line of readFileSync(readme, "utf8").split("\n")) {
       const m = line.match(rowRx);
-      if (m) rows.push({ label: m[1], target: m[2].replace(/^\.\//, ""), title: m[3].trim(), status: m[4].trim() });
+      if (m) rows.push({ label: m[1], target: m[2].replace(/^\.\//, ""), title: unescCell(m[3]).trim(), status: m[4].trim() });
     }
     const indexed = new Set();
     for (const row of rows) {
@@ -720,7 +734,7 @@ export function checkSpecLinks(cfg, layout, artifacts) {
     // Block-sequence YAML trap: parseFrontmatter is line-based; `specs:` with
     // an empty parsed value while the raw FRONTMATTER shows a block list means
     // the list is invisible to every deterministic check.
-    const fmBlock = story.body.match(/^---\n[\s\S]*?\n---/);
+    const fmBlock = story.body.match(/^---\r?\n[\s\S]*?\r?\n---/);
     if (story.fm.specs === "" && fmBlock && /\nspecs:\s*\n\s+-\s/.test(fmBlock[0])) {
       out.push(finding("vault", "issue", "spec-links",
         "`specs:` uses block-sequence YAML which projectstore cannot parse — use inline flow: specs: [\"SPEC-001\"].", story.rel));
@@ -876,8 +890,23 @@ export function checkLifecycleGates(artifacts, vaultCfg) {
 }
 
 // Suggestion for existing binds: specs exist but no vault policy declared.
+// vaultCfg already degraded a parse failure to {} (readVaultConfig's own
+// stderr warning) — a re-read here is the only way doctor can tell "no
+// policy file" apart from "a policy file that no longer parses", and the
+// second one silently drops spec_policy: required to optional with no other
+// signal at all.
 export function checkVaultPolicy(cfg, layout, artifacts, vaultCfg) {
   const out = [];
+  const p = vaultConfigPath(cfg.vault_path);
+  if (existsSync(p)) {
+    try {
+      JSON.parse(readFileSync(p, "utf8"));
+    } catch (e) {
+      out.push(finding("vault", "issue", "vault-policy",
+        `<vault>/.projectstore.json is not valid JSON (${e.message}) — spec_policy and lifecycle_gates fall back to their defaults until it is fixed.`,
+        ".projectstore.json"));
+    }
+  }
   const hasSpecs = artifacts.some((a) => a.kind === "spec");
   if (hasSpecs && !vaultCfg.spec_policy) {
     out.push(finding("vault", "info", "spec-policy",
@@ -1077,7 +1106,7 @@ export function checkExternalRefsForm(artifacts) {
   const out = [];
   for (const a of artifacts) {
     if (a.fm.external_refs !== "") continue;
-    const fmBlock = a.body.match(/^---\n[\s\S]*?\n---/);
+    const fmBlock = a.body.match(/^---\r?\n[\s\S]*?\r?\n---/);
     if (fmBlock && /\nexternal_refs:\s*\n\s+\S/.test(fmBlock[0])) {
       out.push(finding("vault", "issue", "external-refs",
         "`external_refs:` uses block-form YAML which projectstore cannot parse — use inline flow: external_refs: {jira: \"ABC-123\"}.", a.rel));
@@ -1171,7 +1200,7 @@ export function checkWorkWithoutStory(cfg, proj) {
   return out;
 }
 
-export function checkCodeRefs(artifacts, proj) {
+export function checkCodeRefs(artifacts, proj, epicFolderPath = "epics") {
   const out = [];
   const epicRefs = new Map();
   for (const e of artifacts.filter((a) => a.kind === "epic")) {
@@ -1191,8 +1220,14 @@ export function checkCodeRefs(artifacts, proj) {
       }
     }
     if (a.kind === "story") {
-      const dir = a.rel.replace(/\/stories\/[^/]+$/, "");
-      const parent = epicRefs.get(dir) || [];
+      // epicIdOf, not a `/stories/[^/]+$` regex: that shape only matches the
+      // flat form and silently returns the story's own rel unchanged for a
+      // folder-shape (`stories/<slug>/README.md`) or standalone
+      // (`epics/<id>/story-<slug>.md`) story — losing the epic lookup for
+      // two of the three story shapes.
+      const epicId = epicIdOf(a.rel, epicFolderPath);
+      const dir = epicId ? `${epicFolderPath}/${epicId}` : null;
+      const parent = (dir && epicRefs.get(dir)) || [];
       if (!parent.length) {
         out.push(finding("vault", "warn", "code-refs",
           "Story has code_refs but its epic has none — set the epic's footprint first.", a.rel));
@@ -1317,7 +1352,7 @@ export function runVaultChecks(cfg) {
     ...checkPortableNames(cfg, vaultFiles),
     ...checkSharedVaultState(cfg),
     ...checkExternalRefsForm(artifacts),
-    ...checkCodeRefs(artifacts, projectRoot()),
+    ...checkCodeRefs(artifacts, projectRoot(), folderByKind(layout, "epic")?.path),
     ...checkWorkWithoutStory(cfg, projectRoot()),
     ...checkCodeMap(cfg),
     ...checkGraph(cfg),
@@ -1498,6 +1533,14 @@ function main() {
     return;
   }
   process.stdout.write(report(findings, groups) + "\n");
+  // Text mode only, and only when NOT repairing — --json/--startup stay a
+  // reporting tool (exit 0 always), matching upstream ADR-005's "a script
+  // parses the JSON, a human reads the text" split. Without this,
+  // `mps doctor && ...` never saw a failure. --fix is exempt: its findings
+  // are the PRE-repair snapshot, and a fixable issue this same call just
+  // resolved must not make `mps doctor --fix` (or `mps setup`, which runs it
+  // internally) report failure for having done its job.
+  if (!wantFix && findings.some((f) => f.level === "issue")) process.exitCode = 1;
   if (!wantFix) return;
   const done = applyFixes(cfg, proj, findings.filter((f) => f.group === "install"));
   process.stdout.write("\n## repairs\n" + (done.length

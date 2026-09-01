@@ -17,6 +17,10 @@ import {
   nextNumber,
   writeFileAtomic,
   hostTag,
+  parseFrontmatter,
+  listEpicDirs,
+  escCell,
+  unescCell,
   slugIdentity,
   isLegacyNumberedId,
   storyMatchesEntry,
@@ -117,6 +121,55 @@ test("writeFileAtomic: sweep=false leaves orphans alone", () => {
   writeFileSync(join(dir, `.a.md.${deadPid}.tmp`), "orphan");
   writeFileAtomic(join(dir, "c.md"), "x", { sweep: false });
   assert.ok(readdirSync(dir).includes(`.a.md.${deadPid}.tmp`));
+});
+
+// ─── frontmatter parsing: BOM and CRLF (P1-1, A-4/B-4/G-12) ────────────
+
+test("parseFrontmatter: CRLF line endings still parse the frontmatter block", () => {
+  const md = '---\r\ntype: adr\r\ntitle: "CRLF Test"\r\nstatus: proposed\r\n---\r\n\r\n# Body\r\n';
+  const { data, body } = parseFrontmatter(md);
+  assert.equal(data.type, "adr");
+  assert.equal(data.title, "CRLF Test");
+  assert.equal(data.status, "proposed");
+  assert.match(body, /# Body/);
+});
+
+test("parseFrontmatter: a leading BOM does not hide the frontmatter block", () => {
+  const md = '﻿---\ntype: adr\ntitle: "BOM Test"\n---\n\n# Body\n';
+  const { data } = parseFrontmatter(md);
+  assert.equal(data.type, "adr");
+  assert.equal(data.title, "BOM Test");
+});
+
+test("parseFrontmatter: BOM + CRLF together (Windows Notepad's default)", () => {
+  const md = '﻿---\r\ntype: story\r\nstatus: done\r\n---\r\n\r\n# Body\r\n';
+  const { data } = parseFrontmatter(md);
+  assert.equal(data.type, "story");
+  assert.equal(data.status, "done");
+});
+
+// ─── epic directory listing (P1-2, B-1/B-2/B-3) ────────────────────────
+
+test("listEpicDirs: real directories only, `_`/`.`-prefixed ones excluded", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ps-epicdirs-"));
+  mkdirSync(join(dir, "PS-A"));
+  mkdirSync(join(dir, "PS-B"));
+  mkdirSync(join(dir, "_templates"));
+  mkdirSync(join(dir, ".hidden"));
+  writeFileSync(join(dir, "README.md"), "not a directory");
+  assert.deepEqual(listEpicDirs(dir), ["PS-A", "PS-B"]);
+});
+
+test("listEpicDirs: a missing epics root yields an empty list, not a throw", () => {
+  assert.deepEqual(listEpicDirs(join(tmpdir(), "ps-epicdirs-does-not-exist")), []);
+});
+
+// ─── markdown table cell escaping (P1-4, B-5) ──────────────────────────
+
+test("escCell/unescCell: a `|` round-trips through a table cell", () => {
+  assert.equal(escCell("Fix A|B toggle"), "Fix A\\|B toggle");
+  assert.equal(unescCell(escCell("Fix A|B toggle")), "Fix A|B toggle");
+  assert.equal(escCell("plain"), "plain");
 });
 
 // ─── reconcile selection & retry (atomic-regeneration contracts 3, 6) ──

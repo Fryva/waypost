@@ -36,7 +36,7 @@ import { join, basename } from "node:path";
 import { hostname, platform, release as osRelease, userInfo } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { readConfig, projectRoot, ignoreEpipe, writeFileAtomic } from "./lib.mjs";
+import { readConfig, projectRoot, ignoreEpipe, writeFileAtomic, sessionId } from "./lib.mjs";
 
 // A session is considered live while its counter has moved recently, measured
 // locally. The window has to cover the storage's propagation delay, or a peer
@@ -163,10 +163,16 @@ function writeObservations(obs) {
 // counters. First sight of a peer has no history to judge by, so it is trusted
 // for one window — the single place a remote clock is consulted, and it is
 // bounded: after one window we have our own evidence either way.
-export function peers(vault, { self = null, now = Date.now(), persist = true } = {}) {
+//
+// `windowMs` overrides LIVE_WINDOW_MS itself; the storage lag is always added
+// on top of whichever window is in force. A claim (ADR-0006) and a plain
+// presence check (ADR-0007) read the same per-peer counter but disagree on
+// how long silence may mean "still there" — the counter is one observable,
+// the window is the caller's policy.
+export function peers(vault, { self = null, now = Date.now(), persist = true, windowMs = null } = {}) {
   const dir = presenceDir(vault);
   const storage = storageOf(vault);
-  const window = LIVE_WINDOW_MS + storage.lag_ms;
+  const window = (windowMs == null ? LIVE_WINDOW_MS : windowMs) + storage.lag_ms;
   const obs = readObservations();
   const out = [];
   let names = [];
@@ -215,7 +221,14 @@ export function peers(vault, { self = null, now = Date.now(), persist = true } =
 // tie-break, and the loser releases and reports, so two devices converge on one
 // owner instead of both believing they hold it.
 
-const leaseName = (rel) => `${rel.replace(/[^\w.-]+/g, "_").slice(0, 80)}.${hash(rel)}.json`;
+// Keyed by session as well as path (C-1/G-3): two sessions racing to acquire
+// the same path used to compute the SAME filename, so the second write
+// silently clobbered the first and an unlink by either side could delete the
+// OTHER side's record. One file per (path, session) makes that structurally
+// impossible — a race can now only produce two distinct files, which the
+// settle → re-read → tie-break protocol below is exactly built to resolve.
+const leaseName = (rel, sid) =>
+  `${rel.replace(/[^\w.-]+/g, "_").slice(0, 80)}.${hash(rel)}.${String(sid).replace(/[^\w.-]+/g, "_").slice(0, 40)}.json`;
 
 function hash(s) {
   let h = 5381;
@@ -255,7 +268,7 @@ export function readLeases(vault, { now = Date.now(), self = null } = {}) {
 // Deterministic and symmetric: both devices compute the same winner from the
 // same two records, so the loser can stand down without asking anyone.
 export function winnerOf(a, b) {
-  const key = (r) => `${r.acquired_at} ${r.session}`;
+  const key = (r) => `${r.acquired_at} ${r.session}`;
   return key(a) <= key(b) ? a : b;
 }
 
@@ -268,7 +281,7 @@ export function acquire(vault, paths, { sessionId, harness = null, now = Date.no
 
   for (const raw of paths) {
     const rel = vaultRel(raw, vault);
-    const file = join(leaseDir(vault), leaseName(rel));
+    const file = join(leaseDir(vault), leaseName(rel, sessionId));
     const rec = {
       path: rel,
       session: sessionId,
@@ -277,12 +290,23 @@ export function acquire(vault, paths, { sessionId, harness = null, now = Date.no
       harness: harness || process.env.MPS_HARNESS || null,
       acquired_at: new Date(now).toISOString(),
     };
-    const existing = readLeases(vault, { now, self: sessionId }).find((l) => l.path === rel && !l.mine);
-    if (existing && existing.live && !force) {
-      results.push({ path: rel, ok: false, reason: "held", by: existing });
+    const rivals = readLeases(vault, { now, self: sessionId }).filter((l) => l.path === rel && !l.mine);
+    const liveRival = rivals.find((l) => l.live);
+    if (liveRival && !force) {
+      results.push({ path: rel, ok: false, reason: "held", by: liveRival });
       continue;
     }
-    if (existing && !existing.live) rec.taken_over_from = { session: existing.session, host: existing.host };
+    // A stale rival is taken over through the normal path (ADR-0007: "never
+    // delete what is not yours… a stale lease is taken over through the
+    // normal path, never by hand") — this IS that path, and taken_over_from
+    // records the fact. Only stale records are removed: a live one bypassed
+    // by --force is left on disk, contested but not destroyed, so a device
+    // that still believes it holds it is not silently made wrong on disk too.
+    const staleRivals = rivals.filter((l) => !l.live);
+    if (staleRivals.length) {
+      rec.taken_over_from = { session: staleRivals[0].session, host: staleRivals[0].host };
+      for (const l of staleRivals) { try { unlinkSync(l.file); } catch {} }
+    }
     try { writeFileSync(file, JSON.stringify(rec, null, 2) + "\n", "utf8"); }
     catch (e) { results.push({ path: rel, ok: false, reason: "write failed", error: e.message }); continue; }
     held.push({ rel, file, rec });
@@ -303,10 +327,16 @@ export function acquire(vault, paths, { sessionId, harness = null, now = Date.no
     if (rival && !force) {
       const win = winnerOf(h.rec, rival);
       if (win !== h.rec) {
+        // h.file is OUR OWN file — session-keyed filenames (above) mean it can
+        // never be the rival's, so this can never delete a record we do not
+        // own even under a genuine simultaneous-write race.
         try { unlinkSync(h.file); } catch {}
         results.push({ path: h.rel, ok: false, reason: "lost the tie-break", by: rival });
         continue;
       }
+      // We won: our file is already on disk under our own name, and the
+      // rival's file is theirs to remove (it will, on its own next re-read) —
+      // nothing here to overwrite or touch.
       results.push({ path: h.rel, ok: true, contested: true, over: rival.session });
       continue;
     }
@@ -344,11 +374,12 @@ function main() {
   const vault = cfg.vault_path;
   const json = rest.includes("--json");
   const paths = rest.filter((a) => !a.startsWith("--"));
-  const sid = process.env.MPS_SESSION_ID
-    || (spawnSync(process.execPath, [join(fileURLToPath(new URL(".", import.meta.url)), "sessions.mjs"), "--json"],
-        { encoding: "utf8" }).stdout || "").trim() && JSON.parse(
-        spawnSync(process.execPath, [join(fileURLToPath(new URL(".", import.meta.url)), "sessions.mjs"), "--json"],
-        { encoding: "utf8" }).stdout).session_id;
+  // bin/mps sets MPS_SESSION_ID before spawning this script (G-1); the
+  // fallback (derive it here, from OUR OWN parent pid) only matters when
+  // presence.mjs is invoked directly, not through bin/mps — it used to cost
+  // two spawnSync calls into sessions.mjs just to compute the same value
+  // lib.mjs already exports.
+  const sid = process.env.MPS_SESSION_ID || sessionId();
 
   switch (sub) {
     case "storage": {

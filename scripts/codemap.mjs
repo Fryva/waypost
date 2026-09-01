@@ -8,9 +8,18 @@
 // reconcile.mjs --write (atomic replace, recompute-at-write), not the
 // harness: no Write-tool step remains in the derived-view flows.
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { readConfig, loadLayout, folderByKind, parseFrontmatter, nowIso } from "./lib.mjs";
+import {
+  readConfig,
+  loadLayout,
+  folderByKind,
+  parseFrontmatter,
+  nowIso,
+  listEpicDirs,
+  listEpicStories,
+  escCell,
+} from "./lib.mjs";
 
 function die(msg) {
   process.stderr.write(`mps codemap: ${msg}\n`);
@@ -38,19 +47,19 @@ function main() {
   const epics = [];
   const storyRows = [];
   if (existsSync(root)) {
-    for (const id of readdirSync(root).sort()) {
+    for (const id of listEpicDirs(root)) {
       const epicMd = join(root, id, "epic.md");
       if (!existsSync(epicMd)) continue;
       const fm = parseFrontmatter(readFileSync(epicMd, "utf8")).data;
       epics.push({ id, title: fm.title || id, status: fm.status || "planned", refs: parseRefs(fm.code_refs) });
-      const storiesDir = join(root, id, "stories");
-      if (!existsSync(storiesDir)) continue;
-      for (const f of readdirSync(storiesDir).sort()) {
-        if (!f.endsWith(".md")) continue;
-        const sfm = parseFrontmatter(readFileSync(join(storiesDir, f), "utf8")).data;
+      // listEpicStories sees all three story shapes (flat, folder, and
+      // standalone epics/<id>/story-*.md) — a manual stories/*.md glob
+      // silently dropped the other two from the story-level refs section.
+      for (const s of listEpicStories(join(root, id))) {
+        const sfm = parseFrontmatter(readFileSync(s.abs, "utf8")).data;
         const refs = parseRefs(sfm.code_refs);
         if (refs.length) {
-          storyRows.push({ epic: id, story: f.replace(/\.md$/, ""), title: sfm.title || f, refs });
+          storyRows.push({ epic: id, story: s.slug, title: sfm.title || s.slug, refs });
         }
       }
     }
@@ -76,13 +85,13 @@ function main() {
   ];
   for (const e of epics) {
     const refs = e.refs.length ? e.refs.map((r) => `\`${r}\``).join(", ") : "—";
-    lines.push(`| [[${folder.path}/${e.id}/epic\\|${e.id}]] | ${e.title} | ${e.status} | ${refs} |`);
+    lines.push(`| [[${folder.path}/${e.id}/epic\\|${e.id}]] | ${escCell(e.title)} | ${escCell(e.status)} | ${refs} |`);
   }
   if (storyRows.length) {
     lines.push("", "## Story-level refs (files each story touched)", "",
       "| Epic | Story | code_refs |", "|------|-------|-----------|");
     for (const s of storyRows) {
-      lines.push(`| ${s.epic} | ${s.title} | ${s.refs.map((r) => `\`${r}\``).join(", ")} |`);
+      lines.push(`| ${s.epic} | ${escCell(s.title)} | ${s.refs.map((r) => `\`${r}\``).join(", ")} |`);
     }
   }
   lines.push("");

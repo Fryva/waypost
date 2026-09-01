@@ -29,7 +29,6 @@
 //      no flag = list the sessions active in the last 30 minutes.
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import {
@@ -47,14 +46,29 @@ import {
   readActiveSessions,
   cleanupStaleSessions,
   ignoreEpipe,
+  sessionId,
+  storyRefOf,
 } from "./lib.mjs";
+
+// Re-exported for existing callers (commit.mjs, brief.mjs): the derivation
+// itself now lives in lib.mjs, next to storyRefOf, so presence.mjs can use it
+// without importing this module and creating a cycle.
+export { sessionId, storyRefOf };
+
+// ADR-0006 promises a claim survives 30 minutes of silence — much longer than
+// presence.mjs's own LIVE_WINDOW_MS (2.5 minutes), which answers "is anyone
+// there right now" (ADR-0007), not "does this story still belong to them".
+// Both questions read the same per-peer counter; they just apply a different
+// window to it, so a session can be "stale" in `mps sessions` while its claim
+// is still live in `conflicts()`.
+export const CLAIM_WINDOW_MS = 30 * 60_000;
 
 // Live claims across every session on this vault. A claim is a fact with a
 // liveness window, not a lock: a harness that died holding one must not block
 // the vault. Liveness comes from presence.mjs, which measures it with ONE clock
 // (ours) — mtime and remote timestamps are not comparable across devices.
-export function claimsOf(vault) {
-  return peers(vault, { persist: false }).peers
+export function claimsOf(vault, { windowMs = CLAIM_WINDOW_MS, now = Date.now() } = {}) {
+  return peers(vault, { persist: false, windowMs, now }).peers
     .filter((p) => p.live && p.claim && p.claim.story)
     .map((p) => ({
       session: p.session,
@@ -67,52 +81,11 @@ export function claimsOf(vault) {
     }));
 }
 
-// <epic>/<story-stem> from a path inside the vault, or from an already-shaped
-// reference. Kept here rather than imported from commit.mjs so the registry has
-// no dependency on the commit protocol — the reference format is the contract.
-export function storyRefOf(pathOrRef, vault) {
-  const raw = String(pathOrRef || "");
-  const abs = resolve(raw);
-  if (vault && abs.startsWith(vault + "/")) {
-    const m = abs.slice(vault.length + 1).match(/^epics\/([^/]+)\/stories\/(.+)\.md$/);
-    if (m) return `${m[1]}/${m[2]}`;
-  }
-  return /^[\w.-]+\/[\w.-]+$/.test(raw) ? raw : null;
-}
-
 function patchSession(vault, sid, patch) {
   const p = sessionFilePath(vault, sid);
   let data = {};
   try { data = JSON.parse(readFileSync(p, "utf8")); } catch {}
   writeFileSync(p, JSON.stringify({ ...data, ...patch }, null, 2), "utf8");
-}
-
-// Session identity has to be STABLE for as long as the harness session lives,
-// or every command invents a new session and the registry fills with ghosts of
-// one agent. In order of trust:
-//
-//   --id                    the caller knows best
-//   $MPS_SESSION_ID         a harness that can export one (document this first)
-//   a terminal/pane id      stable per window across processes
-//   <host>-<parent pid>     last resort: right while one shell drives the CLI,
-//                           wrong when each call gets its own shell
-//
-// The harness name is prefixed when known, so `mps sessions` reads as who is
-// working rather than as a list of numbers.
-const TERMINAL_ENV = ["MPS_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID",
-  "TERM_SESSION_ID", "ITERM_SESSION_ID", "TMUX_PANE", "WT_SESSION", "KITTY_WINDOW_ID", "SSH_TTY"];
-
-export function sessionId(argv = process.argv, env = process.env) {
-  const i = argv.indexOf("--id");
-  if (i !== -1 && argv[i + 1]) return argv[i + 1];
-  if (env.MPS_SESSION_ID) return env.MPS_SESSION_ID;
-  const harness = env.MPS_HARNESS || null;
-  for (const k of TERMINAL_ENV) {
-    if (!env[k]) continue;
-    const slug = String(env[k]).replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "").slice(-24);
-    if (slug) return `${harness ? harness + "-" : ""}${slug}`;
-  }
-  return `${harness ? harness + "-" : ""}${hostname().split(".")[0]}-${process.ppid}`;
 }
 
 function die(msg) {

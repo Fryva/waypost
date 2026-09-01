@@ -850,3 +850,29 @@ test("presence beats on its own, so another device sees this session without bei
   assert.ok(state.active.some((s) => s.id === "auto-1"),
     "a session that only ran doctor is still visible to the next device");
 });
+
+// ─── --project / --home (P2-8, A-8/A-9) ─────────────────────────────────
+
+test("--project/--home only capture a value when they lead argv, not a token that follows the command", () => {
+  const { proj, vault } = bound();
+  // `status` ignores its own argv entirely, so this isolates main()'s global
+  // flag scan: a trailing "--project somewhere-else" used to be stripped out
+  // and silently repointed MPS_PROJECT_DIR (A-8), making an already-bound
+  // project report as unbound.
+  const r = mps(proj, ["status", "--project", "somewhere-else"]);
+  assert.match(r.stdout, new RegExp(vault.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    "status still reports the real bound vault, not one derived from a trailing token");
+});
+
+test("a leading --project expands `~` the same way `bind` does", () => {
+  const fakeHome = mkdtempSync(join(tmpdir(), "mps-home-"));
+  const target = join(fakeHome, "proj");
+  mkdirSync(target, { recursive: true });
+  spawnSync("git", ["init", "-q"], { cwd: target });
+  const r = spawnSync(process.execPath, [MPS, "--project", "~/proj", "bind", join(target, "vault")], {
+    encoding: "utf8", env: { ...process.env, MPS_HOME: REPO, HOME: fakeHome },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(target, ".mps", "projectstore.json")),
+    "~ resolved against HOME (A-9), not as a literal two-character path segment");
+});

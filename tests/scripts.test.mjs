@@ -5,11 +5,12 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -33,6 +34,21 @@ function run(script, args) {
   });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
+}
+
+// bin/mps end to end. MPS_NO_BEAT=1 keeps a test from writing presence
+// files and from paying for the heartbeat's dynamic imports on every call.
+function runBinRaw(projectDir, args) {
+  return spawnSync(process.execPath, [join(REPO, "bin", "mps"), ...args], {
+    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: projectDir, MPS_NO_BEAT: "1" },
+    cwd: REPO, timeout: 15000,
+  });
+}
+
+function runBin(projectDir, args) {
+  const r = runBinRaw(projectDir, args);
+  assert.equal(r.status, 0, `${args.join(" ")}\n${r.stderr}${r.stdout}`);
+  return r;
 }
 
 const STORY = `---
@@ -88,6 +104,39 @@ test("story-section close: inserts Final Summary, stamps closed_at, status done"
   writeFileSync(p, out.content);
   const again = run("story-section.mjs", ["close", p]);
   assert.equal(again.notes.filter((n) => n.includes("closed_at")).length, 0, "closed_at stamped once");
+});
+
+test("story-section plan: a CRLF story file is not \"no frontmatter block\" (P1-1, B-4)", () => {
+  const p = join(mkdtempSync(join(tmpdir(), "ps-ss-")), "s.md");
+  writeFileSync(p, STORY.replace(/\n/g, "\r\n"));
+  const out = run("story-section.mjs", ["plan", p]);
+  assert.equal((out.content.match(/## Implementation Plan/g) || []).length, 1);
+  assert.ok(out.content.includes("HAND WRITTEN — must survive."));
+  assert.match(out.content, /status: review/);
+  assert.match(out.content, /started_at: "20/);
+});
+
+test("story-section: output carries original_sha256 of the exact bytes read (P1-6, A-2/A-3)", () => {
+  const p = join(mkdtempSync(join(tmpdir(), "ps-ss-")), "s.md");
+  writeFileSync(p, STORY);
+  const out = run("story-section.mjs", ["plan", p]);
+  const expected = createHash("sha256").update(STORY, "utf8").digest("hex");
+  assert.equal(out.original_sha256, expected);
+});
+
+test("story-section plan: insertSection's fallback never splices into frontmatter on a minimal story (P1-3, G-4)", () => {
+  const p = join(mkdtempSync(join(tmpdir(), "ps-ss-")), "min.md");
+  // No anchor sections (Decomposition/Description) and no footer `---` —
+  // exactly the shape that used to make the fallback match the frontmatter's
+  // OWN closing delimiter instead of a real footer.
+  writeFileSync(p, "---\ntype: story\nepic: E1\nstatus: planned\n---\n# Minimal\nSome prose without any headings.\n");
+  const out = run("story-section.mjs", ["plan", p]);
+  const fmBlock = out.content.match(/^---\n([\s\S]*?)\n---/);
+  assert.ok(fmBlock, "frontmatter block still well-formed");
+  assert.ok(!fmBlock[1].includes("Implementation Plan"), "section not spliced inside frontmatter");
+  assert.match(out.content, /^status: in-progress$/m);
+  const fmEnd = out.content.indexOf("\n---\n") + 5;
+  assert.ok(out.content.indexOf("## Implementation Plan") > fmEnd, "section lands in the body");
 });
 
 // ─── draft.mjs golden tests (ADR-010 / SPEC-002 contracts 1–4) ─────────
@@ -608,6 +657,73 @@ test("diff-refs: no args => fallback true; --since returns file lists", () => {
   assert.ok(!since.files.some((f) => f.includes("package-lock")), "ignore globs applied");
 });
 
+// ─── P1-2: folder-shape and standalone stories are visible to every
+// generator, `_templates` is visible to none (B-1/B-2/B-3) ────────────
+
+// Three "done epic, one non-done child story" epics, one per story shape,
+// plus a `_templates` epic that must stay invisible everywhere.
+function seedStoryShapesFixture() {
+  const { proj, vault } = makeVaultProject();
+  const fm = (extra) => `---\n${extra}\n---\n\n# T\n`;
+  const put = (rel, content) => {
+    mkdirSync(join(vault, dirname(rel)), { recursive: true });
+    writeFileSync(join(vault, rel), content);
+  };
+  put("epics/E1/epic.md", fm('type: epic\nid: "E1"\ntitle: "E1"\nstatus: done\ncreated: 2026-01-01'));
+  put("epics/E1/stories/story-folder/README.md",
+    fm('type: story\nid: "story-folder"\ntitle: "Folder story"\nstatus: in-progress\ncreated: 2026-01-01\ncode_refs: ["scripts/lib.mjs"]'));
+  put("epics/E2/epic.md", fm('type: epic\nid: "E2"\ntitle: "E2"\nstatus: done\ncreated: 2026-01-01'));
+  put("epics/E2/stories/story-flat.md",
+    fm('type: story\nid: "story-flat"\ntitle: "Flat story"\nstatus: in-progress\ncreated: 2026-01-01\ncode_refs: ["scripts/lib.mjs"]'));
+  put("epics/E3/epic.md", fm('type: epic\nid: "E3"\ntitle: "E3"\nstatus: done\ncreated: 2026-01-01'));
+  put("epics/E3/story-standalone.md",
+    fm('type: story\nid: "story-standalone"\ntitle: "Standalone story"\nstatus: in-progress\ncreated: 2026-01-01\ncode_refs: ["scripts/lib.mjs"]'));
+  put("epics/_templates/epic.md", fm('type: epic\ntitle: "TEMPLATE — do not use"\nstatus: planned'));
+  return { proj, vault };
+}
+
+test("doctor: epic-status sees a non-done child in ALL three story shapes, never _templates (B-1)", () => {
+  const { proj } = seedStoryShapesFixture();
+  const findings = runIn(proj, "doctor.mjs", ["--vault", "--json"]);
+  const epicStatus = findings.filter((f) => f.check === "epic-status");
+  assert.deepEqual(epicStatus.map((f) => f.file).sort(),
+    ["epics/E1/epic.md", "epics/E2/epic.md", "epics/E3/epic.md"],
+    JSON.stringify(epicStatus));
+  assert.ok(!JSON.stringify(findings).includes("_templates"), "_templates never surfaces in any finding");
+});
+
+test("codemap.mjs: story_rows covers all three shapes; _templates is not counted as an epic (B-2/B-3)", () => {
+  const { proj } = seedStoryShapesFixture();
+  const out = runIn(proj, "codemap.mjs", []);
+  assert.equal(out.stats.epics, 3, "_templates excluded from the epic count");
+  assert.equal(out.stats.story_rows, 3, JSON.stringify(out.stats));
+  for (const label of ["Folder story", "Flat story", "Standalone story"]) {
+    assert.ok(out.content.includes(label), `${label} missing from code-map.md content`);
+  }
+  assert.ok(!out.content.includes("_templates"));
+});
+
+test("kanban.mjs: all three story shapes reach the board; _templates does not (regression)", () => {
+  const { proj } = seedStoryShapesFixture();
+  const out = runIn(proj, "kanban.mjs", []);
+  assert.equal(out.stats.total, 3, JSON.stringify(out.stats));
+  assert.ok(!out.content.includes("_templates"));
+});
+
+// ─── P1-4: a `|` in a title round-trips through reconcile/draft without
+// tripping doctor's index check (B-5) ───────────────────────────────────
+
+test("index title containing '|' round-trips without a false doctor index finding (B-5)", () => {
+  const { proj, vault } = seedCreationFixture();
+  const { out, entry } = createThrough(proj, ["adr", "Fix A|B toggle"]);
+  assert.equal(entry.written, true, JSON.stringify(entry));
+  const idx = readFileSync(join(vault, "adr", "README.md"), "utf8");
+  assert.ok(idx.includes("Fix A\\|B toggle"), "the row escapes the pipe");
+  const findings = runIn(proj, "doctor.mjs", ["--vault", "--json"]);
+  const idxFindings = findings.filter((f) => f.check === "index");
+  assert.deepEqual(idxFindings, [], JSON.stringify(idxFindings));
+});
+
 // ─── Entry-rule hook behaviour (PS-AGENTS: artifact-first order) ───────
 //
 // Drives scripts/touch-session.mjs with synthetic hook payloads on stdin and
@@ -695,3 +811,179 @@ function post(proj, file, extra = {}) {
 // recorded session is an authoring session, so nothing in them can show that a
 // read or a subagent write is excluded. Those two gates are the difference
 // between the measured rule and the wired one.
+
+// ─── bin/mps: vault containment, atomic writes, and the rest of the CLI
+// fixes in the plan's Проход 1 (P1-5 .. P1-12). bin/mps had no drive at all
+// before this pass — every test below is a first, not a regression guard for
+// something checked elsewhere. ──────────────────────────────────────────
+
+test("bin/mps story --write refuses to write outside the vault, file left untouched (P1-5, A-1)", () => {
+  const { proj } = makeVaultProject();
+  const outside = join(proj, "outside.md"); // inside the project, but not under vault/
+  const original = '---\ntype: story\nstatus: planned\n---\n\n# Notes\nHand-written text, not a vault artifact.\n';
+  writeFileSync(outside, original, "utf8");
+  const r = runBinRaw(proj, ["story", "plan", outside, "--write"]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /refusing to write outside the vault/);
+  assert.equal(readFileSync(outside, "utf8"), original, "the file outside the vault is untouched");
+});
+
+// Simulates the race between story-section.mjs's read and bin/mps's own
+// pre-write re-read without timing two real processes against each other: a
+// copy of bin/mps (a real file — its ROOT comes from import.meta.url, which
+// follows a symlink to the real repo and would defeat the substitution) plus
+// a story-section.mjs that delegates to the REAL script and then, using the
+// answer it got back, overwrites the story file with different bytes before
+// returning — landing bin/mps in exactly the position "someone else wrote
+// this file after I read it" describes.
+function makeRaceRepo(raceContent) {
+  const tmp = mkdtempSync(join(tmpdir(), "ps-race-"));
+  mkdirSync(join(tmp, "bin"));
+  mkdirSync(join(tmp, "scripts"));
+  writeFileSync(join(tmp, "bin", "mps"), readFileSync(join(REPO, "bin", "mps"), "utf8"), "utf8");
+  for (const f of readdirSync(join(REPO, "scripts"))) {
+    if (f === "story-section.mjs") continue;
+    symlinkSync(join(REPO, "scripts", f), join(tmp, "scripts", f));
+  }
+  for (const d of ["scaffold", "templates"]) symlinkSync(join(REPO, d), join(tmp, d));
+  const realStorySection = JSON.stringify(join(REPO, "scripts", "story-section.mjs"));
+  writeFileSync(join(tmp, "scripts", "story-section.mjs"), [
+    'import { spawnSync } from "node:child_process";',
+    'import { writeFileSync } from "node:fs";',
+    `const r = spawnSync(process.execPath, [${realStorySection}, ...process.argv.slice(2)], { encoding: "utf8" });`,
+    'if (r.status !== 0) { process.stderr.write(r.stderr || ""); process.exit(r.status ?? 1); }',
+    "// The concurrent edit: lands between the real script's read (just above) and bin/mps's own pre-write re-read.",
+    `writeFileSync(process.argv[3], ${JSON.stringify(raceContent)}, "utf8");`,
+    "process.stdout.write(r.stdout);",
+  ].join("\n"), "utf8");
+  return tmp;
+}
+
+test("bin/mps story --write refuses a stale sha256 — a concurrent edit is not silently discarded (P1-6, A-2/A-3)", () => {
+  const { proj, vault } = makeVaultProject();
+  const storyPath = join(vault, "epics", "PS-X", "stories", "story-race.md");
+  const original = '---\ntype: story\nid: "story-race"\nstatus: planned\n---\n\n# Race\n';
+  writeFileSync(storyPath, original, "utf8");
+  const raceContent = '---\ntype: story\nid: "story-race"\nstatus: planned\nconcurrent: "yes"\n---\n\n# Race\n';
+  const raceRepo = makeRaceRepo(raceContent);
+  const r = spawnSync(process.execPath, [join(raceRepo, "bin", "mps"), "story", "plan", storyPath, "--write"], {
+    encoding: "utf8", env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_NO_BEAT: "1" }, timeout: 15000,
+  });
+  assert.notEqual(r.status, 0, r.stdout);
+  assert.match(r.stderr, /changed since it was read/);
+  assert.equal(readFileSync(storyPath, "utf8"), raceContent,
+    "the concurrent write survives — bin/mps must not overwrite it with content computed from stale bytes");
+});
+
+test("bin/mps: a broken .mps/projectstore.json fails loudly instead of letting setup rebind over it (P1-7, G-5)", () => {
+  const proj = mkdtempSync(join(tmpdir(), "ps-badcfg-"));
+  mkdirSync(join(proj, ".mps"), { recursive: true });
+  const cfgPath = join(proj, ".mps", "projectstore.json");
+  const broken = '{ "vault_path": "/some/vault", "layout": "engineering", }'; // trailing comma
+  writeFileSync(cfgPath, broken, "utf8");
+  const r = runBinRaw(proj, ["setup", "--dry-run"]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /config exists but is unreadable/);
+  assert.equal(readFileSync(cfgPath, "utf8"), broken, "broken config left untouched, not silently rebound");
+});
+
+test("readConfig (lib.mjs): a script sees an unparseable config as a loud failure, not \"unbound\" (P1-7, G-5)", () => {
+  const proj = mkdtempSync(join(tmpdir(), "ps-badcfg2-"));
+  mkdirSync(join(proj, ".mps"), { recursive: true });
+  writeFileSync(join(proj, ".mps", "projectstore.json"), "{ not json", "utf8");
+  const r = spawnSync(process.execPath, [join(REPO, "scripts", "kanban.mjs")], {
+    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
+  });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /unreadable/);
+  assert.doesNotMatch(r.stderr, /No projectstore config/, "must not read as simply unbound");
+});
+
+test("doctor: a broken <vault>/.projectstore.json is its own issue-level finding (P1-7, G-6)", () => {
+  const { proj, vault } = makeVaultProject();
+  writeFileSync(join(vault, ".projectstore.json"), '{ "spec_policy": "required", }', "utf8"); // trailing comma
+  const r = spawnSync(process.execPath, [join(REPO, "scripts", "doctor.mjs"), "--vault", "--json"], {
+    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
+  });
+  const findings = JSON.parse(r.stdout);
+  const policy = findings.find((f) => f.check === "vault-policy" && f.level === "issue");
+  assert.ok(policy, JSON.stringify(findings));
+  assert.match(r.stderr, /vault policy unreadable/);
+});
+
+test("mps next: a warn message truncates on a sentence boundary, not the first literal dot (P1-8, G-7)", () => {
+  const proj = mkdtempSync(join(tmpdir(), "ps-next-"));
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  const vault = join(proj, "vault");
+  mkdirSync(join(vault, "epics"), { recursive: true });
+  mkdirSync(join(proj, ".mps"), { recursive: true });
+  writeFileSync(join(proj, ".mps", "projectstore.json"),
+    JSON.stringify({ vault_path: vault, layout: "engineering", language: "en" }), "utf8");
+  const r = runBinRaw(proj, ["next"]);
+  assert.equal(r.status, 0, r.stderr);
+  // checkGitignore's message: "Machine-specific files not gitignored: .mps/projectstore.json, ...".
+  // Its first literal "." sits inside ".mps/projectstore.json" — cutting there
+  // used to leave a dangling "not gitignored: " with nothing after the colon.
+  assert.ok(r.stdout.includes("Machine-specific files not gitignored: .mps/projectstore.json"),
+    `expected the full clause in:\n${r.stdout}`);
+});
+
+test("doctor: text-mode exit reflects an issue finding; --json stays a reporting tool (P1-9, G-10)", () => {
+  const proj = mkdtempSync(join(tmpdir(), "ps-doctorexit-"));
+  // No .mps/projectstore.json at all => checkConfig is an issue-level finding.
+  const rText = spawnSync(process.execPath, [join(REPO, "scripts", "doctor.mjs")], {
+    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
+  });
+  assert.notEqual(rText.status, 0, "text mode must fail on an issue-level finding");
+  const rJson = spawnSync(process.execPath, [join(REPO, "scripts", "doctor.mjs"), "--json"], {
+    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
+  });
+  assert.equal(rJson.status, 0, "json mode (a reporting tool) always exits 0");
+});
+
+test("mps setup: the repair step prints doctor's own report instead of swallowing it (P1-9, G-10)", () => {
+  const proj = mkdtempSync(join(tmpdir(), "ps-setup-"));
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  const r = runBinRaw(proj, ["setup", "--vault", join(proj, "vault")]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /## repairs/, "doctor --fix's own report must be visible, not discarded");
+});
+
+test("draft --lang overrides the bound vault's language for one call (P1-10, A-5)", () => {
+  const { proj } = makeVaultProject(); // language: "en"
+  const out = runIn(proj, "draft.mjs", ["adr", "Lang Test", "--lang", "ru"]);
+  assert.match(out.content, /## Контекст/, "ru template rendered, not the bound en default");
+});
+
+test("draft --lang rejects an unknown language before touching the vault (P1-10, A-5)", () => {
+  const { proj } = makeVaultProject();
+  const r = runInRaw(proj, "draft.mjs", ["adr", "Lang Test", "--lang", "xx"]);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /unknown language/);
+});
+
+test("bin/mps draft --lang forwards to draft.mjs (P1-10, A-5)", () => {
+  const { proj } = makeVaultProject();
+  const r = runBinRaw(proj, ["draft", "adr", "Lang Test", "--lang", "ru", "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.match(out.content, /## Контекст/);
+});
+
+test("bin/mps scaffold --json prints only JSON (P1-11, A-6)", () => {
+  const { proj } = makeVaultProject();
+  const r = runBinRaw(proj, ["scaffold", "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotThrow(() => JSON.parse(r.stdout), `stdout must be pure JSON, got:\n${r.stdout}`);
+});
+
+test("bin/mps search --limit rejects a non-integer instead of silently printing nothing (P1-12, A-10)", () => {
+  const { proj } = makeVaultProject();
+  runBin(proj, ["draft", "adr", "Findable Thing", "--write"]);
+  const ok = runBinRaw(proj, ["search", "Findable", "--limit", "5"]);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /Findable Thing/);
+  const bad = runBinRaw(proj, ["search", "Findable", "--limit", "abc"]);
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stderr, /--limit/);
+});
