@@ -6,8 +6,7 @@
   "docs": "https://moonshotai.github.io/kimi-code/en/customization/agents.html",
   "confidence": "documented",
   "detect": [
-    ".kimi-code",
-    ".agents/agents"
+    ".kimi-code"
   ],
   "env": [
     "KIMI_CODE_HOME"
@@ -50,5 +49,5 @@
       ]
     ]
   },
-  "notes": "Sub-agents are Markdown with YAML frontmatter in .kimi-code/agents/ (also read from .agents/agents/); fields per Moonshot's docs: name, description, whenToUse, tools, disallowedTools. Tool names follow the Claude-Code vocabulary. User-level equivalents live under $KIMI_CODE_HOME (default ~/.kimi-code/). (`whenToUse` is left out: the description already says when to invoke, and repeating it verbatim only spends context.)"
+  "notes": "Sub-agents are Markdown with YAML frontmatter in .kimi-code/agents/; fields per Moonshot's docs: name, description, whenToUse, tools, disallowedTools. Tool names follow the Claude-Code vocabulary. User-level equivalents live under $KIMI_CODE_HOME (default ~/.kimi-code/). (`whenToUse` is left out: the description already says when to invoke, and repeating it verbatim only spends context.) Kimi also reads the shared .agents/agents/ convention, but that is not detection evidence for it — the directory is Antigravity's workspace directory and a cross-tool convention, exactly as AGENTS.md is read by nearly everyone and claimed by `codex` alone. Detection stays on .kimi-code/, the one path that means this project runs Kimi; use `--harness kimi` for a project that keeps its sub-agents only in .agents/agents/."
 }

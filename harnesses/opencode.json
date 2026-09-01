@@ -49,5 +49,5 @@
       ]
     ]
   },
-  "notes": "Current docs put project agents in .opencode/agents/ and gate tools with a `permission` map (allow/ask/deny) rather than the legacy `tools` booleans — so read-only is expressed as `edit: deny`, with bash left allowed because these roles need git diff. Older OpenCode versions read the singular .opencode/agent/; if yours does, override this entry's `dir` in .mps/harnesses/opencode.json."
+  "notes": "Current docs put project agents in .opencode/agents/ and gate tools with a `permission` map (allow/ask/deny) rather than the legacy `tools` booleans — so read-only is expressed as `edit: deny`, with bash left allowed because these roles need git diff. Older OpenCode versions read the singular .opencode/agent/; if yours does, override this entry's `dir` in .mps/harnesses/opencode.json. A front end over OpenCode is not a separate entry: OpenWork, the open-source Cowork alternative, is a desktop UI driving OpenCode and reading this same .opencode/ config, so installing for `opencode` covers it."
 }

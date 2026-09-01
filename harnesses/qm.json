@@ -1,0 +1,14 @@
+{
+  "id": "qm",
+  "name": "QM",
+  "vendor": "Y Combinator",
+  "home": "https://github.com/yc-software/qm",
+  "docs": "https://github.com/yc-software/qm/blob/main/docs/deploy-directory.md",
+  "confidence": "documented",
+  "detect": ["qm.config.jsonc"],
+  "instructions": ["AGENTS.md", "CLAUDE.md"],
+  "invoke": "run the role in whichever harness QM drives (Pi, OpenCode, Codex, Claude Code), or `mps agents show <role>` as the prompt",
+  "roles": { "shape": "none" },
+  "roles_note": "QM has no per-role file format. Its deployment directory carries org tools (sandbox/tools/<id>/tool.json) and skills (sandbox/skills/<id>/SKILL.md), and the thing that actually reads a repository is the harness QM runs inside the sandbox.",
+  "notes": "YC's multiplayer harness: Slack plus a web UI, one scoped workspace per person and per room, deployed into your own Fly or AWS account from a deployment directory validated by the `qm` CLI. It is harness-agnostic by design — Pi (default), OpenCode, Codex and Claude Code all drive the same core — so roles are installed for the inner harness, not for QM, and the routing block in AGENTS.md/CLAUDE.md is what carries them into a sandboxed session. Detection is by qm.config.jsonc, which lives in the deployment repository rather than in the project QM works on; a project vault will usually see the inner harness instead. If QM ever grows a repository-level agent format, this entry becomes a normal one — a JSON change, not a code change."
+}

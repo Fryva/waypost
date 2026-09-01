@@ -15,6 +15,7 @@ mps agents install                  # …or into whatever this project uses
 
 | id | Harness | Vendor | Roles land in | Shape | Confidence |
 |----|---------|--------|---------------|-------|------------|
+| `antigravity` | Google Antigravity | Google | `.agents/agents/mps-<role>/agent.md` | subagent/rule | documented |
 | `claude` | Claude Code | Anthropic | `.claude/agents/mps-<role>.md` | subagent/rule | verified |
 | `cline` | Cline | Cline | `.clinerules/workflows/mps-<role>.md` | prompt/rule | documented |
 | `codebuddy` | CodeBuddy Code (腾讯云代码助手) | Tencent | `.codebuddy/agents/mps-<role>.md` | subagent/rule | documented |
@@ -23,9 +24,12 @@ mps agents install                  # …or into whatever this project uses
 | `cursor` | Cursor | Anysphere | `.cursor/rules/mps-<role>.mdc` | subagent/rule | documented |
 | `dsh` | DeepSeek Harness (dsh) | DeepSeek | `— (no role files)` | routing block only | documented |
 | `gemini` | Gemini CLI | Google | `.gemini/agents/mps-<role>.md` | subagent/rule | documented |
+| `grok` | Grok Build | xAI | `.grok/agents/mps-<role>.md` | subagent/rule | documented |
 | `kimi` | Kimi Code CLI | Moonshot AI | `.kimi-code/agents/mps-<role>.md` | subagent/rule | documented |
 | `lingma` | Tongyi Lingma (通义灵码) | Alibaba Cloud | `.lingma/rules/mps-<role>.md` | prompt/rule | documented |
 | `opencode` | OpenCode | SST | `.opencode/agents/mps-<role>.md` | subagent/rule | documented |
+| `pi` | Pi | Earendil | `— (no role files)` | routing block only | documented |
+| `qm` | QM | Y Combinator | `— (no role files)` | routing block only | documented |
 | `qwen` | Qwen Code | Alibaba | `.qwen/agents/mps-<role>.md` | subagent/rule | documented |
 | `roo` | Roo Code | Roo Code | `.roomodes` | custom mode | documented |
 | `windsurf` | Windsurf | Cognition | `.windsurf/workflows/mps-<role>.md` | prompt/rule | documented |
@@ -45,19 +49,30 @@ Three levels, and they are about **evidence**, not about how good the tool is:
 Being wrong here is cheap and local: override the entry (below), and nothing
 else changes.
 
+A front end over another harness is not an entry of its own. OpenWork — the
+open-source Cowork alternative — is a desktop UI driving OpenCode and reading
+OpenCode's own `.opencode/` config, so `--harness opencode` already covers it;
+QM is the other side of that coin, an orchestrator that runs Pi, OpenCode, Codex
+or Claude Code in a sandbox, so its entry installs nothing and routes to the
+harness it drives. Pi is a third shape of the same question: it has no
+sub-agents at all by design, so a role there is simply a second pi session —
+until you install the pi-subagents package, at which point agent types become
+files and the entry is worth overriding (its `notes` carry the JSON).
+
 Several of these vendors ship a CLI *and* models — Moonshot (Kimi Code CLI +
-Kimi models), Zhipu (ZCode + GLM), Alibaba (Qwen Code + DashScope). The tool is
-a harness entry, the model is a provider entry, and they carry different ids so
-one project can use one without the other.
+Kimi models), Zhipu (ZCode + GLM), Alibaba (Qwen Code + DashScope), xAI (Grok
+Build + the Grok models). The tool is a harness entry, the model is a provider
+entry, and they carry different ids so one project can use one without the
+other.
 
 ## Vendors are not harnesses
 
 Some vendors ship a CLI, some ship only models, and most of the big ones now
 ship both. Moonshot (`kimi`), Zhipu (`zcode`), Alibaba (`qwen`), Tencent
-(`codebuddy`) and DeepSeek (`dsh`) all have their own harness *and* an endpoint
-you can point another harness at. MiniMax is models only — its MMX-CLI generates
-media rather than driving a codebase. The entries below are the model side,
-which is what `Mps-Provider` records:
+(`codebuddy`), DeepSeek (`dsh`) and xAI (`grok`) all have their own harness
+*and* an endpoint you can point another harness at. MiniMax is models only — its
+MMX-CLI generates media rather than driving a codebase. The entries below are
+the model side, which is what `Mps-Provider` records:
 
 ```bash
 export ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic   # Kimi, for example
@@ -79,6 +94,7 @@ recoverable from anything else.
 | `glm` | Zhipu AI | `ZHIPUAI_API_KEY`, a `bigmodel.cn` endpoint | zcode, claude, cline, roo |
 | `minimax` | MiniMax | `MINIMAX_API_KEY`, a `minimax.io` endpoint | claude, cline, opencode |
 | `moonshot` | Moonshot AI | `MOONSHOT_API_KEY`, a `moonshot.cn` endpoint | kimi, claude, cline, roo |
+| `xai` | xAI | `XAI_API_KEY`, an `api.x.ai` endpoint | grok, cline, roo, opencode |
 
 `MPS_PROVIDER` overrides the detection; with no evidence, nothing is recorded —
 a guess in a permanent record is worse than a blank. Add your own provider as a
@@ -130,7 +146,7 @@ changed under you without waiting for a release.
 | `kind` | `provider` for a model vendor: it is listed, detected and recorded, never installed into |
 | `runs_in` / `match` | provider entries only: which harnesses drive it, and the env that identifies it |
 | `roles.shape` | `frontmatter-md`, `prompt-md`, `toml-prompt` or `aggregate-json` |
-| `roles.dir` / `roles.file` | where a role lands; `{prefix}` and `{role}` substitute |
+| `roles.dir` / `roles.file` | where a role lands; `{prefix}` and `{role}` substitute, and `file` may carry a directory segment where the unit of a role is a directory (`{prefix}{role}/agent.md`) |
 | `roles.model` | `false` if the format carries no model, else `{ "tiers": {…} }` |
 | `roles.tools` | `{ "style": "claude" \| "opencode-map" \| "copilot-list" }`, or omitted |
 | `roles.fields` | ordered `[key, template]` frontmatter; empty values are dropped |
@@ -154,7 +170,9 @@ declares no effort" end up being the same rule.
   rather than overwritten: entries whose key starts with `mps-` are ours,
   everything else in the file is left alone. Roo Code.
 - **`none`** — the harness has no per-role file format at all. DeepSeek Harness
-  registers subagents in code, and some editors only read a rules file. The
+  registers subagents in code, QM delegates to whichever harness it runs in its
+  sandbox, Pi ships no sub-agents by design, and some editors only read a rules
+  file. The
   entry still earns its place: it is detected, it receives the routing block,
   and it says how a role is reached instead — `mps agents show <role>`, or a
   harness it can spawn. Install writes nothing and says so; doctor does not ask

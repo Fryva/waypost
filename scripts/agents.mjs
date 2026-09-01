@@ -600,8 +600,6 @@ export function install(harnesses, { proj = projectRoot(), cfg = readConfig() } 
       continue;
     }
     if (isAggregate(id)) { out.push(...installAggregate(id, { proj, cfg })); continue; }
-    const dir = targetDir(id, proj);
-    mkdirSync(dir, { recursive: true });
     for (const name of rosterFor(cfg)) {
       const role = readRole(name);
       const p = targetPath(id, name, proj);
@@ -619,6 +617,12 @@ export function install(harnesses, { proj = projectRoot(), cfg = readConfig() } 
         out.push({ harness: id, role: name, path: p, action: "skipped (not ours)" });
         continue;
       }
+      // The unit is not always a file directly under the target directory:
+      // Antigravity's is a directory of its own (.agents/agents/<name>/agent.md),
+      // so the parent is made per file. Making the target alone left the nested
+      // case failing on write, and made an empty directory for a roster that
+      // wrote nothing.
+      mkdirSync(dirname(p), { recursive: true });
       writeFileSync(p, content, "utf8");
       out.push({ harness: id, role: name, path: p, action: before === null ? "created" : "updated" });
     }
@@ -646,10 +650,21 @@ export function uninstall(harnesses, { proj = projectRoot() } = {}) {
       continue;
     }
     const dir = targetDir(id, proj);
-    let names = [];
-    try { names = readdirSync(dir); } catch { continue; }
-    for (const n of names) {
-      const p = join(dir, n);
+    // Walked, not listed: where the unit of a role is a directory rather than a
+    // file (.agents/agents/<name>/agent.md), a flat readdir saw the directory,
+    // failed to read it as text, and removed nothing at all.
+    const files = [];
+    const walk = (d) => {
+      let entries = [];
+      try { entries = readdirSync(d, { withFileTypes: true }); } catch { return; }
+      for (const e of entries) {
+        const p = join(d, e.name);
+        if (e.isDirectory()) walk(p); else files.push(p);
+      }
+    };
+    walk(dir);
+    const emptied = new Set([dir]);
+    for (const p of files) {
       // The provenance line is the only test, not the filename: a harness whose
       // namespace is the directory (Gemini's .gemini/commands/mps/critic.toml)
       // carries no prefix in the name, and filtering on one silently left every
@@ -659,16 +674,21 @@ export function uninstall(harnesses, { proj = projectRoot() } = {}) {
       try { text = readFileSync(p, "utf8"); } catch { continue; }
       if (!installedRoleOf(text)) continue;
       unlinkSync(p);
+      emptied.add(dirname(p));
       out.push({ harness: id, path: p, action: "removed" });
     }
     // An emptied .codex/ is still a .codex/, and detectHarnesses reads
     // directories — so leaving the shell behind made uninstall undo itself at
     // the next install or `doctor --fix`. Walk up while the directories are
     // empty and still inside the project: a nested target like
-    // .gemini/commands/mps leaves two shells behind, not one.
-    for (let d = dir; d.startsWith(proj + "/"); d = dirname(d)) {
-      try { rmdirSync(d); out.push({ harness: id, path: d, action: "removed (empty)" }); }
-      catch { break; }
+    // .gemini/commands/mps leaves two shells behind, not one, and a per-agent
+    // directory leaves three. Deepest first, so the parent is tried after the
+    // last child that could still be holding it.
+    for (const start of [...emptied].sort((a, b) => b.length - a.length)) {
+      for (let d = start; d.startsWith(proj + "/"); d = dirname(d)) {
+        try { rmdirSync(d); out.push({ harness: id, path: d, action: "removed (empty)" }); }
+        catch { break; }
+      }
     }
   }
   return out;

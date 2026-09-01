@@ -74,8 +74,8 @@ regenerated.
 A role is defined once in `agents/<role>.md`; `mps agents install` renders it
 into the format of whichever harness the project uses. `mps harnesses` lists
 them — Claude Code, Codex, OpenCode, Kimi Code CLI, Qwen Code, ZCode, CodeBuddy
-Code, DeepSeek Harness, Cursor, Windsurf, Cline, Copilot, Gemini CLI, Roo Code,
-Tongyi Lingma, Trae, iFlow. That list is data, not code: a harness is a JSON file
+Code, DeepSeek Harness, Grok Build, Google Antigravity, QM, Pi, Cursor,
+Windsurf, Cline, Copilot, Gemini CLI, Roo Code, Tongyi Lingma, Trae, iFlow. That list is data, not code: a harness is a JSON file
 in `harnesses/`, and your own goes in `.mps/harnesses/` (see
 `docs/harnesses.md`). Where a harness has no role concept, `mps agents show
 <role>` prints the prompt for a separate run.
@@ -98,10 +98,11 @@ in `harnesses/`, and your own goes in `.mps/harnesses/` (see
   published tier naming (Claude Code); for the others use
   `mps agents model harness:<name> <id>`. Re-run `mps agents install` afterwards.
 - A vendor's CLI and a vendor's models are different entries. Moonshot, Zhipu,
-  Alibaba, Tencent and DeepSeek ship both (`kimi`/`zcode`/`qwen`/`codebuddy`/
-  `dsh` are tools; `moonshot`/`glm`/`dashscope`/`deepseek` are models); MiniMax
-  ships models only. A harness with no role-file format (`roles.shape: "none"`,
-  as with `dsh`) still receives the routing block, and a role is reached with
+  Alibaba, Tencent, DeepSeek and xAI ship both (`kimi`/`zcode`/`qwen`/
+  `codebuddy`/`dsh`/`grok` are tools; `moonshot`/`glm`/`dashscope`/`deepseek`/
+  `xai` are models); MiniMax ships models only. A harness with no role-file
+  format (`roles.shape: "none"`, as with `dsh`, `qm` and `pi`) still receives the
+  routing block, and a role is reached with
   `mps agents show <role>` or through a subagent that harness can spawn.
 
 ## Working in several harnesses at once

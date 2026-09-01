@@ -1,0 +1,33 @@
+{
+  "id": "antigravity",
+  "name": "Google Antigravity",
+  "vendor": "Google",
+  "home": "https://antigravity.google",
+  "docs": "https://antigravity.google/docs/cli/commands/agents",
+  "confidence": "documented",
+  "detect": [
+    ".agents"
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "GEMINI.md"
+  ],
+  "invoke": "pick the `mps-<role>` agent with `/agents`, or name it when delegating from the agent manager",
+  "roles": {
+    "shape": "frontmatter-md",
+    "dir": ".agents/agents",
+    "file": "{prefix}{role}/agent.md",
+    "model": false,
+    "fields": [
+      [
+        "name",
+        "{prefix}{role}"
+      ],
+      [
+        "description",
+        "{description}"
+      ]
+    ]
+  },
+  "notes": "The only documented layout is one directory per agent — {workspace}/.agents/agents/<name>/agent.md, globally ~/.gemini/config/agents/<name>/agent.md — which is why this entry's `file` carries a directory segment. The docs name exactly two frontmatter fields, name and description, so nothing else is emitted: no model, and no tools (Antigravity's tool vocabulary is not Claude's, and naming it wrongly would strip the role's tools). Workspace rules live in .agents/rules/ (the older singular .agent/rules still works) and are capped at 12,000 characters per file; .agents/AGENTS.md and a workspace-root AGENTS.md or GEMINI.md are loaded at session start, which is where the routing block lands. Antigravity is the same family as Gemini CLI but not the same layout — separate entries, separate directories. .agents/ is Antigravity's workspace directory and also a convention others read (Kimi Code CLI looks in .agents/agents/ too), so detection on it is a claim about the directory's owner, not proof of which CLI is running — the same call the registry already makes for AGENTS.md and `codex`. In a project that uses both, name the harness explicitly; the layouts differ (a file per agent for Kimi, a directory per agent here) and the two sit side by side without colliding."
+}

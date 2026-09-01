@@ -6,7 +6,7 @@
 - Supersedes: —
 - Superseded by: —
 - Related: ADR-0003 (roles), `harnesses/*.json`, `scripts/agents.mjs`, `docs/harnesses.md`
-- code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "harnesses/cursor.json", "harnesses/windsurf.json", "harnesses/copilot.json", "harnesses/gemini.json", "harnesses/cline.json", "harnesses/roo.json", "harnesses/qwen.json", "harnesses/kimi.json", "harnesses/zcode.json", "harnesses/codebuddy.json", "harnesses/dsh.json", "harnesses/trae.json", "harnesses/lingma.json", "harnesses/iflow.json", "harnesses/providers/deepseek.json", "harnesses/providers/moonshot.json", "harnesses/providers/glm.json", "harnesses/providers/minimax.json", "harnesses/providers/dashscope.json", "scripts/agents.mjs", "scripts/commit.mjs", "docs/harnesses.md", "tests/harness.test.mjs"]
+- code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "harnesses/cursor.json", "harnesses/windsurf.json", "harnesses/copilot.json", "harnesses/gemini.json", "harnesses/cline.json", "harnesses/roo.json", "harnesses/qwen.json", "harnesses/kimi.json", "harnesses/zcode.json", "harnesses/codebuddy.json", "harnesses/dsh.json", "harnesses/trae.json", "harnesses/lingma.json", "harnesses/iflow.json", "harnesses/grok.json", "harnesses/antigravity.json", "harnesses/qm.json", "harnesses/pi.json", "harnesses/providers/deepseek.json", "harnesses/providers/moonshot.json", "harnesses/providers/glm.json", "harnesses/providers/minimax.json", "harnesses/providers/dashscope.json", "harnesses/providers/xai.json", "scripts/agents.mjs", "scripts/commit.mjs", "docs/harnesses.md", "tests/harness.test.mjs"]
 
 ## Context
 
@@ -21,9 +21,11 @@ Tencent and DeepSeek.
 
 Their formats are also different in *shape*: one file per role with YAML
 frontmatter (Claude Code, OpenCode, Cursor, Copilot, Kimi, Qwen, ZCode,
-CodeBuddy, Gemini), a prompt file invoked by a slash command (Windsurf, Cline,
+CodeBuddy, Gemini, Grok Build), a directory per agent holding one such file
+(Antigravity), a prompt file invoked by a slash command (Windsurf, Cline,
 Lingma, Trae), TOML (Codex agents), one shared file holding an array of modes
-(Roo Code), and none at all (DeepSeek Harness registers subagents in code).
+(Roo Code), and none at all (DeepSeek Harness registers subagents in code, QM
+delegates to whichever harness it runs, Pi ships no sub-agents by design).
 
 ## Decision drivers
 
@@ -119,6 +121,9 @@ checking every vendor's own documentation:
 | `windsurf` | no limits | a documented 12000-character limit per workflow; frontmatter is undocumented |
 | `roo` | JSON assumed permanent | JSON is documented as fully supported and not deprecated, but YAML is now preferred |
 | `cursor` | — | confirmed: `.mdc` only; a plain `.md` in `.cursor/rules` is ignored |
+| `kimi` | detected on `.agents/agents` too | detected on `.kimi-code` only — `.agents/` is Antigravity's workspace directory and a shared convention Kimi merely reads, so it says nothing about which CLI runs here (the same call the registry already makes for `AGENTS.md`, read by nearly all and claimed by `codex` alone) |
+| `grok`, `antigravity`, `qm` | absent | three harnesses that shipped after the fork started: `.grok/agents/*.md` (xAI, `spawn_subagent`), `.agents/agents/<name>/agent.md` (Google), and YC's orchestrator, which has no role format because it drives Pi/OpenCode/Codex/Claude Code |
+| `pi` | absent | `none` on purpose: pi's own README refuses sub-agents and points at extensions, so a role is a second pi session. The file format that exists (`.pi/agents/*.md`) belongs to the third-party pi-subagents package, and the entry carries the override JSON rather than pretending stock pi reads it |
 
 One conclusion generalises: **keeping this registry true is a recurring poll,
 not a one-time setup.** In a single review, formats had changed for four of the
@@ -129,11 +134,18 @@ A second one: `sandbox_mode = "read-only"` in Codex is the only place a harness
 *enforces* the roles' read-only contract rather than being asked for it.
 Elsewhere it is a tool map (Claude, OpenCode, Kimi, CodeBuddy, Qwen) or prose.
 
+A third, and the one that cost code: Antigravity's unit is a *directory* per
+agent, not a file, so `roles.file` may now carry a directory segment. Install
+makes the parent of each file rather than the target directory once, and
+uninstall walks the target instead of listing it — a flat listing saw the
+directory, failed to read it as text, and removed nothing. Both are shape-blind:
+the registry stayed data, and the next such harness is still a JSON file.
+
 ## Consequences
 
 ### Positive
 
-- Seventeen harnesses out of the box, and the eighteenth is a data file.
+- Twenty-one harnesses out of the box, and the twenty-second is a data file.
 - A format that changes under you is fixed in `.mps/harnesses/` the same day.
 - `mps harnesses` shows what is supported, what is detected here, and how to
   invoke a role in each.
@@ -151,13 +163,15 @@ Elsewhere it is a tool map (Claude, OpenCode, Kimi, CodeBuddy, Qwen) or prose.
 - `tests/harness.test.mjs`: every registry entry renders every role with
   provenance and a matching hash; a project-local entry is picked up and
   installed with no code change; an aggregate merges without touching other
-  modes; nested directories are cleared on uninstall; TOML output is valid and
+  modes; a role whose unit is a directory is created and removed whole, with a
+  neighbouring file that is not ours left alone; nested directories are cleared
+  on uninstall; TOML output is valid and
   its body block closed exactly once; frontmatter shapes pass the scalar rules;
   an entry with no fields produces no empty `---\n---` block; a harness with no
   role files installs nothing and is not nagged about; providers stay out of the
   harness list and are detected only on evidence; every `documented` entry names
   its document and every `inferred` entry explains itself.
-- Live: installing into all seventeen entries, idempotence, `uninstall` leaving
+- Live: installing into all twenty-one entries, idempotence, `uninstall` leaving
   nothing behind, doctor clean afterwards, and a provider recorded in a commit
   under `ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic`.
 - Not verified: behaviour inside the harnesses themselves — precisely what

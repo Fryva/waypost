@@ -110,20 +110,24 @@ file, and a project can add or override an entry in `.mps/harnesses/`:
 | `codex` | Codex CLI | `.codex/agents/mps-<role>.toml` (`sandbox_mode: read-only`) | documented |
 | `opencode` | OpenCode | `.opencode/agents/mps-<role>.md` | documented |
 | `gemini` | Gemini CLI | `.gemini/agents/mps-<role>.md` | documented |
+| `grok` | Grok Build (xAI) | `.grok/agents/mps-<role>.md` | documented |
+| `antigravity` | Google Antigravity | `.agents/agents/mps-<role>/agent.md` | documented |
 | `copilot` | GitHub Copilot | `.github/agents/mps-<role>.agent.md` | documented |
 | `kimi` | Kimi Code CLI (Moonshot) | `.kimi-code/agents/mps-<role>.md` | documented |
 | `qwen` | Qwen Code (Alibaba) | `.qwen/agents/mps-<role>.md` | documented |
 | `zcode` | ZCode (Z.ai / Zhipu) | `.zcode/agents/mps-<role>.md` | documented |
 | `codebuddy` | CodeBuddy Code (Tencent) | `.codebuddy/agents/mps-<role>.md` | documented |
 | `dsh` | DeepSeek Harness | — (subagents live in code; routing block only) | documented |
+| `qm` | QM (Y Combinator) | — (drives another harness; routing block only) | documented |
+| `pi` | Pi (Earendil) | — (no sub-agents by design; routing block only) | documented |
 | `cursor` · `windsurf` · `cline` · `lingma` | rules / workflows | per-tool rule files | documented |
 | `roo` | Roo Code | `.roomodes` (merged, your own modes untouched) | documented |
 | `trae` · `iflow` | Trae (ByteDance), iFlow | rules / agents | inferred |
 | anything else | — | `<your-cli> "$(mps agents show critic) <target>"` |
 
 **A vendor's CLI and a vendor's models are different things.** Moonshot, Zhipu,
-Alibaba, Tencent and DeepSeek ship both — those are the `kimi`, `zcode`, `qwen`,
-`codebuddy` and `dsh` rows above. MiniMax ships models only (its MMX-CLI
+Alibaba, Tencent, DeepSeek and xAI ship both — those are the `kimi`, `zcode`,
+`qwen`, `codebuddy`, `dsh` and `grok` rows above. MiniMax ships models only (its MMX-CLI
 generates media rather than driving a codebase), so it is a *provider* entry:
 nothing installs for it, but `mps commit` records
 which model produced the work (`Mps-Provider: deepseek`) and `mps log --provider

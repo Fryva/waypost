@@ -311,6 +311,25 @@ test("uninstall clears nested empty directories, whatever the file is named", ()
     "a directory left behind would make detection resurrect the harness");
 });
 
+test("a role whose unit is a directory is installed and uninstalled whole", () => {
+  const { proj } = bound();
+  // Antigravity's agent is .agents/agents/<name>/agent.md — the file template
+  // carries a directory segment, which install has to create and uninstall has
+  // to walk into. A flat listing saw the directory, could not read it as text,
+  // and left the whole harness behind.
+  mps(proj, ["agents", "install", "--harness", "antigravity"]);
+  const p = join(proj, ".agents", "agents", `${PREFIX}critic`, "agent.md");
+  assert.ok(existsSync(p), "the per-agent directory is created, not assumed");
+  assert.ok(installedRoleOf(readFileSync(p, "utf8")), "with the same provenance contract");
+
+  writeFileSync(join(proj, ".agents", "agents", "mine.md"), "hand written\n", "utf8");
+  mps(proj, ["agents", "uninstall", "--harness", "antigravity"]);
+  assert.ok(!existsSync(join(proj, ".agents", "agents", `${PREFIX}critic`)),
+    "the agent's own directory goes with its file, or detection resurrects the harness");
+  assert.ok(existsSync(join(proj, ".agents", "agents", "mine.md")),
+    "…and someone else's agent is still theirs");
+});
+
 test("install: idempotent, per-harness, and detected harnesses are the default", () => {
   const { proj } = bound();
   mkdirSync(join(proj, ".opencode"), { recursive: true });
