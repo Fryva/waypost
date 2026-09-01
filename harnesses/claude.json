@@ -3,21 +3,56 @@
   "name": "Claude Code",
   "home": "https://claude.com/claude-code",
   "verified": true,
-  "detect": [".claude", "CLAUDE.md"],
-  "instructions": ["CLAUDE.md", "AGENTS.md"],
+  "detect": [
+    ".claude",
+    "CLAUDE.md"
+  ],
+  "env": [
+    "CLAUDECODE",
+    "CLAUDE_CODE_ENTRYPOINT",
+    "CLAUDE_PROJECT_DIR",
+    "CLAUDE_PLUGIN_ROOT"
+  ],
+  "instructions": [
+    "CLAUDE.md",
+    "AGENTS.md"
+  ],
   "invoke": "spawn the `mps-<role>` subagent",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".claude/agents",
     "file": "{prefix}{role}.md",
-    "model": { "tiers": { "reasoning": "opus", "balanced": "sonnet", "fast": "haiku" } },
-    "tools": { "style": "claude" },
+    "model": {
+      "tiers": {
+        "reasoning": "opus",
+        "balanced": "sonnet",
+        "fast": "haiku"
+      }
+    },
+    "tools": {
+      "style": "claude"
+    },
     "fields": [
-      ["name", "{prefix}{role}"],
-      ["description", "{description}"],
-      ["model", "{model}"],
-      ["effort", "{effort}"],
-      ["tools", "{tools}"]
+      [
+        "name",
+        "{prefix}{role}"
+      ],
+      [
+        "description",
+        "{description}"
+      ],
+      [
+        "model",
+        "{model}"
+      ],
+      [
+        "effort",
+        "{effort}"
+      ],
+      [
+        "tools",
+        "{tools}"
+      ]
     ]
   }
 }

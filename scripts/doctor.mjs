@@ -270,8 +270,49 @@ export function checkAgentRoles(proj, cfg) {
   return out;
 }
 
-export function checkVaultGit(cfg) {
+// Derived views are regenerated, never merged (ADR-0006). Two sessions in two
+// harnesses both touch a story, both regenerate the board, and git then asks a
+// human to hand-merge two machine-written files. The driver removes that class
+// of conflict entirely — but only where the vault is versioned WITH the code,
+// which is the only case where the two can conflict in one repository.
+export function checkMergeDriver(cfg, proj) {
+  if (!existsSync(join(proj, ".git"))) return [];
+  const vault = String((cfg && cfg.vault_path) || "");
+  if (!vault || !vault.startsWith(proj + "/")) return [];
+  const out = [];
+  let attrs = "";
+  try { attrs = readFileSync(join(proj, ".gitattributes"), "utf8"); } catch {}
+  if (!/merge=mps-derived/.test(attrs)) {
+    out.push(finding("install", "warn", "merge-driver",
+      "Derived views (kanban.md, graph.md, code-map.md, folder indexes) are not marked `merge=mps-derived` in .gitattributes — two sessions working in parallel will hand you a conflict in a generated file. `mps doctor --fix` writes it."));
+  }
+  const current = (spawnSync("git", ["config", "--get", "merge.mps-derived.driver"],
+    { cwd: proj, encoding: "utf8" }).stdout || "").trim();
+  if (!current) {
+    out.push(finding("install", "warn", "merge-driver",
+      "The mps-derived merge driver is not configured in this clone (git config merge.mps-derived.driver). It is machine-local, so every clone sets it once — `mps doctor --fix` does."));
+  } else if (current !== mergeDriverCommand()) {
+    // A driver configured by an older version is worse than none: git calls it,
+    // it cannot identify the file from git's temp name, and the conflict comes
+    // back anyway — with a confusing line of output in front of it.
+    out.push(finding("install", "warn", "merge-driver",
+      `merge.mps-derived.driver points at a different command than this version installs:\n      configured: ${current}\n      expected:   ${mergeDriverCommand()}\n      \`mps doctor --fix\` rewrites it.`));
+  }
+  return out;
+}
+
+export function mergeDriverCommand() {
+  return `${process.execPath} ${join(pluginRoot(), "scripts", "merge-derived.mjs")} %A %O %B %P`;
+}
+
+export function checkVaultGit(cfg, proj = projectRoot()) {
   if (existsSync(join(cfg.vault_path, ".git"))) return [];
+  // A vault INSIDE the project repository is already versioned by it. Running
+  // `git init` there would create a nested repository: the outer repo would
+  // start seeing a gitlink where files used to be, and the vault's own history
+  // would live in a directory nobody clones. The whole point of the check is
+  // "this knowledge has history" — inside the repo, it does.
+  if (String(cfg.vault_path || "").startsWith(proj + "/") && existsSync(join(proj, ".git"))) return [];
   return [finding("install", "warn", "vault-git",
     "Vault is not a git repository — the knowledge has no history/blame/review. Consider `git init` (doctor --fix offers it).")];
 }
@@ -1148,7 +1189,8 @@ export function runInstallChecks(cfg, proj) {
     ...checkEnvModel(),
     ...checkEnvEffort(),
     ...checkGitignore(proj),
-    ...checkVaultGit(cfg),
+    ...checkVaultGit(cfg, proj),
+    ...checkMergeDriver(cfg, proj),
   );
   return out;
 }
@@ -1273,6 +1315,30 @@ export function applyFixes(cfg, proj, findings) {
   // at all", which is a choice the user has not made yet. Repairing it turned
   // `--fix` into an installer — after `mps agents uninstall`, the next `--fix`
   // put all fifteen files back.
+  if (has("merge-driver") && cfg && cfg.vault_path) {
+    const rel = cfg.vault_path.startsWith(proj + "/") ? cfg.vault_path.slice(proj.length + 1) : null;
+    if (rel) {
+      const p = join(proj, ".gitattributes");
+      let text = "";
+      try { text = readFileSync(p, "utf8"); } catch {}
+      if (!/merge=mps-derived/.test(text)) {
+        const block = [
+          "", "# mps: derived views are regenerated from the artifacts, never merged.",
+          "# `mps merge-derived` re-derives them; see docs/decisions/0006-*.md.",
+          `${rel}/kanban.md merge=mps-derived`,
+          `${rel}/graph.md merge=mps-derived`,
+          `${rel}/code-map.md merge=mps-derived`,
+          `${rel}/**/README.md merge=mps-derived`, "",
+        ].join("\n");
+        writeFileSync(p, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${block}`, "utf8");
+        done.push(".gitattributes += merge=mps-derived for the derived views");
+      }
+      const a = spawnSync("git", ["config", "merge.mps-derived.driver", mergeDriverCommand()], { cwd: proj, encoding: "utf8" });
+      spawnSync("git", ["config", "merge.mps-derived.name", "regenerate mps derived views"], { cwd: proj, encoding: "utf8" });
+      done.push(a.status === 0 ? "git config merge.mps-derived.driver" : `git config failed: ${(a.stderr || "").trim()}`);
+    }
+  }
+
   if (has("agent-roles", "issue") || has("agent-roles", "warn")) {
     const harnesses = detectHarnesses(proj);
     if (harnesses.length) {

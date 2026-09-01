@@ -120,6 +120,28 @@ someone's own: install skips it, `--fix` skips it, uninstall never deletes it.
 With no harness detected and none named, `install` refuses rather than
 scattering all three directories into the project.
 
+## Several harnesses at once
+
+Two agents in two harnesses on one repository is the case this fork exists for,
+and it has three failure modes: history that cannot say who did what, generated
+files that conflict on every merge, and two sessions opening the same story.
+
+```bash
+mps commit -m "Add the codex adapter" --story PS-1/story-codex-adapter --all
+mps log --story PS-1/story-codex-adapter     # …or --harness codex
+mps merge feature-branch                     # merge, re-derive, then commit
+```
+
+Every commit carries git trailers — `Mps-Harness`, `Mps-Session`, `Mps-Story` —
+which git itself parses (`git interpret-trailers`, `--format=%(trailers)`), so
+the record survives without this tool. Derived views are marked
+`merge=mps-derived` in `.gitattributes`: on conflict they are regenerated from
+the artifacts rather than merged line by line (`mps doctor --fix` wires it).
+Opening a story claims it in the session registry inside the vault — which every
+harness bound to that vault can read — and `mps commit` refuses to close a story
+another live session still holds. See
+[ADR-0006](docs/decisions/0006-commit-protocol.md).
+
 ## Layout (`engineering`)
 
 `adr/`, `specs/`, `epics/<id>/stories/`, `research/`, `concepts/`, `meetings/`,

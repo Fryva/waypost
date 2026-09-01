@@ -7,7 +7,7 @@
 // plugin env vars (CLAUDE_PROJECT_DIR / CLAUDE_PLUGIN_ROOT) are honoured as
 // fallbacks so the same scripts can also run as an optional Claude plugin.
 
-import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync, statSync, mkdirSync, utimesSync, unlinkSync, renameSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync, statSync, mkdirSync, utimesSync, unlinkSync, renameSync, rmSync, realpathSync } from "node:fs";
 import { readFile as readFileAsync } from "node:fs/promises";
 import { join, dirname, basename, resolve } from "node:path";
 import { hostname, homedir } from "node:os";
@@ -1392,10 +1392,26 @@ export function resolveInFlightArtifact(activity, layout, vaultPath) {
   return null;
 }
 
+// macOS puts the temp dir behind a symlink (/var → /private/var), and git runs
+// merge drivers from the REAL worktree root while a config written elsewhere
+// holds the symlinked spelling. Comparing those two as strings says a path
+// inside the vault is outside it. Resolve both through the filesystem when it
+// can answer; fall back to lexical resolution when the path does not exist yet.
+export function realPath(p) {
+  if (!p) return p;
+  try { return realpathSync(resolve(p)); } catch { return resolve(p); }
+}
+
 export function isInsideVault(filePath, vaultPath) {
   if (!filePath || !vaultPath) return false;
-  const norm = filePath.endsWith("/") ? filePath.slice(0, -1) : filePath;
-  return norm === vaultPath || norm.startsWith(vaultPath + "/");
+  const trim = (p) => (p.endsWith("/") ? p.slice(0, -1) : p);
+  const under = (p, v) => p === v || p.startsWith(v + "/");
+  // Lexically OR through the filesystem: a path that does not exist (a deleted
+  // file in an activity log) cannot be realpath'd, and a path that does can be
+  // spelled two ways (macOS /var → /private/var). Accepting either answer is
+  // the only form that is right in both cases.
+  return under(trim(filePath), trim(vaultPath))
+    || under(realPath(trim(filePath)), realPath(trim(vaultPath)));
 }
 
 // ─── Source-path classification ────────────────────────────────────────

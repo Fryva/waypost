@@ -3,20 +3,48 @@
   "name": "OpenCode",
   "home": "https://opencode.ai",
   "verified": true,
-  "detect": [".opencode", "opencode.json", "opencode.jsonc"],
-  "instructions": ["AGENTS.md"],
+  "detect": [
+    ".opencode",
+    "opencode.json",
+    "opencode.jsonc"
+  ],
+  "env": [
+    "OPENCODE",
+    "OPENCODE_BIN_PATH",
+    "OPENCODE_CONFIG"
+  ],
+  "instructions": [
+    "AGENTS.md"
+  ],
   "invoke": "spawn the `mps-<role>` subagent",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".opencode/agent",
     "file": "{prefix}{role}.md",
-    "model": { "tiers": {}, "note": "OpenCode model ids are provider-qualified (anthropic/claude-…); no tier naming to map, so only an explicit per-harness pin is emitted." },
-    "tools": { "style": "opencode-map" },
+    "model": {
+      "tiers": {},
+      "note": "OpenCode model ids are provider-qualified (anthropic/claude-…); no tier naming to map, so only an explicit per-harness pin is emitted."
+    },
+    "tools": {
+      "style": "opencode-map"
+    },
     "fields": [
-      ["description", "{description}"],
-      ["mode", "{mode}"],
-      ["model", "{model}"],
-      ["tools", "{tools}"]
+      [
+        "description",
+        "{description}"
+      ],
+      [
+        "mode",
+        "{mode}"
+      ],
+      [
+        "model",
+        "{model}"
+      ],
+      [
+        "tools",
+        "{tools}"
+      ]
     ]
   }
 }

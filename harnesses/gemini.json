@@ -3,8 +3,18 @@
   "name": "Gemini CLI",
   "home": "https://github.com/google-gemini/gemini-cli",
   "verified": false,
-  "detect": [".gemini", "GEMINI.md"],
-  "instructions": ["GEMINI.md", "AGENTS.md"],
+  "detect": [
+    ".gemini",
+    "GEMINI.md"
+  ],
+  "env": [
+    "GEMINI_CLI",
+    "GEMINI_SANDBOX"
+  ],
+  "instructions": [
+    "GEMINI.md",
+    "AGENTS.md"
+  ],
   "invoke": "/mps:<role> <target>",
   "roles": {
     "shape": "toml-prompt",

@@ -242,7 +242,37 @@ function handleStory(args) {
   if (!out.changed) { process.stdout.write(`unchanged ${out.path}\n`); return; }
   writeFileSync(out.path, out.content, "utf8");
   process.stdout.write(`${mode}  ${out.path}\n  ${(out.notes || []).join("\n  ")}\n`);
+  // Opening a story claims it for this session; closing it releases the claim.
+  // Other harnesses on the same vault read that registry, so the gate is also
+  // the announcement — nobody has to remember a separate command.
+  claimForStory(mode === "plan" ? out.path : null);
   reconcileAfterWrite();
+}
+
+function claimForStory(storyPath) {
+  // Warn, do not refuse: re-planning a story someone else opened changes the
+  // file idempotently, and the moment that actually needs a gate is the commit.
+  // But the session that is about to duplicate work should hear about it here.
+  if (storyPath) {
+    const r = spawnSync(process.execPath, [SCRIPT("sessions"), "--json"], {
+      encoding: "utf8", env: { ...process.env, MPS_HOME: process.env.MPS_HOME || ROOT },
+    });
+    try {
+      const { claims = [], session_id: self } = JSON.parse(r.stdout || "{}");
+      const ref = storyPath.split("/").slice(-3).filter((x) => x !== "stories").join("/").replace(/\.md$/, "");
+      const others = claims.filter((c) => c.story === ref && c.session !== self);
+      if (others.length) {
+        process.stderr.write(`⚠️  ${ref} is already claimed by ${others.map((o) => `${o.session} (${o.harness || "?"})`).join(", ")}`
+          + " — two sessions on one story is how the same work gets done twice.\n");
+      }
+    } catch { /* the registry is advisory; never block the gate on it */ }
+  }
+  const args = storyPath ? ["--claim", storyPath] : ["--release"];
+  const r = spawnSync(process.execPath, [SCRIPT("sessions"), ...args], {
+    encoding: "utf8", env: { ...process.env, MPS_HOME: process.env.MPS_HOME || ROOT },
+  });
+  const line = (r.stdout || "").split("\n").find((l) => l.startsWith("claimed") || l.startsWith("released"));
+  if (line) process.stdout.write(`  ${line.trim()}  (visible to other sessions via \`mps sessions\`)\n`);
 }
 
 // ─── derived views ─────────────────────────────────────────────────────
@@ -324,6 +354,19 @@ VAULT
   doctor [flags]           deterministic diagnostics (--install|--vault|--fix)
   diff-refs [flags]        changed-file evidence for code_refs
 
+WORKING IN SEVERAL HARNESSES AT ONCE
+  commit -m "<what>"       commit with the trailers that say which harness,
+                           session and story it came from [--story <id>]
+                           [--all: everything not ignored | --tracked]
+                           [--dry-run] [-- <paths>]
+  merge <ref>              merge, re-derive the views, then commit — so the
+                           board in the merge commit matches the merged vault
+  log [--story|--harness|--session <v>]
+                           the history, read back through those trailers
+  sessions --claim <story> tell the other live sessions what you are on
+  merge-derived <file>     git merge driver: regenerate a derived view instead
+                           of merging two machine-written copies of it
+
 ROLES (same roles in every harness)
   agents list              roles + per-harness install state
   agents show <role>       print the role prompt (fresh-context handoff)
@@ -340,7 +383,7 @@ ROLES (same roles in every harness)
 PROCEDURES
   prompt [name]            print a workflow procedure (the verified loop's steps)
   skill [name]             print a skill (proactive procedure)
-  sessions [--touch]       active-session registry (--prune, --json)
+  sessions [--touch]       active-session registry (--claim/--release/--prune)
   tokens [flags]           what the loop cost, from Claude Code transcripts
                            (Claude-only: no other harness writes them)
 
@@ -375,6 +418,10 @@ function main() {
     case "harnesses": run("agents", ["harnesses", ...rest]); break;
     case "sessions": run("sessions", rest); break;
     case "brief": run("brief", rest); break;
+    case "commit": run("commit", rest); break;
+    case "merge": run("commit", ["--merge", ...rest]); break;
+    case "log": run("commit", ["--log", ...rest]); break;
+    case "merge-derived": run("merge-derived", rest); break;
     case "tokens": run("tokens", rest); break;
     case "prompt": printDoc("prompts", positionals(rest)[0]); break;
     case "skill": printDoc("skills", positionals(rest)[0], "SKILL.md"); break;
