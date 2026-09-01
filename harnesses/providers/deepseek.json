@@ -5,9 +5,9 @@
   "vendor": "DeepSeek",
   "home": "https://platform.deepseek.com",
   "runs_in": [
+    "dsh",
     "cline",
     "roo",
-    "continue",
     "opencode",
     "codex",
     "claude"
@@ -21,5 +21,5 @@
       "deepseek.ai"
     ]
   },
-  "notes": "DeepSeek ships models, not an agent CLI: as of this writing the terminal agents around it (Deep Code, DeepSeek-TUI) are community projects listed as integrations, not a first-party harness. Point whichever harness you use at the endpoint; mps records deepseek as the provider. If DeepSeek ships its own CLI, this becomes a harness entry — a JSON file, not a code change."
+  "notes": "DeepSeek now ships its own harness — the `dsh` entry above — as well as the models. This entry is the model side: point any harness at the DeepSeek endpoint and mps records deepseek as the provider on each commit. The community terminal agents (Deep Code, DeepSeek-TUI) are separate projects and are not registry entries."
 }

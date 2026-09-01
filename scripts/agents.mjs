@@ -20,7 +20,7 @@
 //
 // CLI: node agents.mjs list|show|install|uninstall|register|unregister|model [args]
 
-import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, unlinkSync, rmdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, unlinkSync, rmdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -49,6 +49,13 @@ import {
 //   prompt-md       one file per role: optional frontmatter, $ARGUMENTS preamble
 //   toml-prompt     one file per role: description/prompt TOML (Gemini CLI)
 //   aggregate-json  one shared JSON file holding an array of modes (Roo Code)
+//   none            the harness has NO per-role file format at all. Real and
+//                   not rare: DeepSeek Harness registers subagents in code, and
+//                   several editors only read a rules file. Such an entry is
+//                   still worth having — it is detected, it receives the
+//                   routing block, and it says how a role is reached instead
+//                   (`mps agents show`, or a harness it can spawn) — but
+//                   install writes nothing and doctor must not ask why.
 
 export const AGENT_BLOCK_VERSION = 1;
 export const AGENT_BLOCK_MARKER = /<!--\s*mps:agents v(\d+)/g;
@@ -235,10 +242,26 @@ export function roleNames() {
   }
 }
 
+// Memoized on (path, mtime, size): status() asks for every role of every
+// harness, so with a dozen entries this was re-reading and re-hashing the same
+// five files sixty times per `mps doctor`.
+const _roleCache = new Map();
+
 export function readRole(name) {
   const p = join(rolesDir(), `${name}.md`);
   if (!existsSync(p)) throw new Error(`No such role: ${name} (expected ${p})`);
-  const raw = readFileSync(p, "utf8");
+  let key = null;
+  try {
+    const st = statSync(p);
+    key = `${p}:${st.mtimeMs}:${st.size}`;
+    if (_roleCache.has(key)) return _roleCache.get(key);
+  } catch { /* fall through to an uncached read */ }
+  const role = parseRole(p, readFileSync(p, "utf8"), name);
+  if (key) _roleCache.set(key, role);
+  return role;
+}
+
+function parseRole(p, raw, name) {
   const { data, body } = parseFrontmatter(raw);
   const tools = String(data.tools || "")
     .replace(/^\[|\]$/g, "")
@@ -478,6 +501,10 @@ export function targetPath(id, roleName, proj = projectRoot()) {
 }
 
 export const isAggregate = (id) => roleSpec(harness(id)).shape === "aggregate-json";
+export const hasRoleFiles = (id) => {
+  const shape = roleSpec(harness(id)).shape;
+  return Boolean(shape) && shape !== "none";
+};
 
 export function renderFor(id, role, cfg) {
   const h = harness(id);
@@ -543,6 +570,11 @@ function installAggregate(id, { proj, cfg }) {
 export function install(harnesses, { proj = projectRoot(), cfg = readConfig() } = {}) {
   const out = [];
   for (const id of harnesses) {
+    if (!hasRoleFiles(id)) {
+      out.push({ harness: id, role: null, path: null, action: "no role files",
+        note: harness(id).roles_note || "this harness has no per-role file format" });
+      continue;
+    }
     if (isAggregate(id)) { out.push(...installAggregate(id, { proj, cfg })); continue; }
     const dir = targetDir(id, proj);
     mkdirSync(dir, { recursive: true });
@@ -573,6 +605,7 @@ export function install(harnesses, { proj = projectRoot(), cfg = readConfig() } 
 export function uninstall(harnesses, { proj = projectRoot() } = {}) {
   const out = [];
   for (const id of harnesses) {
+    if (!hasRoleFiles(id)) continue;
     if (isAggregate(id)) {
       const h = harness(id);
       const spec = roleSpec(h);
@@ -626,6 +659,9 @@ export function uninstall(harnesses, { proj = projectRoot() } = {}) {
 export function status({ proj = projectRoot(), cfg = readConfig() } = {}) {
   const roster = rosterFor(cfg);
   return harnessIds().map((id) => {
+    if (!hasRoleFiles(id)) {
+      return { harness: id, dir: null, roles: roster.map((name) => ({ role: name, state: "n/a", path: null })) };
+    }
     const agg = isAggregate(id);
     const spec = roleSpec(harness(id));
     let list = [];
@@ -637,6 +673,8 @@ export function status({ proj = projectRoot(), cfg = readConfig() } = {}) {
       const found = agg
         ? list.find((e) => e && e[spec.key] === PREFIX + name)
         : (existsSync(p) ? readFileSync(p, "utf8") : null);
+      // Absent is decided by the filesystem alone: rendering a role only to
+      // compare it against nothing is the most expensive way to learn that.
       if (!found) return { role: name, state: "absent", path: p };
       const text = agg ? JSON.stringify(found, null, 2) : found;
       if (!installedRoleOf(text)) return { role: name, state: "foreign", path: p };
@@ -778,7 +816,8 @@ function main() {
         const spec = roleSpec(h);
         return {
           id, name: h.name || id, vendor: h.vendor || null, confidence: confidenceOf(h), docs: h.docs || null,
-          shape: spec.shape, target: spec.shape === "aggregate-json" ? spec.file : spec.dir,
+          shape: spec.shape || "none",
+          target: spec.shape === "aggregate-json" ? spec.file : (spec.dir || null),
           takes_model: harnessTakesModel(id), detect: h.detect || [], invoke: h.invoke || null,
           source: h.source, notes: h.notes || null,
         };
@@ -792,7 +831,7 @@ function main() {
       const used = new Set(detectHarnesses());
       for (const r of rows) {
         process.stdout.write(
-          `${(used.has(r.id) ? "* " : "  ")}${r.id.padEnd(11)} ${r.confidence.padEnd(12)} ${String(r.target).padEnd(24)} ${r.name}\n`);
+          `${(used.has(r.id) ? "* " : "  ")}${r.id.padEnd(11)} ${r.confidence.padEnd(12)} ${String(r.target || "— no role files").padEnd(24)} ${r.name}\n`);
         if (r.invoke) process.stdout.write(`              invoke: ${r.invoke}\n`);
       }
       const here = detectProvider();
@@ -821,7 +860,10 @@ function main() {
     case "install": {
       const res = install(harnessArg(rest, cfg), { cfg });
       if (json) { process.stdout.write(JSON.stringify(res, null, 2) + "\n"); return; }
-      for (const r of res) process.stdout.write(`${r.action.padEnd(18)} ${r.path}\n`);
+      for (const r of res) {
+        process.stdout.write(`${r.action.padEnd(18)} ${r.path || r.harness}\n`);
+        if (r.note) process.stdout.write(`                   ${r.note}\n`);
+      }
       if (res.some((r) => r.action.startsWith("skipped"))) {
         process.stdout.write("\nSkipped files were not generated by mps — rename them if they are yours,\nor delete them to let install take the name.\n");
       }

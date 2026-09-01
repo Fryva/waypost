@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
-  harnessIds, providerIds, detectProvider, harness as harnessOf, PREFIX, HARNESSES } from "../scripts/agents.mjs";
+  harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES } from "../scripts/agents.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const MPS = join(REPO, "bin", "mps");
@@ -156,6 +156,13 @@ test("the harness registry is data, and every entry renders every role", () => {
     const h = harnessOf(id);
     assert.ok(h.detect && h.detect.length, `${id}: declares how it is detected`);
     assert.ok(h.roles && h.roles.shape, `${id}: declares a role shape`);
+    // A harness can honestly have no per-role file format — then it must say
+    // how a role is reached instead, and nothing is rendered for it.
+    if (!hasRoleFiles(id)) {
+      assert.ok(h.roles_note && h.invoke,
+        `${id} has no role files, so it must say why and how a role is reached`);
+      continue;
+    }
     for (const name of roleNames()) {
       const out = renderFor(id, readRole(name), null);
       const text = typeof out === "string" ? out : JSON.stringify(out, null, 2);
@@ -165,6 +172,23 @@ test("the harness registry is data, and every entry renders every role", () => {
       assert.ok(text.includes(readRole(name).body.split("\n")[0]), `${id}/${name}: carries the prompt`);
     }
   }
+});
+
+test("a harness with no role-file format installs nothing and is not nagged about", () => {
+  const { proj } = bound();
+  mkdirSync(join(proj, ".dsh"), { recursive: true });          // detected
+  const out = mps(proj, ["agents", "install", "--harness", "dsh"]).stdout;
+  assert.match(out, /no role files/, "install says so instead of writing something meaningless");
+  assert.ok(!existsSync(join(proj, ".dsh", "agents")), "…and creates nothing");
+
+  const findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  assert.ok(!findings.some((f) => f.check === "agent-roles" && /dsh/.test(f.message)),
+    "doctor must not ask why a harness that cannot hold role files has none");
+
+  // The routing block is how such a harness reaches the roles, so it must be a
+  // registration target.
+  mps(proj, ["agents", "register"]);
+  assert.match(readFileSync(join(proj, "AGENTS.md"), "utf8"), /mps:agents/);
 });
 
 test("a harness that declares no frontmatter fields gets no empty block", () => {

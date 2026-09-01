@@ -1,0 +1,15 @@
+{
+  "id": "dsh",
+  "name": "DeepSeek Harness (dsh)",
+  "vendor": "DeepSeek",
+  "home": "https://deepseek.com/harness/en/",
+  "docs": "https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/config-catalog.md",
+  "confidence": "documented",
+  "detect": [".dsh", "cordis.yml"],
+  "env": ["DSH_HOME", "DSH_AGENTS_HOME"],
+  "instructions": ["AGENTS.md", "CLAUDE.md"],
+  "invoke": "run the role via a spawned Claude Code/Codex subagent, or `dsh` with `mps agents show <role>` as the prompt",
+  "roles": { "shape": "none" },
+  "roles_note": "dsh registers subagents in code (SubagentProvider), not as markdown files — there is no directory to install roles into.",
+  "notes": "Official DeepSeek harness (developer preview, everything-is-a-plugin on Cordis). It reads AGENTS.md and CLAUDE.md, so `mps agents register` reaches it — that is where the roles are routed from. Its subagent seam is a code-level provider registry with shipped providers that spawn Claude Code and Codex, so the practical route is: install the roles for `claude`/`codex` and let dsh spawn them; or run a role directly with `mps agents show <role>`. If a file-based agent format appears, this entry becomes a normal one — a JSON change, not a code change."
+}

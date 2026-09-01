@@ -61,7 +61,8 @@ slash-команд как обязательного интерфейса.
 Определение роли одно — `agents/<role>.md`; `mps agents install` рендерит его в формат
 того харнеса, которым пользуется проект. Список — `mps harnesses`: Claude Code, Codex,
 OpenCode, Kimi Code CLI, Qwen Code, ZCode (Z.ai), CodeBuddy Code, Tongyi Lingma, Cursor,
-Windsurf, Cline, Copilot, Gemini CLI, Roo Code, Trae, iFlow. Это данные, а не код:
+Windsurf, Cline, Copilot, Gemini CLI, Roo Code, DeepSeek Harness, Trae, iFlow. Это данные,
+а не код:
 харнес описывается JSON-файлом в `harnesses/`, свой можно добавить в `.mps/harnesses/`
 (`docs/harnesses.md`). Где ролей как сущности нет — `mps agents show <role>` даёт готовый
 промпт для отдельного запуска.
@@ -166,9 +167,12 @@ Vault может лежать в iCloud/Dropbox/на сетевой шаре, а
   рендерере. Уровень доверия — про доказательства: `verified` — формат из документации И
   проверен запуском; `documented` — взят из документации вендора (URL обязателен в поле
   `docs`); `inferred` — выведен по соглашению, и тогда в `notes` написано, что предположено.
-- **CLI вендора и модели вендора — разные записи.** Moonshot, Zhipu и Alibaba поставляют и то
-  и другое (`kimi`/`zcode`/`qwen` — инструменты, `moonshot`/`glm`/`dashscope` — модели);
-  DeepSeek и MiniMax — только модели, они работают внутри чужого харнеса.
+- **CLI вендора и модели вендора — разные записи.** Moonshot, Zhipu, Alibaba, Tencent и
+  DeepSeek поставляют и то и другое (`kimi`/`zcode`/`qwen`/`codebuddy`/`dsh` — инструменты,
+  `moonshot`/`glm`/`dashscope`/`deepseek` — модели); MiniMax — только модели.
+- Харнес без формата файлов ролей — нормальный случай (`roles.shape: "none"`, как у `dsh`):
+  он всё равно получает блок маршрутизации, а роль вызывается через `mps agents show <role>`
+  или через субагента, которого этот харнес умеет запускать.
   Роли ставятся для харнеса, а провайдер попадает в запись коммита трейлером `Mps-Provider`
   (`mps log --provider kimi`). Записи провайдеров — `harnesses/providers/*.json`.
 - Vault-совместимость с исходным ProjectStore сохраняется (ADR-0004): служебные имена внутри

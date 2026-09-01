@@ -239,6 +239,9 @@ export function checkAgentRoles(proj, cfg) {
   const used = detectHarnesses(proj);
   const anyInstalled = state.some((h) => h.roles.some((r) => r.state !== "absent"));
   for (const h of state) {
+    // A harness with no per-role file format has nothing to install, so there is
+    // nothing to be missing or stale about it.
+    if (h.roles.every((r) => r.state === "n/a")) continue;
     const relevant = used.includes(h.harness) || h.roles.some((r) => r.state !== "absent");
     if (!relevant) continue;
     const stale = h.roles.filter((r) => r.state === "stale");

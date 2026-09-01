@@ -104,17 +104,18 @@ file, and a project can add or override an entry in `.mps/harnesses/`:
 | `qwen` | Qwen Code (Alibaba) | `.qwen/agents/mps-<role>.md` | documented |
 | `zcode` | ZCode (Z.ai / Zhipu) | `.zcode/agents/mps-<role>.md` | documented |
 | `codebuddy` | CodeBuddy Code (Tencent) | `.codebuddy/agents/mps-<role>.md` | documented |
+| `dsh` | DeepSeek Harness | — (registers subagents in code; routing block only) | documented |
 | `lingma` | Tongyi Lingma (Alibaba) | `.lingma/rules/mps-<role>.md` | documented |
 | `cursor` · `windsurf` · `cline` | Cursor, Windsurf, Cline | rules / workflows | documented |
 | `copilot` · `gemini` · `roo` | Copilot, Gemini CLI, Roo Code | chat mode / command / `.roomodes` | documented |
 | `trae` · `iflow` | Trae (ByteDance), iFlow | rules / agents | inferred |
 | anything else | — | `<your-cli> "$(mps agents show critic) <target>"` |
 
-**A vendor's CLI and a vendor's models are different things.** Moonshot, Zhipu
-and Alibaba ship both — those are the `kimi`, `zcode` and `qwen` rows above.
-DeepSeek and MiniMax ship models only (DeepSeek's terminal agents are community
-projects; MiniMax's MMX-CLI generates media rather than driving a codebase), so
-they are *provider* entries: nothing installs for them, but `mps commit` records
+**A vendor's CLI and a vendor's models are different things.** Moonshot, Zhipu,
+Alibaba, Tencent and DeepSeek ship both — those are the `kimi`, `zcode`, `qwen`,
+`codebuddy` and `dsh` rows above. MiniMax ships models only (its MMX-CLI
+generates media rather than driving a codebase), so it is a *provider* entry:
+nothing installs for it, but `mps commit` records
 which model produced the work (`Mps-Provider: deepseek`) and `mps log --provider
 deepseek` reads it back. The same harness behaves very differently behind a
 different model, and nothing else in a repository remembers which one wrote a

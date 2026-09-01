@@ -21,6 +21,7 @@ mps agents install                  # …or into whatever this project uses
 | `codex` | Codex CLI | OpenAI | `.codex/prompts/mps-<role>.md` | prompt/rule | documented |
 | `copilot` | GitHub Copilot (VS Code / CLI) | GitHub / Microsoft | `.github/chatmodes/mps-<role>.chatmode.md` | subagent/rule | documented |
 | `cursor` | Cursor | Anysphere | `.cursor/rules/mps-<role>.mdc` | subagent/rule | documented |
+| `dsh` | DeepSeek Harness (dsh) | DeepSeek | `— (no role files)` | routing block only | documented |
 | `gemini` | Gemini CLI | Google | `.gemini/commands/mps/<role>.toml` | command | documented |
 | `kimi` | Kimi Code CLI | Moonshot AI | `.kimi-code/agents/mps-<role>.md` | subagent/rule | documented |
 | `lingma` | Tongyi Lingma (通义灵码) | Alibaba Cloud | `.lingma/rules/mps-<role>.md` | prompt/rule | documented |
@@ -51,12 +52,12 @@ one project can use one without the other.
 
 ## Vendors are not harnesses
 
-Some vendors ship a CLI, some ship only models, and several ship both. DeepSeek
-and MiniMax are models only: DeepSeek's terminal agents are community projects,
-and MiniMax's MMX-CLI generates media rather than driving a codebase. Moonshot,
-Zhipu and Alibaba ship both — `kimi`, `zcode` and `qwen` above are their tools,
-and the entries below are their models, which also run inside Claude Code
-pointed at an Anthropic-compatible endpoint:
+Some vendors ship a CLI, some ship only models, and most of the big ones now
+ship both. Moonshot (`kimi`), Zhipu (`zcode`), Alibaba (`qwen`), Tencent
+(`codebuddy`) and DeepSeek (`dsh`) all have their own harness *and* an endpoint
+you can point another harness at. MiniMax is models only — its MMX-CLI generates
+media rather than driving a codebase. The entries below are the model side,
+which is what `Mps-Provider` records:
 
 ```bash
 export ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic   # Kimi, for example
@@ -150,6 +151,12 @@ declares no effort" end up being the same rule.
 - **`aggregate-json`** — every role is an entry in one shared JSON array, merged
   rather than overwritten: entries whose key starts with `mps-` are ours,
   everything else in the file is left alone. Roo Code.
+- **`none`** — the harness has no per-role file format at all. DeepSeek Harness
+  registers subagents in code, and some editors only read a rules file. The
+  entry still earns its place: it is detected, it receives the routing block,
+  and it says how a role is reached instead — `mps agents show <role>`, or a
+  harness it can spawn. Install writes nothing and says so; doctor does not ask
+  why the roles are missing.
 
 ## Guarantees that hold for every harness
 
