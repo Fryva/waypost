@@ -1,8 +1,10 @@
 {
   "id": "copilot",
   "name": "GitHub Copilot (VS Code / CLI)",
+  "vendor": "GitHub / Microsoft",
   "home": "https://github.com/features/copilot",
   "confidence": "documented",
+  "docs": "https://code.visualstudio.com/docs/copilot/customization/custom-chat-modes",
   "detect": [
     ".github/copilot-instructions.md",
     ".github/chatmodes",

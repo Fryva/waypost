@@ -1,31 +1,20 @@
 {
   "id": "lingma",
   "name": "Tongyi Lingma (通义灵码)",
-  "home": "https://lingma.aliyun.com",
   "vendor": "Alibaba Cloud",
-  "confidence": "experimental",
-  "detect": [
-    ".lingma"
-  ],
-  "env": [
-    "LINGMA_IDE"
-  ],
-  "instructions": [
-    ".lingma/rules/mps-agents.md",
-    "AGENTS.md"
-  ],
+  "home": "https://lingma.aliyun.com",
+  "docs": "https://help.aliyun.com/zh/lingma/user-guide/rules",
+  "confidence": "documented",
+  "detect": [".lingma"],
+  "env": ["LINGMA_IDE"],
+  "instructions": [".lingma/rules/mps-agents.md", "AGENTS.md"],
   "invoke": "reference the mps-<role> rule, or paste `mps agents show <role>` into a new session",
   "roles": {
     "shape": "prompt-md",
     "dir": ".lingma/rules",
     "file": "{prefix}{role}.md",
     "model": false,
-    "fields": [
-      [
-        "description",
-        "{description}"
-      ]
-    ]
+    "fields": [["description", "{description}"]]
   },
-  "notes": "Lingma reads project rules from .lingma/rules/. The directory is documented; the exact loading semantics per rule file are not verified here."
+  "notes": "Lingma has project rules, not sub-agents: .lingma/rules/ is documented as project-scoped and meant to be committed. Each role lands as its own rule file; there is no per-role tool restriction to express, so read-only stays prose."
 }

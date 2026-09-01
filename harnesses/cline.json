@@ -1,8 +1,10 @@
 {
   "id": "cline",
   "name": "Cline",
+  "vendor": "Cline",
   "home": "https://cline.bot",
   "confidence": "documented",
+  "docs": "https://docs.cline.bot/features/slash-commands/workflows",
   "detect": [
     ".clinerules"
   ],

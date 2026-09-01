@@ -4,10 +4,22 @@
   "name": "DeepSeek",
   "vendor": "DeepSeek",
   "home": "https://platform.deepseek.com",
-  "runs_in": ["cline", "roo", "continue", "opencode", "codex", "claude"],
+  "runs_in": [
+    "cline",
+    "roo",
+    "continue",
+    "opencode",
+    "codex",
+    "claude"
+  ],
   "match": {
-    "env": ["DEEPSEEK_API_KEY"],
-    "url_contains": ["deepseek.com", "deepseek.ai"]
+    "env": [
+      "DEEPSEEK_API_KEY"
+    ],
+    "url_contains": [
+      "deepseek.com",
+      "deepseek.ai"
+    ]
   },
-  "notes": "DeepSeek ships models, not a harness: the roles run in whichever harness you point at its endpoint (OpenAI-compatible, and Anthropic-compatible for Claude Code). mps records which provider produced a commit; nothing needs installing for DeepSeek itself."
+  "notes": "DeepSeek ships models, not an agent CLI: as of this writing the terminal agents around it (Deep Code, DeepSeek-TUI) are community projects listed as integrations, not a first-party harness. Point whichever harness you use at the endpoint; mps records deepseek as the provider. If DeepSeek ships its own CLI, this becomes a harness entry — a JSON file, not a code change."
 }

@@ -1,8 +1,10 @@
 {
   "id": "opencode",
   "name": "OpenCode",
+  "vendor": "SST",
   "home": "https://opencode.ai",
-  "confidence": "verified",
+  "confidence": "documented",
+  "docs": "https://opencode.ai/docs/agents/",
   "detect": [
     ".opencode",
     "opencode.json",

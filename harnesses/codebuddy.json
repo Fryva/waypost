@@ -1,31 +1,28 @@
 {
   "id": "codebuddy",
-  "name": "CodeBuddy (腾讯云代码助手)",
-  "home": "https://copilot.tencent.com",
+  "name": "CodeBuddy Code (腾讯云代码助手)",
   "vendor": "Tencent",
-  "confidence": "experimental",
-  "detect": [
-    ".codebuddy"
-  ],
-  "env": [
-    "CODEBUDDY_CLI"
-  ],
-  "instructions": [
-    ".codebuddy/rules/mps-agents.md",
-    "AGENTS.md"
-  ],
-  "invoke": "reference the mps-<role> rule, or paste `mps agents show <role>` into a new session",
+  "home": "https://www.codebuddy.ai",
+  "docs": "https://www.codebuddy.ai/docs/cli/sub-agents",
+  "confidence": "documented",
+  "detect": [".codebuddy"],
+  "env": ["CODEBUDDY_CODE", "CODEBUDDY_CLI"],
+  "instructions": ["AGENTS.md", "CLAUDE.md"],
+  "invoke": "delegate to the `mps-<role>` sub-agent",
   "roles": {
-    "shape": "prompt-md",
-    "dir": ".codebuddy/rules",
+    "shape": "frontmatter-md",
+    "dir": ".codebuddy/agents",
     "file": "{prefix}{role}.md",
-    "model": false,
+    "model": { "tiers": {} },
+    "tools": { "style": "comma" },
     "fields": [
-      [
-        "description",
-        "{description}"
-      ]
+      ["name", "{prefix}{role}"],
+      ["description", "{description}"],
+      ["model", "{model}"],
+      ["effort", "{effort}"],
+      ["tools", "{tools}"],
+      ["disallowedTools", "{denied_tools}"]
     ]
   },
-  "notes": "Path inferred from the .codebuddy/ project directory convention; not verified against Tencent's documentation. Override in .mps/harnesses/codebuddy.json if your build reads a different directory."
+  "notes": "Sub-agents are Markdown + YAML frontmatter in .codebuddy/agents/ (user level ~/.codebuddy/agents/); tools are comma-separated and the frontmatter is close to Claude Code's, including `effort`."
 }

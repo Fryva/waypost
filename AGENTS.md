@@ -59,9 +59,9 @@ slash-команд как обязательного интерфейса.
 ## Роли агентов (одинаковые во всех харнесах)
 
 Определение роли одно — `agents/<role>.md`; `mps agents install` рендерит его в формат
-того харнеса, которым пользуется проект. Список — `mps harnesses` (Claude Code, OpenCode,
-Codex, Cursor, Windsurf, Copilot, Gemini CLI, Cline, Roo Code, Qwen Code, Trae, Tongyi Lingma,
-CodeBuddy, iFlow), и это данные, а не код:
+того харнеса, которым пользуется проект. Список — `mps harnesses`: Claude Code, Codex,
+OpenCode, Kimi Code CLI, Qwen Code, ZCode (Z.ai), CodeBuddy Code, Tongyi Lingma, Cursor,
+Windsurf, Cline, Copilot, Gemini CLI, Roo Code, Trae, iFlow. Это данные, а не код:
 харнес описывается JSON-файлом в `harnesses/`, свой можно добавить в `.mps/harnesses/`
 (`docs/harnesses.md`). Где ролей как сущности нет — `mps agents show <role>` даёт готовый
 промпт для отдельного запуска.
@@ -163,11 +163,12 @@ Vault может лежать в iCloud/Dropbox/на сетевой шаре, а
   обязательный интерфейс; не добавлять запись в `.claude/` для не-Claude харнесов.
 - Новая роль — файл в `agents/` с нейтральным frontmatter, а не правка адаптеров.
 - Новый харнес — JSON в `harnesses/` (или `.mps/harnesses/` в проекте), а не ветка в
-  рендерере; `confidence: verified` ставить только после сверки формата с документацией
-  харнеса, иначе `documented` (формат из документации, но не запускалось) или `experimental`
-  (путь выведен по соглашению) — и тогда в `notes` написать, что именно предположено.
-- **Поставщик модели ≠ харнес.** DeepSeek, Kimi, GLM, MiniMax, DashScope — это модели, которые
-  работают внутри чужого харнеса (чаще всего Claude Code с Anthropic-совместимым эндпойнтом).
+  рендерере. Уровень доверия — про доказательства: `verified` — формат из документации И
+  проверен запуском; `documented` — взят из документации вендора (URL обязателен в поле
+  `docs`); `inferred` — выведен по соглашению, и тогда в `notes` написано, что предположено.
+- **CLI вендора и модели вендора — разные записи.** Moonshot, Zhipu и Alibaba поставляют и то
+  и другое (`kimi`/`zcode`/`qwen` — инструменты, `moonshot`/`glm`/`dashscope` — модели);
+  DeepSeek и MiniMax — только модели, они работают внутри чужого харнеса.
   Роли ставятся для харнеса, а провайдер попадает в запись коммита трейлером `Mps-Provider`
   (`mps log --provider kimi`). Записи провайдеров — `harnesses/providers/*.json`.
 - Vault-совместимость с исходным ProjectStore сохраняется (ADR-0004): служебные имена внутри

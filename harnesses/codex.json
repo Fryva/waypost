@@ -1,8 +1,10 @@
 {
   "id": "codex",
   "name": "Codex CLI",
+  "vendor": "OpenAI",
   "home": "https://developers.openai.com/codex/cli",
-  "confidence": "verified",
+  "confidence": "documented",
+  "docs": "https://developers.openai.com/codex/cli",
   "detect": [
     ".codex"
   ],

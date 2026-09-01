@@ -100,14 +100,16 @@ export function harness(id) {
 // actually running.
 export const isProvider = (h) => (typeof h === "string" ? harness(h) : h).kind === "provider";
 
-// How sure we are about an entry's file format, and the reason each level
-// exists: `verified` was read against the vendor's own documentation,
-// `documented` follows a format that vendor documents but has not been run
-// here, `experimental` is inferred from a directory convention and is the one
-// most likely to need an override.
-export const CONFIDENCE = ["verified", "documented", "experimental"];
+// How sure we are about an entry's file format. The levels are about EVIDENCE,
+// not about how much we like the tool:
+//   verified    the format is documented AND has been exercised in that harness
+//   documented  taken from the vendor's own documentation (`docs:` names it),
+//               but not run here
+//   inferred    guessed from a directory convention or a sibling CLI in the
+//               same family; the entry's `notes` say what was assumed
+export const CONFIDENCE = ["verified", "documented", "inferred"];
 export const confidenceOf = (h) =>
-  h.confidence || (h.verified ? "verified" : "experimental");
+  h.confidence || (h.verified ? "verified" : "inferred");
 
 // Ordered ids, most-trusted first: the list is printed to users, and "what is
 // known to work" is the useful order. Providers are not in it — nothing
@@ -174,6 +176,9 @@ const CLAUDE_TOOLS = {
 // map does not deliver.
 const OPENCODE_TOOLS = ["read", "grep", "glob", "bash", "edit", "write", "patch", "webfetch"];
 const COPILOT_TOOLS = { read: "codebase", grep: "search", glob: "search", bash: "runCommands", web: "fetch" };
+// Claude-Code-shaped tool names, which several of the newer CLIs adopted
+// wholesale (Kimi Code, CodeBuddy, and Qwen's compatibility fields).
+const WRITE_TOOLS = ["Write", "Edit", "MultiEdit", "NotebookEdit"];
 
 // A role naming a tool outside this vocabulary would render as a nonexistent
 // tool for Claude Code and be silently dropped by OpenCode. Fail at read time,
@@ -186,8 +191,21 @@ const TOOL_VOCABULARY = new Set(["read", "grep", "glob", "bash", "edit", "write"
 // double-quoted scalar.
 const scalar = (v) => JSON.stringify(String(v));
 
+// The deny half: a harness that inherits every tool by default needs the
+// read-only contract expressed as a blocklist, not an allowlist.
+function renderDenied(style, role) {
+  if (role.access !== "read-only") return null;
+  if (style === "yaml-list") return "\n" + WRITE_TOOLS.map((t) => `  - ${t}`).join("\n");
+  if (style === "claude" || style === "comma") return scalar(WRITE_TOOLS.join(", "));
+  return null;
+}
+
 function renderTools(style, role) {
-  if (style === "claude") return scalar(role.tools.map((t) => CLAUDE_TOOLS[t] || t).join(", "));
+  if (style === "claude" || style === "comma") return scalar(role.tools.map((t) => CLAUDE_TOOLS[t] || t).join(", "));
+  if (style === "yaml-list") {
+    const names = role.tools.flatMap((t) => (CLAUDE_TOOLS[t] || t).split(", "));
+    return "\n" + names.map((n) => `  - ${n}`).join("\n");
+  }
   if (style === "copilot-list") {
     const names = [...new Set(role.tools.map((t) => COPILOT_TOOLS[t]).filter(Boolean))];
     return `[${names.map(scalar).join(", ")}]`;
@@ -374,6 +392,7 @@ function frontmatter(fields, vars, role, spec) {
   for (const [key, tpl] of fields || []) {
     let value;
     if (tpl === "{tools}") value = renderTools((spec.tools || {}).style, role);
+    else if (tpl === "{denied_tools}") value = renderDenied((spec.tools || {}).style, role);
     else if (tpl === "{model}") value = vars.model ? scalar(vars.model) : null;
     else if (/^\{\w+\}$/.test(tpl)) {
       const raw = vars[tpl.slice(1, -1)];
@@ -758,7 +777,7 @@ function main() {
         const h = harness(id);
         const spec = roleSpec(h);
         return {
-          id, name: h.name || id, vendor: h.vendor || null, confidence: confidenceOf(h),
+          id, name: h.name || id, vendor: h.vendor || null, confidence: confidenceOf(h), docs: h.docs || null,
           shape: spec.shape, target: spec.shape === "aggregate-json" ? spec.file : spec.dir,
           takes_model: harnessTakesModel(id), detect: h.detect || [], invoke: h.invoke || null,
           source: h.source, notes: h.notes || null,
@@ -784,9 +803,9 @@ function main() {
       }
       process.stdout.write(
         "\n* = detected in this project (harnesses) or in this environment (providers).\n"
-        + "verified = format checked against the vendor's documentation · documented = the vendor documents\n"
-        + "this format, but it has not been run here · experimental = inferred from a directory convention,\n"
-        + "most likely to need an override. Add or override an entry with a JSON file in .mps/harnesses/\n"
+        + "verified = documented AND exercised here · documented = taken from the vendor's own docs (see\n"
+        + "`mps harnesses --json` for the URL), not run here · inferred = guessed from a convention; the\n"
+        + "entry says what was assumed. Add or override an entry with a JSON file in .mps/harnesses/\n"
         + "(providers in .mps/harnesses/providers/) — see docs/harnesses.md.\n"
         + (here ? `\nThis session looks like it is talking to ${here}; install the roles for the harness you\nactually run (\`mps agents install\`), and mps will record ${here} as the provider on each commit.\n` : ""));
       return;

@@ -1,8 +1,10 @@
 {
   "id": "roo",
   "name": "Roo Code",
+  "vendor": "Roo Code",
   "home": "https://roocode.com",
   "confidence": "documented",
+  "docs": "https://docs.roocode.com/features/custom-modes",
   "detect": [
     ".roomodes",
     ".roo"

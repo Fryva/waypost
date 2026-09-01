@@ -1,32 +1,20 @@
 {
   "id": "trae",
   "name": "Trae (ByteDance)",
-  "home": "https://trae.ai",
   "vendor": "ByteDance",
-  "confidence": "experimental",
-  "detect": [
-    ".trae"
-  ],
-  "env": [
-    "TRAE_AGENT",
-    "TRAE_IDE"
-  ],
-  "instructions": [
-    ".trae/rules/project_rules.md",
-    "AGENTS.md"
-  ],
+  "home": "https://trae.ai",
+  "docs": "https://docs.trae.ai/ide/rules",
+  "confidence": "inferred",
+  "detect": [".trae"],
+  "env": ["TRAE_AGENT", "TRAE_IDE"],
+  "instructions": [".trae/rules/project_rules.md", "AGENTS.md"],
   "invoke": "reference the mps-<role> rule, or paste `mps agents show <role>` into a new chat",
   "roles": {
     "shape": "prompt-md",
     "dir": ".trae/rules",
     "file": "{prefix}{role}.md",
     "model": false,
-    "fields": [
-      [
-        "description",
-        "{description}"
-      ]
-    ]
+    "fields": [["description", "{description}"]]
   },
-  "notes": "Trae keeps project rules in .trae/rules/ (project_rules.md is the one it always loads). Roles are written beside it as separate rule files; whether your Trae version auto-loads every file in that directory or only project_rules.md is worth checking once."
+  "notes": "Documented for Trae is ONE project rules file: .trae/rules/project_rules.md. Whether additional files in that directory are loaded is not documented, so the roles are written beside it and the routing block goes into project_rules.md — that part is certain. If your Trae ignores the extra files, invoke a role with `mps agents show <role>` instead. (The separate open-source bytedance/trae-agent CLI is a different tool with a trae_config.yaml and no role files.)"
 }

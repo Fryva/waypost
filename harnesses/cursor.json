@@ -1,8 +1,10 @@
 {
   "id": "cursor",
   "name": "Cursor",
+  "vendor": "Anysphere",
   "home": "https://cursor.com",
   "confidence": "documented",
+  "docs": "https://docs.cursor.com/context/rules",
   "detect": [
     ".cursor",
     ".cursorrules"

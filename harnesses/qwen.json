@@ -1,18 +1,26 @@
 {
   "id": "qwen",
-  "name": "Qwen Code (通义千问 Code)",
-  "home": "https://github.com/QwenLM/qwen-code",
+  "name": "Qwen Code",
   "vendor": "Alibaba",
+  "home": "https://github.com/QwenLM/qwen-code",
+  "docs": "https://qwenlm.github.io/qwen-code-docs/en/users/features/sub-agents/",
   "confidence": "documented",
   "detect": [".qwen", "QWEN.md"],
-  "env": ["QWEN_CODE", "QWEN_CLI"],
+  "env": ["QWEN_CODE"],
   "instructions": ["QWEN.md", "AGENTS.md"],
-  "invoke": "/mps:<role> <target>",
+  "invoke": "delegate to the `mps-<role>` subagent (/agents to list them)",
   "roles": {
-    "shape": "toml-prompt",
-    "dir": ".qwen/commands/mps",
-    "file": "{role}.toml",
-    "model": false
+    "shape": "frontmatter-md",
+    "dir": ".qwen/agents",
+    "file": "{prefix}{role}.md",
+    "model": { "tiers": {} },
+    "tools": { "style": "yaml-list" },
+    "fields": [
+      ["name", "{prefix}{role}"],
+      ["description", "{description}"],
+      ["model", "{model}"],
+      ["disallowedTools", "{denied_tools}"]
+    ]
   },
-  "notes": "Qwen Code is a fork of Gemini CLI, so its custom commands are TOML under .qwen/commands and the directory becomes the namespace (/mps:critic). Context file is QWEN.md."
+  "notes": "Subagents are Markdown + YAML frontmatter in .qwen/agents/ (user level ~/.qwen/agents/). Only the deny-list is emitted: Qwen inherits every tool when `tools` is omitted, and its allowlist uses Gemini-CLI tool names (read_file, run_shell_command…) that are NOT the Claude vocabulary — naming them wrongly would silently strip the role's tools. Custom commands moved from TOML to Markdown in recent versions; roles use the subagent format instead."
 }

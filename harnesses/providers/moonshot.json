@@ -1,0 +1,25 @@
+{
+  "id": "moonshot",
+  "kind": "provider",
+  "name": "Moonshot AI (Kimi models)",
+  "vendor": "Moonshot AI",
+  "home": "https://platform.moonshot.ai",
+  "runs_in": [
+    "kimi",
+    "claude",
+    "cline",
+    "roo",
+    "opencode"
+  ],
+  "match": {
+    "env": [
+      "MOONSHOT_API_KEY",
+      "KIMI_API_KEY"
+    ],
+    "url_contains": [
+      "moonshot.cn",
+      "moonshot.ai"
+    ]
+  },
+  "notes": "Moonshot ships both: the `kimi` harness entry above (Kimi Code CLI) and an Anthropic-compatible endpoint people drive Claude Code with (ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic). This entry is the model side — install the roles for whichever harness you actually run, and mps records moonshot as the provider."
+}

@@ -1,18 +1,23 @@
 {
   "id": "iflow",
   "name": "iFlow CLI (心流)",
-  "home": "https://github.com/iflow-ai/iflow-cli",
   "vendor": "iFlow",
-  "confidence": "experimental",
+  "home": "https://github.com/iflow-ai/iflow-cli",
+  "docs": "https://platform.iflow.cn/en/cli/configuration/settings",
+  "confidence": "inferred",
   "detect": [".iflow", "IFLOW.md"],
   "env": ["IFLOW_CLI"],
   "instructions": ["IFLOW.md", "AGENTS.md"],
-  "invoke": "/mps:<role> <target>",
+  "invoke": "delegate to the `mps-<role>` subagent, or paste `mps agents show <role>` into a new session",
   "roles": {
-    "shape": "toml-prompt",
-    "dir": ".iflow/commands/mps",
-    "file": "{role}.toml",
-    "model": false
+    "shape": "frontmatter-md",
+    "dir": ".iflow/agents",
+    "file": "{prefix}{role}.md",
+    "model": false,
+    "fields": [
+      ["name", "{prefix}{role}"],
+      ["description", "{description}"]
+    ]
   },
-  "notes": "Same CLI family as Gemini/Qwen Code (TOML commands, uppercase context file). Paths are inferred from that family, not verified against iFlow's own documentation — if your version differs, override this entry in .mps/harnesses/iflow.json."
+  "notes": "iFlow's .iflow/ directory is documented as holding agents and commands folders alongside IFLOW.md, and iFlow CLI is from the Gemini/Qwen CLI family — so .iflow/agents/*.md is a well-founded guess, but the frontmatter fields are NOT documented anywhere I could reach. Only name and description are emitted; check them once against your version and override this entry if it wants more."
 }

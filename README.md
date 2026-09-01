@@ -95,36 +95,36 @@ A harness is **data**, not code — `harnesses/<id>.json` says where its role
 files go and what shape they are, so supporting one more agent CLI is a JSON
 file, and a project can add or override an entry in `.mps/harnesses/`:
 
-| id | Harness | Roles land in | Status |
-|----|---------|---------------|--------|
+| id | Harness | Roles land in | Confidence |
+|----|---------|---------------|------------|
 | `claude` | Claude Code | `.claude/agents/mps-<role>.md` | verified |
-| `opencode` | OpenCode | `.opencode/agent/mps-<role>.md` | verified |
-| `codex` | Codex CLI | `.codex/prompts/mps-<role>.md` | verified |
-| `cursor` | Cursor | `.cursor/rules/mps-<role>.mdc` | best-effort |
-| `windsurf` | Windsurf | `.windsurf/workflows/mps-<role>.md` | best-effort |
-| `copilot` | GitHub Copilot | `.github/chatmodes/mps-<role>.chatmode.md` | best-effort |
-| `gemini` | Gemini CLI | `.gemini/commands/mps/<role>.toml` | best-effort |
-| `cline` | Cline | `.clinerules/workflows/mps-<role>.md` | best-effort |
-| `roo` | Roo Code | `.roomodes` (merged, your own modes untouched) | documented |
-| `qwen` | Qwen Code (Alibaba) | `.qwen/commands/mps/<role>.toml` | documented |
-| `trae` | Trae (ByteDance) | `.trae/rules/mps-<role>.md` | experimental |
-| `lingma` | Tongyi Lingma | `.lingma/rules/mps-<role>.md` | experimental |
-| `codebuddy` | CodeBuddy (Tencent) | `.codebuddy/rules/mps-<role>.md` | experimental |
-| `iflow` | iFlow CLI | `.iflow/commands/mps/<role>.toml` | experimental |
+| `codex` | Codex CLI | `.codex/prompts/mps-<role>.md` | documented |
+| `opencode` | OpenCode | `.opencode/agent/mps-<role>.md` | documented |
+| `kimi` | Kimi Code CLI (Moonshot) | `.kimi-code/agents/mps-<role>.md` | documented |
+| `qwen` | Qwen Code (Alibaba) | `.qwen/agents/mps-<role>.md` | documented |
+| `zcode` | ZCode (Z.ai / Zhipu) | `.zcode/agents/mps-<role>.md` | documented |
+| `codebuddy` | CodeBuddy Code (Tencent) | `.codebuddy/agents/mps-<role>.md` | documented |
+| `lingma` | Tongyi Lingma (Alibaba) | `.lingma/rules/mps-<role>.md` | documented |
+| `cursor` · `windsurf` · `cline` | Cursor, Windsurf, Cline | rules / workflows | documented |
+| `copilot` · `gemini` · `roo` | Copilot, Gemini CLI, Roo Code | chat mode / command / `.roomodes` | documented |
+| `trae` · `iflow` | Trae (ByteDance), iFlow | rules / agents | inferred |
 | anything else | — | `<your-cli> "$(mps agents show critic) <target>"` |
 
-**Vendors are not harnesses.** DeepSeek, Kimi, GLM, MiniMax and Qwen-via-DashScope
-ship models that run inside one of the harnesses above — usually Claude Code
-against an Anthropic-compatible endpoint. Nothing installs for them; instead
-`mps commit` records which one produced the work (`Mps-Provider: kimi`), and
-`mps log --provider deepseek` reads it back.
+**A vendor's CLI and a vendor's models are different things.** Moonshot, Zhipu
+and Alibaba ship both — those are the `kimi`, `zcode` and `qwen` rows above.
+DeepSeek and MiniMax ship models only (DeepSeek's terminal agents are community
+projects; MiniMax's MMX-CLI generates media rather than driving a codebase), so
+they are *provider* entries: nothing installs for them, but `mps commit` records
+which model produced the work (`Mps-Provider: deepseek`) and `mps log --provider
+deepseek` reads it back. The same harness behaves very differently behind a
+different model, and nothing else in a repository remembers which one wrote a
+commit.
 
 `mps harnesses` prints the list with what this project actually uses marked, and
-`docs/harnesses.md` has the schema for adding your own. *verified* means the
-format was checked against that harness's documentation, *documented* means the
-vendor documents it but it has not been run here, and *experimental* means the
-path is inferred from a directory convention — that one may need a one-line
-override, and the entry says what was assumed.
+`docs/harnesses.md` has the full table and the schema for adding your own. The
+confidence column is about evidence: *verified* = documented and exercised here,
+*documented* = taken from the vendor's own docs (the entry records the URL),
+*inferred* = guessed from a convention, with the assumption written down.
 
 Generated files carry a provenance line with a hash of the render, so
 `mps doctor` sees any drift — an edited file, a changed role, a changed model,

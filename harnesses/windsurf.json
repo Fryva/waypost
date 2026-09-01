@@ -1,8 +1,10 @@
 {
   "id": "windsurf",
   "name": "Windsurf",
+  "vendor": "Cognition",
   "home": "https://windsurf.com",
   "confidence": "documented",
+  "docs": "https://docs.windsurf.com/windsurf/cascade/workflows",
   "detect": [
     ".windsurf",
     ".windsurfrules"

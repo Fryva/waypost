@@ -197,13 +197,16 @@ test("providers are vendors of models, not harnesses, and are kept apart from th
     assert.ok((h.runs_in || []).length, `${p} must say which harnesses it is actually driven from`);
     assert.ok((h.match && (h.match.env || h.match.url_contains || []).length), `${p} must say how it is detected`);
   }
-  assert.ok(providerIds().includes("deepseek") && providerIds().includes("kimi"),
+  assert.ok(providerIds().includes("deepseek") && providerIds().includes("moonshot"),
     "the vendors people actually point their harness at are named");
+  assert.ok(harnessIds().includes("kimi") && harnessIds().includes("qwen") && harnessIds().includes("zcode"),
+    "…and a vendor that ships its OWN CLI is a harness, not just a provider");
 });
 
 test("the provider is detected from the endpoint or the vendor key, and never guessed", () => {
   assert.equal(detectProvider({ MPS_PROVIDER: "whatever" }), "whatever", "an explicit label wins");
-  assert.equal(detectProvider({ ANTHROPIC_BASE_URL: "https://api.moonshot.ai/anthropic" }), "kimi");
+  assert.equal(detectProvider({ ANTHROPIC_BASE_URL: "https://api.moonshot.ai/anthropic" }), "moonshot",
+    "the vendor ships a harness (`kimi`) AND models; the provider id is the vendor, so the two never collide");
   assert.equal(detectProvider({ OPENAI_BASE_URL: "https://api.deepseek.com/v1" }), "deepseek");
   assert.equal(detectProvider({ DASHSCOPE_API_KEY: "sk-x" }), "dashscope");
   assert.equal(detectProvider({ ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic" }), "glm");
@@ -214,14 +217,18 @@ test("every registry entry declares how confident we are in its file format", ()
   for (const id of [...harnessIds()]) {
     const h = harnessOf(id);
     const c = h.confidence || (h.verified ? "verified" : "experimental");
-    assert.ok(["verified", "documented", "experimental"].includes(c), `${id}: ${c}`);
-    if (c !== "verified") {
-      assert.ok(h.notes, `${id} is not verified, so it must say what is assumed and how to override it`);
+    assert.ok(["verified", "documented", "inferred"].includes(c), `${id}: ${c}`);
+    if (c === "documented") {
+      assert.ok(h.docs, `${id} claims its format is documented — the entry must name the document`);
+    }
+    if (c === "inferred") {
+      assert.ok(h.notes && h.notes.length > 80,
+        `${id} is a guess, so the entry must say what was assumed and what to check`);
     }
   }
   const listed = mps(project(), ["harnesses"]).stdout;
   assert.match(listed, /MODEL PROVIDERS/, "the two kinds are shown as two kinds");
-  assert.match(listed, /experimental/, "and the confidence of each entry is printed, not hidden");
+  assert.match(listed, /inferred|documented/, "and the confidence of each entry is printed, not hidden");
 });
 
 test("a project can add a harness without touching the code", () => {

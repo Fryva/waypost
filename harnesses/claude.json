@@ -1,8 +1,10 @@
 {
   "id": "claude",
   "name": "Claude Code",
+  "vendor": "Anthropic",
   "home": "https://claude.com/claude-code",
   "confidence": "verified",
+  "docs": "https://docs.claude.com/en/docs/claude-code/sub-agents",
   "detect": [
     ".claude",
     "CLAUDE.md"

@@ -13,40 +13,50 @@ mps agents install                  # …or into whatever this project uses
 
 ## What ships
 
-| id | Harness | Roles land in | Shape | Confidence |
-|----|---------|---------------|-------|------------|
-| `claude` | Claude Code | `.claude/agents/mps-<role>.md` | subagent | verified |
-| `opencode` | OpenCode | `.opencode/agent/mps-<role>.md` | subagent | verified |
-| `codex` | Codex CLI | `.codex/prompts/mps-<role>.md` | prompt | verified |
-| `cline` | Cline | `.clinerules/workflows/mps-<role>.md` | workflow | documented |
-| `copilot` | GitHub Copilot | `.github/chatmodes/mps-<role>.chatmode.md` | chat mode | documented |
-| `cursor` | Cursor | `.cursor/rules/mps-<role>.mdc` | rule | documented |
-| `gemini` | Gemini CLI | `.gemini/commands/mps/<role>.toml` | command | documented |
-| `qwen` | Qwen Code (Alibaba) | `.qwen/commands/mps/<role>.toml` | command | documented |
-| `roo` | Roo Code | `.roomodes` (merged) | custom mode | documented |
-| `windsurf` | Windsurf | `.windsurf/workflows/mps-<role>.md` | workflow | documented |
-| `codebuddy` | CodeBuddy (Tencent) | `.codebuddy/rules/mps-<role>.md` | rule | experimental |
-| `iflow` | iFlow CLI | `.iflow/commands/mps/<role>.toml` | command | experimental |
-| `lingma` | Tongyi Lingma (Alibaba) | `.lingma/rules/mps-<role>.md` | rule | experimental |
-| `trae` | Trae (ByteDance) | `.trae/rules/mps-<role>.md` | rule | experimental |
+| id | Harness | Vendor | Roles land in | Shape | Confidence |
+|----|---------|--------|---------------|-------|------------|
+| `claude` | Claude Code | Anthropic | `.claude/agents/mps-<role>.md` | subagent/rule | verified |
+| `cline` | Cline | Cline | `.clinerules/workflows/mps-<role>.md` | prompt/rule | documented |
+| `codebuddy` | CodeBuddy Code (腾讯云代码助手) | Tencent | `.codebuddy/agents/mps-<role>.md` | subagent/rule | documented |
+| `codex` | Codex CLI | OpenAI | `.codex/prompts/mps-<role>.md` | prompt/rule | documented |
+| `copilot` | GitHub Copilot (VS Code / CLI) | GitHub / Microsoft | `.github/chatmodes/mps-<role>.chatmode.md` | subagent/rule | documented |
+| `cursor` | Cursor | Anysphere | `.cursor/rules/mps-<role>.mdc` | subagent/rule | documented |
+| `gemini` | Gemini CLI | Google | `.gemini/commands/mps/<role>.toml` | command | documented |
+| `kimi` | Kimi Code CLI | Moonshot AI | `.kimi-code/agents/mps-<role>.md` | subagent/rule | documented |
+| `lingma` | Tongyi Lingma (通义灵码) | Alibaba Cloud | `.lingma/rules/mps-<role>.md` | prompt/rule | documented |
+| `opencode` | OpenCode | SST | `.opencode/agent/mps-<role>.md` | subagent/rule | documented |
+| `qwen` | Qwen Code | Alibaba | `.qwen/agents/mps-<role>.md` | subagent/rule | documented |
+| `roo` | Roo Code | Roo Code | `.roomodes` | custom mode | documented |
+| `windsurf` | Windsurf | Cognition | `.windsurf/workflows/mps-<role>.md` | prompt/rule | documented |
+| `zcode` | ZCode (Z.ai / Zhipu) | Zhipu AI | `.zcode/agents/mps-<role>.md` | subagent/rule | documented |
+| `iflow` | iFlow CLI (心流) | iFlow | `.iflow/agents/mps-<role>.md` | subagent/rule | inferred |
+| `trae` | Trae (ByteDance) | ByteDance | `.trae/rules/mps-<role>.md` | prompt/rule | inferred |
 
-Three levels, and the difference is not decoration:
+Three levels, and they are about **evidence**, not about how good the tool is:
 
-- **verified** — the format was checked against that harness's own documentation.
-- **documented** — the vendor documents this format and the entry follows it,
-  but it has not been run inside that harness here.
-- **experimental** — the path is inferred from a directory convention the tool
-  is known to use. This is the level most likely to need a one-line override,
-  and the entry's `notes` say exactly what was assumed.
+- **verified** — the format is documented *and* has been exercised in that harness.
+- **documented** — taken from the vendor's own documentation; the entry records
+  the URL in its `docs` field (`mps harnesses --json`), but it has not been run
+  here.
+- **inferred** — guessed from a directory convention or from a sibling CLI in the
+  same family. The entry's `notes` say exactly what was assumed and what to check.
 
 Being wrong here is cheap and local: override the entry (below), and nothing
 else changes.
 
+Several of these vendors ship a CLI *and* models — Moonshot (Kimi Code CLI +
+Kimi models), Zhipu (ZCode + GLM), Alibaba (Qwen Code + DashScope). The tool is
+a harness entry, the model is a provider entry, and they carry different ids so
+one project can use one without the other.
+
 ## Vendors are not harnesses
 
-DeepSeek, Kimi (Moonshot), GLM (Zhipu), MiniMax and Qwen-via-DashScope ship
-**models**, not agent CLIs. They run inside somebody else's harness — most often
-Claude Code pointed at an Anthropic-compatible endpoint:
+Some vendors ship a CLI, some ship only models, and several ship both. DeepSeek
+and MiniMax are models only: DeepSeek's terminal agents are community projects,
+and MiniMax's MMX-CLI generates media rather than driving a codebase. Moonshot,
+Zhipu and Alibaba ship both — `kimi`, `zcode` and `qwen` above are their tools,
+and the entries below are their models, which also run inside Claude Code
+pointed at an Anthropic-compatible endpoint:
 
 ```bash
 export ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic   # Kimi, for example
@@ -63,11 +73,11 @@ recoverable from anything else.
 
 | id | Vendor | Detected by | Usually driven from |
 |----|--------|-------------|---------------------|
-| `deepseek` | DeepSeek | `DEEPSEEK_API_KEY`, a `deepseek.com` endpoint | Cline, Roo, Continue, OpenCode, Codex |
-| `kimi` | Moonshot AI | `MOONSHOT_API_KEY`/`KIMI_API_KEY`, a `moonshot.*` endpoint | Claude Code, Cline, Roo |
-| `glm` | Zhipu AI / Z.ai | `ZHIPUAI_API_KEY`/`GLM_API_KEY`, `bigmodel.cn`/`z.ai` | Claude Code, Cline, Roo |
-| `minimax` | MiniMax | `MINIMAX_API_KEY`, a `minimax*` endpoint | Claude Code, Cline |
-| `dashscope` | Alibaba Cloud | `DASHSCOPE_API_KEY`, a `dashscope.*` endpoint | Qwen Code, and anything pointed at DashScope |
+| `dashscope` | Alibaba Cloud | `DASHSCOPE_API_KEY`, a `dashscope.aliyuncs.com` endpoint | qwen, cline, roo, opencode |
+| `deepseek` | DeepSeek | `DEEPSEEK_API_KEY`, a `deepseek.com` endpoint | cline, roo, continue, opencode |
+| `glm` | Zhipu AI | `ZHIPUAI_API_KEY`, a `bigmodel.cn` endpoint | zcode, claude, cline, roo |
+| `minimax` | MiniMax | `MINIMAX_API_KEY`, a `minimax.io` endpoint | claude, cline, opencode |
+| `moonshot` | Moonshot AI | `MOONSHOT_API_KEY`, a `moonshot.cn` endpoint | kimi, claude, cline, roo |
 
 `MPS_PROVIDER` overrides the detection; with no evidence, nothing is recorded —
 a guess in a permanent record is worse than a blank. Add your own provider as a

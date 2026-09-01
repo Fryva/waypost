@@ -1,0 +1,54 @@
+{
+  "id": "kimi",
+  "name": "Kimi Code CLI",
+  "vendor": "Moonshot AI",
+  "home": "https://github.com/MoonshotAI/kimi-code",
+  "docs": "https://moonshotai.github.io/kimi-code/en/customization/agents.html",
+  "confidence": "documented",
+  "detect": [
+    ".kimi-code",
+    ".agents/agents"
+  ],
+  "env": [
+    "KIMI_CODE_HOME"
+  ],
+  "instructions": [
+    "AGENTS.md",
+    "CLAUDE.md"
+  ],
+  "invoke": "delegate to the `mps-<role>` sub-agent",
+  "roles": {
+    "shape": "frontmatter-md",
+    "dir": ".kimi-code/agents",
+    "file": "{prefix}{role}.md",
+    "model": {
+      "tiers": {}
+    },
+    "tools": {
+      "style": "yaml-list"
+    },
+    "fields": [
+      [
+        "name",
+        "{prefix}{role}"
+      ],
+      [
+        "description",
+        "{description}"
+      ],
+      [
+        "model",
+        "{model}"
+      ],
+      [
+        "tools",
+        "{tools}"
+      ],
+      [
+        "disallowedTools",
+        "{denied_tools}"
+      ]
+    ]
+  },
+  "notes": "Sub-agents are Markdown with YAML frontmatter in .kimi-code/agents/ (also read from .agents/agents/); fields per Moonshot's docs: name, description, whenToUse, tools, disallowedTools. Tool names follow the Claude-Code vocabulary. User-level equivalents live under $KIMI_CODE_HOME (default ~/.kimi-code/). (`whenToUse` is left out: the description already says when to invoke, and repeating it verbatim only spends context.)"
+}

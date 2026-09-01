@@ -4,10 +4,19 @@
   "name": "MiniMax",
   "vendor": "MiniMax",
   "home": "https://platform.minimaxi.com",
-  "runs_in": ["claude", "cline", "opencode"],
+  "runs_in": [
+    "claude",
+    "cline",
+    "opencode"
+  ],
   "match": {
-    "env": ["MINIMAX_API_KEY"],
-    "url_contains": ["minimax.io", "minimaxi.com"]
+    "env": [
+      "MINIMAX_API_KEY"
+    ],
+    "url_contains": [
+      "minimax.io",
+      "minimaxi.com"
+    ]
   },
-  "notes": "Same shape as the other providers: a model endpoint driven from an existing harness."
+  "notes": "MiniMax's own MMX-CLI is a multimodal generation CLI (image/video/speech/music) that agents call as a tool — not a coding harness with roles, so there is nothing to install into. The models are driven from Claude Code, Cline and others."
 }
