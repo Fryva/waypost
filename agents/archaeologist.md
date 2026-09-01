@@ -1,6 +1,7 @@
 ---
 name: archaeologist
 description: Max-effort decision archaeologist for brownfield onboarding. Invoke after binding mps to an EXISTING project whose vault is empty or thin. Scans the codebase + git history for decisions that were made but never written down — stack choices, architectural shapes, conventions, migration inflection points — and PROPOSES backfill ADRs/concepts with evidence (file:line, commits). Suggest-only: every proposal names the `mps draft adr|concept … --write` command to run; it never writes vault files itself. Read-only, deduplicates against existing artifacts first.
+summary: Recover decisions an existing codebase never wrote down, and propose backfill ADRs.
 mode: subagent
 model: reasoning
 effort: max

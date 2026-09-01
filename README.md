@@ -56,6 +56,8 @@ graph and board views; GitHub and any editor render it otherwise.
 | `mps draft <kind> "<title>" [--write]` | render an artifact; `--write` creates it and reconciles |
 | `mps story plan\|close <path> [--write]` | story lifecycle gates |
 | `mps kanban` / `graph` / `codemap` | regenerate one derived view (`--json` previews) |
+| `mps graph --for <path>` | one artifact's typed neighbourhood, instead of the whole graph |
+| `mps search "<text>"` | vault-wide search returning pointers, not documents |
 | `mps reconcile [--write]` | re-derive every view and index |
 | `mps doctor [--install\|--vault] [--fix]` | deterministic diagnostics |
 | `mps diff-refs` | changed-file evidence for `code_refs` |
@@ -209,11 +211,39 @@ npm test        # node --test tests/*.test.mjs — no dependencies
 
 ## The cost, honestly
 
-Running the loop is not free — ProjectStore measured 22.5% of spend on its own
-repo, 10–15% on a typical project. What you get: a project manager / systems
-analyst that never forgets to file, artifacts that are the working backlog and
-decision log, and an exit hatch — plain markdown, no server, no proprietary
-format. Move to any model or any harness; the orientation is already on disk.
+Two different costs, and only one of them is large.
+
+**The standing overhead is small and does not grow with the vault.** Measured on
+a 32-artifact project (o200k tokenizer): the routing block 197 tokens, the five
+role descriptions a harness injects 92, and `mps brief` 409 — **698 tokens**
+carried into a session, flat whether the vault holds 3 artifacts or 300. In a
+100-turn Opus session that is about $0.04. Routine commands are in the same
+range: `status` 175, `agents list` 147, `harnesses` 51, `doctor` ~320, a `draft`
+preview 156.
+
+**On a large vault the trap is reading derived views whole**, because those do
+grow — roughly 66 tokens per artifact in `graph.md`, 51 in a folder index. So
+don't read them:
+
+```bash
+mps graph --for adr/use-postgres.md    # 44 tokens, vs 1119 for the whole graph
+mps search "retry budget" --limit 5    # 91 tokens, vs 1516 for one index file
+```
+
+Both gaps widen linearly with the vault. Budgets for all of this are enforced by
+tests, not by good intentions — see
+[ADR-0008](docs/decisions/0008-token-budget.md).
+
+**The roles are where the money is**, and that is the point of them: a measured
+critic pass on Opus cost $1.62 (16 requests, 25 tool calls), of which the role's
+prompt was 0.08% — the rest is the reading it does. `mps agents model default
+sonnet` cuts that by ~60%. Reserve the roles for ADRs, specs and story reviews
+rather than every edit.
+
+What you get for it: a project manager / systems analyst that never forgets to
+file, artifacts that are the working backlog and decision log, and an exit hatch
+— plain markdown, no server, no proprietary format. Move to any model or any
+harness; the orientation is already on disk.
 
 ## License
 

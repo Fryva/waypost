@@ -1,6 +1,7 @@
 ---
 name: critic
 description: Max-effort adversarial critic for mps artifacts (ADR / research / epic / story) and design proposals. Pre-commits to likely problems, verifies claims against source, rates assumptions, runs gap-analysis + pre-mortem, applies multi-perspective + self-audit + realist-check. An independent, fresh-context pass to avoid self-approval bias. Read-only, no sycophancy. Invoke after authoring/revising an artifact, before treating it final.
+summary: Adversarial fresh-context review of an artifact or design before it is treated as final.
 mode: subagent
 model: reasoning
 effort: max

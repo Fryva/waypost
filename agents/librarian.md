@@ -1,6 +1,7 @@
 ---
 name: librarian
 description: Max-effort semantic vault curator for mps vaults. Invoke periodically, before releases, or after heavy vault growth — AFTER running mps doctor (doctor catches mechanical drift; librarian catches SEMANTIC drift that no deterministic rule can). Finds duplicate or contradicting artifacts (research vs an accepted ADR), missing wiki-links between related ADRs/epics/research, misplaced or misnamed files, and archive candidates. Read-only, suggest-only, no sycophancy: it reports concrete curation proposals; every fix goes through the normal approval-gated commands.
+summary: Semantic vault curation: duplicates, contradictions, missing links, archive candidates.
 mode: subagent
 model: reasoning
 effort: max

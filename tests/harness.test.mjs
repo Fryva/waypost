@@ -253,7 +253,12 @@ test("every registry entry declares how confident we are in its file format", ()
         `${id} is a guess, so the entry must say what was assumed and what to check`);
     }
   }
-  const listed = mps(project(), ["harnesses"]).stdout;
+  // The compact default answers "what applies here"; --all is the reference,
+  // and only the reference pays for the whole table.
+  const compact = mps(project(), ["harnesses"]).stdout;
+  assert.ok(compact.split("\n").length < 12, `the default view stays small, got:\n${compact}`);
+  assert.match(compact, /harnesses known, \d+ model providers/, "…and says what it is not showing");
+  const listed = mps(project(), ["harnesses", "--all"]).stdout;
   assert.match(listed, /MODEL PROVIDERS/, "the two kinds are shown as two kinds");
   assert.match(listed, /inferred|documented/, "and the confidence of each entry is printed, not hidden");
 });
@@ -558,11 +563,17 @@ test("draft --write creates the artifact and reconciles the derived views", () =
   assert.ok(existsSync(join(vault, "code-map.md")));
 });
 
-test("draft without --write writes nothing and previews the JSON", () => {
+test("draft without --write previews cheaply, and --json still gives everything", () => {
   const { proj, vault } = bound();
-  const out = JSON.parse(mps(proj, ["draft", "adr", "Only a draft"]).stdout);
+  const preview = mps(proj, ["draft", "adr", "Only a draft"]).stdout;
+  assert.match(preview, /^would create .*adr\/only-a-draft\.md$/m);
+  assert.ok(preview.length < 900, `a preview is a decision aid, not a copy of the file:\n${preview}`);
+  assert.ok(!preview.includes("## Consequences"),
+    "the whole rendered template in a preview is several hundred tokens of what is about to be on disk");
+
+  const out = JSON.parse(mps(proj, ["draft", "adr", "Only a draft", "--json"]).stdout);
   assert.equal(out.kind, "adr");
-  assert.ok(out.content.includes("# Only a draft"));
+  assert.ok(out.content.includes("# Only a draft"), "--json is still the complete payload");
   assert.ok(!existsSync(out.path), "a preview is not a write");
   assert.ok(!existsSync(join(vault, "kanban.md")), "and it reconciles nothing");
 });
@@ -693,4 +704,70 @@ test("no user-facing message cites an ADR this fork does not have", () => {
       assert.ok(have.has(n), `scripts/${f} cites ADR-${m[1]} in shipped text, but docs/decisions/ has no ${n}-*.md`);
     }
   }
+});
+
+// ─── token economy ─────────────────────────────────────────────────────
+//
+// Everything below is a budget, not a style preference. The routing block and
+// the role descriptions sit in the context of EVERY turn of every session, and
+// `mps brief` starts every session — so a paragraph added here is paid for
+// hundreds of times. Characters stand in for tokens: the ratio is stable enough
+// for a ceiling, and it needs no tokenizer.
+
+test("the standing context stays small — it is re-read on every turn", () => {
+  const { proj } = bound();
+  writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");
+  mps(proj, ["agents", "install", "--harness", "claude"]);
+  mps(proj, ["agents", "register"]);
+
+  const block = readFileSync(join(proj, "CLAUDE.md"), "utf8")
+    .match(/<!-- mps:agents[\s\S]*?<!-- \/mps:agents -->/)[0];
+  assert.ok(block.length < 1400, `routing block is ${block.length} chars — it is in every turn`);
+
+  // What a harness injects into the main context is the description of each
+  // agent, not its prompt. That is why roles carry a short `summary`.
+  const descriptions = roleNames().map((n) =>
+    readFileSync(join(proj, ".claude", "agents", `${PREFIX}${n}.md`), "utf8")
+      .match(/^description: (.*)$/m)[1]);
+  for (const d of descriptions) {
+    assert.ok(d.length < 230, `a per-role description of ${d.length} chars is paid for on every turn: ${d}`);
+  }
+  assert.ok(descriptions.join("").length < 700, "five descriptions, together, stay under ~150 tokens");
+});
+
+test("routine commands answer without pasting the vault into the context", () => {
+  const { proj } = bound();
+  mps(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
+  for (let i = 0; i < 12; i++) mps(proj, ["draft", "adr", `Decision number ${i}`, "--write"]);
+  mps(proj, ["graph"]);
+
+  const budgets = [
+    [["brief"], 2200, "starts every session"],
+    [["status"], 900, "asked whenever orientation is lost"],
+    [["doctor"], 2000, "run before finishing work"],
+    [["harnesses"], 700, "a lookup, not a reference dump"],
+    [["agents", "list"], 900, "same"],
+    [["search", "Decision number 7"], 900, "a search returns pointers, not documents"],
+  ];
+  for (const [args, max, why] of budgets) {
+    const out = mps(proj, args).stdout;
+    assert.ok(out.length < max, `\`mps ${args.join(" ")}\` is ${out.length} chars (budget ${max}) — ${why}`);
+  }
+});
+
+test("a query beats reading a derived view whole, and the gap widens with the vault", () => {
+  const { proj, vault } = bound();
+  mps(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
+  for (let i = 0; i < 12; i++) mps(proj, ["draft", "adr", `Decision number ${i}`, "--write"]);
+  mps(proj, ["graph"]);
+
+  const whole = readFileSync(join(vault, "graph.md"), "utf8");
+  const one = mps(proj, ["graph", "--for", "adr/decision-number-7.md"]).stdout;
+  assert.match(one, /decision-number-7/);
+  assert.ok(one.length * 5 < whole.length,
+    `one node cost ${one.length} chars against ${whole.length} for the file — at 200 artifacts the file is the whole budget`);
+
+  const missing = mps(proj, ["graph", "--for", "adr/not-a-node.md"], { expectFail: true });
+  assert.notEqual(missing.status, 0, "an unknown node is an error, not an empty answer");
+  assert.match(missing.stderr, /vault-relative path/, "…and it says what a node key looks like");
 });

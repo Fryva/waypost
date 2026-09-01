@@ -290,9 +290,17 @@ function parseRole(p, raw, name) {
       `${p}: model: ${tier} is not a neutral tier — use one of ${TIERS.join(", ")}`
       + " (a vendor id belongs in the config: `mps agents model`)");
   }
+  // Two descriptions, and the difference is a token budget: `summary` is what
+  // goes into every generated harness file and into the routing block, because
+  // a harness injects every agent's description into the MAIN context of every
+  // session. The long `description` stays here for `mps agents list` and for
+  // humans reading the source. Five roles × 110 tokens of prose was 554 tokens
+  // paid on every turn of every session to say five things twice.
+  const description = String(data.description || "").trim();
   return {
     name: data.name || name,
-    description: String(data.description || "").trim(),
+    description,
+    summary: String(data.summary || description.split(/(?<=\.)\s/)[0] || description).trim().slice(0, 200),
     mode: data.mode || "subagent",
     tier,
     effort: data.effort || null,
@@ -455,7 +463,7 @@ function renderRole(h, role, model) {
   const spec = roleSpec(h);
   const vars = {
     prefix: PREFIX, role: role.name, name: PREFIX + role.name,
-    description: role.description, mode: role.mode, effort: role.effort,
+    description: role.summary, mode: role.mode, effort: role.effort,
     model, body: role.body,
   };
   switch (spec.shape) {
@@ -713,11 +721,7 @@ export function status({ proj = projectRoot(), cfg = readConfig() } = {}) {
 
 export function renderBlock(cfg) {
   const tmpl = readFileSync(join(pluginRoot(), "templates", "agents-block.md.tmpl"), "utf8");
-  const roles = rosterFor(cfg).map((n) => {
-    const r = readRole(n);
-    const when = r.description.split(/(?<=\.)\s/)[0];
-    return `- \`${PREFIX}${n}\` — ${when}`;
-  }).join("\n");
+  const roles = rosterFor(cfg).map((n) => `- \`${PREFIX}${n}\` — ${readRole(n).summary}`).join("\n");
   return tmpl
     .replace(/\{\{version\}\}/g, String(AGENT_BLOCK_VERSION))
     .replace(/\{\{roles\}\}/g, roles);
@@ -815,14 +819,22 @@ function main() {
     case "list": {
       const st = status({ cfg });
       if (json) { process.stdout.write(JSON.stringify({ roles: listRoles().map(({ body, ...r }) => r), install: st }, null, 2) + "\n"); return; }
+      const verbose = rest.includes("--verbose") || rest.includes("-v");
       for (const r of listRoles()) {
-        process.stdout.write(`${PREFIX}${r.name}  [${r.tier}/${r.effort || "default"}, ${r.access}]\n  ${r.description.split(". ")[0]}.\n`);
+        process.stdout.write(`${PREFIX}${r.name.padEnd(14)} ${r.summary}\n`);
+        if (verbose) process.stdout.write(`  [${r.tier}/${r.effort || "default"}, ${r.access}] ${r.description}\n`);
       }
+      // Only harnesses that have something installed, plus a count of the rest:
+      // a project on one harness paid for fifteen lines about the others.
+      const shown = st.filter((h) => h.roles.some((x) => x.state !== "absent" && x.state !== "n/a"));
       process.stdout.write("\nInstalled:\n");
-      for (const h of st) {
+      for (const h of (verbose ? st : shown)) {
         const by = h.roles.reduce((a, x) => ({ ...a, [x.state]: (a[x.state] || 0) + 1 }), {});
-        const summary = Object.entries(by).map(([k, v]) => `${v} ${k}`).join(", ");
-        process.stdout.write(`  ${h.harness.padEnd(9)} ${summary}  (${h.dir})\n`);
+        process.stdout.write(`  ${h.harness.padEnd(10)} ${Object.entries(by).map(([k, v]) => `${v} ${k}`).join(", ")}\n`);
+      }
+      if (!verbose) {
+        if (!shown.length) process.stdout.write("  (none yet — `mps agents install`)\n");
+        process.stdout.write(`  …and ${st.length - shown.length} harness(es) with none. \`mps agents list -v\` for everything.\n`);
       }
       return;
     }
@@ -845,12 +857,23 @@ function main() {
       });
       if (json) { process.stdout.write(JSON.stringify({ harnesses: rows, providers: provs }, null, 2) + "\n"); return; }
       const used = new Set(detectHarnesses());
-      for (const r of rows) {
+      const here = detectProvider();
+      const all = rest.includes("--all") || rest.includes("-a");
+      // Default view answers "what applies to me": the harnesses this project
+      // uses. The full table is a reference, and a reference read into an
+      // agent's context on every look is a tax.
+      const visible = all ? rows : rows.filter((r) => used.has(r.id));
+      for (const r of visible) {
         process.stdout.write(
           `${(used.has(r.id) ? "* " : "  ")}${r.id.padEnd(11)} ${r.confidence.padEnd(12)} ${String(r.target || "— no role files").padEnd(24)} ${r.name}\n`);
-        if (r.invoke) process.stdout.write(`              invoke: ${r.invoke}\n`);
+        if (r.invoke && (all || used.has(r.id))) process.stdout.write(`              invoke: ${r.invoke}\n`);
       }
-      const here = detectProvider();
+      if (!all) {
+        process.stdout.write(visible.length ? "" : "no harness detected in this project\n");
+        process.stdout.write(`${rows.length} harnesses known, ${provs.length} model providers — \`mps harnesses --all\` lists them.\n`);
+        if (here) process.stdout.write(`provider in this environment: ${here}\n`);
+        return;
+      }
       process.stdout.write("\nMODEL PROVIDERS (not harnesses — they run inside one of the above)\n");
       for (const p of provs) {
         process.stdout.write(`${p.detected ? "* " : "  "}${p.id.padEnd(11)} ${String(p.vendor || "").padEnd(16)} ${p.name}`

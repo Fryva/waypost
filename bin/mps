@@ -8,7 +8,7 @@
 
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -71,7 +71,8 @@ function readConfig() {
 // "the token after any flag is its value" ate the first positional whenever a
 // boolean flag was written before it.
 const VALUED = new Set(["--harness", "--layout", "--lang", "--only", "--id", "--file",
-  "--budget", "--project", "--home", "--since"]);
+  "--budget", "--project", "--home", "--since", "--for", "--kind", "--limit", "-m", "--message",
+  "--story", "--merge", "-n", "--session", "--provider"]);
 
 function flag(args, name) {
   return args.includes(name) || args.some((a) => a === `${name}=true`);
@@ -187,7 +188,16 @@ function handleDraft(args) {
   }
   const out = runJson("draft", [kind, ...rest]);
   if (!flag(args, "--write")) {
-    process.stdout.write(JSON.stringify(out, null, 2) + "\n");
+    if (flag(args, "--json")) { process.stdout.write(JSON.stringify(out, null, 2) + "\n"); return; }
+    // A preview used to print the whole rendered artifact — several hundred
+    // tokens of template the reader is about to see on disk anyway. What a
+    // decision needs is: where it lands, what the index row says, what is wrong.
+    process.stdout.write(`would create ${out.path}\n`);
+    if (out.index && out.index.line) process.stdout.write(`index row     ${out.index.line}\n`);
+    if (out.collision) process.stdout.write(`⚠️  collision  "${out.collision.identity || ""}" already exists as ${out.collision.with}\n`);
+    for (const w of out.warnings || []) process.stdout.write(`⚠️  ${w}\n`);
+    const head = String(out.content).split("\n").slice(0, 8).join("\n");
+    process.stdout.write(`\n${head}\n…\n\n--write to create it · --json for the full payload\n`);
     return;
   }
   if (out.collision) {
@@ -279,6 +289,78 @@ function claimForStory(storyPath) {
 
 const DERIVED = { kanban: "kanban", graph: "graph", codemap: "codemap" };
 
+// A graph or an index grows with the vault: at 200 artifacts graph.md is ~13k
+// tokens and an index ~10k. Reading either whole to answer one question is the
+// single largest avoidable cost on a big project, so the CLI answers the
+// question instead — the derived views stay the source, this is just a lens.
+function handleGraphQuery(target, args) {
+  const cfg = readConfig();
+  if (!cfg || !cfg.vault_path) fail("no bound vault — run `mps bind <vault-path>` first");
+  const p = join(cfg.vault_path, "graph.md");
+  if (!existsSync(p)) fail("no graph.md yet — run `mps graph`");
+  const needle = target.replace(/\\/g, "/").replace(/^\.\//, "");
+  const lines = readFileSync(p, "utf8").split("\n");
+  const hits = lines.filter((l) => l.includes(needle) && l.startsWith("|"));
+  if (!hits.length) {
+    fail(`no node or edge mentions "${needle}" in graph.md.\n`
+      + "       Nodes are keyed by vault-relative path (adr/foo.md), not by slug.");
+  }
+  const node = hits.filter((l) => !/\|\s*(supersedes|superseded_by|covers|covered_by|contains|part_of|links|link)\s*\|/i.test(l));
+  const edges = hits.filter((l) => !node.includes(l));
+  process.stdout.write(`${needle}\n`);
+  for (const l of node) process.stdout.write(`  ${l.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").replace(/\s*\|\s*/g, " · ")}\n`);
+  if (edges.length) {
+    process.stdout.write(`\nedges (${edges.length}):\n`);
+    for (const l of edges.slice(0, 60)) {
+      process.stdout.write(`  ${l.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").replace(/\s*\|\s*/g, " → ")}\n`);
+    }
+    if (edges.length > 60) process.stdout.write(`  …and ${edges.length - 60} more\n`);
+  }
+}
+
+// Vault-wide search that returns pointers, not documents: path, title, status
+// and the matching line. The alternative an agent falls back to is grep plus a
+// handful of full-file reads.
+function handleSearch(args) {
+  const cfg = readConfig();
+  if (!cfg || !cfg.vault_path) fail("no bound vault — run `mps bind <vault-path>` first");
+  const terms = positionals(args);
+  if (!terms.length) fail('search "<text>" [--kind adr|spec|epic|story|…] [--limit 20]');
+  const kind = opt(args, "--kind");
+  const limit = Number(opt(args, "--limit", "20"));
+  const re = new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
+  const out = [];
+  const walk = (dir, rel) => {
+    let names = [];
+    try { names = readdirSync(dir); } catch { return; }
+    for (const n of names) {
+      if (n.startsWith(".")) continue;
+      const abs = join(dir, n);
+      const r = rel ? `${rel}/${n}` : n;
+      let st; try { st = statSync(abs); } catch { continue; }
+      if (st.isDirectory()) { walk(abs, r); continue; }
+      if (!n.endsWith(".md")) continue;
+      if (["kanban.md", "graph.md", "code-map.md"].includes(n)) continue;
+      let text; try { text = readFileSync(abs, "utf8"); } catch { continue; }
+      const fm = (text.match(/^---\n([\s\S]*?)\n---/) || ["", ""])[1];
+      const field = (k) => ((fm.match(new RegExp(`^${k}:\\s*(.*)$`, "m")) || ["", ""])[1] || "").replace(/^"|"$/g, "");
+      if (kind && field("type") !== kind) continue;
+      const lines = text.split("\n");
+      const hitLine = lines.findIndex((l) => re.test(l));
+      if (hitLine === -1 && !re.test(r)) continue;
+      out.push({ path: r, title: field("title") || n, status: field("status"),
+        line: hitLine === -1 ? null : `${hitLine + 1}: ${lines[hitLine].trim().slice(0, 120)}` });
+    }
+  };
+  walk(cfg.vault_path, "");
+  if (!out.length) { process.stdout.write("no match\n"); return; }
+  for (const h of out.slice(0, limit)) {
+    process.stdout.write(`${h.path}${h.status ? `  (${h.status})` : ""}\n  ${h.title}\n`
+      + (h.line ? `  ${h.line}\n` : ""));
+  }
+  if (out.length > limit) process.stdout.write(`…and ${out.length - limit} more (--limit)\n`);
+}
+
 function handleDerived(cmd, args) {
   if (flag(args, "--json")) { process.stdout.write(run(cmd, [], { capture: true })); return; }
   const out = runJson("reconcile", ["--write", "--only", DERIVED[cmd]]);
@@ -333,8 +415,13 @@ function handleStatus() {
   // Who else is live on this vault, before anything about roles: on a shared
   // vault that is the fact that changes what you should do next.
   run("sessions", []);
-  process.stdout.write("\n");
-  run("agents", ["list"]);
+  // Roles: a count, not five paragraphs. `mps agents list` is one command away
+  // when the detail is actually wanted.
+  const st = JSON.parse(run("agents", ["list", "--json"], { capture: true }) || "{}");
+  const per = (st.install || []).filter((h) => h.roles.some((r) => r.state !== "absent" && r.state !== "n/a"))
+    .map((h) => `${h.harness}: ${h.roles.filter((r) => r.state === "current").length}/${h.roles.length}`);
+  process.stdout.write(`roles   ${(st.roles || []).length} defined · ${per.length ? per.join(" · ") : "not installed"}`
+    + `  (mps agents list)\n`);
 }
 
 function help() {
@@ -352,6 +439,10 @@ VAULT
                            kinds: adr spec epic story research concept meeting runbook
   story <plan|close> <p>   story lifecycle gate; --write applies
   kanban | graph | codemap regenerate one derived view (--json to preview only)
+  graph --for <path>       one artifact's typed neighbourhood, instead of
+                           reading a graph that grows with the vault
+  search "<text>"          vault-wide search returning pointers, not documents
+                           [--kind adr|spec|story|…] [--limit N]
   reconcile [--write]      re-derive every view (indexes, kanban, code-map, graph)
   brief                    session-start orientation packet (run it when you
                            start work: where things live, what is in flight)
@@ -421,7 +512,13 @@ function main() {
     case "scaffold": handleScaffold(rest); break;
     case "draft": handleDraft(rest); break;
     case "story": handleStory(rest); break;
-    case "kanban": case "graph": case "codemap": handleDerived(cmd, rest); break;
+    case "graph": {
+      const forPath = opt(rest, "--for");
+      if (forPath) handleGraphQuery(forPath, rest); else handleDerived("graph", rest);
+      break;
+    }
+    case "kanban": case "codemap": handleDerived(cmd, rest); break;
+    case "search": handleSearch(rest); break;
     case "reconcile": run("reconcile", rest); break;
     case "doctor": run("doctor", rest); break;
     case "diff-refs": run("diff-refs", rest); break;

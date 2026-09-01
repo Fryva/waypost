@@ -20,7 +20,27 @@ import { sessionId } from "./sessions.mjs";
 
 export async function brief(cfg, opts = {}) {
   const facts = await gatherVaultFacts(cfg, opts);
-  return { facts, text: renderVaultSkeleton(facts) + others(cfg, opts) };
+  const full = renderVaultSkeleton(facts);
+  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) };
+}
+
+// The skeleton explains itself in full every session. Most of that explanation
+// is standing knowledge the routing block and the docs already carry, and it is
+// re-read on every turn once it is in the context — so the default keeps the
+// FACTS (what is where, how much, what is in flight) and drops the tutorial.
+// `--full` restores it for a first session in an unfamiliar vault.
+function condense(text) {
+  const keep = [];
+  let section = null;
+  for (const line of text.split("\n")) {
+    if (line.startsWith("## ")) section = line.slice(3).trim();
+    if (section === "How to work with this vault" || section === "Derived views") continue;
+    keep.push(line);
+  }
+  return keep.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\s*$/, "\n")
+    + "\nDerived: `kanban.md`, `code-map.md`, `graph.md` are regenerated from frontmatter —"
+    + " query `graph.md` by vault-relative path (`mps graph --for <path>`), never read it whole."
+    + " `mps brief --full` explains the descent order.\n";
 }
 
 // Who else is working on this vault right now — the first thing that matters
@@ -71,7 +91,7 @@ async function main() {
       process.exit(1);
     }
   }
-  const { facts, text } = await brief(cfg, { budgetMs });
+  const { facts, text } = await brief(cfg, { budgetMs, full: args.includes("--full") });
   process.stdout.write(args.includes("--json") ? JSON.stringify(facts, null, 2) + "\n" : text);
 }
 

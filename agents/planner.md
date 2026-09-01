@@ -1,6 +1,7 @@
 ---
 name: planner
 description: Max-effort EPIC-IMPLEMENTATION planner for mps-bound projects — a narrow, vault-aware role, NOT a general software planner. Invoke BEFORE implementing an epic/story. Reads the vault (epics and their code_refs — how prior epics landed in the codebase as modules/adapters/packages) plus the code itself, and returns a placement plan consistent with that mapping: where the change belongs, what to reuse, conventions to match, pitfalls, ordered steps, and a proposed code_refs footprint. Read-only: it plans and proposes; it never writes code or vault files.
+summary: Where and how to implement an epic/story, consistent with how prior epics landed in the code.
 mode: subagent
 model: reasoning
 effort: max
