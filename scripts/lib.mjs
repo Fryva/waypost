@@ -92,7 +92,10 @@ export function writeConfig(cfg) {
 export function writeFileAtomic(p, content, { sweep = true } = {}) {
   const dir = dirname(p);
   if (sweep) sweepOrphanTemps(dir);
-  const tmp = join(dir, `.${basename(p)}.${process.pid}.tmp`);
+  // The host belongs in the name: on a SHARED vault another device's temp
+  // carries a pid that means nothing here, and sweepOrphanTemps would delete a
+  // write that is still in flight on that machine.
+  const tmp = join(dir, `.${basename(p)}.${hostTag()}.${process.pid}.tmp`);
   try {
     writeFileSync(tmp, content, "utf8");
     renameSync(tmp, p);
@@ -113,13 +116,20 @@ export function writeFileAtomic(p, content, { sweep = true } = {}) {
 // an mtime heuristic would reintroduce the distributed-clock problem the
 // `.tmp` iCloud exclusion exists to avoid. The strict shape (dot prefix,
 // numeric pid, `.tmp`) can never match `.gitignore` and friends.
+export function hostTag() {
+  return hostname().split(".")[0].replace(/[^\w-]+/g, "-").slice(0, 24) || "host";
+}
+
 function sweepOrphanTemps(dir) {
   let names;
   try { names = readdirSync(dir); } catch { return; }
   for (const n of names) {
-    const m = n.match(/^\..+\.(\d+)\.tmp$/);
-    if (!m) continue;
-    const pid = parseInt(m[1], 10);
+    // Only temps written by THIS host: pid liveness is a local fact, and a
+    // vault on a network drive carries other machines' temps too. A temp in the
+    // pre-host format is also left alone — it may be another device's.
+    const m = n.match(/^\..+\.([\w-]+)\.(\d+)\.tmp$/);
+    if (!m || m[1] !== hostTag()) continue;
+    const pid = parseInt(m[2], 10);
     if (!pid || pid === process.pid) continue;
     try {
       process.kill(pid, 0); // returns ⇒ alive; EPERM ⇒ alive, not ours

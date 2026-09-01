@@ -33,6 +33,9 @@ import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import {
+  beat, clearPresence, peers, storageOf, readLeases, acquire, release, vaultRel,
+} from "./presence.mjs";
+import {
   readConfig,
   projectRoot,
   appendActivity,
@@ -46,18 +49,21 @@ import {
   ignoreEpipe,
 } from "./lib.mjs";
 
-// Live claims across every session on this vault, newest first. A claim is a
-// fact with a timestamp, not a lock: it expires with its session's liveness
-// window, because a harness that died holding one must not block the vault.
-export function claimsOf(vault, maxAgeMinutes = 30) {
-  return readActiveSessions(vault, null, maxAgeMinutes)
-    .filter((s) => s.claim && s.claim.story)
-    .map((s) => ({
-      session: s.id,
-      story: s.claim.story,
-      harness: s.claim.harness || null,
-      at: new Date(s.last_active).toISOString(),
-      project_root: s.project_root,
+// Live claims across every session on this vault. A claim is a fact with a
+// liveness window, not a lock: a harness that died holding one must not block
+// the vault. Liveness comes from presence.mjs, which measures it with ONE clock
+// (ours) — mtime and remote timestamps are not comparable across devices.
+export function claimsOf(vault) {
+  return peers(vault, { persist: false }).peers
+    .filter((p) => p.live && p.claim && p.claim.story)
+    .map((p) => ({
+      session: p.session,
+      story: p.claim.story,
+      harness: p.harness || p.claim.harness || null,
+      host: p.host,
+      os: p.os,
+      at: p.at,
+      project_root: p.project_root,
     }));
 }
 
@@ -126,6 +132,10 @@ function main() {
 
   if (args.includes("--touch")) {
     if (!touchSession(vault, sid)) writeSession(vault, sid, projectRoot());
+    // The activity log stays in the session file (it feeds `mps brief`); the
+    // heartbeat is a separate, tiny write whose counter is what other devices
+    // actually judge liveness by.
+    beat(vault, sid, { harness: process.env.MPS_HARNESS || null });
     out.touched = true;
     const fi = args.indexOf("--file");
     if (fi !== -1) {
@@ -143,29 +153,47 @@ function main() {
     // Normalise to the same reference the commit trailer uses, so a claim made
     // from a path and a commit made from an id are talking about one story.
     const ref = storyRefOf(args[ci + 1], vault) || args[ci + 1];
-    patchSession(vault, sid, {
-      claim: { story: ref, harness: process.env.MPS_HARNESS || null, at: new Date().toISOString() },
+    beat(vault, sid, {
+      harness: process.env.MPS_HARNESS || null,
+      claim: { story: ref, at: new Date().toISOString() },
     });
     out.claimed = ref;
   }
   if (args.includes("--release")) {
-    if (existsSync(sessionFilePath(vault, sid))) patchSession(vault, sid, { claim: null });
+    beat(vault, sid, { claim: false });
+    release(vault, { sessionId: sid });
     out.released = true;
+  }
+  if (args.includes("--end")) {
+    release(vault, { sessionId: sid });
+    clearPresence(vault, sid);
+    out.ended = true;
   }
   if (args.includes("--prune")) {
     out.pruned = cleanupStaleSessions(vault, 24, sid);
   }
 
-  out.active = readActiveSessions(vault, null, 30).map((s) => ({
-    id: s.id,
-    project_root: s.project_root,
-    host: s.host,
-    started_at: s.started_at,
-    last_active: new Date(s.last_active).toISOString(),
-    claim: (s.claim && s.claim.story) || null,
-    self: s.id === sid,
+  const view = peers(vault, { self: sid });
+  out.storage = view.storage;
+  out.active = view.peers.filter((p) => p.live).map((p) => ({
+    id: p.session,
+    host: p.host,
+    os: p.os,
+    harness: p.harness,
+    project_root: p.project_root,
+    started_at: p.started_at,
+    at: p.at,
+    quiet_ms: p.quiet_ms,
+    liveness: p.basis,
+    claim: (p.claim && p.claim.story) || null,
+    self: p.self,
   }));
-  out.claims = claimsOf(vault, 30);
+  out.stale = view.peers.filter((p) => !p.live).map((p) => ({ id: p.session, host: p.host, at: p.at }));
+  out.claims = claimsOf(vault);
+  out.leases = readLeases(vault, { self: sid })
+    .filter((l) => l.live)
+    .map((l) => ({ path: l.path, session: l.session, host: l.host, harness: l.harness, mine: l.mine }));
+  if (view.conflicts.length) out.sync_conflicts = view.conflicts;
 
   if (json) {
     process.stdout.write(JSON.stringify(out, null, 2) + "\n");
@@ -175,18 +203,30 @@ function main() {
   if (out.recorded) process.stdout.write(`recorded   ${out.recorded}\n`);
   if (out.claimed) process.stdout.write(`claimed    ${out.claimed}\n`);
   if (out.released) process.stdout.write(`released\n`);
+  if (out.ended) process.stdout.write(`ended      presence cleared\n`);
   if (out.pruned) process.stdout.write(`pruned ${out.pruned} stale session(s)\n`);
   if (!existsSync(sessionsDir(vault))) {
     process.stdout.write("no session registry yet — run `mps sessions --touch` at the start of a session\n");
     return;
   }
+  const st = out.storage;
+  if (st && st.kind !== "local") {
+    process.stdout.write(`storage: ${st.provider} (${st.kind}) — presence from other devices can lag ~${Math.round(st.lag_ms / 1000)}s\n\n`);
+  }
   if (!out.active.length) {
-    process.stdout.write("no sessions active in the last 30 min\n");
-    return;
+    process.stdout.write("nobody is live on this vault right now\n");
   }
   for (const s of out.active) {
-    process.stdout.write(`${s.self ? "*" : " "} ${s.id.padEnd(24)} ${s.last_active}`
-      + `${s.claim ? `  story:${s.claim}` : ""}  ${s.project_root}\n`);
+    process.stdout.write(`${s.self ? "*" : " "} ${String(s.id).padEnd(22)} ${String(s.harness || "?").padEnd(9)}`
+      + ` ${String(`${s.host}/${s.os}`).padEnd(20)}${s.claim ? ` story:${s.claim}` : ""}\n`);
+  }
+  for (const l of out.leases.filter((x) => !x.mine)) {
+    process.stdout.write(`  editing: ${l.path}  (${l.session} on ${l.host})\n`);
+  }
+  if (out.sync_conflicts && out.sync_conflicts.length) {
+    process.stdout.write(`\n⚠️  the sync client left ${out.sync_conflicts.length} conflicted copy(ies) in the presence directory:\n`
+      + out.sync_conflicts.map((c) => `    ${c}\n`).join("")
+      + "    two devices wrote at once; delete them once you know which device is authoritative.\n");
   }
 }
 

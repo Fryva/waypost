@@ -330,6 +330,10 @@ function handleStatus() {
   ].filter(Boolean);
   if (pins.length) process.stdout.write(`models  ${pins.join(" · ")}\n`);
   process.stdout.write("\n");
+  // Who else is live on this vault, before anything about roles: on a shared
+  // vault that is the fact that changes what you should do next.
+  run("sessions", []);
+  process.stdout.write("\n");
   run("agents", ["list"]);
 }
 
@@ -364,6 +368,13 @@ WORKING IN SEVERAL HARNESSES AT ONCE
   log [--story|--harness|--session <v>]
                            the history, read back through those trailers
   sessions --claim <story> tell the other live sessions what you are on
+  lease <path…>            announce the files you are editing right now, so a
+                           session on another device does not touch them
+                           (lease list | lease release [path…])
+  watch                    stay live: beat on an interval and report who joins,
+                           leaves or picks up a story on another device
+  storage                  what the vault is stored on and how far behind
+                           another device's presence can be
   merge-derived <file>     git merge driver: regenerate a derived view instead
                            of merging two machine-written copies of it
 
@@ -422,6 +433,9 @@ function main() {
     case "merge": run("commit", ["--merge", ...rest]); break;
     case "log": run("commit", ["--log", ...rest]); break;
     case "merge-derived": run("merge-derived", rest); break;
+    case "lease": run("presence", rest.length ? rest : ["list"]); break;
+    case "storage": run("presence", ["storage"]); break;
+    case "watch": run("presence", ["watch", ...rest]); break;
     case "tokens": run("tokens", rest); break;
     case "prompt": printDoc("prompts", positionals(rest)[0]); break;
     case "skill": printDoc("skills", positionals(rest)[0], "SKILL.md"); break;

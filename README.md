@@ -142,6 +142,39 @@ harness bound to that vault can read — and `mps commit` refuses to close a sto
 another live session still holds. See
 [ADR-0006](docs/decisions/0006-commit-protocol.md).
 
+## Several devices and operating systems at once
+
+A vault on iCloud, Dropbox or an SMB share, with sessions on macOS, Windows and
+Linux — that arrangement breaks three assumptions a single machine can make:
+clocks agree, `mtime` means something, and a write is atomic and unique. None of
+them hold, so MPS does not pretend to lock anything. It coordinates instead:
+
+```bash
+mps watch                     # stay live; report who joins, leaves, or takes a story
+mps lease src/auth.ts         # "I am editing this right now"
+mps sessions                  # who is live, on which OS, holding what
+mps storage                   # what the vault is on, and how far behind presence can be
+```
+
+Liveness never compares your clock with someone else's: each session publishes a
+counter it increments, and every peer decides "alive" from *its own* observation
+of that counter changing. A device whose clock is six hours off is still judged
+correctly. The liveness window and the settle wait widen automatically on cloud
+and network storage, and every answer says how stale it might be.
+
+Leases are advisory by construction — on a sync drive nothing else is honest.
+Acquisition is write → settle → re-read → deterministic tie-break, so two
+devices converge on one owner instead of both believing they hold it; a lease
+dies with its session, and a takeover is recorded rather than silent.
+`mps commit` refuses to write over a file another live session holds.
+
+Cross-OS hygiene is checked rather than hoped for: `mps doctor` reports names
+that cannot be checked out on Windows, artifacts that differ only in case, and a
+missing line-ending policy (`--fix` writes `* text=auto`). Atomic-write temp
+files carry the host that made them, so one machine can never sweep a write
+another machine has in flight. See
+[ADR-0007](docs/decisions/0007-shared-vault-presence.md).
+
 ## Layout (`engineering`)
 
 `adr/`, `specs/`, `epics/<id>/stories/`, `research/`, `concepts/`, `meetings/`,

@@ -39,6 +39,7 @@ import {
 } from "./lib.mjs";
 import { registry, harness } from "./agents.mjs";
 import { sessionId, claimsOf } from "./sessions.mjs";
+import { readLeases, vaultRel } from "./presence.mjs";
 
 function die(msg) {
   process.stderr.write(`mps commit: ${msg}\n`);
@@ -120,6 +121,22 @@ export function conflicts(story, cfg, self) {
     .filter((c) => c.story === story && c.session !== self);
 }
 
+// Staged paths are repo-relative; leases are vault-relative. When the vault
+// lives inside the repository the two describe the same files, and that is
+// exactly the arrangement where two sessions collide.
+export function leasesOverStaged(staged, cfg, self) {
+  if (!cfg || !cfg.vault_path) return [];
+  const proj = projectRoot();
+  const inRepoVault = cfg.vault_path.startsWith(proj + "/") ? cfg.vault_path.slice(proj.length + 1) : null;
+  const stagedRel = new Set();
+  for (const f of staged) {
+    stagedRel.add(f);
+    if (inRepoVault && f.startsWith(inRepoVault + "/")) stagedRel.add(f.slice(inRepoVault.length + 1));
+  }
+  return readLeases(cfg.vault_path, { self })
+    .filter((l) => l.live && !l.mine && stagedRel.has(l.path));
+}
+
 function stagedFiles() {
   const r = git(["diff", "--cached", "--name-only"]);
   return (r.stdout || "").split("\n").filter(Boolean);
@@ -176,8 +193,19 @@ function main() {
   if (has("--all")) git(["add", "-A"]);
   if (has("--tracked")) git(["add", "-u"]);
   if (pathspec.length) git(["add", "--", ...pathspec]);
-  if (!stagedFiles().length) {
-    die("nothing staged. Stage the change, or pass --all (tracked files) or -- <paths>.");
+  const staged = stagedFiles();
+  if (!staged.length) {
+    die("nothing staged. Stage the change, or pass --all (everything not ignored) or -- <paths>.");
+  }
+
+  // A lease says another session is editing that file RIGHT NOW, possibly on
+  // another device and another OS. Committing over it is how one agent's work
+  // silently lands on top of another's half-finished change.
+  const leased = leasesOverStaged(staged, cfg, self);
+  if (leased.length && !has("--force")) {
+    die("these files are leased by another live session:\n"
+      + leased.map((l) => `       ${l.path} — ${l.session} on ${l.host} (${l.harness || "?"})\n`).join("")
+      + "       Wait for them, or re-run with --force if you know they stopped.");
   }
 
   const message = composeMessage(subject, {

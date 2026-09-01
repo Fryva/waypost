@@ -16,6 +16,7 @@ import { spawnSync } from "node:child_process";
 import {
   nextNumber,
   writeFileAtomic,
+  hostTag,
   slugIdentity,
   isLegacyNumberedId,
   storyMatchesEntry,
@@ -91,16 +92,21 @@ test("writeFileAtomic: rename failure with the temp alive — temp removed, targ
   assert.deepEqual(readdirSync(dir), ["taken"], "no temp litter after a handled failure");
 });
 
-test("writeFileAtomic: dead-pid orphan swept; own-pid temp and .gitignore survive", () => {
+test("writeFileAtomic: this host's dead orphan swept; live temp, other hosts' temps and .gitignore survive", () => {
   const dir = mkdtempSync(join(tmpdir(), "ps-atomic-"));
   const deadPid = spawnSync(process.execPath, ["-e", "0"]).pid; // exited ⇒ dead
-  writeFileSync(join(dir, `.a.md.${deadPid}.tmp`), "orphan");
-  writeFileSync(join(dir, `.b.md.${process.pid}.tmp`), "live writer");
+  const me = hostTag();
+  writeFileSync(join(dir, `.a.md.${me}.${deadPid}.tmp`), "orphan");
+  writeFileSync(join(dir, `.b.md.${me}.${process.pid}.tmp`), "live writer");
+  // A vault on a network drive carries temps from other machines. Their pids
+  // mean nothing here: sweeping one deletes a write still in flight there.
+  writeFileSync(join(dir, `.d.md.otherbox.${deadPid}.tmp`), "another device, mid-write");
   writeFileSync(join(dir, ".gitignore"), "*\n");
   writeFileAtomic(join(dir, "c.md"), "content\n"); // sweep on by default
   const names = readdirSync(dir);
-  assert.ok(!names.includes(`.a.md.${deadPid}.tmp`), "dead orphan swept");
-  assert.ok(names.includes(`.b.md.${process.pid}.tmp`), "live writer's temp kept");
+  assert.ok(!names.includes(`.a.md.${me}.${deadPid}.tmp`), "dead orphan of this host swept");
+  assert.ok(names.includes(`.b.md.${me}.${process.pid}.tmp`), "live writer's temp kept");
+  assert.ok(names.includes(`.d.md.otherbox.${deadPid}.tmp`), "another host's temp is never ours to sweep");
   assert.ok(names.includes(".gitignore"), "strict shape never matches dotfiles");
   assert.equal(readFileSync(join(dir, "c.md"), "utf8"), "content\n");
 });

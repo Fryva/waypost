@@ -61,6 +61,7 @@ import {
   ignoreEpipe,
 } from "./lib.mjs";
 import { uncommittedProjectFiles, lastCommitMs } from "./diff-refs.mjs";
+import { peers as peersOf, readLeases as readLeasesOf } from "./presence.mjs";
 import {
   AGENT_BLOCK_MARKER,
   AGENT_BLOCK_VERSION,
@@ -297,6 +298,88 @@ export function checkMergeDriver(cfg, proj) {
     // back anyway — with a confusing line of output in front of it.
     out.push(finding("install", "warn", "merge-driver",
       `merge.mps-derived.driver points at a different command than this version installs:\n      configured: ${current}\n      expected:   ${mergeDriverCommand()}\n      \`mps doctor --fix\` rewrites it.`));
+  }
+  return out;
+}
+
+// ─── Cross-device / cross-OS checks (ADR-0007) ─────────────────────────
+//
+// A vault shared between macOS, Windows and Linux fails in ways that are
+// invisible from any single one of them: a filename legal here cannot be
+// checked out there, two artifacts differing only in case collapse into one on
+// a case-insensitive filesystem, and CRLF normalisation turns every file a
+// Windows session touches into a whole-file diff that conflicts with everything.
+const WIN_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
+
+export function checkPortableNames(cfg, vaultFiles) {
+  const out = [];
+  const seen = new Map();
+  // walkVaultFiles yields { rel, name }; accept a plain string too so the check
+  // can be driven directly from a list of paths.
+  for (const entry of vaultFiles || []) {
+    const rel = typeof entry === "string" ? entry : entry.rel;
+    const bad = [];
+    // Every SEGMENT, not just the filename: a directory named "epics " is as
+    // fatal to a Windows checkout as a file named "con.md", and only the whole
+    // path shows it.
+    for (const seg of rel.split("/")) {
+      if (/[<>:"|?*]/.test(seg)) bad.push('one of <>:"|?* — illegal in a Windows path');
+      if (/[ .]$/.test(seg)) bad.push(`a segment ending in a space or dot ("${seg}") — Windows silently drops it`);
+      if (WIN_RESERVED.test(seg)) bad.push(`a reserved device name on Windows ("${seg}")`);
+      // eslint-disable-next-line no-control-regex
+      if (/[\u0000-\u001f]/.test(seg)) bad.push("a control character");
+    }
+    if (bad.length) {
+      out.push(finding("vault", "warn", "portable-names",
+        `"${rel}" cannot be checked out on Windows: it contains ${[...new Set(bad)].join("; ")}.`, rel));
+    }
+    const key = rel.toLowerCase();
+    if (seen.has(key) && seen.get(key) !== rel) {
+      out.push(finding("vault", "issue", "portable-names",
+        `"${rel}" and "${seen.get(key)}" differ only in case — on macOS and Windows one of them cannot exist, so a clone there loses a file.`, rel));
+    } else seen.set(key, rel);
+    if (rel.length > 180) {
+      out.push(finding("vault", "info", "portable-names",
+        `"${rel}" is ${rel.length} characters — close to the 260-character path limit a Windows clone still has by default.`, rel));
+    }
+  }
+  return out;
+}
+
+// Without an eol policy, a Windows session commits CRLF and every subsequent
+// diff is the whole file — which then conflicts with every parallel edit. This
+// is the cheapest possible defence and belongs beside the merge driver.
+export function checkLineEndings(cfg, proj) {
+  if (!existsSync(join(proj, ".git"))) return [];
+  let attrs = "";
+  try { attrs = readFileSync(join(proj, ".gitattributes"), "utf8"); } catch {}
+  if (/^\*\s+text=auto/m.test(attrs)) return [];
+  return [finding("install", "warn", "line-endings",
+    "No `* text=auto` in .gitattributes — a session on Windows will commit CRLF and every file it touches becomes a whole-file diff that conflicts with everyone else's edits. `mps doctor --fix` writes it.")];
+}
+
+// Presence and leases left behind by sessions that are no longer live, and the
+// duplicate files a sync client creates when two devices write at once.
+export function checkSharedVaultState(cfg) {
+  if (!cfg || !cfg.vault_path) return [];
+  const out = [];
+  let view, leases;
+  try {
+    view = peersOf(cfg.vault_path, { persist: false });
+    leases = readLeasesOf(cfg.vault_path, {});
+  } catch { return []; }
+  if (view.conflicts.length) {
+    out.push(finding("vault", "warn", "shared-state",
+      `The sync client left ${view.conflicts.length} conflicted copy(ies) in .projectstore/presence — two devices wrote at once: ${view.conflicts.join(", ")}. Delete them once you know which device is authoritative.`));
+  }
+  const stale = leases.filter((l) => !l.live);
+  if (stale.length) {
+    out.push(finding("vault", "info", "shared-state",
+      `${stale.length} lease(s) are held by sessions that are no longer live (${stale.map((l) => `${l.path} — ${l.session}`).join(", ")}). They are advisory and will be taken over on the next acquire.`));
+  }
+  if (view.storage.kind !== "local") {
+    out.push(finding("vault", "info", "shared-state",
+      `Vault is on ${view.storage.provider} (${view.storage.kind}): presence from another device can be up to ~${Math.round(view.storage.lag_ms / 1000)}s behind, so "nobody else is working" is a statement about what has synced, not about the world.`));
   }
   return out;
 }
@@ -1191,6 +1274,7 @@ export function runInstallChecks(cfg, proj) {
     ...checkGitignore(proj),
     ...checkVaultGit(cfg, proj),
     ...checkMergeDriver(cfg, proj),
+    ...checkLineEndings(cfg, proj),
   );
   return out;
 }
@@ -1227,6 +1311,8 @@ export function runVaultChecks(cfg) {
     ...checkWikilinks(cfg, artifacts, vaultFiles, buildNodeIndex(cfg, layout)),
     ...checkArtifactIdentity(layout, vaultFiles, artifacts),
     ...checkArtifactNames(vaultFiles),
+    ...checkPortableNames(cfg, vaultFiles),
+    ...checkSharedVaultState(cfg),
     ...checkExternalRefsForm(artifacts),
     ...checkCodeRefs(artifacts, projectRoot()),
     ...checkWorkWithoutStory(cfg, projectRoot()),
@@ -1315,6 +1401,19 @@ export function applyFixes(cfg, proj, findings) {
   // at all", which is a choice the user has not made yet. Repairing it turned
   // `--fix` into an installer — after `mps agents uninstall`, the next `--fix`
   // put all fifteen files back.
+  if (has("line-endings")) {
+    const p = join(proj, ".gitattributes");
+    let text = "";
+    try { text = readFileSync(p, "utf8"); } catch {}
+    if (!/^\*\s+text=auto/m.test(text)) {
+      const block = "\n# mps: one line-ending policy, or a Windows session's first commit\n"
+        + "# rewrites every file it touches and conflicts with every parallel edit.\n"
+        + "* text=auto\n*.md text eol=lf\n*.mjs text eol=lf\n";
+      writeFileSync(p, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${block}`, "utf8");
+      done.push(".gitattributes += text=auto (one line-ending policy for every OS)");
+    }
+  }
+
   if (has("merge-driver") && cfg && cfg.vault_path) {
     const rel = cfg.vault_path.startsWith(proj + "/") ? cfg.vault_path.slice(proj.length + 1) : null;
     if (rel) {

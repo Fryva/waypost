@@ -15,10 +15,43 @@
 
 import { fileURLToPath } from "node:url";
 import { readConfig, gatherVaultFacts, renderVaultSkeleton, ignoreEpipe } from "./lib.mjs";
+import { peers, readLeases } from "./presence.mjs";
+import { sessionId } from "./sessions.mjs";
 
 export async function brief(cfg, opts = {}) {
   const facts = await gatherVaultFacts(cfg, opts);
-  return { facts, text: renderVaultSkeleton(facts) };
+  return { facts, text: renderVaultSkeleton(facts) + others(cfg, opts) };
+}
+
+// Who else is working on this vault right now — the first thing that matters
+// when the same project is open in another harness, on another machine, in
+// another OS. Never fails the brief: presence is advisory, and a vault that has
+// never been shared has nothing to say here.
+function others(cfg, opts = {}) {
+  try {
+    const self = opts.sessionId || sessionId();
+    const view = peers(cfg.vault_path, { self });
+    const live = view.peers.filter((p) => p.live && !p.self);
+    const leases = readLeases(cfg.vault_path, { self }).filter((l) => l.live && !l.mine);
+    if (!live.length && !leases.length && view.storage.kind === "local") return "";
+    const L = ["", "## Who else is working here", ""];
+    if (view.storage.kind !== "local") {
+      L.push(`Vault is on ${view.storage.provider} (${view.storage.kind}) — another device's presence can be up to ~${Math.round(view.storage.lag_ms / 1000)}s behind this list.`, "");
+    }
+    if (!live.length) L.push("- nobody else is live right now");
+    for (const p of live) {
+      L.push(`- **${p.session}** — ${p.harness || "unknown harness"} on ${p.host} (${p.os})`
+        + `${p.claim && p.claim.story ? `, working on \`${p.claim.story}\`` : ""}`);
+    }
+    if (leases.length) {
+      L.push("", "Files another session is editing right now — do not touch them without asking:");
+      for (const l of leases) L.push(`- \`${l.path}\` (${l.session} on ${l.host})`);
+    }
+    if (view.conflicts.length) {
+      L.push("", `⚠️ the sync client left conflicted copies in the presence directory (${view.conflicts.join(", ")}) — two devices wrote at once.`);
+    }
+    return L.join("\n") + "\n";
+  } catch { return ""; }
 }
 
 async function main() {
