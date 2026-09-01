@@ -1,48 +1,23 @@
 {
   "id": "copilot",
-  "name": "GitHub Copilot (VS Code / CLI)",
+  "name": "GitHub Copilot (VS Code)",
   "vendor": "GitHub / Microsoft",
-  "home": "https://github.com/features/copilot",
   "confidence": "documented",
   "docs": "https://code.visualstudio.com/docs/copilot/customization/custom-chat-modes",
-  "detect": [
-    ".github/copilot-instructions.md",
-    ".github/chatmodes",
-    ".github/prompts"
-  ],
-  "env": [
-    "COPILOT_AGENT",
-    "GITHUB_COPILOT_CLI"
-  ],
-  "instructions": [
-    ".github/copilot-instructions.md",
-    "AGENTS.md"
-  ],
-  "invoke": "pick the `mps-<role>` chat mode, or paste `mps agents show <role>`",
+  "detect": [".github/agents", ".github/copilot-instructions.md", ".github/chatmodes"],
+  "env": ["COPILOT_AGENT", "GITHUB_COPILOT_CLI"],
+  "instructions": [".github/copilot-instructions.md", "AGENTS.md"],
+  "invoke": "pick the `mps-<role>` custom agent in the chat view",
   "roles": {
     "shape": "frontmatter-md",
-    "dir": ".github/chatmodes",
-    "file": "{prefix}{role}.chatmode.md",
-    "model": {
-      "tiers": {}
-    },
-    "tools": {
-      "style": "copilot-list"
-    },
+    "dir": ".github/agents",
+    "file": "{prefix}{role}.agent.md",
+    "model": { "tiers": {} },
     "fields": [
-      [
-        "description",
-        "{description}"
-      ],
-      [
-        "model",
-        "{model}"
-      ],
-      [
-        "tools",
-        "{tools}"
-      ]
+      ["name", "{prefix}{role}"],
+      ["description", "{description}"],
+      ["model", "{model}"]
     ]
   },
-  "notes": "Chat modes are the closest thing to a role. Tool names are Copilot's own vocabulary and are mapped best-effort; check them against your Copilot version."
+  "notes": "Custom agents are .github/agents/*.agent.md; the older .chatmode.md form is deprecated. VS Code also reads .claude/agents, so a project that installed the claude entry already has these roles there. `tools` is omitted on purpose: Copilot's tool names are its own vocabulary ('search/codebase', 'web/fetch'), an allowlist with a wrong name silently narrows the agent, and omitting the field inherits everything."
 }

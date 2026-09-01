@@ -4,7 +4,7 @@
   "vendor": "Anysphere",
   "home": "https://cursor.com",
   "confidence": "documented",
-  "docs": "https://docs.cursor.com/context/rules",
+  "docs": "https://cursor.com/docs/rules",
   "detect": [
     ".cursor",
     ".cursorrules"
@@ -17,7 +17,7 @@
     ".cursor/rules/mps-agents.mdc",
     "AGENTS.md"
   ],
-  "invoke": "@mps-<role> to pull the rule into context, or paste `mps agents show <role>` into a new chat",
+  "invoke": "@mps-<role> in chat to pull the rule in, or paste `mps agents show <role>` into a new chat",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".cursor/rules",
@@ -34,5 +34,5 @@
       ]
     ]
   },
-  "notes": "Cursor has no per-project subagent file format; a rule carries the role prompt and is pulled in on demand. Custom modes are configured in the UI, not in the repo."
+  "notes": "Project rules are .cursor/rules/*.mdc with description / globs / alwaysApply; a plain .md there is ignored, which is why the extension matters. alwaysApply: false keeps a role out of every session until it is called by @name. Cursor also reads AGENTS.md, so the routing block reaches it. Cursor has no project-level subagent format — a rule is the closest thing, and the fresh-context contract is on the caller."
 }

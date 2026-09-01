@@ -18,14 +18,14 @@ mps agents install                  # …or into whatever this project uses
 | `claude` | Claude Code | Anthropic | `.claude/agents/mps-<role>.md` | subagent/rule | verified |
 | `cline` | Cline | Cline | `.clinerules/workflows/mps-<role>.md` | prompt/rule | documented |
 | `codebuddy` | CodeBuddy Code (腾讯云代码助手) | Tencent | `.codebuddy/agents/mps-<role>.md` | subagent/rule | documented |
-| `codex` | Codex CLI | OpenAI | `.codex/prompts/mps-<role>.md` | prompt/rule | documented |
-| `copilot` | GitHub Copilot (VS Code / CLI) | GitHub / Microsoft | `.github/chatmodes/mps-<role>.chatmode.md` | subagent/rule | documented |
+| `codex` | Codex CLI | OpenAI | `.codex/agents/mps-<role>.toml` | agent (TOML) | documented |
+| `copilot` | GitHub Copilot (VS Code) | GitHub / Microsoft | `.github/agents/mps-<role>.agent.md` | subagent/rule | documented |
 | `cursor` | Cursor | Anysphere | `.cursor/rules/mps-<role>.mdc` | subagent/rule | documented |
 | `dsh` | DeepSeek Harness (dsh) | DeepSeek | `— (no role files)` | routing block only | documented |
-| `gemini` | Gemini CLI | Google | `.gemini/commands/mps/<role>.toml` | command | documented |
+| `gemini` | Gemini CLI | Google | `.gemini/agents/mps-<role>.md` | subagent/rule | documented |
 | `kimi` | Kimi Code CLI | Moonshot AI | `.kimi-code/agents/mps-<role>.md` | subagent/rule | documented |
 | `lingma` | Tongyi Lingma (通义灵码) | Alibaba Cloud | `.lingma/rules/mps-<role>.md` | prompt/rule | documented |
-| `opencode` | OpenCode | SST | `.opencode/agent/mps-<role>.md` | subagent/rule | documented |
+| `opencode` | OpenCode | SST | `.opencode/agents/mps-<role>.md` | subagent/rule | documented |
 | `qwen` | Qwen Code | Alibaba | `.qwen/agents/mps-<role>.md` | subagent/rule | documented |
 | `roo` | Roo Code | Roo Code | `.roomodes` | custom mode | documented |
 | `windsurf` | Windsurf | Cognition | `.windsurf/workflows/mps-<role>.md` | prompt/rule | documented |
@@ -147,7 +147,9 @@ declares no effort" end up being the same rule.
   Claude Code, OpenCode, Cursor, Copilot.
 - **`prompt-md`** — one file per role, plus a preamble carrying `$ARGUMENTS` and
   the read-only contract in prose. Codex, Windsurf, Cline.
-- **`toml-prompt`** — `description` + `prompt = """…"""`. Gemini CLI.
+- **`toml`** — TOML with the prompt in a multi-line block: Codex agents
+  (`developer_instructions`, plus `sandbox_mode = "read-only"`, which is the one
+  place a harness enforces the roles' contract rather than asking for it).
 - **`aggregate-json`** — every role is an entry in one shared JSON array, merged
   rather than overwritten: entries whose key starts with `mps-` are ours,
   everything else in the file is left alone. Roo Code.

@@ -21,14 +21,14 @@
   "invoke": "spawn the `mps-<role>` subagent",
   "roles": {
     "shape": "frontmatter-md",
-    "dir": ".opencode/agent",
+    "dir": ".opencode/agents",
     "file": "{prefix}{role}.md",
     "model": {
       "tiers": {},
       "note": "OpenCode model ids are provider-qualified (anthropic/claude-…); no tier naming to map, so only an explicit per-harness pin is emitted."
     },
     "tools": {
-      "style": "opencode-map"
+      "style": "opencode-permission"
     },
     "fields": [
       [
@@ -44,9 +44,10 @@
         "{model}"
       ],
       [
-        "tools",
+        "permission",
         "{tools}"
       ]
     ]
-  }
+  },
+  "notes": "Current docs put project agents in .opencode/agents/ and gate tools with a `permission` map (allow/ask/deny) rather than the legacy `tools` booleans — so read-only is expressed as `edit: deny`, with bash left allowed because these roles need git diff. Older OpenCode versions read the singular .opencode/agent/; if yours does, override this entry's `dir` in .mps/harnesses/opencode.json."
 }

@@ -2,37 +2,26 @@
   "id": "codex",
   "name": "Codex CLI",
   "vendor": "OpenAI",
-  "home": "https://developers.openai.com/codex/cli",
   "confidence": "documented",
-  "docs": "https://developers.openai.com/codex/cli",
-  "detect": [
-    ".codex"
-  ],
-  "env": [
-    "CODEX_SANDBOX",
-    "CODEX_HOME",
-    "CODEX_SANDBOX_NETWORK_DISABLED"
-  ],
-  "instructions": [
-    "AGENTS.md"
-  ],
-  "invoke": "/mps-<role> <target>, or codex exec \"$(mps agents show <role>) <target>\"",
-  "after_install": "Codex reads prompts from ~/.codex/prompts — copy them there to get slash commands:\n  cp .codex/prompts/mps-*.md ~/.codex/prompts/",
+  "docs": "https://codex.danielvaughan.com/2026/04/27/codex-cli-custom-agent-definitions-toml-specialised-subagents/",
+  "detect": [".codex", "AGENTS.md"],
+  "env": ["CODEX_SANDBOX", "CODEX_HOME", "CODEX_SANDBOX_NETWORK_DISABLED"],
+  "instructions": ["AGENTS.md", ".codex/AGENTS.md"],
+  "invoke": "spawn the `mps-<role>` agent, or `codex exec \"$(mps agents show <role>) <target>\"`",
   "roles": {
-    "shape": "prompt-md",
-    "dir": ".codex/prompts",
-    "file": "{prefix}{role}.md",
-    "model": false,
-    "model_note": "A Codex prompt file carries no model — the model belongs to the Codex session.",
+    "shape": "toml",
+    "dir": ".codex/agents",
+    "file": "{prefix}{role}.toml",
+    "body_key": "developer_instructions",
+    "preamble": false,
+    "model": { "tiers": {} },
     "fields": [
-      [
-        "description",
-        "{description}"
-      ],
-      [
-        "argument-hint",
-        "<file or topic to work on>"
-      ]
+      ["name", "{prefix}{role}"],
+      ["description", "{description}"],
+      ["model", "{model}"],
+      ["model_reasoning_effort", "high"],
+      ["sandbox_mode", "read-only"]
     ]
-  }
+  },
+  "notes": "Codex has project-level agents now: .codex/agents/<name>.toml with name, description and developer_instructions (the system prompt), plus optional model, model_reasoning_effort and sandbox_mode. `sandbox_mode = \"read-only\"` is emitted, which is the one place a harness enforces the roles' read-only contract rather than asking for it. The older ~/.codex/prompts custom prompts are deprecated by OpenAI in favour of skills, so mps no longer writes them. The official docs page could not be fetched directly (learn.chatgpt.com returned 404 to the fetcher); the format is taken from a reference that cites it — check once against `codex --help`."
 }

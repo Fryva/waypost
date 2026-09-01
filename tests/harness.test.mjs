@@ -66,15 +66,16 @@ test("each harness gets the same role in its own dialect, with provenance", () =
 
   const opencode = renderFor("opencode", role, null);
   assert.match(opencode, /^mode: "subagent"$/m, "opencode declares the agent mode");
-  assert.match(opencode, /^ {2}write: false$/m, "edits are denied by the tool map");
-  assert.match(opencode, /^ {2}edit: false$/m);
-  assert.match(opencode, /^ {2}bash: true$/m,
-    "bash stays available — these roles need git diff/log, so the shell half of read-only is prose, not enforcement");
-  assert.ok(!/^model:/m.test(opencode), "no model is invented for a harness with no stable tier names");
+  assert.match(opencode, /^permission:$/m, "current OpenCode gates tools with permission, not a tools map");
+  assert.match(opencode, /^ {2}edit: deny$/m, "edits are denied where the harness can enforce it");
+  assert.match(opencode, /^ {2}bash: allow$/m,
+    "bash stays available — these roles need git diff/log, so the shell half of read-only is prose");
+  assert.ok(!/^model:/m.test(opencode), "no model is invented for a harness with no tier mapping");
 
   const codex = renderFor("codex", role, null);
-  assert.match(codex, /\$ARGUMENTS/, "codex prompts take their target as an argument");
-  assert.match(codex, /READ-ONLY/, "what the tool map cannot enforce is stated in prose");
+  assert.match(codex, /^sandbox_mode = "read-only"$/m,
+    "Codex is the one harness that can enforce read-only outright — say so in its own words");
+  assert.match(codex, /^developer_instructions = """$/m, "the role prompt is the agent's system prompt");
 
   for (const [name, text] of [["claude", claude], ["opencode", opencode], ["codex", codex]]) {
     assert.ok(text.includes(`agents/critic.md@${role.hash}`), `${name} carries the source hash`);
@@ -126,15 +127,17 @@ test("every render of every role has parseable frontmatter", () => {
   }
 });
 
-test("a TOML command file is valid TOML, and the prompt inside it is closed", () => {
+test("a TOML agent file is valid TOML, and the body block is closed exactly once", () => {
   for (const name of roleNames()) {
-    const text = renderFor("gemini", readRole(name), null);
-    const lines = text.split("\n");
-    assert.match(lines[0], /^description = "/, "description is a quoted TOML string");
-    assert.doesNotThrow(() => JSON.parse(lines[0].replace(/^description = /, "")));
-    assert.equal((text.match(/^"""$/gm) || []).length, 1, "the prompt's closing delimiter appears exactly once");
-    assert.match(text, /^prompt = """$/m);
-    assert.ok(!text.split('prompt = """')[1].includes('"""\n\n'), "nothing follows the closed prompt");
+    const text = renderFor("codex", readRole(name), null);
+    for (const line of text.split("\n")) {
+      const kv = line.match(/^([a-z_]+) = (.+)$/);
+      if (!kv || kv[2] === '"""') continue;
+      assert.doesNotThrow(() => JSON.parse(kv[2]), `${name}: ${kv[1]} is not a quoted TOML string`);
+    }
+    assert.equal((text.match(/^"""$/gm) || []).length, 1,
+      "a stray triple quote would truncate the system prompt without any error");
+    assert.match(text, /^developer_instructions = """$/m);
   }
 });
 
@@ -295,11 +298,11 @@ test("an aggregate harness merges into its shared file and leaves other entries 
 
 test("uninstall clears nested empty directories, whatever the file is named", () => {
   const { proj } = bound();
-  mps(proj, ["agents", "install", "--harness", "gemini"]);     // .gemini/commands/mps/<role>.toml — no prefix in the name
-  assert.ok(existsSync(join(proj, ".gemini", "commands", "mps", "critic.toml")));
-  mps(proj, ["agents", "uninstall", "--harness", "gemini"]);
-  assert.ok(!existsSync(join(proj, ".gemini")),
-    "a namespace directory left behind would make detection resurrect the harness");
+  mps(proj, ["agents", "install", "--harness", "codex"]);      // .codex/agents/mps-<role>.toml
+  assert.ok(existsSync(join(proj, ".codex", "agents", `${PREFIX}critic.toml`)));
+  mps(proj, ["agents", "uninstall", "--harness", "codex"]);
+  assert.ok(!existsSync(join(proj, ".codex")),
+    "a directory left behind would make detection resurrect the harness");
 });
 
 test("install: idempotent, per-harness, and detected harnesses are the default", () => {
@@ -307,14 +310,14 @@ test("install: idempotent, per-harness, and detected harnesses are the default",
   mkdirSync(join(proj, ".opencode"), { recursive: true });
 
   const first = mps(proj, ["agents", "install"]).stdout;
-  assert.ok(/\.opencode\/agent\/mps-critic\.md/.test(first), "the harness in use is installed");
+  assert.ok(/\.opencode\/agents\/mps-critic\.md/.test(first), "the harness in use is installed");
   assert.ok(!/\.codex\/prompts/.test(first), "a harness this project does not use is left alone");
   assert.ok(!existsSync(join(proj, ".codex")), "no directory is conjured for an unused harness");
 
   const second = mps(proj, ["agents", "install"]).stdout;
   assert.ok(!/created|updated/.test(second), `second install is a no-op:\n${second}`);
 
-  const files = readdirSync(join(proj, ".opencode", "agent"));
+  const files = readdirSync(join(proj, ".opencode", "agents"));
   assert.deepEqual(files.sort(), roleNames().map((n) => `${PREFIX}${n}.md`).sort());
 });
 
@@ -328,7 +331,7 @@ test("install with no harness detected refuses instead of guessing all three", (
     assert.ok(!existsSync(join(proj, d)), `${d} must not be conjured — detection is by directory, so a guess becomes permanent`);
   }
   mps(proj, ["agents", "install", "--harness", "codex"]);
-  assert.ok(existsSync(join(proj, ".codex", "prompts", `${PREFIX}critic.md`)), "naming one works");
+  assert.ok(existsSync(join(proj, ".codex", "agents", `${PREFIX}critic.toml`)), "naming one works");
   assert.ok(!existsSync(join(proj, ".claude")), "and only that one");
 });
 
@@ -376,15 +379,15 @@ test("a harness-blind model pin never reaches a harness whose ids it cannot be v
   const out = mps(proj, ["agents", "model", "default", "sonnet"]).stdout;
   assert.match(out, /applies to: claude\b/, "the CLI says where the pin lands");
   mps(proj, ["agents", "install", "--harness", "claude,opencode,codex"]);
-  const oc = readFileSync(join(proj, ".opencode", "agent", `${PREFIX}critic.md`), "utf8");
-  const cx = readFileSync(join(proj, ".codex", "prompts", `${PREFIX}critic.md`), "utf8");
+  const oc = readFileSync(join(proj, ".opencode", "agents", `${PREFIX}critic.md`), "utf8");
+  const cx = readFileSync(join(proj, ".codex", "agents", `${PREFIX}critic.toml`), "utf8");
   assert.ok(!/^model:/m.test(oc), "a bare Claude id must not be written where OpenCode wants provider/model");
-  assert.ok(!/^model:/m.test(cx), "Codex takes no model from us at all");
+  assert.ok(!/^model = /m.test(cx), "Codex takes no model from us at all");
 
   // …and naming one per harness is how you do reach it.
   mps(proj, ["agents", "model", "harness:opencode", "anthropic/claude-sonnet-4-5"]);
   mps(proj, ["agents", "install", "--harness", "opencode"]);
-  assert.match(readFileSync(join(proj, ".opencode", "agent", `${PREFIX}critic.md`), "utf8"),
+  assert.match(readFileSync(join(proj, ".opencode", "agents", `${PREFIX}critic.md`), "utf8"),
     /^model: "anthropic\/claude-sonnet-4-5"$/m);
 });
 
@@ -426,13 +429,20 @@ test("install and --fix never overwrite a file mps did not generate", () => {
 
 test("a model cannot be pinned for a harness whose files cannot carry one", () => {
   const { proj } = bound();
-  const r = mps(proj, ["agents", "model", "harness:codex", "some/model"], { expectFail: true });
-  assert.notEqual(r.status, 0, "accepting a key we then discard is worse than refusing it");
+  // A Cursor rule file has no model field at all — accepting a pin we would
+  // then discard is worse than refusing it.
+  const r = mps(proj, ["agents", "model", "harness:cursor", "some/model"], { expectFail: true });
+  assert.notEqual(r.status, 0);
   assert.match(r.stderr, /carry no model/);
   const cfg = JSON.parse(readFileSync(join(proj, ".mps", "projectstore.json"), "utf8"));
-  assert.ok(!(cfg.agents && cfg.agents.per_harness && cfg.agents.per_harness.codex),
+  assert.ok(!(cfg.agents && cfg.agents.per_harness && cfg.agents.per_harness.cursor),
     "and nothing was written to the config");
-  mps(proj, ["agents", "model", "harness:opencode", "anthropic/claude-sonnet-4-5"]);
+
+  // Codex's agent TOML does take `model`, so pinning it is accepted and lands.
+  mps(proj, ["agents", "model", "harness:codex", "gpt-5.4"]);
+  mps(proj, ["agents", "install", "--harness", "codex"]);
+  assert.match(readFileSync(join(proj, ".codex", "agents", `${PREFIX}critic.toml`), "utf8"),
+    /^model = "gpt-5\.4"$/m);
 });
 
 test("uninstall leaves no empty directory for detection to trip over", () => {

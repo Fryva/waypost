@@ -4,7 +4,7 @@
   "vendor": "Anthropic",
   "home": "https://claude.com/claude-code",
   "confidence": "verified",
-  "docs": "https://docs.claude.com/en/docs/claude-code/sub-agents",
+  "docs": "https://code.claude.com/docs/en/sub-agents",
   "detect": [
     ".claude",
     "CLAUDE.md"
@@ -54,7 +54,12 @@
       [
         "tools",
         "{tools}"
+      ],
+      [
+        "disallowedTools",
+        "{denied_tools}"
       ]
     ]
-  }
+  },
+  "notes": "Frontmatter verified against the current docs: name, description, tools, disallowedTools, model (sonnet/opus/haiku/fable/full id/inherit), effort (low…max), and more. Project agents live in .claude/agents/ and are meant to be committed."
 }

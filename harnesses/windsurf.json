@@ -4,7 +4,7 @@
   "vendor": "Cognition",
   "home": "https://windsurf.com",
   "confidence": "documented",
-  "docs": "https://docs.windsurf.com/windsurf/cascade/workflows",
+  "docs": "https://docs.devin.ai/desktop/cascade/workflows",
   "detect": [
     ".windsurf",
     ".windsurfrules"
@@ -30,5 +30,5 @@
       ]
     ]
   },
-  "notes": "Workflows are invoked as slash commands; they run in the current conversation, so the fresh-context contract is on the caller."
+  "notes": "Workspace workflows are .windsurf/workflows/*.md, invoked manually as /<name> — never automatically. Documented limit: 12000 characters per workflow file, which every bundled role fits with room to spare. The frontmatter fields are NOT documented; `description` is emitted because the surrounding tooling uses it, and it is inert if Windsurf ignores it. AGENTS.md support is not documented, so the routing block also goes to .windsurf/rules/."
 }

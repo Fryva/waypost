@@ -2,28 +2,21 @@
   "id": "gemini",
   "name": "Gemini CLI",
   "vendor": "Google",
-  "home": "https://github.com/google-gemini/gemini-cli",
   "confidence": "documented",
-  "docs": "https://google-gemini.github.io/gemini-cli/docs/cli/commands.html",
-  "detect": [
-    ".gemini",
-    "GEMINI.md"
-  ],
-  "env": [
-    "GEMINI_CLI",
-    "GEMINI_SANDBOX"
-  ],
-  "instructions": [
-    "GEMINI.md",
-    "AGENTS.md"
-  ],
-  "invoke": "/mps:<role> <target>",
+  "docs": "https://github.com/google-gemini/gemini-cli/blob/main/docs/core/subagents.md",
+  "detect": [".gemini", "GEMINI.md"],
+  "env": ["GEMINI_CLI", "GEMINI_SANDBOX"],
+  "instructions": ["GEMINI.md", "AGENTS.md"],
+  "invoke": "delegate to the `mps-<role>` subagent",
   "roles": {
-    "shape": "toml-prompt",
-    "dir": ".gemini/commands/mps",
-    "file": "{role}.toml",
+    "shape": "frontmatter-md",
+    "dir": ".gemini/agents",
+    "file": "{prefix}{role}.md",
     "model": false,
-    "prefix_in_name": false
+    "fields": [
+      ["name", "{prefix}{role}"],
+      ["description", "{description}"]
+    ]
   },
-  "notes": "Gemini CLI custom commands are TOML; the directory name becomes the command namespace, so the roles are /mps:critic rather than /mps-critic."
+  "notes": "Gemini CLI gained subagents: Markdown + YAML frontmatter in .gemini/agents/ (user level ~/.gemini/agents/), body = system prompt. Roles use that rather than the TOML custom commands in .gemini/commands/, which remain TOML but are a worse fit — a command runs in the current context, a subagent gets its own. `tools` is omitted deliberately: Gemini's tool names (read_file, run_shell_command, …) are not the Claude vocabulary, and naming them wrongly would strip the role's tools."
 }

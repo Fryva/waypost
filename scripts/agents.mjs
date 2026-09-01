@@ -217,6 +217,13 @@ function renderTools(style, role) {
     const names = [...new Set(role.tools.map((t) => COPILOT_TOOLS[t]).filter(Boolean))];
     return `[${names.map(scalar).join(", ")}]`;
   }
+  if (style === "opencode-permission") {
+    // Current OpenCode: `permission` with allow/ask/deny, which is what actually
+    // gates the tool. The older `tools:` booleans are legacy.
+    const rows = [["edit", role.access === "read-only" ? "deny" : "allow"],
+      ["bash", "allow"], ["webfetch", role.tools.includes("web") ? "allow" : "deny"]];
+    return "\n" + rows.map(([k, v]) => `  ${k}: ${v}`).join("\n");
+  }
   if (style === "opencode-map") {
     const allowed = new Set(role.tools.flatMap((t) => (t === "web" ? ["webfetch"] : [t])));
     if (role.access === "read-only") for (const w of ["edit", "write", "patch"]) allowed.delete(w);
@@ -460,13 +467,22 @@ function renderRole(h, role, model) {
       const fm = frontmatter(spec.fields, vars, role, spec);
       return `${fm ? fm + "\n" : ""}<!-- ${MARK} -->\n\n${preamble(role, h)}${role.body}`;
     }
-    case "toml-prompt": {
+    case "toml-prompt":
+    case "toml": {
       const q = (v) => JSON.stringify(String(v));
+      const bodyKey = spec.body_key || "prompt";
+      const head = (spec.fields || [["description", "{description}"]]).map(([k, tpl]) => {
+        const v = /^\{\w+\}$/.test(tpl) ? vars[tpl.slice(1, -1)] : fill(tpl, vars);
+        return v ? `${k} = ${q(v)}` : null;
+      }).filter(Boolean);
+      // A TOML basic multi-line string ends at the first unescaped `"""`, so a
+      // prompt containing one would truncate the file silently.
+      const body = (spec.preamble === false ? "" : preamble(role, h)) + role.body;
       return [
-        `description = ${q(role.description)}`,
+        ...head,
         `# ${MARK}`,
-        'prompt = """',
-        preamble(role, h) + role.body.replace(/"""/g, '\\"\\"\\"'),
+        `${bodyKey} = """`,
+        body.replace(/"""/g, '\\"\\"\\"'),
         '"""',
         "",
       ].join("\n");

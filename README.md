@@ -98,16 +98,17 @@ file, and a project can add or override an entry in `.mps/harnesses/`:
 | id | Harness | Roles land in | Confidence |
 |----|---------|---------------|------------|
 | `claude` | Claude Code | `.claude/agents/mps-<role>.md` | verified |
-| `codex` | Codex CLI | `.codex/prompts/mps-<role>.md` | documented |
-| `opencode` | OpenCode | `.opencode/agent/mps-<role>.md` | documented |
+| `codex` | Codex CLI | `.codex/agents/mps-<role>.toml` (`sandbox_mode: read-only`) | documented |
+| `opencode` | OpenCode | `.opencode/agents/mps-<role>.md` | documented |
+| `gemini` | Gemini CLI | `.gemini/agents/mps-<role>.md` | documented |
+| `copilot` | GitHub Copilot | `.github/agents/mps-<role>.agent.md` | documented |
 | `kimi` | Kimi Code CLI (Moonshot) | `.kimi-code/agents/mps-<role>.md` | documented |
 | `qwen` | Qwen Code (Alibaba) | `.qwen/agents/mps-<role>.md` | documented |
 | `zcode` | ZCode (Z.ai / Zhipu) | `.zcode/agents/mps-<role>.md` | documented |
 | `codebuddy` | CodeBuddy Code (Tencent) | `.codebuddy/agents/mps-<role>.md` | documented |
-| `dsh` | DeepSeek Harness | — (registers subagents in code; routing block only) | documented |
-| `lingma` | Tongyi Lingma (Alibaba) | `.lingma/rules/mps-<role>.md` | documented |
-| `cursor` · `windsurf` · `cline` | Cursor, Windsurf, Cline | rules / workflows | documented |
-| `copilot` · `gemini` · `roo` | Copilot, Gemini CLI, Roo Code | chat mode / command / `.roomodes` | documented |
+| `dsh` | DeepSeek Harness | — (subagents live in code; routing block only) | documented |
+| `cursor` · `windsurf` · `cline` · `lingma` | rules / workflows | per-tool rule files | documented |
+| `roo` | Roo Code | `.roomodes` (merged, your own modes untouched) | documented |
 | `trae` · `iflow` | Trae (ByteDance), iFlow | rules / agents | inferred |
 | anything else | — | `<your-cli> "$(mps agents show critic) <target>"` |
 
