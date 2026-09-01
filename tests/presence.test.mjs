@@ -103,7 +103,10 @@ test("a sync client's conflicted copies are reported, never read as peers", () =
     writeFileSync(join(presenceDir(vault), "s1 2.json"), "{}", "utf8");                        // iCloud
     writeFileSync(join(presenceDir(vault), "s1 (conflicted copy 2026-09-01).json"), "{}", "utf8"); // Dropbox
     const view = peers(vault, { self: "s1" });
-    assert.equal(view.peers.length, 1, "duplicates are not extra sessions");
+    // `mps bind` in the fixture beats too, so count only what came from s1:
+    // the point is that its duplicates did not become extra sessions.
+    assert.deepEqual(view.peers.filter((p) => p.session === "s1").length, 1,
+      "duplicates are not extra sessions");
     assert.equal(view.conflicts.length, 2, "…they are evidence that two devices wrote at once");
   });
 });

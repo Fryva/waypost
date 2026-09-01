@@ -1,162 +1,161 @@
-# ADR-0003: Роли агентов: одно нейтральное определение + адаптеры под харнесы
+# ADR-0003: Agent roles: one neutral definition plus per-harness adapters
 
 - Status: proposed
 - Date: 2026-08-29
-- Deciders: не утверждено владельцем проекта; статус `proposed`
+- Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
-- Related: `agents/*.md`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, ADR-0001
+- Related: `agents/*.md`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, ADR-0001, ADR-0005
 - code_refs: ["scripts/agents.mjs", "agents/critic.md", "agents/planner.md", "agents/reviewer.md", "agents/librarian.md", "agents/archaeologist.md", "templates/agents-block.md.tmpl", "scripts/doctor.mjs", "tests/harness.test.mjs", "bin/mps"]
 
 ## Context
 
-В ProjectStore пять ролей (critic, planner, reviewer, librarian, archaeologist) — это файлы
-`agents/*.md` с frontmatter Claude Code (`model: opus`, `effort: max`, `tools: Read, Grep…`),
-которые харнес сам подхватывает как субагентов. Ни Codex, ни OpenCode этот формат не читают:
-у OpenCode свой формат агента (`.opencode/agent/*.md`, `mode: subagent`, карта инструментов
-allow/deny), у Codex субагентов нет вообще — есть пользовательские промпты
-(`~/.codex/prompts/*.md`) и запуск отдельного процесса `codex exec`.
+In ProjectStore the five roles (critic, planner, reviewer, librarian,
+archaeologist) are `agents/*.md` files with Claude Code frontmatter
+(`model: opus`, `effort: max`, `tools: Read, Grep…`) that the harness picks up as
+subagents. Neither Codex nor OpenCode reads that format: OpenCode has its own
+agent format, and Codex had no subagents at all at the time — only custom
+prompts and `codex exec`.
 
-Первая версия форка роли просто потеряла: `agents/` не переносился, а `AGENTS.md` предлагал
-«выполнять critic/planner/reviewer самим агентом». Это ломает главное свойство ролей —
-независимый проход со свежим контекстом: ревью собственной работы в собственном контексте
-и есть та самая предвзятость самоодобрения, ради которой роли существуют.
+The first version of the fork simply lost the roles: `agents/` was not ported and
+`AGENTS.md` suggested "perform critic/planner/reviewer yourself". That destroys
+the one property that makes a role worth its cost — an independent pass with a
+fresh context. Reviewing your own work in your own context is exactly the
+self-approval bias the roles exist to remove.
 
 ## Decision drivers
 
-- Одна формулировка роли на все харнесы: расхождение промптов между харнесами — это
-  расхождение качества проверки.
-- Свежий контекст обязателен даже там, где нет субагентов.
-- Не выдумывать за пользователя модель там, где у харнеса нет устойчивых имён тиров.
-- Детерминированно отличать «установлено и актуально» от «устарело» — без LLM.
-- Не создавать каталоги харнеса, которым проект не пользуется.
+- One wording of a role for every harness: divergent prompts are divergent
+  review quality.
+- A fresh context is mandatory even where there are no subagents.
+- Do not invent a model for a harness that has no stable tier naming.
+- Tell "installed and current" from "installed and stale" deterministically,
+  without an LLM.
+- Never create a directory for a harness the project does not use.
 
 ## Considered options
 
-### Option 1: нейтральное определение + генерация под каждый харнес (выбран)
+### Option 1: a neutral definition plus generated per-harness files (chosen)
 
-`agents/<role>.md` с нейтральным frontmatter: `name`, `description`, `mode`,
-`model: reasoning|balanced|fast` (тир, не id модели), `effort`, `access: read-only`,
-`tools: [read, grep, glob, bash, web]` (словарь закрытый; неизвестный инструмент — ошибка при
-чтении роли). `mps agents install` рендерит из него нативный файл харнеса: Claude Code —
-`.claude/agents/mps-<role>.md` (тир → `opus`), OpenCode — `.opencode/agent/mps-<role>.md`
-(`mode: subagent` + карта инструментов, где `write/edit/patch` выключены read-only ролям),
-Codex — `.codex/prompts/mps-<role>.md` (промпт с `$ARGUMENTS`). Все скалярные значения
-frontmatter экранируются как YAML double-quoted: описания ролей содержат `": "`, а плоский
-скаляр на нём заканчивается. Для всего остального `mps agents show <role>` печатает голый
-промпт: `codex exec "$(mps agents show critic) <target>"`.
+`agents/<role>.md` carries neutral frontmatter: `name`, `description`, `summary`,
+`mode`, `model: reasoning|balanced|fast` (a tier, not a vendor id), `effort`,
+`access: read-only`, `tools: [read, grep, glob, bash, web]` — a closed
+vocabulary, where an unknown tool is an error at read time. `mps agents install`
+renders that into each harness's native file (see ADR-0005 for the registry that
+describes them). Every emitted frontmatter scalar is escaped as a YAML
+double-quoted string: role descriptions contain `": "`, and a plain scalar ends
+there.
 
-**Read-only — контракт, а не полная изоляция.** Карта инструментов OpenCode запрещает
-`edit/write/patch`, но `bash: true` остаётся: этим ролям нужны `git diff`, `git log`,
-`mps doctor`. То есть запрет правок выражен на языке харнеса там, где харнес это умеет, а
-запрет писать через shell — проза в теле роли, одинаково во всех трёх.
+For anything with no role format at all, `mps agents show <role>` prints the raw
+prompt: `codex exec "$(mps agents show critic) <target>"`.
 
-**Плюсы:** один источник; запрет правок выражается на языке каждого харнеса, который это
-умеет; расширение — новый файл в `agents/`, а не правка адаптеров; провенанс с хешем
-**рендера** даёт doctor детерминированную проверку свежести; префикс `mps-` исключает
-коллизии с ролями пользователя.
-**Минусы:** сгенерированные файлы нужно переустанавливать при изменении источника, конфига
-или адаптера (закрыто проверкой doctor и `--fix`); нейтральный frontmatter — ещё один формат,
-который надо знать.
+**Read-only is a contract, not full isolation.** Where a harness has a tool map
+or a sandbox mode, edits are denied there (OpenCode's `permission: edit: deny`,
+Codex's `sandbox_mode = "read-only"`, Claude's `disallowedTools`). The shell
+stays available everywhere, because these roles need `git diff`, `git log` and
+`mps doctor` — so "never write" is also carried by the role prompt itself.
 
-### Option 2: писать нативные файлы для каждого харнеса руками
+**Pros:** one source; restrictions expressed in each harness's own language where
+it has one; extension is a new file in `agents/`, not a new branch in a renderer;
+provenance with a hash of the render gives doctor a deterministic freshness
+check; the `mps-` prefix cannot collide with a user's own agents.
+**Cons:** generated files must be reinstalled when the source, the config or an
+adapter changes (closed by doctor and `--fix`); the neutral frontmatter is one
+more format to know.
 
-**Плюсы:** ноль кода-генератора.
-**Минусы:** три копии одного промпта, которые неизбежно расходятся; невозможно
-детерминированно проверить актуальность. Отвергнуто.
+### Option 2: hand-write native files for every harness
 
-### Option 3: только `mps agents show` (никакой установки)
+**Pros:** no generator.
+**Cons:** N copies of one prompt that inevitably diverge, and no way to check
+freshness deterministically. Rejected.
 
-**Плюсы:** минимум механики.
-**Минусы:** в Claude Code и OpenCode роли не появляются там, где пользователь их ищет
-(субагенты), и вызов роли становится ручной операцией. Отвергнуто как понижение
-эргономики до уровня «инструкция в документации».
+### Option 3: `mps agents show` only, with no installation
+
+**Pros:** minimal machinery.
+**Cons:** the roles never appear where a user looks for them (subagents), and
+invoking one becomes a manual ritual. Rejected as a downgrade to
+"documented somewhere".
 
 ## Decision
 
-Принять вариант 1. Роли — часть ядра форка наравне с vault-механикой; харнес-специфичным
-остаётся только рендер.
+Take option 1. Roles are part of the fork's core, like the vault mechanics; only
+the rendering is harness-specific.
 
-Модель разрешается по харнесу:
+Model resolution, per harness:
 `agents.per_harness.<harness>.model` → (`agents.per_agent.<role>.model` ??
-`agents.default.model`, но **только** для харнесов с непустой картой тиров) → тир харнеса.
-Средние два ключа харнес-слепые, поэтому не доходят до харнеса, для которого их значение
-заведомо невалидно: `mps agents model default sonnet` пишет `sonnet` в Claude Code, а для
-OpenCode нужен `mps agents model harness:opencode anthropic/…`.
+`agents.default.model`, **only** where the registry maps tiers onto real ids) →
+the tier mapping itself. The middle two keys are harness-blind, so they must not
+reach a harness whose ids they cannot be valid for: `mps agents model default
+sonnet` writes `sonnet` for Claude Code, while OpenCode needs
+`mps agents model harness:opencode anthropic/…`. A format that carries no model
+at all (a rule file) refuses the pin outright — accepting a key and discarding it
+at render time is worse than saying no.
 
-Отдельный от «пустой карты тиров» факт: формат Codex вообще не несёт модель — она
-принадлежит сессии Codex, а не промпту. Поэтому `mps agents model harness:codex` не
-принимается вовсе; принять ключ и молча выбросить его при рендере хуже, чем отказать.
+Freshness is decided by a **byte comparison** against what install would write
+now, so a changed model or a changed adapter is as visible as a changed
+`agents/<role>.md`. The render hash in the provenance line is not the mechanism
+of that check — it marks provenance and distinguishes "edited by hand" from
+"source, config or adapter changed" in the finding text.
 
-Тир в `agents/<role>.md` — закрытый словарь (`reasoning|balanced|fast`), как и список
-инструментов: файл роли из апстрима (`model: opus`) отвергается с указанием файла, а не
-рендерится молча без модели.
+A file under the `mps-` prefix without a provenance line is someone else's:
+`install` skips it (`skipped (not ours)`), `uninstall` never deletes it, and
+doctor reports it under its own `agent-roles-foreign` check, which `--fix` does
+not act on.
 
-Свежесть определяется **побайтовым сравнением** файла с тем, что install записал бы сейчас —
-поэтому смена модели в конфиге или правка адаптера видны так же, как правка
-`agents/<role>.md`. Хеш рендера в строке провенанса — не механизм этой проверки, а маркер
-происхождения: он отличает «файл правили руками» от «изменился источник, конфиг или
-адаптер» в тексте находки.
+If no harness is named and none is detected, `install` refuses and lists the
+choices: guessing "install into all of them" created `.claude/`, `.opencode/`
+and `.codex/` in a project that used none — and since detection is by directory,
+the guess made itself true forever. For the same reason `uninstall` removes the
+directories it emptied, and `doctor --fix` only repairs `issue`/`warn` levels:
+on `info` ("this harness has no mps roles") it used to install roles nobody had
+asked for, undoing an explicit uninstall.
 
-Файл под префиксом `mps-` без строки провенанса — чужой: `install` его пропускает
-(`skipped (not ours)`), `uninstall` не удаляет, а doctor сообщает о нём под отдельным
-идентификатором `agent-roles-foreign`, на который `--fix` не реагирует.
-
-Если харнес не задан и не определился по каталогам, `install` отказывается работать и
-называет варианты: догадка «поставим во все три» создавала `.claude/`, `.opencode/` и
-`.codex/` в проекте, который не пользуется ни одним, а детект идёт по каталогам — то есть
-догадка делала себя истинной навсегда. По той же причине `uninstall` удаляет и опустевшие
-каталоги, а `doctor --fix` чинит только уровни `issue`/`warn`: на `info` («харнес есть,
-ролей нет») он ставил роли, которые пользователь не просил, и тем отменял только что
-выполненный `uninstall`.
+**Context budget (see ADR-0008).** A harness injects every agent's *description*
+into the main context of every session, so the roles carry a short `summary`
+which is what the generated files and the routing block use; the long
+`description` stays in the source for `mps agents list -v` and for humans.
 
 ## Consequences
 
 ### Positive
 
-- Одинаковые роли и одинаковый промпт в Claude Code, Codex, OpenCode и в любом другом
-  раннере через `mps agents show`.
-- `mps doctor` сообщает per-harness состояние (`current`/`stale`/`foreign`/`absent`), а
-  `mps doctor --fix` перегенерирует устаревшие файлы.
-- Файл под префиксом `mps-` без строки провенанса считается пользовательским: его не удаляют
-  и не перезаписывают.
+- The same roles and the same prompt in every supported harness, and in any
+  other runner through `mps agents show`.
+- `mps doctor` reports per-harness state (`current`/`stale`/`foreign`/`absent`),
+  and `mps doctor --fix` re-renders what drifted.
+- A file under the `mps-` prefix that mps did not generate is never touched.
 
 ### Negative / risks
 
-- Форматы харнесов меняются; при изменении формата OpenCode/Codex адаптер придётся править
-  (локализовано в `scripts/agents.mjs`).
-- Тир→модель для Claude Code зашит как `reasoning→opus`: при появлении новых семейств
-  потребуется правка карты (или `mps agents model`).
-- Codex читает промпты из `~/.codex/prompts`, а не из проекта: установка печатает команду
-  копирования, но не пишет в домашний каталог пользователя сама. Следствие, которое надо
-  знать: проверка свежести смотрит на проектную копию, поэтому после `install` домашняя копия
-  может остаться старой и doctor этого не увидит.
-- Read-only в OpenCode закрывает правки, но не shell; заявлять «харнес обеспечивает
-  read-only» целиком нельзя (см. раздел выше).
-- `~/.codex/prompts` — глобальный каталог: два проекта с разными правками ролей или разными
-  моделями перезапишут друг другу `mps-<role>.md`, и doctor ни одного из них этого не увидит.
-- Возможности ролей по харнесам не идентичны, хотя промпт идентичен: Claude Code получает
-  `WebFetch, WebSearch`, OpenCode — только `webfetch`.
+- Harness formats change; when one does, the adapter (or the registry entry)
+  has to be updated — localised in `scripts/agents.mjs` and `harnesses/*.json`.
+- The Claude tier mapping (`reasoning → opus`) is hard-coded; new model families
+  mean editing that map or using `mps agents model`.
+- A harness whose sub-agents are user-level only (ZCode) gets project files plus
+  a printed copy step; the freshness check then watches the project copy, not
+  the home one.
+- `~/.codex/prompts` and other home directories are global across projects: two
+  projects with different role edits would overwrite each other there.
+- Capabilities are not identical across harnesses even though the prompt is:
+  Claude Code gets `WebFetch, WebSearch`, OpenCode only `webfetch`.
 
 ## Verification and follow-up
 
-- `tests/harness.test.mjs`: нейтральность определений, рендер под три харнеса с провенансом,
-  корректность frontmatter (правила плоского скаляра YAML для каждой роли × харнеса),
-  отказ на неизвестном инструменте, идемпотентность install, отказ без харнеса, защита чужого
-  файла в `install` и в `doctor --fix`, устаревание при смене модели, отсутствие протечки
-  харнес-слепой модели в OpenCode/Codex, `mps agents model harness:<name>`, идемпотентность
-  `register`, вывод `show`, отсутствие ссылок на несуществующие ADR в пользовательских
-  сообщениях.
-- `node --test tests/*.test.mjs` — зелёный (196 тестов на момент этой редакции).
-- 2026-08-29 по этому ADR прогнаны два critic-пасса (Opus; первый — 16 запросов, $1.62,
-  второй — 12 запросов, $1.62). Первый нашёл, что первая редакция обещала три гарантии,
-  которых код не давал: install перезаписывал чужие файлы (и `doctor --fix` делал это по
-  собственному предупреждению), 9 из 15 генерируемых файлов имели невалидный YAML, а хеш
-  провенанса не ловил смену модели и адаптера. Второй подтвердил, что это закрыто, и нашёл
-  два новых блокера: `agents model harness:codex` принимался и молча терялся, а `uninstall`
-  оставлял пустые каталоги, из-за чего детект возвращал все три харнеса и следующий
-  `doctor --fix` (срабатывавший тогда и на `info`) заново ставил все 15 файлов. Оба
-  исправлены здесь; он же указал, что причинность «хеш → детект дрейфа» в тексте была
-  неверной — формулировка выше переписана.
-- Живая проверка в самих Codex/OpenCode владельцем проекта по-прежнему не выполнялась:
-  проверены формат генерации и пути, но не поведение конкретных версий этих CLI.
+- `tests/harness.test.mjs`: neutrality of the definitions; a render per harness
+  with provenance and a matching hash; frontmatter scalar rules for every role ×
+  harness; rejection of an unknown tool and of a vendor id used as a tier;
+  install idempotence; refusal without a harness; a foreign file surviving
+  `install` and `doctor --fix`; staleness after a model change; no leak of a
+  harness-blind pin into a harness that cannot use it; `mps agents model
+  harness:<name>`; `register` idempotence; `show` output; and the token budgets
+  from ADR-0008.
+- 2026-08-29: two critic passes were run over this ADR (Opus; 16 and 12
+  requests, $1.62 each). The first found that three of its four load-bearing
+  guarantees did not hold: install overwrote foreign files (and `doctor --fix`
+  did so on the strength of its own warning), nine of fifteen generated files
+  had unparseable YAML, and the provenance hash missed model and adapter
+  changes. The second confirmed those closed and found two more: a model pinned
+  for a format that carries none was silently discarded, and `uninstall` left
+  empty directories that made detection resurrect the harness. All fixed here.
+- Live behaviour inside the harnesses themselves has not been verified by the
+  project owner; ADR-0005 records the per-entry confidence levels.

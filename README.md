@@ -29,19 +29,24 @@ deterministic `mps doctor` checks mechanical consistency with zero AI.
 ## Quick start
 
 ```bash
-# Pure node, no dependencies. Either put bin/mps on PATH or call it directly.
-bin/mps bind ~/Documents/my-project-vault      # bind + scaffold the layout
-bin/mps agents install                         # roles into the harnesses in use
-bin/mps agents register                        # routing block in AGENTS.md
-bin/mps draft adr "Use Postgres for primary storage" --write
-bin/mps doctor
+# Pure node, no dependencies. Put bin/mps on PATH, or call it directly.
+mps setup     # binds a vault, scaffolds it, installs the roles for whichever
+              # harnesses this project uses, registers them, and repairs the
+              # mechanical findings. Idempotent; --dry-run to look first.
 ```
 
-At the start of a working session, in any harness:
+That is the whole installation. Afterwards:
 
 ```bash
-bin/mps brief
+mps           # is this set up, and what does it need right now
+mps next      # the same, ranked, with the command for each
+mps brief     # orientation at the start of a session, in any harness
+mps draft adr "Use Postgres for primary storage" --write
 ```
+
+`setup` adopts a vault the project already has (`vault/`, `docs/vault/`,
+`knowledge/`) instead of creating a second one, detects the harnesses from the
+directories they own, and leaves `mps doctor` clean.
 
 Every artifact is plain markdown in git. Open the vault in Obsidian for the
 graph and board views; GitHub and any editor render it otherwise.
@@ -50,6 +55,8 @@ graph and board views; GitHub and any editor render it otherwise.
 
 | Command | Purpose |
 |---------|---------|
+| `mps setup` | the whole install in one idempotent command (`--dry-run`) |
+| `mps next` | what the project needs right now, ranked, with the command for each |
 | `mps bind <vault>` | bind a vault and scaffold the layout (`--layout`, `--lang`, `--force`) |
 | `mps scaffold` | (re)create the layout's folders and index READMEs |
 | `mps brief` | session-start orientation packet (no hook required) |

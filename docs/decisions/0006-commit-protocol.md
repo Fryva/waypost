@@ -1,134 +1,146 @@
-# ADR-0006: Протокол коммитов для параллельной работы в разных харнесах
+# ADR-0006: A commit protocol for parallel work across harnesses
 
 - Status: proposed
 - Date: 2026-09-01
-- Deciders: не утверждено владельцем проекта; статус `proposed`
+- Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
-- Related: ADR-0003 (роли), ADR-0004 (пути), `scripts/commit.mjs`, `scripts/merge-derived.mjs`
+- Related: ADR-0003 (roles), ADR-0004 (paths), ADR-0007 (shared vaults), `scripts/commit.mjs`, `scripts/merge-derived.mjs`
 - code_refs: ["scripts/commit.mjs", "scripts/merge-derived.mjs", "scripts/sessions.mjs", "scripts/doctor.mjs", "bin/mps", "tests/commits.test.mjs"]
 
 ## Context
 
-Форк изначально рассчитан на то, что один проект ведут из разных харнесов. Отсюда следует
-то, чего в однохарнесовом ProjectStore не было: **одновременно** работают несколько сессий —
-Claude Code в терминале, Codex в другом окне, Cursor в редакторе, — и все пишут в один
-репозиторий и один vault.
+The fork exists so that one project can be driven from different harnesses. That
+implies something upstream never had to handle: several sessions working **at the
+same time** — Claude Code in a terminal, Codex in another window, Cursor in the
+editor — all writing to one repository and one vault.
 
-Это даёт три разных вида путаницы, и лечатся они по-разному:
+That produces three distinct kinds of confusion, and they need different answers:
 
-1. **История не говорит, кто что сделал.** Через неделю по `git log` невозможно понять,
-   какой коммит из какой сессии и какого харнеса, и какой истории он служил.
-2. **Производные представления конфликтуют в каждом merge.** `kanban.md`, `graph.md`,
-   `code-map.md` и индексы папок генерируются. Две сессии добавили по истории — git просит
-   человека руками слить два машинно сгенерированных файла, у которых единственный
-   правильный результат: выбросить обе версии и пересобрать.
-3. **Две сессии открывают одну историю.** Никто не узнаёт об этом до момента, когда работа
-   уже сделана дважды.
+1. **The history cannot say who did what.** A week later `git log` cannot tell
+   which commit came from which session or harness, or which story it served.
+2. **Derived views conflict on every merge.** `kanban.md`, `graph.md`,
+   `code-map.md` and the folder indexes are generated. Two sessions each add a
+   story, and git asks a human to merge two machine-written files whose only
+   correct resolution is "throw both away and regenerate".
+3. **Two sessions open the same story.** Nobody finds out until the work has
+   been done twice.
 
 ## Decision drivers
 
-- Никакого сервера и никакой синхронизации: координация должна работать через файлы, которые
-  и так есть (git и реестр сессий в vault).
-- Соглашение, которое нельзя соблюсти из четвёртого харнеса, хуже отсутствия соглашения.
-- Запись должна быть машинно-читаемой штатными средствами git, а не нашим парсером.
-- Гейт там, где ошибка становится необратимой (коммит), предупреждение там, где она ещё
-  обратима (открытие истории).
+- No server and no synchronisation service: coordination has to work through
+  files that already exist (git, and the session registry in the vault).
+- A convention that cannot be followed from a fourth harness is worse than none.
+- The record must be machine-readable by standard git, not by our parser.
+- Gate where a mistake becomes permanent (the commit); warn where it is still
+  reversible (opening a story).
 
 ## Considered options
 
-### Option 1: git-трейлеры + merge-драйвер + заявки в реестре сессий (выбран)
+### Option 1: git trailers + a merge driver + claims in the session registry (chosen)
 
-**Запись.** Каждый коммит несёт трейлеры:
+**The record.** Every commit carries trailers:
 
 ```
-Mps-Harness: claude
-Mps-Session: claude-01H…
-Mps-Story:   PS-1/story-codex-adapter
+Mps-Harness:  claude
+Mps-Session:  claude-01H…
+Mps-Provider: kimi          (when the harness is pointed at a model vendor)
+Mps-Story:    PS-1/story-codex-adapter
 ```
 
-Это стандартный механизм git: `git interpret-trailers --parse`, `git log --format=%(trailers)`,
-`--grep` — всё работает без нашего кода. Тема коммита намеренно не регламентируется: человек
-или агент в незнакомом харнесе должен уметь соблюсти соглашение, дописав три строки.
+This is git's own mechanism: `git interpret-trailers --parse`,
+`git log --format=%(trailers)`, `--grep` all work without our code. The subject
+line is deliberately unregulated: a human or an agent in an unfamiliar harness
+must be able to comply by adding three lines.
 
-**Производные представления.** `.gitattributes` помечает их `merge=mps-derived`, драйвер
-(`mps merge-derived`) игнорирует обе стороны и пересобирает файл из артефактов — они к этому
-моменту уже слиты самим git. Конфликт в сгенерированном файле перестаёт существовать как класс.
+**Derived views.** `.gitattributes` marks them `merge=mps-derived`, and the
+driver (`mps merge-derived`) ignores both sides and regenerates the file from the
+artifacts — which git has already merged by then. A conflict in a generated file
+stops existing as a class.
 
-**Заявки.** `mps story plan --write` записывает claim в файл сессии в vault, `close` его
-снимает; `mps sessions` показывает, кто на чём; `mps commit --story X` отказывается
-коммитить историю, которую держит другая живая сессия, пока не передадут `--force`.
-Реестр сессий лежит в vault, значит его видят все харнесы, привязанные к этому vault, —
-это и есть канал координации.
+**Claims.** `mps story plan --write` records a claim in this session's file in
+the vault and `close` releases it; `mps sessions` shows who is on what; and
+`mps commit --story X` refuses to commit a story another live session holds
+until `--force` is passed. The registry lives in the vault, so every harness
+bound to it sees the same answer — that is the coordination channel.
 
-**Плюсы:** ноль инфраструктуры; git сам умеет читать запись; конфликт по доске исчезает;
-дублирование работы обнаруживается до того, как попадёт в историю.
-**Минусы:** трейлеры появляются только у коммитов, сделанных через `mps commit` (коммит
-руками их не получит — `mps log` честно считает такие и говорит, сколько их); claim живёт
-30 минут и опирается на стабильный идентификатор сессии.
+**Pros:** zero infrastructure; git reads the record itself; board conflicts
+disappear; duplicated work is caught before it reaches the history.
+**Cons:** trailers only appear on commits made through `mps commit` (a hand-made
+commit gets none — `mps log` counts those honestly); a claim lives inside a
+liveness window and depends on a stable session id.
 
-### Option 2: ветка на сессию плюс правила слияния
+### Option 2: a branch per session plus merge rules
 
-**Плюсы:** физическая изоляция параллельной работы.
-**Минусы:** не отвечает ни на один из трёх вопросов внутри ветки, а конфликт по доске просто
-переносит в merge. Ортогонально принятому: ветки можно использовать сверху. Отвергнуто как
-самостоятельное решение.
+**Pros:** physical isolation of parallel work.
+**Cons:** answers none of the three questions *within* a branch, and merely
+postpones the board conflict to merge time. Orthogonal to what was chosen —
+branches can be layered on top. Rejected as a standalone answer.
 
-### Option 3: не коммитить производные представления вовсе (gitignore)
+### Option 3: do not commit derived views at all (gitignore them)
 
-**Плюсы:** конфликтов нет по построению.
-**Минусы:** доска и граф перестают быть частью того, что видит человек в GitHub и в клоне;
-теряется главное свойство — «vault читается без инструмента». Отвергнуто.
+**Pros:** no conflicts by construction.
+**Cons:** the board and the graph stop being part of what a human sees on GitHub
+or in a clone, which loses the property that the vault is readable without the
+tool. Rejected.
 
 ## Decision
 
-Принять вариант 1 целиком: трейлеры как запись, merge-драйвер как разрешение конфликтов по
-производным файлам, заявки в реестре сессий как предупреждение о параллельной работе.
+Take option 1 whole: trailers as the record, the merge driver as the resolution
+for derived files, claims in the session registry as the warning about parallel
+work.
 
-Отдельно: `git merge` коммитит сам, и драйвер в этот момент пересобирает доску из рабочего
-дерева, которое git ещё не дочекаутил, — доска в merge-коммите может оказаться на одну
-историю беднее. Поэтому `mps merge <ref>` делает `--no-commit`, пересобирает и коммитит
-через тот же путь: корректная доска попадает в сам merge-коммит. Если пользоваться обычным
-`git merge`, остаточное расхождение ловит `mps doctor` (проверка `kanban`) и чинит
-`mps reconcile --write` — это задокументированное, а не молчаливое поведение.
+Separately: `git merge` commits by itself, and at that moment the driver
+regenerates the board from a worktree git has not finished checking out — so the
+board in a merge commit can be one artifact short. `mps merge <ref>` therefore
+merges with `--no-commit`, reconciles, and commits through the same path, which
+puts the correct board in the merge commit itself. With a plain `git merge` the
+residual drift is caught by `mps doctor` (the `kanban` check) and fixed by
+`mps reconcile --write` — documented behaviour rather than a silent gap.
 
-Идентификатор сессии берётся в порядке: `--id` → `$MPS_SESSION_ID` → идентификатор
-терминала/панели (`TERM_SESSION_ID`, `ITERM_SESSION_ID`, `TMUX_PANE`, `WT_SESSION`, …) →
-`<host>-<ppid>`. Харнесам рекомендуется экспортировать `MPS_SESSION_ID`: последний вариант
-верен, пока CLI дёргают из одного шелла, и распадается, если каждый вызов идёт из нового.
+Session identity resolves as: `--id` → `$MPS_SESSION_ID` → a terminal/pane id
+(`TERM_SESSION_ID`, `ITERM_SESSION_ID`, `TMUX_PANE`, `WT_SESSION`, …) →
+`<host>-<parent pid>`. Harnesses are encouraged to export `MPS_SESSION_ID`: the
+last fallback is right while one shell drives the CLI and falls apart when every
+call gets a new one.
 
 ## Consequences
 
 ### Positive
 
-- `mps log --story PS-1/story-x` и `--harness codex` отвечают на «кто это сделал» без
-  договорённостей в голове.
-- Слияние двух веток, каждая из которых добавила историю, проходит без конфликта, и доска в
-  merge-коммите содержит обе.
-- Попытка закрыть историю, которую держит другая сессия, останавливается до коммита.
-- `mps doctor` знает про драйвер и чинит его конфигурацию (она машинно-локальная, то есть
-  каждый клон настраивает у себя один раз).
+- `mps log --story PS-1/story-x`, `--harness codex` and `--provider deepseek`
+  answer "who did this" without anyone having agreed on anything in advance.
+- Merging two branches that each added a story produces no conflict, and the
+  merge commit's board holds both.
+- An attempt to close a story another session holds stops before the commit.
+- `mps doctor` knows about the driver and repairs its configuration, which is
+  machine-local — every clone wires it once.
 
 ### Negative / risks
 
-- Коммит мимо `mps commit` не имеет трейлеров; это видно в `mps log`, но не запрещено.
-- Заявка — факт с TTL, а не блокировка: упавший харнес не должен держать историю вечно,
-  поэтому «свежесть» решает 30-минутное окно.
-- Нестабильный идентификатор сессии (харнес не экспортирует свой, вызовы из разных шеллов)
-  порождает лишние записи в реестре; лечится `MPS_SESSION_ID` и `mps sessions --prune`.
-- Драйвер молча пересобирает файл: если пересборка невозможна, он выходит с ошибкой и
-  оставляет конфликт человеку — предпочтительнее, чем записать догадку.
+- A commit made outside `mps commit` has no trailers; that is visible in
+  `mps log`, but it is not forbidden.
+- A claim is a fact with a liveness window, not a lock: a crashed harness must
+  not hold a story forever, so a 30-minute window decides freshness.
+- An unstable session id (a harness that exports none, calls from different
+  shells) produces extra registry entries; `MPS_SESSION_ID` and
+  `mps sessions --prune` are the remedy.
+- The driver regenerates silently; when regeneration is impossible it exits
+  non-zero and leaves the conflict to a human, which is preferable to writing a
+  guess.
 
 ## Verification and follow-up
 
-- `tests/commits.test.mjs`: трейлеры распознаёт сам git (`interpret-trailers --parse`),
-  в том числе поверх существующего блока; `mps log` читает их обратно и фильтрует; ссылка на
-  историю разрешается через vault, а опечатка отвергается; claim другой живой сессии
-  блокирует коммит и снимается `--force`; гейт заявляет и освобождает; две ветки со своими
-  историями сливаются без маркеров конфликта и с полной доской в merge-коммите; doctor
-  сообщает о драйвере и чинит устаревшую конфигурацию; драйвер отказывается угадывать на
-  файле, который не является производным представлением. 215 тестов зелёные.
-- Живьём проверено на временных репозиториях: конфликт по `kanban.md`, `mps merge`,
-  параллельные claim из claude/codex/cursor.
-- Не проверено: поведение при одновременной записи в один файл сессии из двух процессов
-  (гонка на уровне файловой системы) — реестр рассчитан на редкие записи, но это допущение.
+- `tests/commits.test.mjs`: git's own parser recognises the trailer block,
+  including on top of an existing one; `mps log` reads them back and filters;
+  a story reference is resolved against the vault and a typo is rejected; a
+  claim by another live session blocks the commit and `--force` releases it; the
+  gate claims and releases; two branches with their own stories merge without
+  conflict markers and with a complete board in the merge commit; doctor reports
+  the driver and repairs a stale configuration; the driver refuses to guess on a
+  file that is not a derived view.
+- Live: temporary repositories with a real `kanban.md` conflict, `mps merge`,
+  and parallel claims from claude/codex/cursor sessions.
+- Not verified: two processes writing one session file at the same instant (a
+  filesystem-level race). The registry is written rarely enough for that to be
+  an accepted assumption rather than a tested one.

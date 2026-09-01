@@ -21,10 +21,11 @@ function project() {
   return proj;
 }
 
-function mps(proj, args, { expectFail = false } = {}) {
+function mps(proj, args, { expectFail = false, session = null } = {}) {
   const r = spawnSync(process.execPath, [MPS, ...args], {
     encoding: "utf8", cwd: proj, timeout: 30000,
-    env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO },
+    env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO,
+      ...(session ? { MPS_SESSION_ID: session } : {}) },
   });
   if (!expectFail) assert.equal(r.status, 0, `${args.join(" ")}\n${r.stderr}${r.stdout}`);
   return r;
@@ -770,4 +771,63 @@ test("a query beats reading a derived view whole, and the gap widens with the va
   const missing = mps(proj, ["graph", "--for", "adr/not-a-node.md"], { expectFail: true });
   assert.notEqual(missing.status, 0, "an unknown node is an error, not an empty answer");
   assert.match(missing.stderr, /vault-relative path/, "…and it says what a node key looks like");
+});
+
+// ─── setup and judgement ───────────────────────────────────────────────
+
+test("one command leaves a project ready, and says what it did", () => {
+  const proj = project();
+  writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");   // a harness in use
+
+  const dry = mps(proj, ["setup", "--dry-run"]).stdout;
+  assert.match(dry, /would bind vault/, "a dry run explains itself before touching anything");
+  assert.ok(!existsSync(join(proj, ".mps")), "…and touches nothing");
+
+  const out = mps(proj, ["setup"]).stdout;
+  assert.match(out, /install roles for claude/, "the harness in use is detected, not asked about");
+  assert.ok(existsSync(join(proj, ".mps", "projectstore.json")), "bound");
+  assert.ok(existsSync(join(proj, "vault", "adr", "README.md")), "vault scaffolded at a conventional path");
+  assert.ok(existsSync(join(proj, ".claude", "agents", `${PREFIX}critic.md`)), "roles installed");
+  assert.match(readFileSync(join(proj, "CLAUDE.md"), "utf8"), /mps:agents/, "roles routed");
+  assert.match(readFileSync(join(proj, ".gitignore"), "utf8"), /\.mps\//, "mechanical findings repaired");
+
+  const again = mps(proj, ["setup"]).stdout;
+  assert.match(again, /already bound/, "running it twice is safe and says so");
+});
+
+test("setup adopts a vault the project already has instead of making a second one", () => {
+  const proj = project();
+  mkdirSync(join(proj, "docs", "vault", "adr"), { recursive: true });
+  mps(proj, ["setup"]);
+  const cfg = JSON.parse(readFileSync(join(proj, ".mps", "projectstore.json"), "utf8"));
+  assert.match(cfg.vault_path, /docs\/vault$/, "an existing vault is found, not duplicated");
+});
+
+test("`mps next` ranks what to do, and `mps` alone answers the two real questions", () => {
+  const proj = project();
+  assert.match(mps(proj, []).stdout, /not set up[\s\S]*mps setup/,
+    "an unconfigured project is told the one command that configures it");
+
+  mps(proj, ["setup"]);
+  mps(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
+  mps(proj, ["draft", "story", "PS-1", "Story", "--write"]);
+  writeFileSync(join(proj, "vault", "kanban.md"), "hand-broken\n", "utf8");
+
+  const next = mps(proj, ["next"]).stdout;
+  assert.match(next, /kanban\.md is out of sync/, "a real inconsistency is surfaced");
+  assert.match(next, /mps reconcile --write/, "…with the command that fixes it");
+  assert.ok(next.length < 900, `next is a decision aid, not a report: ${next.length} chars`);
+
+  mps(proj, ["reconcile", "--write"]);
+  const clean = mps(proj, ["next"]).stdout;
+  assert.ok(!/kanban/.test(clean), "and it stops mentioning what is fixed");
+});
+
+test("presence beats on its own, so another device sees this session without being told", () => {
+  const proj = project();
+  mps(proj, ["setup"]);
+  mps(proj, ["doctor"], { session: "auto-1" });          // any working command
+  const state = JSON.parse(mps(proj, ["sessions", "--json"], { session: "auto-2" }).stdout);
+  assert.ok(state.active.some((s) => s.id === "auto-1"),
+    "a session that only ran doctor is still visible to the next device");
 });

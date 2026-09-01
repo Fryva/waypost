@@ -1,47 +1,50 @@
 # Architecture Decision Records
 
-MultiProjectStore (MPS) фиксирует архитектурные решения как markdown в git в этом
-каталоге. Формат и процесс повторяют механики ProjectStore (ADR), адаптированные
-под харнес-агностичный форк.
+MultiProjectStore (MPS) records architectural decisions as markdown in git, in
+this directory. The format and the process follow ProjectStore's, adapted for a
+harness-agnostic fork.
 
-## Процесс
+## Process
 
-1. Прочитать индекс (этот файл) и связанные ADR до проектирования.
-2. Скопировать `0000-template.md`, выдать следующий свободный номер и заполнить
-   контекст, факторы, варианты, последствия и `code_refs`.
-3. Пока выбор не утверждён — `Status: proposed`.
-4. Перед переводом из `proposed` в `accepted` — отдельный fresh-context critic-пасс
-   другим харнесом/агентом (не самопроверка автора).
-5. После решения обновить статус/дату/участников и индекс в этом файле.
+1. Read this index and the related ADRs before designing anything.
+2. Copy `0000-template.md`, take the next free number, and fill in the context,
+   the drivers, the options, the consequences and `code_refs`.
+3. A decision that has not been approved stays `Status: proposed`.
+4. Before moving from `proposed` to `accepted`: a separate fresh-context critic
+   pass, run by another harness or another agent — never the author's own
+   self-review.
+5. After a decision is made or superseded, update the status, the date, the
+   participants and this index.
 
-## Индекс ADR
+## Index
 
 | № | Status | Date | Title |
 |---|--------|------|-------|
-| [0001](0001-harness-agnostic-core.md) | proposed | 2026-08-28 | Харнес-агностичное ядро: единый CLI вместо hooks/slash-команд |
-| [0002](0002-vault-layout-policy.md) | proposed | 2026-08-28 | Layout `engineering` как стандарт по умолчанию, vault — markdown в git |
-| [0003](0003-agent-roles-across-harnesses.md) | proposed | 2026-08-29 | Роли агентов: одно нейтральное определение + адаптеры под харнесы |
-| [0004](0004-path-and-name-split.md) | proposed | 2026-08-29 | Разделение имён: vault ProjectStore-совместим, обвязка проекта — `.mps/` |
-| [0005](0005-harness-registry.md) | proposed | 2026-09-01 | Харнес — это данные: реестр `harnesses/*.json` вместо ветки в рендерере |
-| [0006](0006-commit-protocol.md) | proposed | 2026-09-01 | Протокол коммитов для параллельной работы в разных харнесах |
-| [0007](0007-shared-vault-presence.md) | proposed | 2026-09-01 | Одновременная работа с разных устройств и ОС: присутствие, аренды, сетевые диски |
-| [0008](0008-token-budget.md) | proposed | 2026-09-01 | Расход контекста как проектное ограничение, а не как результат |
+| [0001](0001-harness-agnostic-core.md) | proposed | 2026-08-28 | A harness-agnostic core: one CLI instead of hooks and slash commands |
+| [0002](0002-vault-layout-policy.md) | proposed | 2026-08-28 | The `engineering` layout as the default; the vault is markdown in git |
+| [0003](0003-agent-roles-across-harnesses.md) | proposed | 2026-08-29 | Agent roles: one neutral definition plus per-harness adapters |
+| [0004](0004-path-and-name-split.md) | proposed | 2026-08-29 | Name split: the vault stays ProjectStore-compatible, project wiring lives in `.mps/` |
+| [0005](0005-harness-registry.md) | proposed | 2026-09-01 | A harness is data: the `harnesses/*.json` registry instead of a branch in a renderer |
+| [0006](0006-commit-protocol.md) | proposed | 2026-09-01 | A commit protocol for parallel work across harnesses |
+| [0007](0007-shared-vault-presence.md) | proposed | 2026-09-01 | Working from several devices and operating systems: presence, leases, network drives |
+| [0008](0008-token-budget.md) | proposed | 2026-09-01 | Context spend as a design constraint, not an outcome |
 
-## Проверка перед завершением
+## Checklist before finishing
 
-- номер уникален, ссылки относительные;
-- статус соответствует факту принятия;
-- перечислены минимум два варианта;
-- последствия включают плюсы, минусы и риски;
-- при замене стоят взаимные ссылки;
-- `code_refs` заполнены и указывают на существующие пути;
-- индекс и связанная документация обновлены.
+- the number is unique and the links are relative;
+- the status reflects whether the decision was actually approved;
+- at least two options are recorded;
+- the consequences include the positives, the negatives and the risks;
+- a superseding ADR and the one it replaces link to each other;
+- `code_refs` are filled in and point at paths that exist;
+- this index and the related documentation are updated.
 
-## Детерминированный инструментарий
+## Deterministic tooling
 
-`bin/mps doctor` — единый доктор консистентности (без AI): install-секция проверяет
-привязку, шаблоны, роли по харнесам и блок маршрутизации, vault-секция — статусы, индексы,
-ссылки и гейты. Механические починки — `bin/mps doctor --fix`; производные представления —
-`bin/mps reconcile --write` (или `bin/mps graph|codemap|kanban`).
+`bin/mps doctor` is the single consistency checker (no AI): the install section
+covers the bind, the templates, the roles per harness and the routing block; the
+vault section covers statuses, indexes, links and gates. Mechanical repairs are
+`bin/mps doctor --fix`; derived views are rebuilt by `bin/mps reconcile --write`
+(or `bin/mps graph|codemap|kanban`).
 
-Тесты форка: `npm test` (`node --test tests/*.test.mjs`).
+Tests: `npm test` (`node --test tests/*.test.mjs`).

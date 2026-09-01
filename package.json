@@ -1,6 +1,6 @@
 {
   "name": "multiprojectstore",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Harness-agnostic fork of ProjectStore: one vault, one CLI, the same agent roles in Claude Code, Codex and OpenCode.",
   "license": "MIT",
   "type": "module",

@@ -1,8 +1,8 @@
-# ADR-0001: Харнес-агностичное ядро: единый CLI вместо hooks/slash-команд
+# ADR-0001: A harness-agnostic core: one CLI instead of hooks and slash commands
 
 - Status: proposed
 - Date: 2026-08-28
-- Deciders: не утверждено владельцем проекта; статус `proposed`
+- Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
 - Related: `bin/mps`, `scripts/*.mjs`, `AGENTS.md`, `opencode.json`
@@ -10,76 +10,85 @@
 
 ## Context
 
-Исходный ProjectStore — плагин Claude Code: slash-команды (`/projectstore:adr`), hooks
-(SessionStart/PreToolUse/Stop/PreCompact), statusLine и spawn subagents. Весь интерфейсный
-слой завязан на CLI Claude Code и на env/пути `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`,
-`.claude/settings.local.json`. Ядро (vault, layouts, шаблоны, doctor/graph/codemap/reconcile/
-draft/kanban) — чистый node, markdown в git, харнес-агностично.
+Upstream ProjectStore is a Claude Code plugin: slash commands (`/projectstore:adr`),
+hooks (SessionStart/PreToolUse/Stop/PreCompact), a status line and spawned
+subagents. The whole interface layer is bound to one CLI and to its environment
+and paths — `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `.claude/settings.local.json`.
+The core (vault, layouts, templates, doctor/graph/codemap/reconcile/draft/kanban)
+is pure node, markdown in git, and harness-agnostic already.
 
-Цель форка — работать одинаково из Claude Code, Codex и OpenCode. Claude-обвязка
-(slash-команды/hooks/statusLine) у Codex и OpenCode недоступна вовсе или несовместима.
+The fork's goal is to work identically from Claude Code, Codex, OpenCode and
+whatever comes next. The Claude-only wiring is either unavailable or
+incompatible everywhere else.
 
 ## Decision drivers
 
-- Один и тот же рабочий процесс независимо от харнеса.
-- Не переписывать проверенное ядро исходника; только заменить интерфейсный слой.
-- Минимум внешних зависимостей (ноль: чистый node).
-- Обратная совместимость путей config для возможного Claude-плагина.
+- The same working process regardless of harness.
+- Do not rewrite a proven core; replace the interface layer only.
+- Minimum external dependencies (zero: pure node).
+- Keep config paths backward-compatible for an optional Claude plugin layer.
 
 ## Considered options
 
-### Option 1: единый нейтральный CLI `mps` (выбран)
-Диспетчер `bin/mps` вызывает ядровые скрипты и печатает JSON одинаково для всех харнесов.
-Пути в `lib.mjs` заменены на нейтральные `MPS_PROJECT_DIR`/`MPS_HOME` с fallback на `CLAUDE_*`
-и на `.mps/projectstore.json` (legacy — `.claude/projectstore.json`). Общие правила — в
-`AGENTS.md`, который читают все три харнеса (Claude через `@AGENTS.md`, OpenCode через
+### Option 1: one neutral CLI, `mps` (chosen)
+
+`bin/mps` dispatches into the core scripts and prints the same JSON for every
+harness. Paths in `lib.mjs` become neutral (`MPS_PROJECT_DIR` / `MPS_HOME`, with
+`CLAUDE_*` as fallbacks) and the bind config moves to `.mps/projectstore.json`
+(legacy `.claude/projectstore.json` still read). Shared rules live in `AGENTS.md`,
+which all three harnesses read (Claude via `@AGENTS.md`, OpenCode via
 `opencode.json` instructions).
-**Плюсы:** один вход, харнес-агностично, ядро переиспользуется целиком.
-**Минусы:** нет нативного slash-интерфейса (привычного в Claude); требует ручного вызова.
+**Pros:** one entry point; harness-agnostic; the core is reused whole.
+**Cons:** no native slash interface (familiar in Claude Code); the agent has to
+call the CLI deliberately.
 
-### Option 2: сохранить slash-команды + отдельный CLI
-Полный клон обвязки Claude (commands/, hooks/, statusline/) плюс отдельный CLI.
-**Плюсы:** максимальная совместимость с Claude.
-**Минусы:** дублирование интерфейсов, часть харнесов не получает slash-команд, больше
-поддержки. Отвергнуто — противоречит харнес-агностичности.
+### Option 2: keep the slash commands and add a CLI beside them
 
-### Option 3: только документация к ядру без CLI
-Оставить как есть (исходник), добавить только правила.
-**Плюсы:** ноль правок кода.
-**Минусы:** нет единого интерфейса; каждый харнес по-своему вызывает скрипты. Отвергнуто.
+A full clone of the Claude wiring (commands/, hooks/, statusline/) plus a CLI.
+**Pros:** maximum compatibility with Claude Code.
+**Cons:** two interfaces to maintain, and only one harness gets the good one.
+Rejected: it contradicts the point of the fork.
+
+### Option 3: documentation only, no CLI
+
+**Pros:** zero code changes.
+**Cons:** no single entry point; every harness invents its own way to call the
+scripts. Rejected.
 
 ## Decision
 
-Принять вариант 1: харнес-агностичное ядро с единым CLI `bin/mps`. Vault-механика исходника
-переиспользуется как есть; интерфейсный слой (команды/hooks/statusLine/spawn-agents) заменён
-одним диспетчером и общими правилами в `AGENTS.md`/`opencode.json`. Пути нейтрализованы в
+Take option 1. The vault mechanics are reused as-is; the interface layer
+(commands/hooks/status line/agent spawning) is replaced by one dispatcher plus
+shared rules in `AGENTS.md` / `opencode.json`. Path handling is neutralised in
 `scripts/lib.mjs`.
 
 ## Consequences
 
 ### Positive
 
-- Один и тот же цикл «задача → артефакт → doctor → производные представления» из любого харнеса.
-- Ядро ProjectStore (проверенные doctor/graph/codemap/reconcile/draft/kanban) работает без
-  переписывания.
-- Ноль внешних зависимостей; минимум дублирования.
+- The same loop — task → artifact → doctor → derived views — from any harness.
+- The proven core (doctor/graph/codemap/reconcile/draft/kanban) works unchanged.
+- Zero external dependencies; minimum duplication.
 
 ### Negative / risks
 
-- Нет нативных slash-команд/statusLine, привычных пользователям Claude Code.
-- CLI требует явного вызова агентом (дисциплина правил), а не hook-инжекции.
-- Адаптация путей в `lib.mjs` — единственная правка ядра; при пересборке из исходника её нужно
-  сохранять.
+- No native slash commands or status line for Claude Code users.
+- The CLI must be called deliberately (a matter of rules) rather than injected
+  by a hook.
+- The path adaptation in `lib.mjs` is the one core change; a re-import from
+  upstream has to preserve it.
 
 ## Verification and follow-up
 
-- Первая редакция этого ADR утверждала, что CLI «запущен вручную в тестовом vault». Это было
-  неверно: в том состоянии ни один скрипт не парсился — массовая замена `/projectstore:X` на
-  `"mps X"` порвала строковые литералы во всех `scripts/*.mjs`. Исправлено 2026-08-29 вместе с
-  самим кодом; запись оставлена как предупреждение о самоподтверждающей проверке.
-- Фактическая проверка (2026-08-29): `node --check` по всем `scripts/*.mjs` и `bin/mps`;
-  сквозной прогон `bind → scaffold → draft adr|epic|story --write → story plan|close --write →
-  kanban/graph/codemap → doctor --fix → brief → agents install/register` во временном проекте;
-  `node --test tests/*.test.mjs` — 189 тестов зелёные.
-- Это инфраструктура/инструмент; живая проверка на устройствах неприменима. Поведение внутри
-  самих Codex и OpenCode владельцем проекта не проверялось.
+- The first revision of this ADR claimed the CLI had been "run by hand against a
+  test vault". That was false: at the time not one script parsed — a bulk
+  rewrite of `/projectstore:X` into `"mps X"` had broken string literals across
+  every `scripts/*.mjs`. Fixed on 2026-08-29 together with the code; the record
+  is kept here as a warning about self-confirming verification.
+- Actual verification (2026-08-29): `node --check` over every `scripts/*.mjs`
+  and `bin/mps`; an end-to-end run of
+  `bind → scaffold → draft adr|epic|story --write → story plan|close --write →
+  kanban/graph/codemap → doctor --fix → brief → agents install/register`
+  in a temporary project; `node --test tests/*.test.mjs` green.
+- This is infrastructure; on-device verification does not apply. Behaviour
+  inside Codex and OpenCode themselves has not been checked by the project owner.

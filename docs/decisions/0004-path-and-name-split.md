@@ -1,8 +1,8 @@
-# ADR-0004: Разделение имён: vault остаётся ProjectStore-совместимым, обвязка проекта — `.mps/`
+# ADR-0004: Name split: the vault stays ProjectStore-compatible, project wiring lives in `.mps/`
 
 - Status: proposed
 - Date: 2026-08-29
-- Deciders: не утверждено владельцем проекта; статус `proposed`
+- Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
 - Related: `scripts/lib.mjs`, `bin/mps`, `scripts/doctor.mjs`, ADR-0001, ADR-0002
@@ -10,72 +10,77 @@
 
 ## Context
 
-Форк переименовал инструмент (`projectstore` → `mps`), но имена встречаются в двух разных
-слоях: внутри vault (политика `<vault>/.projectstore.json`, реестр сессий
-`<vault>/.projectstore/sessions/`, маркер `projectstore: derived` в производных файлах) и в
-обвязке проекта (`<project>/.claude/projectstore.json`, `<project>/.claude/.projectstore/`
-для машинного состояния). Слепое переименование всего сразу ломает совместимость vault, а
-сохранение всего — оставляет не-Claude харнесы писать в `.claude/`.
+The fork renamed the tool (`projectstore` → `mps`), but the name appears in two
+different layers: inside the vault (the policy file `<vault>/.projectstore.json`,
+the session registry `<vault>/.projectstore/sessions/`, the `projectstore: derived`
+marker in generated files) and in the project wiring
+(`<project>/.claude/projectstore.json`, `<project>/.claude/.projectstore/` for
+machine-local state). Renaming everything breaks vault compatibility; renaming
+nothing leaves non-Claude harnesses writing into `.claude/`.
 
 ## Decision drivers
 
-- Vault — общий артефакт команды и переносимая ценность; он должен открываться и исходным
-  ProjectStore, и форком.
-- Проектная обвязка — машинно-локальная и харнес-зависимая; каталог `.claude/` в проекте,
-  который ведут из Codex или OpenCode, — это протечка абстракции.
-- Не плодить миграции без пользы.
+- The vault is the team's shared artifact and the portable value; it should open
+  in upstream ProjectStore and in this fork alike.
+- Project wiring is machine-local and harness-specific; a `.claude/` directory in
+  a project driven from Codex or OpenCode is a leaked abstraction.
+- Do not create migrations without a payoff.
 
 ## Considered options
 
-### Option 1: разделить слои (выбран)
+### Option 1: split the layers (chosen)
 
-Vault не переименовывается: `<vault>/.projectstore.json`, `<vault>/.projectstore/sessions/`,
-`projectstore: derived` остаются как есть. Проектная сторона переезжает в `.mps/`:
-конфиг привязки `.mps/projectstore.json` (legacy `.claude/projectstore.json` читается),
-машинное состояние — `.mps/state/`.
-**Плюсы:** vault совместим с исходником в обе стороны; ни один харнес не получает чужой
-каталог; одна миграция, ограниченная проектной стороной.
-**Минусы:** внутри vault имя инструмента отличается от имени CLI — это надо объяснять
-(объяснено здесь и в `docs/how-it-works.md`).
+The vault is not renamed: `<vault>/.projectstore.json`,
+`<vault>/.projectstore/sessions/` and `projectstore: derived` stay as they are.
+The project side moves to `.mps/`: the bind config is `.mps/projectstore.json`
+(legacy `.claude/projectstore.json` still read) and machine state is
+`.mps/state/`.
+**Pros:** the vault stays compatible in both directions; no harness gets another
+harness's directory; one migration, limited to the project side.
+**Cons:** the tool name inside the vault differs from the CLI name, which has to
+be explained (it is, here and in `docs/how-it-works.md`).
 
-### Option 2: переименовать всё в `mps`
+### Option 2: rename everything to `mps`
 
-**Плюсы:** полная номенклатурная чистота.
-**Минусы:** vault перестаёт открываться исходным ProjectStore; существующие vault требуют
-миграции ради косметики. Отвергнуто.
+**Pros:** nomenclature purity.
+**Cons:** the vault stops opening in upstream ProjectStore, and existing vaults
+need a migration for cosmetics. Rejected.
 
-### Option 3: оставить всё как в исходнике
+### Option 3: leave everything as upstream
 
-**Плюсы:** ноль правок.
-**Минусы:** Codex/OpenCode пишут в `.claude/` — прямое нарушение цели форка. Отвергнуто.
+**Pros:** no changes.
+**Cons:** Codex and OpenCode write into `.claude/` — the exact thing the fork
+exists to avoid. Rejected.
 
 ## Decision
 
-Принять вариант 1. Дополнительно: сгенерированные файлы ролей (`.claude/agents/`,
-`.opencode/agent/`, `.codex/prompts/`) считаются коммитимыми (команда получает одинаковые
-роли), а `.mps/` — машинно-локальным и попадает в `.gitignore`; `mps doctor --fix`
-дописывает записи именно для `.mps/`.
+Take option 1. In addition: generated role files (`.claude/agents/`,
+`.opencode/agents/`, `.codex/agents/`, …) are meant to be committed — that is how
+a team gets the same roles — while `.mps/` is machine-local and belongs in
+`.gitignore`; `mps doctor --fix` writes exactly those entries.
 
 ## Consequences
 
 ### Positive
 
-- Один vault можно вести из MPS и из ProjectStore.
-- Проект, который ведут из Codex или OpenCode, не содержит `.claude/`, если Claude Code там
-  не используется.
-- `SOURCE_IGNORE` расширен на `.mps/`, `.opencode/`, `.codex/`: обвязка не считается
-  исходным кодом при проверке «работа без истории».
+- One vault can be driven from MPS and from ProjectStore.
+- A project driven from Codex or OpenCode contains no `.claude/` unless Claude
+  Code is actually used there.
+- `SOURCE_IGNORE` covers `.mps/`, `.opencode/` and `.codex/`: wiring is not
+  counted as source when doctor asks "work without a story?".
 
-## Negative / risks
+### Negative / risks
 
-- Разные имена в двух слоях — источник путаницы при чтении кода; смягчено комментариями в
-  `scripts/lib.mjs` и таблицей в `docs/how-it-works.md`.
-- Совместимость с исходником проверена по именам путей, а не запуском обоих инструментов на
-  одном vault.
+- Two naming schemes in two layers is a source of confusion when reading the
+  code; mitigated by comments in `scripts/lib.mjs` and a table in
+  `docs/how-it-works.md`.
+- Compatibility with upstream is verified by path names, not by running both
+  tools against one vault.
 
 ## Verification and follow-up
 
-- `tests/harness.test.mjs` — конфиг создаётся в `.mps/projectstore.json`, doctor называет
-  именно его; реестр сессий пишется в `<vault>/.projectstore/sessions/`.
-- `mps doctor --fix` дописывает `.mps/projectstore.json` и `.mps/state/` в `.gitignore`
-  (покрыто тестом «freshly bound … clean under doctor»).
+- `tests/harness.test.mjs`: the config is created at `.mps/projectstore.json`
+  and doctor names exactly that path; the session registry is written to
+  `<vault>/.projectstore/sessions/`.
+- `mps doctor --fix` adds `.mps/projectstore.json` and `.mps/state/` to
+  `.gitignore` (covered by "a freshly bound … clean under doctor").

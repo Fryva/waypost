@@ -99,6 +99,132 @@ function positionals(args) {
   return out;
 }
 
+// ─── setup: one command that leaves the project ready ──────────────────
+//
+// Reading a manual to configure a tool is time the tool was supposed to save.
+// Everything here is derivable: where the vault goes, which harnesses this
+// project uses, which repairs are mechanical. So derive it, do it, and print
+// what happened — with --dry-run for anyone who wants to look first.
+function handleSetup(args) {
+  const dry = flag(args, "--dry-run");
+  const say = (l) => process.stdout.write(l + "\n");
+  const step = (label, fn) => { if (dry) { say(`would ${label}`); return null; } say(label); return fn(); };
+
+  const existing = readConfig();
+  const vault = opt(args, "--vault") || (existing && existing.vault_path) || guessVault();
+  say(`project ${projectRoot()}`);
+
+  if (!existing || !existing.vault_path) {
+    step(`bind vault ${vault}`, () => handleBind([vault, ...passThrough(args, ["--layout", "--lang"])]));
+  } else {
+    say(`vault  ${existing.vault_path} (already bound)`);
+    step("scaffold any missing layout folders", () => handleScaffold([]));
+  }
+
+  const harnesses = opt(args, "--harness");
+  const detected = detectedHarnesses();
+  if (harnesses || detected.length) {
+    step(`install roles for ${harnesses || detected.join(", ")}`,
+      () => run("agents", ["install", ...(harnesses ? ["--harness", harnesses] : [])]));
+    step("register the routing block", () => run("agents", ["register"]));
+  } else {
+    say("no harness detected — run `mps agents install --harness <id>` once you pick one");
+    say("  (`mps harnesses --all` lists what is supported)");
+  }
+
+  step("repair the mechanical install findings", () => run("doctor", ["--install", "--fix"], { capture: true }));
+  if (!dry) {
+    process.stdout.write("\nready. Next:\n");
+    process.stdout.write("  mps next                      what this project needs right now\n");
+    process.stdout.write("  mps brief                     orientation at the start of a session\n");
+    process.stdout.write('  mps draft adr "<decision>" --write\n');
+  }
+}
+
+// A vault the project already has, or a conventional place for a new one. Never
+// a path outside the project: the vault travels with the repository unless the
+// user says otherwise.
+function guessVault() {
+  const root = projectRoot();
+  for (const c of ["vault", "docs/vault", "knowledge", ".vault"]) {
+    if (existsSync(join(root, c, "adr")) || existsSync(join(root, c, "epics"))) return join(root, c);
+  }
+  return join(root, existsSync(join(root, "docs")) ? "docs/vault" : "vault");
+}
+
+function detectedHarnesses() {
+  try {
+    return JSON.parse(run("agents", ["harnesses", "--json"], { capture: true }))
+      .harnesses.filter((h) => (h.detect || []).some((d) => existsSync(join(projectRoot(), d))))
+      .map((h) => h.id);
+  } catch { return []; }
+}
+
+function passThrough(args, names) {
+  const out = [];
+  for (const n of names) { const v = opt(args, n); if (v) out.push(n, v); }
+  return out;
+}
+
+// ─── next: what this project needs right now ───────────────────────────
+//
+// The judgement an agent otherwise has to make from scratch every session, made
+// deterministically instead: read the state, rank what is actionable, print the
+// command. Cheap by construction — no artifact content, one line per item.
+function handleNext(args) {
+  const cfg = readConfig();
+  const items = [];
+  if (!cfg || !cfg.vault_path) {
+    process.stdout.write("not bound to a vault yet — run `mps setup`\n");
+    return;
+  }
+  const findings = (() => {
+    try { return JSON.parse(run("doctor", ["--json"], { capture: true })); } catch { return []; }
+  })();
+  const by = (check, level) => findings.filter((f) => f.check === check && (!level || f.level === level));
+
+  for (const f of findings.filter((f) => f.level === "issue")) {
+    items.push([1, f.message.split(" — ")[0].slice(0, 110), repairFor(f)]);
+  }
+  const state = (() => {
+    try { return JSON.parse(run("sessions", ["--json"], { capture: true })); } catch { return {}; }
+  })();
+  for (const c of (state.claims || []).filter((c) => c.session !== state.session_id)) {
+    items.push([2, `${c.story} is being worked on by ${c.session} (${c.harness || "?"}, ${c.host})`,
+      "coordinate before touching it"]);
+  }
+  for (const f of by("work-without-story", "warn")) {
+    items.push([3, "source changes with no story open", 'mps draft story <EPIC> "<title>" --write']);
+  }
+  for (const f of findings.filter((f) => f.level === "warn" && f.check !== "work-without-story")) {
+    items.push([4, f.message.split(".")[0].slice(0, 110), repairFor(f)]);
+  }
+  for (const f of by("agent-roles", "info").concat(by("agents-block", "info"))) {
+    items.push([5, f.message.split(" — ")[0].slice(0, 110), repairFor(f)]);
+  }
+
+  if (!items.length) {
+    process.stdout.write("nothing needs doing: vault consistent, roles installed, no conflicting session.\n"
+      + "Next feature-sized change starts with `mps draft story <EPIC> \"<title>\" --write`.\n");
+    return;
+  }
+  items.sort((a, b) => a[0] - b[0]);
+  for (const [, what, how] of items.slice(0, 8)) {
+    process.stdout.write(`- ${what}\n${how ? `    ${how}\n` : ""}`);
+  }
+  if (items.length > 8) process.stdout.write(`…and ${items.length - 8} more (mps doctor)\n`);
+}
+
+function repairFor(f) {
+  const map = {
+    kanban: "mps reconcile --write", "code-map": "mps reconcile --write", indexes: "mps reconcile --write",
+    graph: "mps graph", "agent-roles": "mps agents install", "agents-block": "mps agents register",
+    gitignore: "mps doctor --fix", "vault-git": "mps doctor --fix", "merge-driver": "mps doctor --fix",
+    "line-endings": "mps doctor --fix", config: "mps setup",
+  };
+  return map[f.check] || null;
+}
+
 // ─── bind ──────────────────────────────────────────────────────────────
 
 function handleBind(args) {
@@ -424,11 +550,37 @@ function handleStatus() {
     + `  (mps agents list)\n`);
 }
 
+// Bare `mps` is the most likely first thing anyone types. Answer the two
+// questions they actually have — is this set up, and what do I do — rather than
+// printing a manual.
+function handleDefault() {
+  const cfg = readConfig();
+  if (!cfg || !cfg.vault_path) {
+    process.stdout.write(`mps ${VERSION} — not set up in ${projectRoot()}\n\n`
+      + "  mps setup         bind a vault, install the roles for this project's harnesses,\n"
+      + "                    register them, and repair anything mechanical\n"
+      + "  mps setup --dry-run   see what that would do first\n"
+      + "  mps help          every command\n");
+    return;
+  }
+  process.stdout.write(`mps ${VERSION} · vault ${cfg.vault_path}\n\n`);
+  handleNext([]);
+  process.stdout.write("\nmps brief (orientation) · mps help (every command)\n");
+}
+
 function help() {
   process.stdout.write(`mps — MultiProjectStore ${VERSION}
 
 USAGE
   mps <command> [args]
+
+START HERE
+  setup                    do the whole install: bind a vault, scaffold it,
+                           install the roles for the harnesses this project
+                           uses, register them, repair the mechanical findings
+                           [--vault <path>] [--harness <id>] [--dry-run]
+  next                     what this project needs right now, ranked, with the
+                           command for each
 
 VAULT
   bind <vault-path>        bind a vault and scaffold the layout (alias: init)
@@ -497,6 +649,26 @@ HARNESS-AGNOSTIC
 `);
 }
 
+// Presence is only useful if it happens without being asked. Every command that
+// implies work beats the session's heartbeat, so another device sees this
+// session without anyone remembering `mps sessions --touch`. Never fails the
+// command, never runs for a read-only lookup, and MPS_NO_BEAT=1 turns it off.
+const QUIET_COMMANDS = new Set(["help", "--help", "-h", "version", "--version", "-v",
+  "harnesses", "prompt", "skill", "agents", "log", "storage"]);
+
+async function heartbeat(cmd) {
+  if (QUIET_COMMANDS.has(cmd) || process.env.MPS_NO_BEAT) return;
+  try {
+    const [{ readConfig }, { beat }, { sessionId }] = await Promise.all([
+      import(`file://${SCRIPT("lib")}`), import(`file://${SCRIPT("presence")}`), import(`file://${SCRIPT("sessions")}`),
+    ]);
+    const cfg = readConfig();
+    if (cfg && cfg.vault_path && existsSync(cfg.vault_path)) {
+      beat(cfg.vault_path, sessionId(), { harness: process.env.MPS_HARNESS || null });
+    }
+  } catch { /* presence is advisory; a command must never fail because of it */ }
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const iProject = argv.indexOf("--project");
@@ -505,9 +677,13 @@ function main() {
   if (iHome !== -1 && argv[iHome + 1]) process.env.MPS_HOME = resolve(argv[iHome + 1]);
   const args = argv.filter((a, i) =>
     !["--project", "--home"].includes(a) && !["--project", "--home"].includes(argv[i - 1]));
-  const [cmd = "help", ...rest] = args;
+  const [cmd = "", ...rest] = args;
+  heartbeat(cmd);
 
   switch (cmd) {
+    case "": handleDefault(); break;
+    case "setup": handleSetup(rest); break;
+    case "next": handleNext(rest); break;
     case "bind": case "init": handleBind(rest); break;
     case "scaffold": handleScaffold(rest); break;
     case "draft": handleDraft(rest); break;

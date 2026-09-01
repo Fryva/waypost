@@ -1,8 +1,8 @@
-# ADR-NNNN: <короткое kebab-case название>
+# ADR-NNNN: <short kebab-case title>
 
 - Status: proposed
 - Date: YYYY-MM-DD
-- Deciders: не утверждено владельцем проекта; статус `proposed`
+- Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
 - Related: —
@@ -15,12 +15,12 @@
 ## Considered options
 
 ### Option 1
-**Плюсы:** ...
-**Минусы:** ...
+**Pros:** ...
+**Cons:** ...
 
 ### Option 2
-**Плюсы:** ...
-**Минусы:** ...
+**Pros:** ...
+**Cons:** ...
 
 ## Decision
 

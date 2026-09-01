@@ -1,162 +1,167 @@
-# ADR-0005: Харнес — это данные: реестр вместо ветки в рендерере
+# ADR-0005: A harness is data: the `harnesses/*.json` registry instead of a branch in a renderer
 
 - Status: proposed
 - Date: 2026-09-01
-- Deciders: не утверждено владельцем проекта; статус `proposed`
+- Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
-- Related: ADR-0003 (роли), `harnesses/*.json`, `scripts/agents.mjs`, `docs/harnesses.md`
-- code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "harnesses/cursor.json", "harnesses/windsurf.json", "harnesses/copilot.json", "harnesses/gemini.json", "harnesses/cline.json", "harnesses/roo.json", "harnesses/qwen.json", "harnesses/trae.json", "harnesses/lingma.json", "harnesses/codebuddy.json", "harnesses/iflow.json", "harnesses/providers/deepseek.json", "harnesses/providers/kimi.json", "harnesses/providers/glm.json", "harnesses/providers/minimax.json", "harnesses/providers/dashscope.json", "scripts/agents.mjs", "scripts/commit.mjs", "docs/harnesses.md", "tests/harness.test.mjs"]
+- Related: ADR-0003 (roles), `harnesses/*.json`, `scripts/agents.mjs`, `docs/harnesses.md`
+- code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "harnesses/cursor.json", "harnesses/windsurf.json", "harnesses/copilot.json", "harnesses/gemini.json", "harnesses/cline.json", "harnesses/roo.json", "harnesses/qwen.json", "harnesses/kimi.json", "harnesses/zcode.json", "harnesses/codebuddy.json", "harnesses/dsh.json", "harnesses/trae.json", "harnesses/lingma.json", "harnesses/iflow.json", "harnesses/providers/deepseek.json", "harnesses/providers/moonshot.json", "harnesses/providers/glm.json", "harnesses/providers/minimax.json", "harnesses/providers/dashscope.json", "scripts/agents.mjs", "scripts/commit.mjs", "docs/harnesses.md", "tests/harness.test.mjs"]
 
 ## Context
 
-ADR-0003 ввёл одно нейтральное определение роли и адаптеры под три харнеса. Адаптеры были
-кодом: `renderClaude`, `renderOpencode`, `renderCodex`, плюс `switch` в `targetDir` и
-захардкоженный `HARNESSES = ["claude","opencode","codex"]`. Пока харнесов три, это читается
-нормально; но обещание форка — «работает из любого харнеса», а поле меняется быстрее, чем
-выходят релизы: Cursor, Windsurf, Cline, Roo Code, Gemini CLI, GitHub Copilot, и дальше.
+ADR-0003 introduced one neutral role definition and adapters for three
+harnesses. Those adapters were code: `renderClaude`, `renderOpencode`,
+`renderCodex`, a `switch` in `targetDir`, and a hard-coded
+`HARNESSES = ["claude","opencode","codex"]`. With three entries that reads fine;
+but the fork's promise is "works from whatever harness you use", and the field
+moves faster than releases: Cursor, Windsurf, Cline, Roo Code, Gemini CLI,
+GitHub Copilot, and then a wave of vendor CLIs from Alibaba, Moonshot, Zhipu,
+Tencent and DeepSeek.
 
-При этом форматы у них разной формы: файл-на-роль с YAML frontmatter (Claude Code, OpenCode,
-Cursor, Copilot), файл-промпт со слэш-вызовом (Codex, Windsurf, Cline), TOML-команда
-(Gemini CLI), и один общий файл со списком режимов (Roo Code, `.roomodes`).
+Their formats are also different in *shape*: one file per role with YAML
+frontmatter (Claude Code, OpenCode, Cursor, Copilot, Kimi, Qwen, ZCode,
+CodeBuddy, Gemini), a prompt file invoked by a slash command (Windsurf, Cline,
+Lingma, Trae), TOML (Codex agents), one shared file holding an array of modes
+(Roo Code), and none at all (DeepSeek Harness registers subagents in code).
 
 ## Decision drivers
 
-- Поддержать ещё один харнес должно быть дешевле, чем прочитать рендерер.
-- Пользователь не должен ждать релиза: формат харнеса меняется — он правит у себя.
-- Гарантии (провенанс, «чужое не трогаем», отказ без харнеса) обязаны действовать
-  одинаково для всех записей реестра, включая пользовательские.
-- Честность: чего мы не проверяли по документации харнеса, то и не называем проверенным.
+- Supporting one more agent CLI should cost less than reading the renderer.
+- A user should not wait for a release: when a vendor changes a format, they fix
+  it locally.
+- The guarantees (provenance, "never touch what is not ours", refusal without a
+  harness) must hold identically for every entry, including user-added ones.
+- Honesty: what has not been checked against the vendor's documentation must not
+  be presented as if it had.
 
 ## Considered options
 
-### Option 1: реестр JSON + четыре шейпа рендера (выбран)
+### Option 1: a JSON registry plus a small set of render shapes (chosen)
 
-`harnesses/<id>.json` описывает детект, каталог/имя файла, шейп, поля frontmatter, наличие
-модели и словарь инструментов. Рендерер знает только шейпы: `frontmatter-md`, `prompt-md`,
-`toml-prompt`, `aggregate-json`. Проектные записи в `<project>/.mps/harnesses/<id>.json`
-перекрывают поставляемые.
-**Плюсы:** новый харнес — файл данных; переопределение без форка; `mps harnesses` как
-самодокументация; гарантии реализованы один раз для всех.
-**Минусы:** язык шаблонов ограничен (поле — скаляр или блок), совсем экзотический формат
-потребует нового шейпа; JSON-схема не валидируется строго.
+`harnesses/<id>.json` describes detection, the target directory and filename,
+the shape, the frontmatter fields, whether the format carries a model, and which
+tool vocabulary it speaks. The renderer knows only shapes: `frontmatter-md`,
+`prompt-md`, `toml`, `aggregate-json`, and `none`. Project entries in
+`<project>/.mps/harnesses/<id>.json` override the bundled ones.
+**Pros:** a new harness is a data file; overriding needs no fork; `mps harnesses`
+documents itself; the guarantees are implemented once for everyone.
+**Cons:** the template language is deliberately poor (a field is a scalar or a
+block), so a genuinely exotic format needs a new shape; the JSON is not strictly
+schema-validated.
 
-### Option 2: по функции-адаптеру на харнес
+### Option 2: one adapter function per harness
 
-**Плюсы:** максимальная гибкость на харнес.
-**Минусы:** девять харнесов — девять почти одинаковых функций и девять мест, где можно
-забыть провенанс или защиту чужого файла; пользователь не может добавить свой. Отвергнуто.
+**Pros:** maximum flexibility per harness.
+**Cons:** seventeen harnesses means seventeen nearly identical functions and
+seventeen places to forget provenance or the foreign-file guard; and a user
+cannot add their own. Rejected.
 
-### Option 3: не расширять, оставить три и «печатайте промпт сами»
+### Option 3: do not extend; keep three and say "print the prompt yourself"
 
-**Плюсы:** ноль работы.
-**Минусы:** ровно та зависимость от конкретных CLI, ради ухода от которой существует форк.
-Отвергнуто, но нижний слой сохранён: `mps agents show <role>` работает всегда и остаётся
-контрактом для харнеса, которого в реестре нет.
+**Pros:** no work.
+**Cons:** exactly the dependency on specific CLIs the fork exists to remove.
+Rejected — but the floor is kept: `mps agents show <role>` always works and is
+the contract for any harness not in the registry.
 
 ## Decision
 
-Принять вариант 1. Статус каждой записи стоит в JSON и печатается в `mps harnesses`, чтобы
-разница не терялась; уровней три, и они про **доказательства**, а не про качество инструмента:
+Take option 1. Each entry carries its confidence level in the JSON, and
+`mps harnesses` prints it, so the difference is never lost. Three levels, about
+**evidence** rather than about how good the tool is:
 
-- `verified` — формат из документации И проверен запуском;
-- `documented` — взят из документации вендора, URL записан в поле `docs`, но внутри самого CLI
-  не запускался;
-- `inferred` — выведен по соглашению о каталогах или по родственному CLI из того же семейства;
-  в `notes` записано, что именно предположено и что проверить.
+- `verified` — documented **and** exercised in that harness;
+- `documented` — taken from the vendor's own documentation, with the URL in the
+  entry's `docs` field, but not run here;
+- `inferred` — guessed from a directory convention or a sibling CLI in the same
+  family; the entry's `notes` say what was assumed and what to check.
 
-**Ревизия 2026-09-01 по источникам.** Первая редакция китайских записей была составлена по
-памяти и в четырёх случаях из пяти оказалась неверной; после проверки документации вендоров:
-`qwen` — не TOML-команды, а субагенты в `.qwen/agents/` (Qwen Code перешёл с TOML на markdown);
-`codebuddy` — не `.codebuddy/rules/`, а субагенты в `.codebuddy/agents/` с frontmatter, близким
-к Claude Code (вплоть до `effort`); добавлены `kimi` (Kimi Code CLI, `.kimi-code/agents/`, у
-Moonshot появился собственный CLI с субагентами) и `zcode` (Z.ai/Zhipu, `.zcode/agents/`, пока
-только пользовательский уровень — поэтому запись печатает шаг копирования); `lingma` поднят до
-`documented` (правила `.lingma/rules/` документированы и предназначены для коммита); `trae`
-остался `inferred`, потому что документирован ровно один файл `project_rules.md`, а не каталог
-ролей; `iflow` остался `inferred`: каталог `.iflow/agents` известен, состав frontmatter — нет.
+**A model vendor is not a harness.** Some vendors ship both a CLI and models:
+Moonshot (`kimi` + `moonshot`), Zhipu (`zcode` + `glm`), Alibaba (`qwen` +
+`dashscope`), Tencent (`codebuddy`), DeepSeek (`dsh` + `deepseek`). Others ship
+models only — DeepSeek's community terminal agents are separate projects, and
+MiniMax's MMX-CLI generates media rather than driving a codebase. Registering a
+model vendor as a harness would promise role files with nowhere to land, so such
+entries carry `kind: "provider"`: they are excluded from install/status/doctor,
+listed separately, and detected from the environment (`match.env`,
+`match.url_contains`). Their practical payoff is the record: `mps commit` writes
+an `Mps-Provider` trailer and `mps log --provider deepseek` reads it back. The
+same harness behaves very differently behind a different model, and six months
+later nothing else in the repository remembers which one wrote a commit.
 
-**Поставщик модели — не харнес (дополнение 2026-09-01).** Часть вендоров поставляет и CLI, и
-модели: Moonshot (`kimi` + `moonshot`), Zhipu (`zcode` + `glm`), Alibaba (`qwen` + `dashscope`) —
-поэтому id инструмента и id провайдера различаются, и проект может пользоваться одним без
-другого. DeepSeek и MiniMax на момент проверки поставляют только модели: терминальные агенты
-вокруг DeepSeek — сторонние проекты, а MMX-CLI у MiniMax генерирует медиа, а не ведёт кодовую
-базу. Такие вендоры работают внутри чужого харнеса, чаще всего Claude Code с
-Anthropic-совместимым эндпойнтом. Регистрировать
-их как харнесы значило бы обещать файлы ролей, которым некуда лечь. Поэтому у записи есть
-`kind: "provider"`: такие записи не участвуют в `install`/`status`/doctor, перечисляются
-отдельным разделом и определяются по окружению (`match.env`, `match.url_contains`).
-Практический смысл — в записи истории: `mps commit` пишет трейлер `Mps-Provider`, а
-`mps log --provider deepseek` читает его обратно. Один и тот же харнес за разными моделями
-ведёт себя по-разному, и через полгода это не восстановить ниоткуда больше.
+**A harness with no role-file format is a first-class case.** `roles.shape:
+"none"` (DeepSeek Harness) is still detected, still receives the routing block,
+and must state how a role *is* reached instead; install writes nothing and says
+so, and doctor does not ask why the roles are missing.
 
-Гарантии ADR-0003 распространяются на все записи и проверяются тестом по всему реестру:
-провенанс с хешем рендера в любом шейпе (в TOML — комментарий, в JSON — строка внутри
-определения роли), пропуск файлов без провенанса, удаление опустевших каталогов (включая
-вложенные, как `.gemini/commands/mps`), слияние для агрегатов вместо перезаписи.
+The routing block is written not only to `AGENTS.md`/`CLAUDE.md` but to the
+instruction file each detected harness actually reads (`GEMINI.md`,
+`.github/copilot-instructions.md`, `.cursor/rules/…`): a Cursor-only project may
+never have heard of `AGENTS.md`.
 
-Блок маршрутизации пишется не только в `AGENTS.md`/`CLAUDE.md`, но и в файлы инструкций,
-объявленные обнаруженными харнесами (`GEMINI.md`, `.github/copilot-instructions.md`,
-`.cursor/rules/…`): проект на одном лишь Cursor про `AGENTS.md` мог и не знать.
+## Registry review against the vendors' documentation (2026-09-01)
+
+Written from memory first, the entries were wrong more often than not. After
+checking every vendor's own documentation:
+
+| Entry | Was | Now, per the docs |
+|---|---|---|
+| `codex` | `~/.codex/prompts/*.md` | `.codex/agents/*.toml` — project-level agents (`developer_instructions`, `sandbox_mode = "read-only"`); the old custom prompts are deprecated in favour of skills |
+| `opencode` | `.opencode/agent/`, a `tools:` map | `.opencode/agents/` (plural), access through `permission:` allow/ask/deny — the `tools` map is legacy |
+| `gemini` | TOML commands in `.gemini/commands/mps/` | `.gemini/agents/*.md` — Gemini CLI gained subagents |
+| `copilot` | `.github/chatmodes/*.chatmode.md` | `.github/agents/*.agent.md` — chat modes deprecated; VS Code also reads `.claude/agents` |
+| `claude` | no `disallowedTools` | the field is documented and is now emitted: edits denied, not merely described |
+| `qwen` | TOML commands | `.qwen/agents/*.md` subagents; only the deny-list is emitted, because Qwen's allowlist uses Gemini-CLI tool names |
+| `codebuddy` | `.codebuddy/rules/` | `.codebuddy/agents/*.md`, frontmatter close to Claude Code's, including `effort` |
+| `kimi`, `zcode`, `dsh` | absent | Moonshot, Z.ai and DeepSeek all shipped their own harness |
+| `lingma` | inferred | documented: `.lingma/rules/` is project-scoped and meant to be committed |
+| `cline` | `AGENTS.md` assumed | AGENTS.md support is still an open discussion; the block goes to `.clinerules/` first |
+| `windsurf` | no limits | a documented 12000-character limit per workflow; frontmatter is undocumented |
+| `roo` | JSON assumed permanent | JSON is documented as fully supported and not deprecated, but YAML is now preferred |
+| `cursor` | — | confirmed: `.mdc` only; a plain `.md` in `.cursor/rules` is ignored |
+
+One conclusion generalises: **keeping this registry true is a recurring poll,
+not a one-time setup.** In a single review, formats had changed for four of the
+seven Western entries. The `docs` URL in each entry exists exactly for that — the
+next check starts there rather than from memory.
+
+A second one: `sandbox_mode = "read-only"` in Codex is the only place a harness
+*enforces* the roles' read-only contract rather than being asked for it.
+Elsewhere it is a tool map (Claude, OpenCode, Kimi, CodeBuddy, Qwen) or prose.
 
 ## Consequences
 
 ### Positive
 
-- Девять харнесов из коробки и любой десятый — файлом данных, без правки кода.
-- Формат поменялся у вендора — правится в `.mps/harnesses/` в тот же день.
-- `mps harnesses` показывает, что поддержано, что обнаружено в проекте и как звать роль.
+- Seventeen harnesses out of the box, and the eighteenth is a data file.
+- A format that changes under you is fixed in `.mps/harnesses/` the same day.
+- `mps harnesses` shows what is supported, what is detected here, and how to
+  invoke a role in each.
 
 ### Negative / risks
 
-- Шесть записей помечены `best-effort` и могут разойтись с реальными версиями CLI; это
-  видно в выводе, но всё равно перекладывает часть проверки на пользователя.
-- Шаблоны полей намеренно бедные: харнес, которому нужен вложенный YAML сложнее карты
-  инструментов, потребует нового шейпа.
-- Реестр — публичная поверхность: переименование ключа сломает пользовательские записи.
-
-## Сверка всего реестра по документации (2026-09-01)
-
-Проверены все записи, не только китайские. Что оказалось устаревшим:
-
-| Запись | Было | Стало по документации |
-|---|---|---|
-| `codex` | `~/.codex/prompts/*.md` | `.codex/agents/*.toml` — появились проектные субагенты (`developer_instructions`, `sandbox_mode = "read-only"`). Старые custom prompts вендор объявил deprecated в пользу skills |
-| `opencode` | `.opencode/agent/`, карта `tools:` | `.opencode/agents/` (мн. ч.), доступ через `permission:` allow/ask/deny — карта `tools` объявлена legacy |
-| `gemini` | TOML-команды `.gemini/commands/mps/` | `.gemini/agents/*.md` — в Gemini CLI появились субагенты |
-| `copilot` | `.github/chatmodes/*.chatmode.md` | `.github/agents/*.agent.md` — chat modes deprecated; VS Code читает ещё и `.claude/agents` |
-| `claude` | без `disallowedTools` | поле документировано и теперь пишется: запрет правок вместо только просьбы |
-| `cline` | AGENTS.md в списке инструкций | поддержка AGENTS.md у Cline ещё обсуждается — блок идёт в `.clinerules/` первым |
-| `windsurf` | без ограничений | документирован лимит 12000 символов на файл workflow; frontmatter не документирован |
-| `roo` | JSON без оговорок | JSON поддерживается и не устаревает, но YAML теперь предпочтителен — запись объясняет, почему mps пишет JSON и отказывается трогать YAML |
-| `cursor` | — | подтверждено: только `.mdc`, обычный `.md` в `.cursor/rules` игнорируется |
-
-Один вывод общий: **«poll документации» — часть работы, а не разовая настройка.** За один цикл
-проверки поменялись форматы у четырёх из семи западных записей. Поле `docs` с URL в каждой
-записи существует именно для этого: следующая сверка начинается с него.
-
-Второе следствие: `sandbox_mode = "read-only"` у Codex — единственное место, где харнес
-обеспечивает read-only-контракт ролей, а не просит о нём. В остальных это карта инструментов
-(Claude, OpenCode, Kimi, CodeBuddy, Qwen) или проза.
+- Two entries are `inferred` and may diverge from the real CLIs; that is visible
+  in the output but still moves part of the verification to the user.
+- The field templates are intentionally poor: a harness needing nested YAML
+  beyond a tool map will need a new shape.
+- The registry is public surface: renaming a key breaks user entries.
 
 ## Verification and follow-up
 
-- `tests/harness.test.mjs`: каждая запись реестра рендерит каждую роль с провенансом и
-  сходящимся хешем; проектная запись подхватывается и устанавливается без правки кода;
-  агрегат сливается и не трогает чужие режимы; вложенные каталоги удаляются; TOML валиден
-  и промпт закрыт; frontmatter-шейпы проходят проверку скаляров; запись без полей не порождает
-  пустой блок `---\n---`; провайдеры не попадают в список харнесов и определяются по эндпойнту
-  или ключу, а без улик не определяются вовсе; каждая непроверенная запись обязана иметь
-  `notes`. 231 тест зелёный.
-- Живьём проверено: установка во все девять, идемпотентность, `uninstall` дочиста,
-  `doctor` без находок после установки.
-- Живьём проверена установка ролей во все записи, включая китайские: `.qwen/commands/mps/*.toml`,
-  `.trae/rules/`, `.lingma/rules/`, `.codebuddy/rules/`, `.iflow/commands/mps/`; и запись
-  провайдера в коммит при `ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic`.
-- Форматы сверены с документацией вендоров (URL в поле `docs` каждой записи); внутри самих
-  CLI ничего из этого не запускалось — ровно то, что означает уровень `documented`.
-  `trae` и `iflow` остаются `inferred`: у первого документирован один файл правил, у второго
-  неизвестен состав frontmatter.
-- Открытый вопрос: у `zcode` проектный уровень субагентов ещё не поставлен вендором, поэтому
-  запись пишет файлы в проект (чтобы они коммитились) и печатает шаг копирования в `~/.zcode/`.
-  Когда проектный уровень появится, это правка одной строки в JSON.
+- `tests/harness.test.mjs`: every registry entry renders every role with
+  provenance and a matching hash; a project-local entry is picked up and
+  installed with no code change; an aggregate merges without touching other
+  modes; nested directories are cleared on uninstall; TOML output is valid and
+  its body block closed exactly once; frontmatter shapes pass the scalar rules;
+  an entry with no fields produces no empty `---\n---` block; a harness with no
+  role files installs nothing and is not nagged about; providers stay out of the
+  harness list and are detected only on evidence; every `documented` entry names
+  its document and every `inferred` entry explains itself.
+- Live: installing into all seventeen entries, idempotence, `uninstall` leaving
+  nothing behind, doctor clean afterwards, and a provider recorded in a commit
+  under `ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic`.
+- Not verified: behaviour inside the harnesses themselves — precisely what
+  `documented` and `inferred` mean in the table.
+- Open: ZCode's project-level sub-agents are announced but not shipped, so the
+  entry writes project files and prints the copy step to `~/.zcode/`. When the
+  project level lands, that is a one-line JSON change.

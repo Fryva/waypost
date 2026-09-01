@@ -1,14 +1,27 @@
-# Как устроен MPS
+# How MPS works
 
-MultiProjectStore — харнес-агностичный форк ProjectStore. Ядро (vault, layouts,
-шаблоны, doctor/graph/codemap/reconcile/draft/kanban) перенесено как есть;
-интерфейсный слой Claude Code (slash-команды, hooks, statusLine, spawn subagents)
-заменён на единый CLI `mps`, нейтральные определения ролей и адаптеры под
-конкретные харнесы.
+MultiProjectStore is a harness-agnostic fork of ProjectStore. The core (vault,
+layouts, templates, doctor/graph/codemap/reconcile/draft/kanban) is carried over
+as it was; the Claude Code interface layer (slash commands, hooks, status line,
+spawned subagents) is replaced by one CLI, neutral role definitions, and adapters
+for specific harnesses.
+
+## Getting started
+
+```bash
+mps setup        # bind a vault, scaffold it, install and register the roles,
+                 # repair the mechanical findings — one command, idempotent
+mps              # is this set up, and what does it need right now
+mps next         # the same question, ranked, with the command for each
+```
+
+`mps setup --dry-run` shows what it would do first. It adopts a vault the
+project already has (`vault/`, `docs/vault/`, `knowledge/`) rather than creating
+a second one.
 
 ## Vault
 
-Vault — каталог с артефактами как plain markdown в git. Layout по умолчанию —
+A directory of artifacts as plain markdown in git. The default layout is
 `engineering` (`scaffold/layouts/engineering.json`):
 
 ```
@@ -24,145 +37,154 @@ vault/
   kanban.md    (derived)
   graph.md     (derived)
   code-map.md  (derived)
-  .projectstore.json      политика vault (spec_policy, lifecycle_gates)
-  .projectstore/sessions/ реестр активных сессий (не коммитится)
+  .projectstore.json      vault policy (spec_policy, lifecycle_gates)
+  .projectstore/          runtime data: sessions, presence, leases (not committed)
 ```
 
-Vault остаётся совместимым с исходным ProjectStore: имена служебных файлов внутри
-vault не переименованы, поэтому один и тот же vault открывается обоими
-инструментами (ADR-0004).
+The vault stays compatible with upstream ProjectStore: service file names inside
+it are not renamed, so one vault opens in either tool (ADR-0004).
 
-## Проверенный цикл
+## The verified loop
 
-задача → артефакт (ADR / spec / epic / story) → critic → бэклог → planner →
-reviewer → done. Каждый шаг проверки — отдельный проход со свежим контекстом,
-а механическую часть берёт на себя детерминированный `mps doctor` (без LLM).
+task → artifact (ADR / spec / epic / story) → critic → backlog → planner →
+reviewer → done. Every verification step is a separate pass with a fresh
+context, and the mechanical half is handled by a deterministic `mps doctor` with
+no LLM involved.
 
-## Единый CLI
+## One CLI
 
-`bin/mps` — диспетчер: он владеет всеми записями на диск, а скрипты в `scripts/`
-остаются чистым вычислением и печатают JSON. Именно поэтому doctor может
-перезапустить генератор и сравнить результат с тем, что лежит на диске.
+`bin/mps` is the dispatcher: it owns every write to disk, while the scripts in
+`scripts/` stay pure compute printing JSON. That is exactly why doctor can re-run
+a generator and compare the result with what is on disk.
 
-| Команда | Что делает |
+| Command | What it does |
 |---|---|
-| `mps bind <vault>` | привязать vault и развернуть layout (`--layout`, `--lang`, `--force`) |
-| `mps scaffold` | до-создать папки layout и их README-индексы |
-| `mps brief` | пакет ориентации на старте сессии (замена SessionStart-хука) |
-| `mps draft <kind> "<title>" [--write]` | черновик артефакта; `--write` создаёт и пересобирает представления |
-| `mps story plan\|close <path> [--write]` | гейты жизненного цикла истории |
-| `mps kanban` / `graph` / `codemap` | пересоздать одно производное представление |
-| `mps reconcile [--write]` | пересобрать все представления и индексы |
-| `mps doctor [--install\|--vault] [--fix]` | детерминированная диагностика |
-| `mps diff-refs` | изменённые файлы как доказательная база для `code_refs` |
-| `mps agents …` | роли: list / show / install / register / model |
-| `mps harnesses` | реестр харнесов: куда кладутся роли и как их звать |
-| `mps prompt [name]` / `mps skill [name]` | процедуры цикла и скиллы |
-| `mps sessions [--touch] [--file]` | реестр активных сессий |
-| `mps status` | сводка привязки и состояния ролей |
-| `mps tokens` | стоимость цикла по транскриптам Claude Code (единственная харнес-специфичная команда) |
+| `mps setup` | the whole install in one command |
+| `mps next` | what the project needs now, ranked |
+| `mps bind <vault>` | bind a vault and scaffold the layout (`--layout`, `--lang`, `--force`) |
+| `mps scaffold` | create any missing layout folders and index READMEs |
+| `mps brief` | session-start orientation packet (`--full` for the descent tutorial) |
+| `mps draft <kind> "<title>" [--write]` | draft an artifact; `--write` creates and reconciles |
+| `mps story plan\|close <path> [--write]` | story lifecycle gates |
+| `mps kanban` / `graph` / `codemap` | regenerate one derived view |
+| `mps graph --for <path>` | one artifact's neighbourhood instead of the whole graph |
+| `mps search "<text>"` | vault-wide search returning pointers |
+| `mps reconcile [--write]` | rebuild every view and index |
+| `mps doctor [--install\|--vault] [--fix]` | deterministic diagnostics |
+| `mps diff-refs` | changed files as evidence for `code_refs` |
+| `mps agents …` | roles: list / show / install / register / model |
+| `mps harnesses` | the registry: where roles land and how to invoke them |
+| `mps commit` / `merge` / `log` | the commit protocol (ADR-0006) |
+| `mps sessions` / `watch` / `lease` / `storage` | presence and leases (ADR-0007) |
+| `mps prompt [name]` / `mps skill [name]` | loop procedures and skills |
+| `mps status` | bind summary, live sessions, role state |
+| `mps tokens` | what the loop cost, from Claude Code transcripts (the one harness-specific command) |
 
-## Роли агентов в трёх харнесах
+## Agent roles across harnesses
 
-Одно определение роли — `agents/<role>.md` с нейтральным frontmatter
-(`model: reasoning|balanced|fast`, `effort`, `access`, `tools`). `mps agents install`
-рендерит его в формат каждого харнеса:
+One definition per role — `agents/<role>.md` with neutral frontmatter
+(`model: reasoning|balanced|fast`, `summary`, `effort`, `access`, `tools`).
+`mps agents install` renders it into each harness's own format.
 
-Сам харнес — тоже данные: `harnesses/<id>.json` (ADR-0005). Поставляются `claude`, `opencode`,
-`codex` (verified); `cursor`, `windsurf`, `copilot`, `gemini`, `cline`, `roo`, `qwen`
-(documented); `trae`, `lingma`, `codebuddy`, `iflow` (experimental). Свой добавляется файлом в
-`.mps/harnesses/` — см. `docs/harnesses.md`. `mps harnesses` печатает список и отмечает, что
-обнаружено в проекте.
+The harness itself is data too: `harnesses/<id>.json` (ADR-0005). Shipped:
+`claude` (verified); `codex`, `opencode`, `gemini`, `copilot`, `cursor`,
+`windsurf`, `cline`, `roo`, `kimi`, `qwen`, `zcode`, `codebuddy`, `lingma`,
+`dsh` (documented); `trae`, `iflow` (inferred). Add your own as a file in
+`.mps/harnesses/` — see `docs/harnesses.md`. `mps harnesses` prints the list and
+marks what is detected in this project.
 
-Отдельно — поставщики моделей (`harnesses/providers/*.json`): DeepSeek, Kimi, GLM, MiniMax,
-DashScope. Это не харнесы: роли ставятся для того харнеса, который реально запущен, а провайдер
-определяется по эндпойнту/ключу и попадает в коммит трейлером `Mps-Provider`.
+Separately, model providers (`harnesses/providers/*.json`): DeepSeek, Moonshot,
+GLM, MiniMax, DashScope. Those are not harnesses — roles are installed for the
+harness you actually run, and the provider is detected from the endpoint or a
+vendor key and recorded in the commit as an `Mps-Provider` trailer.
 
-| Харнес | Файл | Во что превращается |
-|---|---|---|
-| Claude Code | `.claude/agents/mps-<role>.md` | субагент (`mps-critic`, …) |
-| OpenCode | `.opencode/agent/mps-<role>.md` | агент `mode: subagent` с картой инструментов |
-| Codex | `.codex/prompts/mps-<role>.md` | пользовательский промпт (`/mps-critic`) |
-| Cursor / Windsurf / Cline | правило или workflow | контекст роли по требованию |
-| GitHub Copilot | `.github/chatmodes/…` | chat mode |
-| Gemini CLI | `.gemini/commands/mps/<role>.toml` | команда `/mps:<role>` |
-| Roo Code | `.roomodes` | custom mode (слияние, чужие режимы не трогаются) |
-| любой другой | — | `mps agents show <role>` как системный промпт |
+Every generated file carries a provenance line with a hash of the render: that is
+how `mps doctor` tells "installed and current" from "stale", and how
+`mps agents uninstall` knows which files are its own.
 
-Каждый сгенерированный файл несёт строку происхождения с хешем источника —
-по ней `mps doctor` отличает «установлено и актуально» от «устарело», а
-`mps agents uninstall` понимает, какие файлы его.
+`mps agents register` writes a routing block between markers into `AGENTS.md`
+(and into whichever instruction file each detected harness reads): when to reach
+for which role. Re-running replaces the block in place rather than duplicating it.
 
-`mps agents register` пишет блок маршрутизации между маркерами в `AGENTS.md`
-(и `CLAUDE.md`, если он есть): когда какую роль звать. Повторный запуск заменяет
-блок на месте, а не дублирует его.
+## Parallel sessions (ADR-0006)
 
-## Параллельные сессии (ADR-0006)
+- `mps commit -m "…" [--story <id>]` — reconciles the views, checks other
+  sessions' claims, and writes `Mps-Harness` / `Mps-Session` / `Mps-Provider` /
+  `Mps-Story` trailers.
+- `mps log [--story|--harness|--provider|--session <v>]` — reads that back.
+- `mps merge <ref>` — merge without auto-commit, reconcile, then commit, so the
+  board in the merge commit matches the merged vault.
+- `mps merge-derived` — the git merge driver: a conflict in a generated file is
+  resolved by regeneration rather than line by line. Installed by
+  `mps doctor --fix`.
+- `mps sessions --claim/--release` (and automatically at the story gates) — who
+  is working on what.
 
-- `mps commit -m "…" [--story <id>]` — пересобирает представления, проверяет чужие заявки и
-  пишет трейлеры `Mps-Harness`/`Mps-Session`/`Mps-Story`.
-- `mps log [--story|--harness|--session <v>]` — чтение этой записи обратно.
-- `mps merge <ref>` — merge без автокоммита, пересборка, затем коммит: доска в merge-коммите
-  соответствует слитому vault.
-- `mps merge-derived` — git merge-драйвер: конфликт в производном файле разрешается
-  пересборкой из артефактов, а не построчным слиянием. Ставится `mps doctor --fix`.
-- `mps sessions --claim/--release` (и автоматически на гейтах истории) — кто на чём работает.
+## Several devices and operating systems (ADR-0007)
 
-## Разные устройства и ОС (ADR-0007)
+- `mps watch` — heartbeat plus other devices' events (who joined, went quiet,
+  took a story). Any working command also beats on its own.
+- `mps lease <path…>` / `lease list` / `lease release` — advisory path leases
+  with a deterministic race resolution; `mps commit` respects live foreign leases.
+- `mps sessions`, `mps brief`, `mps status` — who is live, on which harness, OS
+  and device.
+- `mps storage` — storage kind (local/network/cloud) and the presence lag estimate.
+- Liveness is computed with the local clock only (a peer's counter plus a local
+  observation), so clock skew between machines affects nothing.
+- doctor: non-portable names, case collisions, `* text=auto`, sync conflicted
+  copies, stale foreign leases.
 
-- `mps watch` — биение сессии и события других устройств (кто пришёл, ушёл, взял историю).
-- `mps lease <path…>` / `mps lease list` / `mps lease release` — advisory-аренды путей с
-  детерминированным разрешением гонки; `mps commit` уважает чужие живые аренды.
-- `mps sessions`, `mps brief`, `mps status` — кто жив, на каком харнесе, ОС и устройстве.
-- `mps storage` — тип хранилища (local/network/cloud) и оценка задержки присутствия.
-- Liveness считается только по локальным часам (счётчик пира + локальная отметка наблюдения),
-  поэтому расхождение часов между машинами ни на что не влияет.
-- doctor: непереносимые имена, коллизии регистра, `* text=auto`, конфликтные копии
-  синхронизации, чужие устаревшие аренды.
+## Context spend (ADR-0008)
 
-## Расход контекста (ADR-0008)
-
-Постоянно в контексте: блок маршрутизации (197 токенов), описания ролей, которые вставляет
-харнес (92), `mps brief` (409) — около 700 токенов, и эта величина не растёт вместе с vault.
-Растут только производные представления, поэтому их не читают целиком:
-`mps graph --for <path>` (44 против 1119) и `mps search "<текст>"` (91 против 1516 на индекс).
-Подробный вывод — за флагом: `brief --full`, `harnesses --all`, `agents list -v`, `draft --json`.
-Бюджеты закреплены тестами.
+Standing in the context: the routing block (197 tokens), the role descriptions a
+harness injects (92), and `mps brief` (409) — about 700 tokens, and that number
+does not grow with the vault. Only derived views grow, which is why they are
+never read whole: `mps graph --for <path>` (44 against 1119) and
+`mps search "<text>"` (91 against 1516 for one index). Detail is behind a flag:
+`brief --full`, `harnesses --all`, `agents list -v`, `draft --json`. The budgets
+are pinned by tests.
 
 ## Doctor
 
-`mps doctor` — детерминированная проверка без AI:
+`mps doctor` is deterministic and AI-free:
 
-- **install**: привязка, layout и шаблоны, роли по харнесам, блок маршрутизации,
-  `.gitignore`, git в vault.
-- **vault**: статусы ↔ доска ↔ индексы, допустимые имена/slug, критерии приёмки,
-  ссылки (wikilinks и относительные), `code_refs`, гейты spec/lifecycle.
-- `--fix` чинит только механическое: записи в `.gitignore`, `git init` в vault,
-  перегенерацию ролей и блока маршрутизации. Vault чинится `mps reconcile --write`.
+- **install**: the bind, the layout and templates, the roles per harness, the
+  routing block, `.gitignore`, git in the vault, the merge driver, the
+  line-ending policy.
+- **vault**: statuses ↔ board ↔ indexes, legal names and slugs, acceptance
+  criteria, links (wiki and relative), `code_refs`, spec and lifecycle gates,
+  portable names, shared-vault state.
+- `--fix` repairs only the mechanical things: `.gitignore` entries, `git init` in
+  a vault outside the repository, re-rendering roles and the routing block, the
+  merge driver and the line-ending policy. The vault side is repaired by
+  `mps reconcile --write`.
 
-## Пути и окружение
+## Paths and environment
 
-- `MPS_PROJECT_DIR` — корень проекта (fallback: `CLAUDE_PROJECT_DIR`, cwd).
-- `MPS_HOME` — корень инструмента (fallback: `CLAUDE_PLUGIN_ROOT`, каталог выше `scripts/`).
-- `MPS_SESSION_ID` — идентификатор сессии для реестра (иначе `<host>-<ppid>`).
-- Конфиг привязки — `.mps/projectstore.json` (legacy — `.claude/projectstore.json`).
+- `MPS_PROJECT_DIR` — the project root (fallback: `CLAUDE_PROJECT_DIR`, cwd).
+- `MPS_HOME` — the tool root (fallback: `CLAUDE_PLUGIN_ROOT`, the directory above
+  `scripts/`).
+- `MPS_SESSION_ID`, `MPS_HARNESS`, `MPS_PROVIDER` — session identity and labels.
+- `MPS_NO_BEAT=1` — disable the automatic presence heartbeat.
+- Bind config: `.mps/projectstore.json` (legacy `.claude/projectstore.json`).
 
-## Что изменено относительно ProjectStore
+## What changed relative to ProjectStore
 
-| Было (Claude Code) | Стало (MPS) |
+| Upstream (Claude Code) | MPS |
 |---|---|
-| slash-команды `/projectstore:*` | `bin/mps` + процедуры `mps prompt <name>` |
-| hooks (SessionStart/PreToolUse/Stop/PreCompact) | `mps brief`, `mps sessions --touch [--file]` по правилу |
-| statusLine | нет (снято вместе с обвязкой) |
-| субагенты только Claude | `agents/*.md` + адаптеры на три харнеса |
+| `/projectstore:*` slash commands | `bin/mps` plus `mps prompt <name>` procedures |
+| hooks (SessionStart/PreToolUse/Stop/PreCompact) | `mps brief`, `mps sessions`, an automatic heartbeat |
+| status line | none (removed with the wiring it described) |
+| Claude-only subagents | `agents/*.md` plus a registry of seventeen harnesses |
 | `CLAUDE_*`, `.claude/.projectstore/` | `MPS_*`, `.mps/` |
-| marketplace/auto-update проверки | нет; версия берётся из `package.json` |
+| marketplace/auto-update checks | none; the version comes from `package.json` |
 
-Ядро сохранено без изменений по смыслу: `lib`, `doctor`, `graph`, `codemap`,
-`reconcile`, `draft`, `kanban`, `diff-refs`, `story-section`, `tokens`, layouts,
-шаблоны, механика vault.
+The core is preserved in meaning: `lib`, `doctor`, `graph`, `codemap`,
+`reconcile`, `draft`, `kanban`, `diff-refs`, `story-section`, `tokens`, the
+layouts, the templates and the vault mechanics.
 
-## Тесты
+## Tests
 
-`npm test` (или `node --test tests/*.test.mjs`) — предикаты ядра, скрипты
-(draft/reconcile/graph/story-section), локали и харнес-слой (роли, адаптеры, CLI).
+`npm test` (or `node --test tests/*.test.mjs`) — core predicates, the scripts
+(draft/reconcile/graph/story-section), locales, the harness layer (roles,
+adapters, registry, CLI, token budgets), the commit protocol, and presence.

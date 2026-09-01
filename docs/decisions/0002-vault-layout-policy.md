@@ -1,8 +1,8 @@
-# ADR-0002: Layout `engineering` как стандарт, vault — markdown в git
+# ADR-0002: The `engineering` layout as the default; the vault is markdown in git
 
 - Status: proposed
 - Date: 2026-08-28
-- Deciders: не утверждено владельцем проекта; статус `proposed`
+- Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
 - Related: `scaffold/layouts/engineering.json`, `README.md`, `AGENTS.md`
@@ -10,58 +10,64 @@
 
 ## Context
 
-ProjectStore определяет структуру vault через layouts (JSON). Единственный поставляемый layout —
-`engineering` (adr/, specs/, epics/<id>/stories/, research/, concepts/, meetings/, ops/, diagrams/).
-Форк должен решить, какой layout использовать по умолчанию и где хранить vault.
+ProjectStore defines the vault structure through layouts (JSON). The only
+bundled layout is `engineering` (adr/, specs/, epics/<id>/stories/, research/,
+concepts/, meetings/, ops/, diagrams/). The fork has to decide which layout is
+the default and where the vault lives.
 
 ## Decision drivers
 
-- Совместимость с исходником (layouts/шаблоны переиспользуются как есть).
-- Vault — plain markdown в git: переносимость, git, Obsidian/GitHub-рендер, никакого сервера.
-- Конфиг привязки — в проекте (`.mps/projectstore.json`), чтобы vault «ехал» с репо.
+- Compatibility with upstream (layouts and templates are reused unchanged).
+- The vault is plain markdown in git: portable, reviewable, rendered by GitHub
+  and Obsidian alike, no server.
+- The bind config lives in the project so the vault travels with the repo.
 
 ## Considered options
 
-### Option 1: layout `engineering` по умолчанию, vault в git (выбран)
-`mps bind` использует `engineering`, если не указано иное; vault — markdown в git; конфиг —
-`.mps/projectstore.json` в корне проекта.
-**Плюсы:** совместимо с исходником, минимум новых решений, переносимость.
-**Минусы:** layout-структура фиксирована (не гибкая под продуктовые/дата-проекты).
+### Option 1: `engineering` by default, vault in git (chosen)
 
-### Option 2: кастомизация через `mps bind --layout <name>`
-Поддержать выбор layout при привязке.
-**Плюсы:** гибкость.
-**Минусы:** пока поставляется только `engineering`, так что выбор ничего не меняет.
-Компромисс: флаг реализован и валидируется (неизвестное имя отвергается с перечислением
-доступных), но дефолт остаётся `engineering` — вариант 1 в силе.
+`mps bind` uses `engineering` unless told otherwise; the vault is markdown in
+git; the bind config is `.mps/projectstore.json` in the project root.
+**Pros:** compatible with upstream, few new decisions, portable.
+**Cons:** the layout is fixed (not tuned for product or data projects).
 
-### Option 3: vault вне git (внешний каталог-хранилище)
-Не привязывать vault к репо.
-**Плюсы:** vault можно шарить между репо.
-**Минусы:** теряется «vault едет с проектом», усложняется навигация. Отвергнуто.
+### Option 2: customisation via `mps bind --layout <name>`
+
+**Pros:** flexibility.
+**Cons:** only `engineering` ships, so the choice changes nothing today.
+Compromise: the flag exists and is validated (an unknown name is rejected with
+the available ones listed), but the default stays `engineering` — option 1 holds.
+
+### Option 3: the vault outside git (an external store)
+
+**Pros:** one vault shared between repositories.
+**Cons:** the vault stops travelling with the project and navigation gets worse.
+Rejected.
 
 ## Decision
 
-Принять вариант 1: layout `engineering` по умолчанию; vault — plain markdown в git; конфиг
-привязки — `.mps/projectstore.json` в корне проекта (vault может жить в том же репо или в
-отдельном vault-репо для команд).
+Take option 1: `engineering` by default; the vault is plain markdown in git; the
+bind config is `.mps/projectstore.json` in the project root (the vault may live
+in the same repository or in a separate vault repository for teams).
 
 ## Consequences
 
 ### Positive
 
-- Полная совместимость с исходным выбранным layout и шаблонами.
-- Vault переносим: git, GitHub/Obsidian/любой редактор; no-proprietary format.
+- Full compatibility with the upstream layout and templates.
+- The vault is portable: git, GitHub, Obsidian, any editor; no proprietary format.
 
 ### Negative / risks
 
-- Фиксированная структура layout требует нового layout-файла для не-engineering проектов.
-- Vault в отдельном репо требует ручной навигации между репо проекта и vault-репо.
+- A fixed layout means a new layout file for non-engineering projects.
+- A vault in a separate repository means navigating between two checkouts.
 
 ## Verification and follow-up
 
-- `bin/mps bind <vault>` создаёт структуру `engineering` и `.mps/projectstore.json`
-  (проверено тестом «bind scaffolds the layout…» в `tests/harness.test.mjs`).
-- `bin/mps status` корректно читает `vault_path`/`layout`.
-- `--layout`/`--lang` реализованы и валидируются до записи: неизвестное значение отвергается,
-  ничего не пишется (тест «bind rejects an unknown layout or language»).
+- `bin/mps bind <vault>` creates the `engineering` structure and
+  `.mps/projectstore.json` (covered by "bind scaffolds the layout…" in
+  `tests/harness.test.mjs`).
+- `bin/mps status` reads `vault_path`/`layout` correctly.
+- `--layout`/`--lang` are implemented and validated before any write: an unknown
+  value is rejected and nothing is written ("bind rejects an unknown layout or
+  language").

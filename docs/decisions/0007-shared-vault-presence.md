@@ -1,135 +1,151 @@
-# ADR-0007: Одновременная работа с разных устройств и ОС: присутствие, аренды, сетевые диски
+# ADR-0007: Working from several devices and operating systems: presence, leases, network drives
 
 - Status: proposed
 - Date: 2026-09-01
-- Deciders: не утверждено владельцем проекта; статус `proposed`
+- Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
-- Related: ADR-0006 (протокол коммитов), `scripts/presence.mjs`, `scripts/lib.mjs`
+- Related: ADR-0006 (commit protocol), `scripts/presence.mjs`, `scripts/lib.mjs`
 - code_refs: ["scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/doctor.mjs", "scripts/brief.mjs", "scripts/lib.mjs", "tests/presence.test.mjs"]
 
 ## Context
 
-ADR-0006 описал протокол коммитов для параллельных сессий, но неявно предполагал одну машину:
-liveness считалась по mtime файлов сессий, временные файлы отметались по живости pid, а «сейчас
-работает» означало «в последние 30 минут по локальным часам».
+ADR-0006 described a commit protocol for parallel sessions but silently assumed
+one machine: liveness came from file mtimes, temp files were reaped by pid
+liveness, and "working now" meant "recently, by the local clock".
 
-Реальный сценарий шире: vault лежит в iCloud/Dropbox/на SMB-шаре, сессии идут с macOS, Windows
-и Linux одновременно, и все должны видеть, кто что делает **сейчас**, и не наступать друг другу
-на руки. На этом субстрате ломаются три предположения, каждое из которых верно на одной машине:
+The real case is wider: the vault may live on iCloud, Dropbox or an SMB share,
+with sessions running on macOS, Windows and Linux at the same time, and everyone
+needs to see who is doing what **right now** without stepping on each other. On
+that substrate three assumptions that hold for one machine are false:
 
-1. **Часы согласованы.** Два ноутбука расходятся на минуты; TTL, сравнивающий чужую метку
-   времени с локальным `now`, объявляет живую сессию мёртвой (или наоборот).
-2. **mtime что-то значит.** На SMB это часы сервера, на FAT/exFAT — округление до двух секунд,
-   а клиент синхронизации переписывает mtime при скачивании.
-3. **Запись атомарна и уникальна.** Облачный клиент вместо отказа создаёт вторую копию
-   («… 2.json», «…conflicted copy…»), поэтому `O_EXCL` не даёт взаимного исключения, а
-   `flock` по SMB/NFS/iCloud не работает надёжно.
+1. **Clocks agree.** Two laptops can differ by minutes; a TTL that compares a
+   remote timestamp with the local `now` then reports a live session as dead, or
+   the reverse.
+2. **mtime means something.** On SMB it is the server's clock, on FAT/exFAT it is
+   rounded to two seconds, and a sync client rewrites it on download.
+3. **A write is atomic and unique.** A cloud client creates a second copy
+   ("… 2.json", "…conflicted copy…") instead of failing, so `O_EXCL` is not
+   mutual exclusion — and `flock` is not reliable over SMB/NFS/iCloud.
 
-Плюс кросс-ОС слой: имя, легальное на macOS, невозможно выкачать на Windows; два артефакта,
-различающиеся регистром, схлопываются в один на case-insensitive ФС; сессия под Windows без
-единой политики переводов строк превращает каждый тронутый файл в полный diff, конфликтующий
-со всеми параллельными правками.
+Plus a cross-OS layer: a filename legal on macOS cannot be checked out on
+Windows; two artifacts differing only in case collapse into one on a
+case-insensitive filesystem; and without a line-ending policy a Windows session
+turns every file it touches into a whole-file diff that conflicts with every
+parallel edit.
 
 ## Decision drivers
 
-- Никакого сервера: координация только через файлы, которые и так синхронизируются.
-- Честность важнее удобства: блокировка, которая иногда врёт, хуже явного «это advisory».
-- Ни одна проверка не должна зависеть от согласованности часов между устройствами.
-- Разрушительные действия (удаление чужого временного файла, перезапись чужой правки) должны
-  быть невозможны, даже когда информация устарела.
+- No server: coordination only through files that are already synchronised.
+- Honesty over convenience: a lock that occasionally lies is worse than an
+  explicit "this is advisory".
+- No check may depend on clocks agreeing between devices.
+- Destructive actions (deleting someone's temp file, overwriting someone's edit)
+  must be impossible even when the information is stale.
 
 ## Considered options
 
-### Option 1: присутствие со счётчиком + advisory-аренды + кросс-ОС проверки (выбран)
+### Option 1: a counter-based presence, advisory leases, cross-OS checks (chosen)
 
-**Liveness без общих часов.** Каждая сессия пишет `<vault>/.projectstore/presence/<id>.json`
-со своим счётчиком `seq`, который сама увеличивает. Наблюдатель хранит локально, **когда он
-впервые увидел** каждое значение (`.mps/state/peers.json`), и считает сессию живой, если её
-счётчик менялся в последние N секунд **по локальным часам**. Все сравнения времени — внутри
-одних часов. Единственное исключение — первая встреча с пиром: истории ещё нет, поэтому его
-собственная метка принимается на одно окно, и это ограничение названо в выводе (`basis`).
+**Liveness without a shared clock.** Each session writes
+`<vault>/.projectstore/presence/<id>.json` with a counter it increments itself.
+An observer records **locally** when it first saw each value
+(`.mps/state/peers.json`) and treats a session as live while its counter has
+changed within N seconds **by the local clock**. Every time comparison happens
+inside one clock. The single exception is the first sight of a peer: there is no
+history yet, so its own timestamp is trusted for one window, and the output says
+so (`basis`).
 
-**Окно зависит от хранилища.** `storageOf()` распознаёт iCloud/Dropbox/Google Drive/OneDrive/
-Яндекс.Диск, UNC-шары и сетевые ФС (`nfs/smbfs/cifs/afpfs/webdav/sshfs/…`) и расширяет окно
-живости и паузу «отстояться» до величин, покрывающих задержку распространения. Команды прямо
-говорят: «данные о других устройствах могут отставать на ~N с».
+**The window depends on the storage.** `storageOf()` recognises
+iCloud/Dropbox/Google Drive/OneDrive/Yandex Disk, UNC shares and network
+filesystems (`nfs/smbfs/cifs/afpfs/webdav/sshfs/…`) and widens both the liveness
+window and the settle wait to cover propagation delay. Commands say plainly:
+"presence from another device can lag ~N s".
 
-**Аренды путей.** `mps lease <path…>` объявляет: «я сейчас редактирую эти файлы».
-Захват — не блокировка, а протокол: запись → пауза на settle → перечитывание →
-детерминированный tie-break (`acquired_at`, затем id сессии; функция симметрична, поэтому оба
-устройства вычисляют одного победителя) → проигравший снимает свою запись и сообщает об этом.
-Аренда живёт, пока жива её сессия: упавший харнес не держит файл вечно, а перехват
-записывается (`taken_over_from`), а не происходит молча.
+**Path leases.** `mps lease <path…>` announces "I am editing these files right
+now". Acquisition is not a lock but a protocol: write → settle → re-read →
+deterministic tie-break (`acquired_at`, then session id; the function is
+symmetric, so both devices compute the same winner) → the loser removes its
+record and reports it. A lease lives as long as its session: a crashed harness
+must not hold a file forever, and a takeover is recorded (`taken_over_from`)
+rather than silent.
 
-**Гейты.** `mps commit` отказывается коммитить файлы, арендованные другой живой сессией;
-`mps story plan` заявляет историю; `mps brief` и `mps status` показывают, кто сейчас в работе
-и на чём; `mps watch` держит сессию живой и печатает события других устройств.
+**Gates.** `mps commit` refuses to commit files leased by another live session;
+`mps story plan` claims the story; `mps brief` and `mps status` show who is
+working and on what; `mps watch` keeps a session live and prints other devices'
+events. Every command that implies work beats the heartbeat by itself, so
+presence works without anyone remembering to touch it.
 
-**Кросс-ОС.** doctor проверяет непереносимые имена (символы `<>:"|?*`, сегменты с завершающим
-пробелом/точкой, зарезервированные `CON/NUL/COM1…`, длину пути) и коллизии по регистру;
-`--fix` прописывает `* text=auto` в `.gitattributes`. Временные файлы атомарной записи теперь
-несут имя хоста, и подметаются только свои: чужой pid на общем диске ничего не значит, а
-удаление чужого temp — это уничтожение записи, идущей прямо сейчас на другой машине.
+**Cross-OS.** doctor reports non-portable names (`<>:"|?*`, segments ending in a
+space or dot, reserved `CON/NUL/COM1…`, long paths) and case collisions;
+`--fix` writes `* text=auto` into `.gitattributes`. Atomic-write temp files now
+carry the host that made them and only this host's are swept: another machine's
+pid means nothing here, and deleting its temp destroys a write in flight there.
 
-**Плюсы:** работает на любом синхронизируемом каталоге без демонов и серверов; ни одно решение
-не зависит от чужих часов; разрушительные операции ограничены собственными файлами.
-**Минусы:** это обнаружение, а не предотвращение — два устройства всё ещё могут начать править
-один файл в пределах окна синхронизации; «в реальном времени» означает «с точностью до задержки
-хранилища»; присутствие требует, чтобы сессия билась (`mps watch` или регулярные команды).
+**Pros:** works on any synchronised directory with no daemon and no server; no
+decision depends on someone else's clock; destructive operations are limited to
+one's own files.
+**Cons:** this is detection, not prevention — two devices can still start editing
+one file within the sync window; "real time" means "to the precision of the
+storage"; presence requires a session to beat.
 
-### Option 2: настоящие блокировки (lockfile + flock/atomic rename)
+### Option 2: real locks (lockfile + flock / atomic rename)
 
-**Плюсы:** взаимное исключение, если бы работало.
-**Минусы:** `flock` не переносим на SMB/NFS/iCloud; `O_EXCL` не спасает от дублирующих копий
-облачного клиента; результат — «блокировка», которая иногда врёт, то есть худший вид
-координации. Отвергнуто.
+**Pros:** mutual exclusion, if it worked.
+**Cons:** `flock` is not portable to SMB/NFS/iCloud; `O_EXCL` does not survive a
+sync client that duplicates files; the result is a "lock" that occasionally lies,
+which is the worst kind of coordination. Rejected.
 
-### Option 3: внешний сервер координации (Redis, HTTP-сервис)
+### Option 3: an external coordination server (Redis, an HTTP service)
 
-**Плюсы:** корректные блокировки и события в реальном времени.
-**Минусы:** уничтожает главное свойство инструмента — plain markdown в git, без сервера;
-делает совместную работу невозможной там, где сети между устройствами нет, а общий диск есть.
-Отвергнуто.
+**Pros:** correct locks and real-time events.
+**Cons:** destroys the tool's defining property — plain markdown in git, no
+server — and makes collaboration impossible exactly where there is no network
+between devices but there is a shared drive. Rejected.
 
 ## Decision
 
-Принять вариант 1. Присутствие, аренды и кросс-ОС проверки — часть ядра; всё, что они
-сообщают, снабжено оценкой устаревания. Формулировка контракта, которую обязаны повторять
-интерфейсы: **это advisory-координация, а не взаимное исключение**. Единственные жёсткие
-гарантии — те, что не зависят от свежести данных: не трогать чужие временные файлы, не
-перезаписывать файлы, не сгенерированные mps, и не коммитить поверх живой чужой аренды без
-`--force`.
+Take option 1. Presence, leases and the cross-OS checks are part of the core,
+and everything they report carries an estimate of how stale it may be. The
+contract every interface repeats: **this is advisory coordination, not mutual
+exclusion.** The only hard guarantees are the ones that do not depend on
+freshness: never sweep another host's temp file, never overwrite a file mps did
+not generate, and never commit over a live foreign lease without `--force`.
 
 ## Consequences
 
 ### Positive
 
-- Сессии в разных ОС и на разных устройствах видят друг друга и то, что каждый держит.
-- Расхождение часов между машинами больше не влияет на решения о живости.
-- Общий vault на облачном диске перестал быть источником тихой порчи: конфликтные копии
-  называются вслух, чужие временные файлы неприкосновенны.
-- Непереносимые имена и политика переводов строк ловятся до того, как их увидит другая ОС.
+- Sessions on different operating systems and devices see each other and what
+  each holds.
+- Clock skew between machines no longer affects liveness decisions.
+- A shared vault on a cloud drive stopped being a source of silent corruption:
+  conflicted copies are named out loud, other hosts' temp files are untouchable.
+- Non-portable names and the line-ending policy are caught before another OS
+  sees them.
 
 ### Negative / risks
 
-- Окно синхронизации остаётся: на iCloud два устройства могут начать править один файл и
-  узнать об этом через десятки секунд. Это свойство субстрата, а не реализации.
-- Присутствие требует биения; сессия, которая просто открыта и ничего не запускает, «тихая».
-- `mps watch` — поллинг: он ограничен снизу задержкой самого хранилища.
-- Идентификатор сессии по-прежнему опирается на `MPS_SESSION_ID`/терминал (ADR-0006).
+- The sync window remains: on iCloud two devices can start editing one file and
+  learn about it tens of seconds later. That is a property of the substrate.
+- Presence needs a heartbeat; a session that is merely open and runs nothing is
+  quiet. (Mitigated: every working command beats.)
+- `mps watch` is polling — bounded below by the storage's own delay.
+- Session identity still leans on `MPS_SESSION_ID` / the terminal (ADR-0006).
 
 ## Verification and follow-up
 
-- `tests/presence.test.mjs`: пир с часами, ушедшими на ±6 часов, оценивается по нашим часам;
-  счётчик, переставший двигаться, гасит сессию; конфликтные копии iCloud/Dropbox не считаются
-  пирами; аренда отклоняется при живом держателе и перехватывается после его смерти с записью
-  перехвата; tie-break симметричен; `release` трогает только свои аренды; `mps commit`
-  отказывается писать поверх чужой живой аренды и проходит с `--force`; распознавание
-  хранилища; непереносимые имена и коллизии регистра; `--fix` ставит политику переводов строк;
-  чужой временный файл переживает подметание. 227 тестов зелёные.
-- Живьём: две сессии (claude/codex) на одном vault, `mps watch` показывает join/quiet/claim и
-  чужие аренды; `mps lease` отказывает второй сессии.
-- **Не проверено на настоящем сетевом хранилище**: поведение iCloud/Dropbox/SMB воспроизводилось
-  логически (конфликтные копии, задержки), но не на реальном общем диске между двумя машинами;
-  оценки задержек (0/3/60 с) — консервативные допущения, а не измерения.
+- `tests/presence.test.mjs`: a peer whose clock is ±6 hours off is judged by our
+  clock; a counter that stops moving goes quiet; iCloud/Dropbox conflicted copies
+  are not read as peers; a lease is refused while its holder is live and taken
+  over once it is not, with the takeover recorded; the tie-break is symmetric;
+  `release` touches only one's own leases; `mps commit` refuses to write over a
+  live foreign lease and proceeds with `--force`; storage classification;
+  non-portable names and case collisions; `--fix` writing the line-ending policy;
+  another host's temp file surviving a sweep.
+- Live: two sessions (claude/codex) on one vault, `mps watch` reporting
+  join/quiet/claim and foreign leases, `mps lease` refusing a second session.
+- **Not verified on real network storage**: iCloud/Dropbox/SMB behaviour was
+  reproduced logically (conflicted copies, delays), not between two machines on
+  a shared drive; the delay estimates (0/3/60 s) are conservative assumptions,
+  not measurements.

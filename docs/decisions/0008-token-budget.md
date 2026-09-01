@@ -1,117 +1,126 @@
-# ADR-0008: Расход контекста как проектное ограничение, а не как результат
+# ADR-0008: Context spend as a design constraint, not an outcome
 
 - Status: proposed
 - Date: 2026-09-01
-- Deciders: не утверждено владельцем проекта; статус `proposed`
+- Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
-- Related: ADR-0003 (роли), `agents/*.md`, `templates/agents-block.md.tmpl`, `scripts/brief.mjs`, `bin/mps`
+- Related: ADR-0003 (roles), `agents/*.md`, `templates/agents-block.md.tmpl`, `scripts/brief.mjs`, `bin/mps`
 - code_refs: ["agents/critic.md", "templates/agents-block.md.tmpl", "scripts/brief.mjs", "scripts/agents.mjs", "bin/mps", "tests/harness.test.mjs"]
 
 ## Context
 
-Инструмент, который ведёт проект руками агента, платит контекстом дважды: за то, что лежит в
-контексте **постоянно**, и за то, что печатает **каждая команда**. Первое дороже, чем кажется:
-всё, что попало в контекст, перечитывается на каждом ходу — строка в блоке маршрутизации,
-прочитанная за сессию 150 раз, стоит в 150 раз больше, чем выглядит.
+A tool that runs a project through an agent pays in context twice: for what sits
+in the context **permanently**, and for what every command **prints**. The first
+is more expensive than it looks — everything in the context is re-read on every
+turn, so a line in the routing block read 150 times in a session costs 150 times
+what it appears to.
 
-Замер до оптимизации (проект на 32 артефакта, токенизатор o200k):
+Measured before the work (a 32-artifact project, o200k tokenizer):
 
-| Что | Токенов |
+| What | Tokens |
 |---|---|
-| Постоянный контекст: блок маршрутизации + описания ролей + `mps brief` | **1747** |
+| Standing context: routing block + role descriptions + `mps brief` | **1747** |
 | `mps status` | 1390 |
 | `mps agents list` | 1235 |
 | `mps harnesses` | 938 |
-| `mps draft <kind> "<title>"` (предпросмотр) | 575 |
-| `graph.md` целиком (32 артефакта) | 1119 |
-| `adr/README.md` целиком | 1516 |
+| `mps draft <kind> "<title>"` (preview) | 575 |
+| `graph.md` read whole (32 artifacts) | 1119 |
+| `adr/README.md` read whole | 1516 |
 
-Два последних — главная проблема больших проектов: производные представления растут линейно
-(~66 токенов на артефакт у графа, ~51 у индекса), и на 200 артефактах чтение графа целиком
-съедает больше, чем весь остальной оверхед вместе.
+The last two are the large-project problem: derived views grow linearly (~66
+tokens per artifact in the graph, ~51 in an index), so at 200 artifacts reading
+the graph once costs more than all the standing overhead combined.
 
 ## Decision drivers
 
-- Разделять «постоянное» и «по требованию»: платить за подробность только там, где её попросили.
-- Отвечать на вопрос, а не выдавать документ, из которого ответ надо извлекать.
-- Не жертвовать качеством ролей: их промпты — не место для экономии.
-- Бюджет должен быть проверяемым, иначе он рассосётся при следующей правке текста.
+- Separate "standing" from "on demand": pay for detail only where it was asked for.
+- Answer the question rather than emit a document the answer has to be dug out of.
+- Do not trade away role quality: their prompts are not where to economise.
+- The budget must be checkable, or it dissolves at the next edit to a paragraph.
 
 ## Considered options
 
-### Option 1: компактный вывод по умолчанию + запросы вместо чтения файлов (выбран)
+### Option 1: compact by default, plus queries instead of whole-file reads (chosen)
 
-1. **Два описания у роли.** `summary` (одна фраза) идёт в сгенерированные файлы харнесов и в
-   блок маршрутизации — именно его харнес вставляет в главный контекст сессии; длинное
-   `description` остаётся в исходнике для `mps agents list -v` и для человека.
-2. **Компактный вывод по умолчанию, подробный по флагу.** `mps brief` (`--full`),
-   `mps harnesses` (`--all`), `mps agents list` (`-v`), `mps draft` без `--write` (`--json`),
-   `mps status`.
-3. **Запросы вместо чтения производных представлений.** `mps graph --for <path>` возвращает
-   типизированное окружение одного узла; `mps search "<текст>" [--kind] [--limit]` возвращает
-   указатели (путь, заголовок, статус, строка совпадения), а не документы.
-4. **Бюджеты закреплены тестами** (`tests/harness.test.mjs`, раздел token economy): длина блока,
-   длина каждого описания роли, потолки на вывод рутинных команд, и требование, чтобы запрос к
-   графу был кратно дешевле чтения графа.
+1. **Two descriptions per role.** `summary` (one sentence) goes into the
+   generated harness files and the routing block — that is what a harness
+   injects into the main context; the long `description` stays in the source for
+   `mps agents list -v` and for humans.
+2. **Compact output by default, detail behind a flag:** `mps brief` (`--full`),
+   `mps harnesses` (`--all`), `mps agents list` (`-v`), `mps draft` without
+   `--write` (`--json`), and `mps status`.
+3. **Queries instead of reading derived views.** `mps graph --for <path>` returns
+   one node's typed neighbourhood; `mps search "<text>" [--kind] [--limit]`
+   returns pointers (path, title, status, matching line) rather than documents.
+4. **Budgets pinned by tests** (`tests/harness.test.mjs`, the token-economy
+   section): the block's length, each role description's length, ceilings for the
+   routine commands, and the requirement that a graph query be several times
+   cheaper than the file it replaces.
 
-**Плюсы:** постоянный расход падает почти втрое; стоимость рутинных команд перестаёт расти
-вместе с реестром харнесов и с размером vault; подробность никуда не делась, за неё платит тот,
-кто её попросил.
-**Минусы:** флаг придётся вспомнить, когда подробность нужна; короткое `summary` роли несёт
-меньше сигнала для автоматического выбора роли харнесом (блок маршрутизации это компенсирует).
+**Pros:** standing spend drops by ~60%; routine command cost stops growing with
+the harness registry and with the vault; the detail still exists, paid for by
+whoever asks.
+**Cons:** you have to remember the flag when you want detail; a short role
+`summary` carries less signal for a harness's automatic role selection (the
+routing block compensates).
 
-### Option 2: сжимать промпты ролей
+### Option 2: compress the role prompts
 
-**Плюсы:** самая крупная строка расхода на один вызов (1.2–1.4k токенов).
-**Минусы:** это и есть продукт. Роль стоит дорого не из-за промпта, а из-за собственного цикла
-чтения (замер: $1.62 за пасс, из них промпт — 0.08%). Отвергнуто.
+**Pros:** the largest single line per invocation (1.2–1.4k tokens).
+**Cons:** that is the product. A role is expensive because of the reading it
+does, not its prompt — measured: $1.62 per critic pass, of which the prompt is
+0.08%. Rejected.
 
-### Option 3: не печатать ничего, кроме JSON, и разбирать его агентом
+### Option 3: print nothing but JSON and let the agent parse it
 
-**Плюсы:** формально минимальный вывод.
-**Минусы:** JSON артефакта — это тот же текст плюс кавычки; человек теряет читаемость, а агент
-всё равно платит за содержимое. Отвергнуто; `--json` остаётся там, где нужен машинный разбор.
+**Pros:** formally minimal output.
+**Cons:** an artifact's JSON is the same text plus quoting; humans lose
+readability and the agent still pays for the content. Rejected; `--json` stays
+where machine parsing is the point.
 
 ## Decision
 
-Принять вариант 1. Правило для любых будущих правок текста: **всё, что попадает в постоянный
-контекст, требует бюджета в тесте**; всё, что печатает команда, по умолчанию отвечает на вопрос,
-а подробности прячет за флаг.
+Take option 1. The rule for any future text change: **anything entering the
+standing context needs a budget in a test**; anything a command prints answers
+the question by default and hides the reference behind a flag.
 
 ## Consequences
 
 ### Positive
 
-Замер после (тот же проект, тот же токенизатор):
+Measured after (same project, same tokenizer):
 
-| Что | Было | Стало |
+| What | Before | After |
 |---|---|---|
-| Постоянный контекст | 1747 | **698** (блок 197 + описания 92 + brief 409) |
+| Standing context | 1747 | **698** (block 197 + descriptions 92 + brief 409) |
 | `mps status` | 1390 | 175 |
 | `mps agents list` | 1235 | 147 |
 | `mps harnesses` | 938 | 51 |
-| `mps draft` (предпросмотр) | 575 | 156 |
-| Окрестность узла графа | 1119 (файл целиком) | **44** (`--for`) |
-| Поиск по vault | 1516 (индекс целиком) | **91** (`mps search`) |
+| `mps draft` (preview) | 575 | 156 |
+| One graph node | 1119 (whole file) | **44** (`--for`) |
+| A vault search | 1516 (whole index) | **91** (`mps search`) |
 
-В 100-ходовой сессии на Opus постоянный контекст стоит ≈ $0.035 вместо $0.087; на большом
-vault выигрыш от `--for`/`search` растёт линейно с числом артефактов.
+In a 100-turn Opus session the standing context costs about $0.035 instead of
+$0.087; on a large vault the `--for` / `search` saving grows linearly with the
+number of artifacts.
 
 ### Negative / risks
 
-- `summary` пишется руками: новая роль без него получит первую фразу `description`, которая
-  может оказаться длинной — бюджет-тест это ловит, но только для поставляемых ролей.
-- Компактный вывод скрывает детали, которых иногда не хватает; цена ошибки — один повторный
-  вызов с флагом.
-- `mps search` — это grep по frontmatter и телу, а не семантический поиск; для «найди похожее»
-  по-прежнему нужен `mps-librarian`.
+- `summary` is hand-written: a new role without one falls back to the first
+  sentence of `description`, which may be long — the budget test catches that,
+  but only for the bundled roles.
+- Compact output hides detail that is occasionally wanted; the cost of that
+  mistake is one repeated call with a flag.
+- `mps search` is a grep over frontmatter and body, not semantic search; "find
+  something like this" is still `mps-librarian`.
 
 ## Verification and follow-up
 
-- Замеры выше сняты `gpt-tokenizer` (o200k) на одном и том же проекте до и после; скрипт замера
-  лежит вне репозитория (одноразовый), сами бюджеты закреплены тестами в репозитории.
-- `tests/harness.test.mjs`: длина блока маршрутизации, длина описаний ролей, потолки вывода
-  `brief`/`status`/`doctor`/`harnesses`/`agents list`/`search`, и то, что `graph --for` кратно
-  дешевле файла и внятно отвечает на неизвестный узел.
-- 235 тестов зелёные.
+- The measurements above were taken with `gpt-tokenizer` (o200k) on the same
+  project before and after; the measurement script was one-off and lives outside
+  the repository, while the budgets themselves are tests inside it.
+- `tests/harness.test.mjs`: routing block length, per-role description length,
+  ceilings for `brief`/`status`/`doctor`/`harnesses`/`agents list`/`search`, and
+  that `graph --for` is several times cheaper than the file and answers an
+  unknown node clearly.
