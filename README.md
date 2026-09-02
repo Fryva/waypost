@@ -1,5 +1,8 @@
 # Waypost
 
+[![CI](https://github.com/Fryva/waypost/actions/workflows/ci.yml/badge.svg)](https://github.com/Fryva/waypost/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+
 > A waypost is a signpost for travellers — a marker left where the path forks,
 > for whoever comes next. One vault, one CLI, and the same agent roles in every
 > harness. Decisions, specs, epics, stories and a kanban board as plain markdown
@@ -257,6 +260,20 @@ What you get for it: a project manager / systems analyst that never forgets to
 file, artifacts that are the working backlog and decision log, and an exit hatch
 — plain markdown, no server, no proprietary format. Move to any model or any
 harness; the orientation is already on disk.
+
+## Contributing
+
+Issues and pull requests are welcome. Two files are worth reading first:
+
+- [AGENTS.md](./AGENTS.md) — the rules every harness and every contributor
+  follows. It is the single source: `.claude/CLAUDE.md` and `opencode.json`
+  only point at it, they do not restate it.
+- [docs/decisions/](./docs/decisions/) — the ADR log. Anything that moves an
+  architectural boundary, the vault format, the CLI surface or a dependency
+  gets an ADR before it gets code.
+
+`npm test` runs the whole suite — pure node, no dependencies, no network. CI
+runs it on Node 20, 22 and 24; keep it green.
 
 ## License
 
