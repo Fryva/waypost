@@ -1215,10 +1215,8 @@ export function checkWorkWithoutStory(cfg, proj) {
 // this check and it was wrong twice over: it missed the bare-scalar form these
 // fields are normally written in, and it rejected legal slug and case variants that
 // the shared resolver accepts, turning a correct vault red.
-export function checkSupersedes(cfg, layout, artifacts) {
+export function checkSupersedes(index, files) {
   const out = [];
-  const index = buildNodeIndex(cfg, layout);
-  const files = walkVaultFiles(cfg.vault_path);
   const ctx = { index, files, kinds: null };
   const seen = new Set();
   const add = (level, rel, message) => {
@@ -1287,7 +1285,7 @@ export function checkSupersedes(cfg, layout, artifacts) {
 // check having to know it.
 const REVIEW_UNANSWERED = new Set(["", "pending", "todo", "unknown", "null"]);
 
-export function checkAcceptanceGate(artifacts, vaultCfg, layout) {
+export function checkAcceptanceGate(artifacts, vaultCfg) {
   const gate = String(vaultCfg.acceptance_gate || "off").toLowerCase();
   if (!["on", "true"].includes(gate)) return [];
   // Only kinds whose template carries the field: a runbook has no review_status,
@@ -1311,10 +1309,10 @@ export function checkCodeRefs(artifacts, proj, epicFolderPath = "epics") {
   const out = [];
   const epicRefs = new Map();
   for (const e of artifacts.filter((a) => a.kind === "epic")) {
-    epicRefs.set(e.rel.replace(/\/epic\.md$/, ""), refsOf(e.fm, "code_refs"));
+    epicRefs.set(e.rel.replace(/\/epic\.md$/, ""), listOf(e.fm, "code_refs"));
   }
   for (const a of artifacts) {
-    const refs = refsOf(a.fm, "code_refs");
+    const refs = listOf(a.fm, "code_refs");
     if (!refs.length) continue;
     const status = (a.fm.status || "").toLowerCase();
     const level = ["in-progress", "in_progress", "done"].includes(status) ? "issue" : "warn";
@@ -1450,18 +1448,19 @@ export function runVaultChecks(cfg) {
       break;
     }
   }
-  const vaultFiles = walkVaultFiles(cfg.vault_path); // one walk, three consumers
+  const vaultFiles = walkVaultFiles(cfg.vault_path); // one walk, four consumers
+  const nodeIndex = buildNodeIndex(cfg, layout);       // one index, two consumers
   findings.push(
     ...checkVaultPolicy(cfg, layout, artifacts, vaultCfg),
-    ...checkWikilinks(cfg, artifacts, vaultFiles, buildNodeIndex(cfg, layout)),
+    ...checkWikilinks(cfg, artifacts, vaultFiles, nodeIndex),
     ...checkArtifactIdentity(layout, vaultFiles, artifacts),
     ...checkArtifactNames(vaultFiles),
     ...checkPortableNames(cfg, vaultFiles),
     ...checkSharedVaultState(cfg),
     ...checkExternalRefsForm(artifacts),
     ...checkCodeRefs(artifacts, projectRoot(), folderByKind(layout, "epic")?.path),
-    ...checkSupersedes(cfg, layout, artifacts),
-    ...checkAcceptanceGate(artifacts, vaultCfg, layout),
+    ...checkSupersedes(nodeIndex, vaultFiles),
+    ...checkAcceptanceGate(artifacts, vaultCfg),
     ...checkWorkWithoutStory(cfg, projectRoot()),
     ...checkCodeMap(cfg),
     ...checkGraph(cfg),

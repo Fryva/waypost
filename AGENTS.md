@@ -182,8 +182,8 @@ One project may be driven by several sessions at the same time (ADR-0006):
 
 - Project: `.waypost/projectstore.json` (legacy `.claude/projectstore.json`);
   machine-local, belongs in `.gitignore`.
-- Vault: `<vault>/.projectstore.json` — policy (`spec_policy`,
-  `lifecycle_gates`), travels with the vault.
+- Vault: `<vault>/.projectstore.json` — policy (`spec_policy`, `lifecycle_gates`,
+  `acceptance_gate`), travels with the vault.
 - Generated role files are the opposite: commit them, so the whole team gets the
   same roles.
 - Environment: `WAYPOST_PROJECT_DIR`, `WAYPOST_HOME`, `WAYPOST_SESSION_ID`, `WAYPOST_HARNESS`,

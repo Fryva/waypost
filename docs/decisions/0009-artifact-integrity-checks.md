@@ -24,7 +24,8 @@ evidence comes from — every one of them caught a real defect on its first run.
 2. **`supersedes` / `superseded_by` are read only by `graph.mjs`**, which renders
    the edges. Nothing checks that the target exists, that the declaration is
    mutual, or that a superseded artifact's status says `superseded`. A
-   one-directional or dangling declaration produces a plausible-looking graph.
+   dead target does appear in the graph as such, but a graph row is not a finding
+   and ADR-0008 says not to read the graph whole — so nothing surfaces it.
 
 3. **`status: accepted` does not require a completed review.** The converse is
    checked (`review_status: reviewed` demands a `reviewed_at`), so the field pair
@@ -36,8 +37,7 @@ own YAML reader for exactly these checks hit three separate parser defects
 (`supersedes: null` iterated character by character, block-form lists silently
 read as empty, CRLF frontmatter rejected outright). Two of the three are bugs this
 repository does not have; the block-form trap it shares, and compensates for with
-a dedicated finding on `specs:` and `external_refs:` — which these fields do not
-yet have. The parser existed only because the checks were missing here.
+a dedicated finding on `external_refs:` — which these fields do not yet have. The parser existed only because the checks were missing here.
 
 ## Decision drivers
 
@@ -59,7 +59,7 @@ missing reciprocal and a non-`superseded` status are `warn` — matching how
 spec↔story asymmetry is already treated. The acceptance gate is an `issue` under
 its own vault key, `acceptance_gate`.
 
-Both new checks read their fields with `refsOf` and resolve targets with
+The supersede check reads its fields with `refsOf` and resolves targets with
 `resolveLinkTarget` — the reader and the resolver `graph.mjs` already uses. This
 is not an implementation detail: a private lookup was the first version of the
 supersede check, and it simultaneously missed the bare-scalar form these fields
@@ -67,8 +67,14 @@ are normally written in and rejected legal slug and case variants, turning a
 correct vault red. An ADR whose premise is "a second reader is a defect
 generator" cannot ship a third one.
 
-**Pros:** one implementation, one reader, one resolver, no downstream
-duplication; upgrade is quiet because new default findings are warnings.
+`code_refs` keeps reading through `listOf`: inline flow is the documented form for
+that field and `codemap.mjs` reads it the same way, so moving it to the
+scalar-tolerant reader would have made doctor and `code-map.md` disagree about what
+a document declares, and would have added a new issue on upgrade. The scalar form is
+accepted only where it is documented and used — `supersedes`/`superseded_by`.
+
+**Pros:** one reader per field, one resolver, no downstream duplication; the only
+new issues an upgrade can produce come from a supersede link that cannot be true.
 **Cons:** a new vault-config key to explain.
 
 ### Option 2: leave `doctor` alone, document the gap
@@ -90,9 +96,11 @@ Take option 1. `doctor` verifies what frontmatter asserts: that a named path
 exists, that a supersede link is mutual and lands somewhere, and — where the
 project has switched lifecycle gates on — that acceptance followed a review.
 
-Severity is graded so that the upgrade is quiet: only the acceptance gate, a
-dangling or ambiguous supersede target and a self-reference are `issue`, and the
-gate is opt-in behind its own key.
+Severity is graded so the upgrade stays quiet where it can: `code_refs` findings
+are warnings outside `in-progress`/`done`, which is the bulk of what an existing
+vault would newly report. `issue` is kept for a supersede link that resolves to
+nothing, is ambiguous, or points at its own artifact — a declaration that cannot be
+true — and for the acceptance gate, which is opt-in behind its own key.
 
 The gate's invariant is deliberately narrow — acceptance must not happen while the
 review question is open. Any explicit answer satisfies it (`reviewed`, `n/a`,
@@ -117,16 +125,30 @@ That way a project supplies its own vocabulary without this check knowing it.
   `lifecycle_gates` — was tried and rejected: that switch is story-scoped, every
   finding under it is a warning, and `waypost bind` recommends turning it on, so an
   issue-level acceptance policy there would enrol projects that only ever agreed to
-  story gates.
+  story gates. (`waypost brief` prints `lifecycle_gates: on` for an empty config
+  while doctor reads empty as `off` — a pre-existing disagreement this ADR does not
+  fix, and one more reason not to hang policy on that key.)
 - Annotations are recognised by suffix only. A path that legitimately ends in
   `(deleted)` cannot exist, so the collision is theoretical.
+- **Unreadable forms pass silently.** `parseFrontmatter` is line-based, so a
+  block-sequence `supersedes:` reads as empty and a `"[[wikilink]]"` value is
+  skipped — doctor reports nothing and a clean run looks like confirmation the link
+  was checked. `external_refs` has a dedicated finding for exactly this trap;
+  extending it to these fields is the first follow-up.
+- **The gate covers `adr`, `spec` and `research` only** — the kinds whose templates
+  carry `review_status`. Demanding it from a runbook would be asking for a field the
+  template never offered; an `epic` has the field but its acceptance is not a review
+  decision.
+- Supersede targets resolve within the source artifact's own kind, matching how
+  `graph.mjs` reads these fields. A cross-kind declaration is reported as naming
+  nothing — true, but worded unhelpfully. Better messages are a follow-up.
 
 ## Verification and follow-up
 
-- `npm test` — covered in `tests/scripts.test.mjs`, built from real frontmatter
-  rather than hand-made objects (the first version of these tests supplied `fm`
-  directly and so never exercised the reader, which is exactly where the check was
-  blind): the bare-scalar form, a slug reference to a legacy-numbered filename,
+- `npm test` — covered in `tests/scripts.test.mjs`. The supersede cases are built
+  from real frontmatter rather than hand-made objects: the first version supplied
+  `fm` directly and so never exercised the reader, which is exactly where the check
+  was blind. Covered: the bare-scalar form, a slug reference to a legacy-numbered filename,
   asymmetry, self-reference, duplicate entries reported once, the acceptance gate
   off / under `lifecycle_gates` / under its own key / satisfied by each answer
   form, and a well-formed vault gaining no new issue.

@@ -949,14 +949,20 @@ function vaultWithAdrs(entries, vaultCfg = null) {
 }
 
 async function vaultFindings(proj, check) {
-  const { readConfig, loadLayout, readVaultConfig } = await import("../scripts/lib.mjs");
-  const { scanArtifacts } = await import("../scripts/doctor.mjs");
+  const { readConfig, loadLayout, readVaultConfig, buildNodeIndex } = await import("../scripts/lib.mjs");
+  const { scanArtifacts, walkVaultFiles } = await import("../scripts/doctor.mjs");
   const prev = process.env.WAYPOST_PROJECT_DIR;
   process.env.WAYPOST_PROJECT_DIR = proj;
   try {
     const cfg = readConfig();
     const layout = loadLayout(cfg.layout);
-    return check({ cfg, layout, artifacts: scanArtifacts(cfg, layout), vaultCfg: readVaultConfig(cfg.vault_path) });
+    return check({
+      cfg, layout,
+      artifacts: scanArtifacts(cfg, layout),
+      vaultCfg: readVaultConfig(cfg.vault_path),
+      index: buildNodeIndex(cfg, layout),
+      files: walkVaultFiles(cfg.vault_path),
+    });
   } finally {
     if (prev === undefined) delete process.env.WAYPOST_PROJECT_DIR;
     else process.env.WAYPOST_PROJECT_DIR = prev;
@@ -989,13 +995,13 @@ test("doctor supersedes: reads the bare-scalar form, like graph does (ADR-0009)"
     ["old.md", 'type: adr\nid: "old"\ntitle: "Old"\nstatus: superseded\ndate: 2026-01-01\nsuperseded_by: "new"'],
     ["new.md", 'type: adr\nid: "new"\ntitle: "New"\nstatus: accepted\ndate: 2026-01-02\nsupersedes: "old"'],
   ]);
-  const ok = await vaultFindings(proj, ({ cfg, layout, artifacts }) => checkSupersedes(cfg, layout, artifacts));
+  const ok = await vaultFindings(proj, ({ index, files }) => checkSupersedes(index, files));
   assert.deepEqual(ok, [], "a well-formed scalar pair is silent");
 
   const { proj: proj2 } = vaultWithAdrs([
     ["a.md", 'type: adr\nid: "a"\ntitle: "A"\nstatus: accepted\ndate: 2026-01-01\nsupersedes: "ghost"'],
   ]);
-  const dangling = await vaultFindings(proj2, ({ cfg, layout, artifacts }) => checkSupersedes(cfg, layout, artifacts));
+  const dangling = await vaultFindings(proj2, ({ index, files }) => checkSupersedes(index, files));
   assert.equal(dangling.length, 1, "a scalar dangling target is caught — it used to be invisible");
   assert.equal(dangling[0].level, "issue");
 });
@@ -1008,7 +1014,7 @@ test("doctor supersedes: a slug reference resolves through the shared resolver (
     ["ADR-001-old-way.md", 'type: adr\nid: "old-way"\ntitle: "Old"\nstatus: superseded\ndate: 2026-01-01\nsuperseded_by: "new-way"'],
     ["ADR-002-new-way.md", 'type: adr\nid: "new-way"\ntitle: "New"\nstatus: accepted\ndate: 2026-01-02\nsupersedes: "old-way"'],
   ]);
-  const out = await vaultFindings(proj, ({ cfg, layout, artifacts }) => checkSupersedes(cfg, layout, artifacts));
+  const out = await vaultFindings(proj, ({ index, files }) => checkSupersedes(index, files));
   assert.deepEqual(out, [], "a correct pair must not be reported because of how the link is written");
 });
 
@@ -1019,7 +1025,7 @@ test("doctor supersedes: asymmetry, self-reference and duplicates each report on
     ["b.md", 'type: adr\nid: "b"\ntitle: "B"\nstatus: proposed\ndate: 2026-01-02'],
     ["self.md", 'type: adr\nid: "self"\ntitle: "S"\nstatus: accepted\ndate: 2026-01-03\nsupersedes: "self"'],
   ]);
-  const out = await vaultFindings(proj, ({ cfg, layout, artifacts }) => checkSupersedes(cfg, layout, artifacts));
+  const out = await vaultFindings(proj, ({ index, files }) => checkSupersedes(index, files));
   assert.equal(out.filter((f) => /one-directional/.test(f.message)).length, 1, "a repeated entry is one finding");
   assert.ok(out.some((f) => /not "superseded"/.test(f.message)), "the replaced artifact must say so");
   assert.ok(out.some((f) => /points at the artifact itself/.test(f.message)), "self-reference is named, not left implicit");
