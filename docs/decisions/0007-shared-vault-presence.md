@@ -76,6 +76,20 @@ working and on what; `mps watch` keeps a session live and prints other devices'
 events. Every command that implies work beats the heartbeat by itself, so
 presence works without anyone remembering to touch it.
 
+**Pruning stale presence.** A presence file is never removed just because its
+session is currently quiet — a session merely idle for a few minutes must not
+be reaped, and liveness alone cannot tell "idle" from "gone" (assumption 2:
+mtime means nothing reliable either). `mps sessions --prune` is the normal
+path: it removes a presence record only once it is both not live and quiet for
+24h+ by either evidence — this device's own observation of the record standing
+still, or the record's own timestamp, a remote clock the 24h threshold dwarfs
+(the same threshold the legacy per-session registry already reaped stale files
+at) — and never a record that is self, live, or a conflicted copy. This is
+not an exception to "never delete what is not yours" — it is the same rule
+`acquire`'s lease takeover already establishes: a threshold-bounded, mechanical
+reap of data whose own owner will simply recreate it next time it beats, as
+opposed to a human guessing which record is safe to delete by hand.
+
 **Cross-OS.** doctor reports non-portable names (`<>:"|?*`, segments ending in a
 space or dot, reserved `CON/NUL/COM1…`, long paths) and case collisions;
 `--fix` writes `* text=auto` into `.gitattributes`. Atomic-write temp files now

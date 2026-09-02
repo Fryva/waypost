@@ -31,7 +31,6 @@ import {
   headingLineRe,
   sectionOf,
   indexHeaderRe,
-  isSourcePath,
   openStoryFrom,
   listVaultStoryFiles,
   isLegacyStory,
@@ -931,52 +930,6 @@ function seedEntryFixture() {
   return { root, proj, vault };
 }
 
-test("isSourcePath: inside project, outside vault, not ignored (contract 1)", () => {
-  const { proj, vault } = seedEntryFixture();
-  const p = (rel) => join(proj, rel);
-
-  assert.equal(isSourcePath(p("scripts/lib.mjs"), proj, vault), true);
-  assert.equal(isSourcePath(p("README.md"), proj, vault), true);
-  assert.equal(isSourcePath(p("docs/getting-started.md"), proj, vault), true);
-
-  assert.equal(isSourcePath(join(vault, "adr/ADR-001.md"), proj, vault), false, "vault is not source");
-  assert.equal(isSourcePath("/elsewhere/x.mjs", proj, vault), false, "outside the project");
-  assert.equal(isSourcePath(proj, proj, vault), false, "the project root itself is not a path");
-
-  assert.equal(isSourcePath(p("node_modules/x/index.js"), proj, vault), false);
-  assert.equal(isSourcePath(p("dist/bundle.js"), proj, vault), false);
-  assert.equal(isSourcePath(p("package-lock.json"), proj, vault), false);
-  assert.equal(isSourcePath(p("app.min.js"), proj, vault), false);
-  assert.equal(isSourcePath(p(".claude/projectstore.json"), proj, vault), false,
-    "plugin state must never count as source work");
-});
-
-test("isSourcePath: bind's own writes are ignored for the counter, root-anchored (contract 1)", () => {
-  const { proj, vault } = seedEntryFixture();
-  const p = (rel) => join(proj, rel);
-
-  // `mps bind` writes these three in a session that by construction has
-  // no story open.
-  assert.equal(isSourcePath(p("AGENTS.md"), proj, vault), false);
-  assert.equal(isSourcePath(p("CLAUDE.md"), proj, vault), false);
-  assert.equal(isSourcePath(p(".gitignore"), proj, vault), false);
-
-  // Root-anchored: a monorepo's nested AGENTS.md is ordinary source.
-  assert.equal(isSourcePath(p("packages/web/AGENTS.md"), proj, vault), true);
-  assert.equal(isSourcePath(p("packages/web/CLAUDE.md"), proj, vault), true);
-});
-
-test("isSourcePath: matching is project-relative, not absolute (contract 1)", () => {
-  // The base patterns are repo-relative-anchored, so matching an absolute path
-  // would swallow every file in a project that merely lives under `build/`.
-  const root = mkdtempSync(join(tmpdir(), "ps-entry-"));
-  const proj = join(root, "build", "myproject");
-  const vault = join(root, "vault");
-  mkdirSync(proj, { recursive: true });
-  assert.equal(isSourcePath(join(proj, "src/index.js"), proj, vault), true,
-    "a project under a build/ ancestor still has source files");
-});
-
 test("openStoryFrom: only in-progress counts as open (contract 5)", () => {
   assert.equal(openStoryFrom([{ status: "in-progress" }]), true);
   assert.equal(openStoryFrom([{ status: "planned" }]), false,
@@ -1251,107 +1204,8 @@ test("skeleton contract 1: the cell truncators mark themselves and count the mar
   assert.equal(truncFront("x".repeat(PATH_CELL + 50), PATH_CELL).length, PATH_CELL);
 });
 
-// ─── The in-flight resolver: one question, one implementation ──────────
-// (spec contracts 20, 24)
-//
-// Landed with no callers on purpose. Both hooks would pass their own drives on
-// a depth-blind substring match, so the anchoring is pinned here, where a wrong
-// answer is visible, rather than there, where it is merely plausible.
-
-import {
-  resolveInFlightArtifact,
-  isWriteTool,
-  WRITE_TOOLS,
-  writeSession,
-  ensureSessionsDir,
-  sessionFilePath,
-} from "../scripts/lib.mjs";
-
-const VAULT = "/vault";
-const LAYOUT = { folders: [{ path: "adr" }, { path: "specs" }, { path: "epics" }] };
-
-// The log is newest-first, as appendActivity leaves it.
-function log(...entries) {
-  return entries.map(([path, tool]) => ({ path, tool, at: "2026-08-17T00:00:00.000Z" }));
-}
-
-test("resolver contract 20: the newest write-family entry wins, reads are not writes", () => {
-  const activity = log(
-    ["/vault/adr/newest.md", "Read"],
-    ["/vault/specs/second.md", "Edit"],
-    ["/vault/adr/third.md", "Write"],
-  );
-  assert.equal(resolveInFlightArtifact(activity, LAYOUT, VAULT), "specs/second.md",
-    "a Read of a vault file is not evidence of authoring it");
-});
-
-test("resolver contract 20: every tool in the write family resolves, and only those", () => {
-  // Named literally, because the loop below iterates WRITE_TOOLS and therefore
-  // shrinks with it — a narrowed constant would pass its own test.
-  assert.deepEqual([...WRITE_TOOLS].sort(), ["Edit", "MultiEdit", "NotebookEdit", "Write"]);
-  for (const tool of WRITE_TOOLS) {
-    assert.equal(resolveInFlightArtifact(log(["/vault/adr/x.md", tool]), LAYOUT, VAULT),
-      "adr/x.md", `${tool} writes and must resolve`);
-    assert.ok(isWriteTool(tool));
-  }
-  for (const tool of ["Read", "Grep", "Glob", "Bash", "Task"]) {
-    assert.equal(resolveInFlightArtifact(log(["/vault/adr/x.md", tool]), LAYOUT, VAULT), null);
-    assert.ok(!isWriteTool(tool));
-  }
-});
-
-test("resolver contract 20: the match is vault-anchored, not a substring", () => {
-  // A folder name occurring at depth is the case a substring match gets wrong,
-  // and it is not exotic: `notes/adr/` is a plausible vault subfolder.
-  assert.equal(resolveInFlightArtifact(log(["/vault/notes/adr/x.md", "Edit"]), LAYOUT, VAULT), null,
-    "notes/adr/x.md is not an ADR — its anchor is `notes`, which is not a layout folder");
-  // Same folder name, outside the vault entirely.
-  assert.equal(resolveInFlightArtifact(log(["/elsewhere/adr/x.md", "Edit"]), LAYOUT, VAULT), null);
-  // A file at the vault root belongs to no folder.
-  assert.equal(resolveInFlightArtifact(log(["/vault/kanban.md", "Edit"]), LAYOUT, VAULT), null);
-  // A sibling directory that merely starts with a folder name.
-  assert.equal(resolveInFlightArtifact(log(["/vault/adrs/x.md", "Edit"]), LAYOUT, VAULT), null,
-    "`adrs/` is not `adr/` — the separator is part of the anchor");
-  // The folder itself, exactly, is a legitimate match.
-  assert.equal(resolveInFlightArtifact(log(["/vault/adr", "Write"]), LAYOUT, VAULT), "adr");
-});
-
-test("resolver contract 24: the return is vault-relative, and a trailing slash on the root is tolerated", () => {
-  const activity = log(["/vault/epics/PS-X/stories/story-y.md", "Edit"]);
-  assert.equal(resolveInFlightArtifact(activity, LAYOUT, VAULT), "epics/PS-X/stories/story-y.md");
-  assert.equal(resolveInFlightArtifact(activity, LAYOUT, "/vault/"), "epics/PS-X/stories/story-y.md",
-    "relativizing twice is how the two callers would drift; there is one place that does it");
-});
-
-test("resolver contract 20: folders come from the layout, never from a hard-coded set", () => {
-  // A layout with none of engineering's folder names. A resolver carrying the
-  // engineering alternation — the defect being moved away from — answers null
-  // here and resolves `adr/` below; this asserts the exact opposite pairing.
-  const other = { folders: [{ path: "decisions" }, { path: "notebooks" }] };
-  assert.equal(resolveInFlightArtifact(log(["/vault/decisions/d1.md", "Write"]), other, VAULT),
-    "decisions/d1.md");
-  assert.equal(resolveInFlightArtifact(log(["/vault/adr/x.md", "Write"]), other, VAULT), null,
-    "`adr` is not a folder of THIS layout");
-  // And the real thing, loaded rather than transcribed.
-  const eng = loadLayout("engineering");
-  assert.equal(resolveInFlightArtifact(log(["/vault/ops/runbook.md", "Write"]), eng, VAULT),
-    "ops/runbook.md");
-});
-
-test("resolver: degenerate input yields null, never a throw", () => {
-  for (const bad of [null, undefined, "not an array", 42, {}]) {
-    assert.equal(resolveInFlightArtifact(bad, LAYOUT, VAULT), null);
-  }
-  assert.equal(resolveInFlightArtifact([], LAYOUT, VAULT), null);
-  assert.equal(resolveInFlightArtifact(log(["/vault/adr/x.md", "Write"]), LAYOUT, null), null);
-  assert.equal(resolveInFlightArtifact(log(["/vault/adr/x.md", "Write"]), null, VAULT), null);
-  assert.equal(resolveInFlightArtifact(log(["/vault/adr/x.md", "Write"]), { folders: [] }, VAULT), null);
-  // Entries the log should never hold, but might after a hand-edit.
-  assert.equal(resolveInFlightArtifact([null, { tool: "Write" }, { path: "/vault/adr/x.md" }], LAYOUT, VAULT), null);
-});
-
-// ─── gatherVaultFacts: one deadline, three families, named degradations ─
-// (spec contracts 5, 13, 14, 15, 19, 21)
+// ─── gatherVaultFacts: one deadline, two families, named degradations ─
+// (spec contracts 5, 13, 14, 15)
 //
 // The `readFile` seam is what makes the budget testable without a slow disk: a
 // reader that never resolves is exactly an iCloud-evicted file, and it is the
@@ -1359,11 +1213,14 @@ test("resolver: degenerate input yields null, never a throw", () => {
 
 import {
   gatherVaultFacts,
+  writeSession,
+  ensureSessionsDir,
+  sessionFilePath,
 } from "../scripts/lib.mjs";
 
 const NEVER = () => new Promise(() => {});
 
-function mkVault({ stories = [], activity = null, sessionId = "s1", readmes = {} } = {}) {
+function mkVault({ stories = [], readmes = {} } = {}) {
   const vault = mkdtempSync(join(tmpdir(), "ps-facts-"));
   for (const f of ["adr", "specs", "epics", "research", "concepts", "meetings", "ops", "diagrams"]) {
     mkdirSync(join(vault, f), { recursive: true });
@@ -1380,11 +1237,6 @@ function mkVault({ stories = [], activity = null, sessionId = "s1", readmes = {}
     writeFileSync(join(dir, `${s.slug}.md`),
       `---\ntype: story\nstatus: ${s.status}\ntitle: "${s.title}"\nstarted_at: "${s.startedAt || ""}"\n---\n\n# ${s.title}\n`);
   }
-  if (activity) {
-    mkdirSync(join(vault, ".projectstore", "sessions"), { recursive: true });
-    writeFileSync(join(vault, ".projectstore", "sessions", `${sessionId}.json`),
-      JSON.stringify({ session_id: sessionId, recent_activity: activity }, null, 2));
-  }
   return vault;
 }
 
@@ -1394,17 +1246,13 @@ test("gather contract 13: an unresolvable read expires the budget and every fami
   // A story must exist, or the in-flight scan finishes instantly with nothing
   // to read and reports "ok" — correctly, and while testing nothing.
   const vault = mkVault({
-    activity: [],
     stories: [{ epic: "E1", slug: "story-a", title: "A", status: "in-progress", startedAt: "2026-08-01" }],
   });
   const t0 = Date.now();
-  const facts = await gatherVaultFacts(cfgFor(vault), {
-    sessionId: "s1", source: "compact", budgetMs: 30, readFile: NEVER,
-  });
+  const facts = await gatherVaultFacts(cfgFor(vault), { budgetMs: 30, readFile: NEVER });
   const elapsed = Date.now() - t0;
   assert.ok(elapsed < 2000, `gather must return on the timer, took ${elapsed}ms`);
   assert.equal(facts.inFlight.status, "timeout");
-  assert.equal(facts.continuity.status, "timeout");
   assert.ok(facts.folders.every((f) => f.readme === null), "unread READMEs fall back, they do not hang");
   // The named line, not an empty list — an empty list asserts the vault is idle.
   const out = renderVaultSkeleton(facts);
@@ -1420,46 +1268,10 @@ test("gather contract 13: a family that finished before expiry keeps its result"
   });
   // READMEs resolve; anything under epics/ hangs. Partial is the normal outcome.
   const readFile = (p) => (p.includes("/epics/") ? NEVER() : readFileSync(p, "utf8"));
-  const facts = await gatherVaultFacts(cfgFor(vault), { source: "startup", budgetMs: 30, readFile });
+  const facts = await gatherVaultFacts(cfgFor(vault), { budgetMs: 30, readFile });
   assert.equal(facts.inFlight.status, "timeout", "the scan that hung degrades");
   assert.ok(facts.folders.find((f) => f.path === "adr").readme.includes("The adr folder"),
     "the family that landed keeps what it read");
-});
-
-test("gather contract 19: continuity facts exist on compact alone, and need a session id", async () => {
-  const vault = mkVault({ activity: [] });
-  const read = (p) => readFileSync(p, "utf8");
-  for (const source of ["startup", "resume", "clear", "fork", "some-future-value", undefined, null]) {
-    const facts = await gatherVaultFacts(cfgFor(vault), { sessionId: "s1", source, budgetMs: 500, readFile: read });
-    assert.equal(facts.continuity, null, `source ${String(source)} must not gather continuity`);
-  }
-  const onCompact = await gatherVaultFacts(cfgFor(vault), { sessionId: "s1", source: "compact", budgetMs: 500, readFile: read });
-  assert.ok(onCompact.continuity, "compact gathers it");
-  // Contract 21: stdin can parse carrying a source and no id.
-  const noId = await gatherVaultFacts(cfgFor(vault), { sessionId: null, source: "compact", budgetMs: 500, readFile: read });
-  assert.equal(noId.continuity, null, "no session id, no log to read");
-});
-
-test("gather contracts 20, 21: continuity carries vault-relative paths and the shared resolver's answer", async () => {
-  const vault = mkVault({
-    activity: [
-      { path: "/somewhere/else/src/app.ts", tool: "Edit" },
-      { path: "", tool: "Edit" },
-      { path: "@@VAULT@@/adr/decision.md", tool: "Read" },
-      { path: "@@VAULT@@/epics/E1/stories/story-a.md", tool: "Edit" },
-    ],
-  });
-  // Rewrite the placeholder now that the vault path exists.
-  const sp = join(vault, ".projectstore", "sessions", "s1.json");
-  writeFileSync(sp, readFileSync(sp, "utf8").replaceAll("@@VAULT@@", vault));
-  const facts = await gatherVaultFacts(cfgFor(vault), {
-    sessionId: "s1", source: "compact", budgetMs: 500, readFile: (p) => readFileSync(p, "utf8"),
-  });
-  assert.deepEqual(facts.continuity.paths, ["adr/decision.md", "epics/E1/stories/story-a.md"],
-    "out-of-vault and empty entries are dropped; the rest are relative");
-  assert.equal(facts.continuity.total, 2);
-  assert.equal(facts.continuity.artifact, "epics/E1/stories/story-a.md",
-    "the Read of the ADR is not evidence of authoring it");
 });
 
 test("gather contracts 5, 15: counts are per folder and in-flight is newest-started first", async () => {
@@ -1473,7 +1285,7 @@ test("gather contracts 5, 15: counts are per folder and in-flight is newest-star
   writeFileSync(join(vault, "adr", "ADR-001-x.md"), "---\ntype: adr\n---\n");
   writeFileSync(join(vault, "adr", "ADR-002-y.md"), "---\ntype: adr\n---\n");
   const facts = await gatherVaultFacts(cfgFor(vault), {
-    source: "startup", budgetMs: 2000, readFile: (p) => readFileSync(p, "utf8"),
+    budgetMs: 2000, readFile: (p) => readFileSync(p, "utf8"),
   });
   const adr = facts.folders.find((f) => f.path === "adr");
   assert.deepEqual(adr.counts, { artifacts: 2 }, "README.md is not an artifact");
@@ -1490,7 +1302,7 @@ test("gather contracts 5, 15: counts are per folder and in-flight is newest-star
   writeFileSync(join(vault, "epics", "scratch-notes", "stories", "story-orphan.md"),
     `---\ntype: story\nstatus: in-progress\ntitle: "Orphan"\nstarted_at: "2026-08-09T00:00:00Z"\n---\n`);
   const again = await gatherVaultFacts(cfgFor(vault), {
-    source: "startup", budgetMs: 2000, readFile: (p) => readFileSync(p, "utf8"),
+    budgetMs: 2000, readFile: (p) => readFileSync(p, "utf8"),
   });
   assert.deepEqual(again.folders.find((f) => f.path === "epics").counts, { epics: 2, stories: 4 },
     "a scratch folder is not an epic, but its story is still a story — the count " +
@@ -1507,36 +1319,11 @@ test("gather contracts 5, 15: counts are per folder and in-flight is newest-star
 test("gather contract 6: a folder purpose falls back to its kind, never to a blank cell", async () => {
   const vault = mkVault({ readmes: { research: "## Index\n\n| File |\n" } });
   const facts = await gatherVaultFacts(cfgFor(vault), {
-    source: "startup", budgetMs: 2000, readFile: (p) => readFileSync(p, "utf8"),
+    budgetMs: 2000, readFile: (p) => readFileSync(p, "utf8"),
   });
   const out = renderVaultSkeleton(facts);
   assert.ok(/\| `research\/` \| research \| \d+ \| research \|/.test(out),
     "a README that opens with `## ` has no preamble to quote");
-});
-
-// ── Review follow-ups (second pass) ───────────────────────────────────
-
-test("gather contract 21: a continuity timeout renders its OWN named line", async () => {
-  const vault = mkVault({
-    activity: [],
-    stories: [{ epic: "E1", slug: "story-a", title: "A", status: "in-progress", startedAt: "2026-08-01" }],
-  });
-  // Only the session file hangs. With the in-flight family ALSO timing out, its
-  // near-identical "in-flight work not resolved within budget" line stands in
-  // for this assertion and the continuity branch can render nothing at all.
-  const readFile = (p) =>
-    p.includes("/.projectstore/sessions/") ? new Promise(() => {}) : readFileSync(p, "utf8");
-  const facts = await gatherVaultFacts(cfgFor(vault), {
-    sessionId: "s1", source: "compact", budgetMs: 40, readFile,
-  });
-  assert.equal(facts.inFlight.status, "ok", "the fixture must not let the sibling line cover for it");
-  assert.equal(facts.continuity.status, "timeout");
-  const out = renderVaultSkeleton(facts);
-  assert.ok(out.includes("Where this session left off"), "the heading renders");
-  assert.ok(out.includes("recent activity not resolved within budget"),
-    "the literal contract 21 names — the timer knows it expired, so silence discards information");
-  assert.ok(!/in-flight work not resolved/.test(out),
-    "and the two degradations must never render the same text");
 });
 
 test("writeSession preserves recent_activity and started_at across a re-registration", () => {

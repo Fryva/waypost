@@ -724,94 +724,6 @@ test("index title containing '|' round-trips without a false doctor index findin
   assert.deepEqual(idxFindings, [], JSON.stringify(idxFindings));
 });
 
-// ─── Entry-rule hook behaviour (PS-AGENTS: artifact-first order) ───────
-//
-// Drives scripts/touch-session.mjs with synthetic hook payloads on stdin and
-// asserts the parsed stdout. Everything here is contract-level: the event gate,
-// the emitted channel, agent suppression, the once-per-armed-session marker,
-// and guard scope.
-
-function fireHook(proj, payload, sessionsDir = null) {
-  const r = spawnSync(process.execPath, [join(REPO, "scripts", "touch-session.mjs")], {
-    encoding: "utf8", input: JSON.stringify(payload), timeout: 15000,
-    env: {
-      ...process.env, MPS_PROJECT_DIR: proj,
-      // Without this the wired drives read the developer's real session
-      // registry — live machine state inside a test, and two criteria that
-      // cannot be driven at all.
-      ...(sessionsDir ? { PROJECTSTORE_SESSIONS_DIR: sessionsDir } : {}),
-    }, cwd: proj,
-  });
-  assert.equal(r.status, 0, `hook must exit 0; stderr: ${r.stderr}`);
-  const out = r.stdout.trim();
-  return out ? JSON.parse(out) : null;
-}
-
-function post(proj, file, extra = {}) {
-  return fireHook(proj, {
-    hook_event_name: "PostToolUse", session_id: extra.sid || "s1",
-    tool_name: "Write", tool_input: { file_path: file },
-    tool_response: { success: true }, ...extra,
-  });
-}
-
-// ── The Stop carrier (spec contract 14) ──
-
-// ── The rule payload (spec contract 17) ──
-
-// ── SessionStart, driven for the first time (skeleton spec, step 1) ──
-//
-// Until today `grep -rn session-start tests/` returned exactly one comment,
-// about an adjacent concern. So this hook had NO drive: every green suite in
-// this repo's history said nothing whatever about the file the skeleton change
-// rewrites. That is the shape v0.23.0 shipped a defect through — 209 passing
-// tests pointed away from it — so the drive lands BEFORE any behaviour moves,
-// and asserts only invariants that must survive the change.
-
-// ── The skeleton reaches the model inline (contracts 3, 7, 16) ────────
-//
-// The story's baseline: on this project the old payload was 12.4 KB, so the
-// harness wrote it to a file and handed the agent a path. Every assertion here
-// is about the payload the agent actually receives, not about what was built.
-
-// ── Contract 3: the composed cap is structural, term by term ──────────
-//
-// Three kinds of unbounded input reach this payload — free-text errors,
-// filesystem paths, and the sibling list. Two earlier revisions of the spec
-// each declared their enumeration complete and were wrong, so these drive the
-// KINDS rather than the sites.
-
-// ── Contract 23: the current session is exempt from its own reaper ────
-//
-// `cleanupStaleSessions` had ZERO coverage before this test, and the three
-// assertions are not interchangeable. The on-disk one catches an
-// implementation that merely reorders; the sibling one catches an
-// implementation that deletes the cleanup call outright, which passes
-// everything else while leaking session files forever.
-
-// ── Contracts 19, 21: the continuity section, driven across every source ──
-//
-// Six drives, asserting presence for exactly one. A suite driving only
-// `compact` passes on a renderer with no condition at all; `fork` and the
-// missing-source drive are the only two that kill the deny-list form, which is
-// the form that reads as correct.
-
-// ── Contracts 22, 24: PreCompact says one true thing on one real channel ──
-//
-// Driven, not inspected. The shape guard above stops seeing this file the
-// moment its literal `hookEventName` goes, so after the fix it asserts nothing
-// whatever about it — the static greps below are belt, and the drives are the
-// actual check.
-
-// ── Review follow-ups: the bounds and shapes the first pass missed ────
-
-// ─── Session-name offer, wired (ADR: the settled-anchor offer) ─────────
-//
-// These drive the CLI end to end, and they exist because unit drives cannot: every
-// recorded session is an authoring session, so nothing in them can show that a
-// read or a subagent write is excluded. Those two gates are the difference
-// between the measured rule and the wired one.
-
 // ─── bin/mps: vault containment, atomic writes, and the rest of the CLI
 // fixes in the plan's Проход 1 (P1-5 .. P1-12). bin/mps had no drive at all
 // before this pass — every test below is a first, not a regression guard for
@@ -986,4 +898,34 @@ test("bin/mps search --limit rejects a non-integer instead of silently printing 
   const bad = runBinRaw(proj, ["search", "Findable", "--limit", "abc"]);
   assert.notEqual(bad.status, 0);
   assert.match(bad.stderr, /--limit/);
+});
+
+test("bin/mps search: a symlinked directory is never descended into, so a cycle cannot hang the walk (P3-3, G-13)", () => {
+  const { proj, vault } = makeVaultProject();
+  const loopDir = join(vault, "adr", "loop");
+  mkdirSync(loopDir, { recursive: true });
+  writeFileSync(join(loopDir, "inside.md"),
+    "---\ntype: adr\ntitle: Inside The Loop\n---\n\nFindableLoop text.\n", "utf8");
+  symlinkSync(loopDir, join(loopDir, "self")); // a directory symlinked into itself
+  const r = runBinRaw(proj, ["search", "FindableLoop"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /adr\/loop\/inside\.md/, "a real file in the loop directory is still found");
+});
+
+test("bin/mps search: .icloud placeholders are counted and reported, not silently skipped (P3-3, G-13)", () => {
+  const { proj, vault } = makeVaultProject();
+  writeFileSync(join(vault, "adr", ".evicted.md.icloud"), "", "utf8");
+  const r = runBinRaw(proj, ["search", "nomatchanywhere"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /no match/);
+  assert.match(r.stdout, /1 file\(s\) not downloaded from iCloud — open them once to sync/);
+});
+
+test("bin/mps search -- <literal>: `--` stops flag parsing so a flag-shaped term is searched literally (P3-7, A-8)", () => {
+  const { proj, vault } = makeVaultProject();
+  writeFileSync(join(vault, "adr", "flaglike.md"),
+    "---\ntype: adr\ntitle: Flag Title\n---\n\nliteral --project marker\n", "utf8");
+  const r = runBinRaw(proj, ["search", "--", "--project"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /flaglike\.md/, "the literal term after -- is searched, not swallowed as a global/local flag");
 });

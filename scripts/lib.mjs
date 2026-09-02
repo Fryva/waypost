@@ -966,19 +966,6 @@ export function folderPurpose(readmeText, kind) {
   return prose ? truncEnd(prose, PURPOSE_CELL) : String(kind);
 }
 
-// Contract 19 — a path cell, with the truncation mark OUTSIDE the copyable
-// token, so what a reader copies out of the backticks is a clean substring of
-// the real path. `graph.md` contains zero `…` characters, so a pasted cell
-// carrying one matches nothing and grep exits 1 — which reads as "this artifact
-// has no graph entries", a silently false answer. Decided by equality against
-// the untruncated string rather than by a leading "…", which is a character a
-// path is entitled to contain.
-export function pathCell(p) {
-  const s = String(p ?? "");
-  const t = truncFront(s, PATH_CELL);
-  return t === s ? `\`${s}\`` : `…\`${t.slice(1)}\``;
-}
-
 function renderCount(counts) {
   if (!counts) return "0";
   if (counts.epics != null) {
@@ -1035,28 +1022,25 @@ function countFolder(vault, folder) {
   return { artifacts: names.filter((n) => n.endsWith(".md") && n !== "README.md").length };
 }
 
-// Contracts 12–15, 19–21 — every read this payload needs, under ONE deadline.
+// Contracts 12–15 — every read this payload needs, under ONE deadline.
 //
-// Three families race a single timer: the folder READMEs, the in-flight story
-// scan, and (on `compact` only) the activity log. One timer rather than three
-// because the budget is the user's startup latency, which does not divide.
-// Each family degrades on its own terms, and a family that finished before
-// expiry keeps its result — partial is the normal outcome, not a failure.
+// Two families race a single timer: the folder READMEs and the in-flight
+// story scan. One timer rather than two because the budget is the user's
+// startup latency, which does not divide. Each family degrades on its own
+// terms, and a family that finished before expiry keeps its result — partial
+// is the normal outcome, not a failure.
 //
 // Nothing here is synchronous except enumeration. The synchronous reader this
 // module used to carry was deleted with this change rather than left as an
 // invitation: a synchronous read of an evicted file blocks uninterruptibly
-// inside one call and the timer never gets a turn, so the budget is only real
-// if every content read goes through `readActivityAsync`.
+// inside one call and the timer never gets a turn.
 export async function gatherVaultFacts(cfg, opts = {}) {
   // Trailing slashes: `bind` normalizes, a hand-edited config may not, and the
-  // relativization below is raw arithmetic. Normalizing once here keeps the
-  // gather agreeing with resolveInFlightArtifact, which already normalizes.
+  // relativization below (stripping `vault + "/"` off each story path) is raw
+  // arithmetic that a trailing slash would throw off by one character.
   const vault = String(cfg.vault_path || "").replace(/\/+$/, "");
   const budgetMs = opts.budgetMs ?? 200;
   const readFile = opts.readFile || ((p) => readFileAsync(p, "utf8"));
-  const sessionId = opts.sessionId ?? null;
-  const source = opts.source ?? null;
 
   // Contract 17 — the vault-not-found shape keeps working. Without this the
   // renderer answers with eight rows of authoritative zeros and the line
@@ -1078,12 +1062,8 @@ export async function gatherVaultFacts(cfg, opts = {}) {
 
   const storyFiles = listVaultStoryFiles(vault);
   const inFlight = { status: "ok", entries: [], total: 0 };
-  // Present only on `compact` — contract 19's positive test, applied where the
-  // cost is: on every other source the log is not read at all.
-  const wantContinuity = source === "compact" && Boolean(sessionId);
-  const continuity = wantContinuity ? { status: "ok", paths: [], total: 0, artifact: null } : null;
 
-  const done = { readmes: false, inFlight: false, activity: false };
+  const done = { readmes: false, inFlight: false };
 
   const readmes = (async () => {
     for (const f of folders) {
@@ -1121,22 +1101,6 @@ export async function gatherVaultFacts(cfg, opts = {}) {
     done.inFlight = true;
   })();
 
-  const activity = (async () => {
-    if (!wantContinuity) {
-      done.activity = true;
-      return;
-    }
-    const entries = await readActivityAsync(vault, sessionId, readFile);
-    const rel = entries
-      .filter((e) => e && typeof e.path === "string" && isInsideVault(e.path, vault))
-      .map((e) => e.path.slice(vault.length + 1))
-      .filter(Boolean);
-    continuity.paths = rel;
-    continuity.total = rel.length;
-    continuity.artifact = resolveInFlightArtifact(entries, layout, vault);
-    done.activity = true;
-  })();
-
   let timer = null;
   const deadline = new Promise((resolve) => {
     timer = setTimeout(() => resolve("timeout"), budgetMs);
@@ -1144,10 +1108,9 @@ export async function gatherVaultFacts(cfg, opts = {}) {
   // Each family swallows its own rejection. Without this, a family that
   // rejects AFTER the deadline won leaves a derived promise with no handler:
   // node's default `--unhandled-rejections=throw` then exits the hook non-zero,
-  // which is the "a hook never breaks session startup" contract 17 forbids. The
-  // reachable trigger is a corrupt activity entry whose `path` is not a string.
+  // which is the "a hook never breaks session startup" contract 17 forbids.
   await Promise.race([
-    Promise.all([readmes, stories, activity].map((p) => p.catch(() => {}))).then(() => "ok"),
+    Promise.all([readmes, stories].map((p) => p.catch(() => {}))).then(() => "ok"),
     deadline,
   ]);
   clearTimeout(timer);
@@ -1156,7 +1119,6 @@ export async function gatherVaultFacts(cfg, opts = {}) {
   // unfinished in-flight scan must not render as an empty list: that asserts
   // the vault is idle, which is a different and possibly false claim.
   if (!done.inFlight) inFlight.status = "timeout";
-  if (continuity && !done.activity) continuity.status = "timeout";
 
   return {
     vaultPath: vault,
@@ -1169,7 +1131,6 @@ export async function gatherVaultFacts(cfg, opts = {}) {
     epicFile: epicFolder ? `${epicFolder.path}/<EPIC>/epic.md` : "epic.md",
     folders,
     inFlight,
-    continuity,
   };
 }
 
@@ -1244,34 +1205,6 @@ export function renderVaultSkeleton(facts) {
   }
   L.push("");
 
-  // Contracts 19, 21 — the continuity section. Present only when the gather was
-  // asked for it, which is only on `source === "compact"`: a positive test, in
-  // one place. Absence here asserts nothing at all, which is why empty and
-  // unreadable may share it while an empty in-flight list may not.
-  const cont = f.continuity;
-  if (cont) {
-    if (cont.status === "timeout") {
-      L.push("## Where this session left off");
-      L.push("");
-      L.push("- recent activity not resolved within budget — run `mps status`");
-      L.push("");
-    } else if (cont.paths && cont.paths.length > 0) {
-      L.push("## Where this session left off");
-      L.push("");
-      L.push("Vault files this conversation touched before it was compacted, newest first.");
-      L.push("");
-      for (const p of cont.paths.slice(0, INFLIGHT_CAP)) L.push(`- ${pathCell(p)}`);
-      const more = (cont.total ?? cont.paths.length) - Math.min(cont.paths.length, INFLIGHT_CAP);
-      if (more > 0) L.push(`- …and ${more} more; see \`mps status\``);
-      if (cont.artifact) {
-        L.push("");
-        L.push(`**In flight**: ${pathCell(cont.artifact)} was the newest structured write before` +
-          " compaction. If we were drafting it, continue from there.");
-      }
-      L.push("");
-    }
-  }
-
   // Contracts 8, 11 — the recipe, the prohibition, and the staleness clause.
   L.push("## Derived views");
   L.push("");
@@ -1333,6 +1266,15 @@ export function sessionId(argv = process.argv, env = process.env) {
 // collisions. mtime is used as a liveness proxy: a session whose file
 // has not been touched in 30 minutes is considered idle; >24h => stale,
 // removed on next SessionStart.
+//
+// Kept for upstream compatibility (ADR-0004), not because mps itself still
+// reads it: presence.mjs/sessions.mjs (layer 3, ADR-0007) is what this fork's
+// own commands use for liveness now. `recent_activity` in particular is dead
+// from this fork's own side — it was populated by the hook-driven continuity
+// feature this fork removed along with the hooks it needed — but upstream
+// ProjectStore's own hooks still write and read this same file on a vault
+// shared with a Claude Code session running unmodified upstream, so the shape
+// stays exactly as upstream expects it.
 
 export function sessionsDir(vault) {
   return join(vault, ".projectstore", "sessions");
@@ -1389,37 +1331,18 @@ export function touchSession(vault, sessionId) {
   }
 }
 
-export function readActiveSessions(vault, currentSessionId, maxAgeMinutes = 30) {
-  const dir = sessionsDir(vault);
-  if (!existsSync(dir)) return [];
-  const cutoff = Date.now() - maxAgeMinutes * 60 * 1000;
-  const out = [];
-  for (const name of readdirSync(dir)) {
-    if (!name.endsWith(".json")) continue;
-    const path = join(dir, name);
-    let stat;
-    try { stat = statSync(path); } catch { continue; }
-    if (stat.mtimeMs < cutoff) continue;
-    let data;
-    try { data = JSON.parse(readFileSync(path, "utf8")); } catch { continue; }
-    if (data.id === currentSessionId) continue;
-    out.push({ ...data, last_active: stat.mtime });
-  }
-  return out;
-}
-
 // Contract 23 — `currentSessionId` is exempt. A live session's file is not
 // stale, and reaping it is pure data destruction: `writeSession` recreates it
-// from nothing, so `recent_activity` and `started_at` are gone. A session left
-// open overnight and then compacted would have its own history deleted moments
-// before the continuity section asks for it.
+// from nothing, so `recent_activity` and `started_at` are gone.
 //
 // Named limitation: a SIBLING session idle beyond 24 hours is still reaped by
-// whichever session runs cleanup, and its next compaction renders absence for a
-// cause contract 21 does not name. Mtime cannot tell idle-alive from dead, so
+// whichever session runs cleanup. Mtime cannot tell idle-alive from dead, so
 // the justification above applies to that session word for word and is not
 // cheaply actionable here.
-export function cleanupStaleSessions(vault, maxAgeHours = 24, currentSessionId = null) {
+// `dryRun` counts what would be removed without touching disk — `mps
+// sessions` (no `--prune`) uses it to say how many stale records are sitting
+// there before anyone asks to reap them.
+export function cleanupStaleSessions(vault, maxAgeHours = 24, currentSessionId = null, { dryRun = false } = {}) {
   const dir = sessionsDir(vault);
   if (!existsSync(dir)) return 0;
   const cutoff = Date.now() - maxAgeHours * 60 * 60 * 1000;
@@ -1431,103 +1354,12 @@ export function cleanupStaleSessions(vault, maxAgeHours = 24, currentSessionId =
     const path = join(dir, name);
     try {
       if (statSync(path).mtimeMs < cutoff) {
-        unlinkSync(path);
+        if (!dryRun) unlinkSync(path);
         removed++;
       }
     } catch {}
   }
   return removed;
-}
-
-// ─── Session activity log ──────────────────────────────────────────────
-//
-// Each session file may carry a `recent_activity` array, populated by
-// touch-session.mjs from PreToolUse events. Capped at 50 entries, deduped
-// by path (latest tool/timestamp wins). Read by hooks/pre-compact.mjs for its
-// compaction line and by hooks/session-start.mjs for the continuity section —
-// through the one resolver below, never by re-deriving the question.
-
-const ACTIVITY_CAP = 50;
-
-// The write family, defined once. touch-session.mjs writes the log with it and
-// resolveInFlightArtifact reads the log with it, so the reader cannot recognise
-// a narrower set than the writer recorded — which is exactly how `NotebookEdit`
-// came to be logged and then ignored. `hooks/hooks.json`'s PostToolUse matcher
-// is a third copy that cannot import; a test pins it against this list.
-export const WRITE_TOOLS = Object.freeze(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
-const WRITE_TOOL_SET = new Set(WRITE_TOOLS);
-
-export function isWriteTool(tool) {
-  return WRITE_TOOL_SET.has(tool);
-}
-
-export function appendActivity(vault, sessionId, filePath, toolName) {
-  const sp = sessionFilePath(vault, sessionId);
-  if (!existsSync(sp)) return false;
-  let data;
-  try {
-    data = JSON.parse(readFileSync(sp, "utf8"));
-  } catch {
-    return false;
-  }
-  const recent = Array.isArray(data.recent_activity) ? data.recent_activity : [];
-  const filtered = recent.filter((e) => e && e.path !== filePath);
-  filtered.unshift({ path: filePath, tool: toolName, at: new Date().toISOString() });
-  data.recent_activity = filtered.slice(0, ACTIVITY_CAP);
-  try {
-    writeFileSync(sp, JSON.stringify(data, null, 2));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// The one reader of `recent_activity`, and async because a budget can only
-// interrupt an async read: a synchronous read of an iCloud-evicted file blocks
-// inside one call and the timer never gets a turn. Both consumers — the gather and
-// pre-compact — read this one file, so they read it through one function.
-// Returns [] for missing, unparseable and unreadable alike (contract 21).
-export async function readActivityAsync(vault, sessionId, readFile) {
-  if (!sessionId) return [];
-  const read = readFile || ((p) => readFileAsync(p, "utf8"));
-  try {
-    const data = JSON.parse(String(await read(sessionFilePath(vault, sessionId))));
-    return Array.isArray(data.recent_activity) ? data.recent_activity : [];
-  } catch {
-    return [];
-  }
-}
-
-// Contracts 20, 24 — the in-flight artifact: the newest write-family entry
-// whose path lands in a folder of the ACTIVE layout, returned vault-relative.
-//
-// Shared on purpose. The compaction line and the continuity section answer the
-// same question seconds apart on the same screen, so two implementations of it
-// drift in public. Folders come from the layout and are never spelled out here:
-// a layout that gains a kind must not go blind, which is the defect the row
-// renderer is already forbidden to have.
-//
-// `vaultPath` is a parameter rather than a convenience because the anchor
-// cannot be reconstructed from either side alone — the log stores absolute tool
-// paths, `layout.folders[].path` are vault-relative. Without it the only
-// available match is a substring, which fires on a folder name occurring at
-// depth: `notes/adr/x.md` is not an ADR.
-export function resolveInFlightArtifact(activity, layout, vaultPath) {
-  if (!Array.isArray(activity) || !vaultPath) return null;
-  const folders = (layout && Array.isArray(layout.folders) ? layout.folders : [])
-    .map((f) => f && f.path)
-    .filter(Boolean);
-  if (folders.length === 0) return null;
-  const root = vaultPath.endsWith("/") ? vaultPath.slice(0, -1) : vaultPath;
-  // appendActivity unshifts, so the log is newest-first and the first match is
-  // the newest one — no sort, and no second definition of "newest".
-  for (const e of activity) {
-    if (!e || !e.path || !isWriteTool(e.tool)) continue;
-    if (!isInsideVault(e.path, root)) continue;
-    const rel = e.path.slice(root.length + 1);
-    if (folders.some((p) => rel === p || rel.startsWith(p + "/"))) return rel;
-  }
-  return null;
 }
 
 // macOS puts the temp dir behind a symlink (/var → /private/var), and git runs
@@ -1582,19 +1414,6 @@ export const ENTRY_IGNORE = [
   ...SOURCE_IGNORE,
   /^AGENTS\.md$/, /^CLAUDE\.md$/, /^opencode\.json$/, /^\.gitignore$/,
 ];
-
-export function isSourcePath(absPath, projectDir, vaultPath) {
-  if (!absPath || !projectDir) return false;
-  if (vaultPath && isInsideVault(absPath, vaultPath)) return false;
-  const root = projectDir.endsWith("/") ? projectDir.slice(0, -1) : projectDir;
-  if (!absPath.startsWith(root + "/")) return false;
-  // Matched project-relative, never absolute: SOURCE_IGNORE is
-  // repo-relative-anchored, so `/(^|\/)build\//` would swallow every path in a
-  // project that merely lives under a directory called `build`.
-  const rel = absPath.slice(root.length + 1);
-  if (!rel) return false;
-  return !ENTRY_IGNORE.some((re) => re.test(rel));
-}
 
 // The single open-story predicate (contract 5), as a pure core: it decides from
 // already-loaded frontmatter and performs no I/O, so doctor feeds it the

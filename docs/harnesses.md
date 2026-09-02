@@ -148,6 +148,7 @@ changed under you without waiting for a release.
 | `roles.shape` | `frontmatter-md`, `prompt-md`, `toml-prompt` or `aggregate-json` |
 | `roles.dir` / `roles.file` | where a role lands; `{prefix}` and `{role}` substitute, and `file` may carry a directory segment where the unit of a role is a directory (`{prefix}{role}/agent.md`) |
 | `roles.model` | `false` if the format carries no model, else `{ "tiers": {…} }` |
+| `roles.effort` | optional `{ "map": {…} }` translating a role's neutral effort (`max`/`high`/`medium`/`low`) into this harness's own vocabulary for the `{effort}` template; omitted passes the neutral word through unchanged |
 | `roles.tools` | `{ "style": "claude" \| "opencode-map" \| "copilot-list" }`, or omitted |
 | `roles.fields` | ordered `[key, template]` frontmatter; empty values are dropped |
 | `roles.entry` | `aggregate-json` only: the object written per role |

@@ -13,7 +13,7 @@ import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   beat, peers, acquire, release, readLeases, winnerOf, storageOf, presenceDir, leaseDir, vaultRel,
-  LIVE_WINDOW_MS,
+  prunePresence, LIVE_WINDOW_MS,
 } from "../scripts/presence.mjs";
 import { claimsOf } from "../scripts/sessions.mjs";
 import { checkPortableNames } from "../scripts/doctor.mjs";
@@ -118,6 +118,47 @@ test("a sync client's conflicted copies are reported, never read as peers", () =
   });
 });
 
+test("prunePresence removes only records that are gone, ours excepted, and quiet past the threshold (P3-1, G-11)", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    beat(vault, "me", {}); // our own record — never reaped, however quiet
+    peerFile(vault, { session: "live-remote", seq: 1 });
+    peers(vault, { self: "me" }); // seed the observations cache for these two
+    peerFile(vault, { session: "gone-recent", seq: 1, at: new Date(Date.now() - 3600e3).toISOString() });
+    peerFile(vault, { session: "gone-stale", seq: 1, at: new Date(Date.now() - 25 * 3600e3).toISOString() });
+    mkdirSync(presenceDir(vault), { recursive: true });
+    writeFileSync(join(presenceDir(vault), "gone-stale 2.json"), "{}", "utf8"); // a conflicted copy
+
+    const now = Date.now() + LIVE_WINDOW_MS + 60_000; // past the plain liveness window for everyone but "me"
+    const removed = prunePresence(vault, { self: "me", now });
+    assert.equal(removed, 1, "only the one record quiet for more than 24h is reaped");
+
+    const remaining = readdirSync(presenceDir(vault));
+    assert.ok(remaining.includes("me.json"), "our own record is never pruned, no matter how quiet");
+    assert.ok(remaining.includes("live-remote.json"), "a merely-quiet-for-a-while peer is not stale yet");
+    assert.ok(remaining.includes("gone-recent.json"), "quiet less than 24h — not old enough to reap");
+    assert.ok(!remaining.includes("gone-stale.json"), "quiet more than 24h and not live — the normal path reaps it");
+    assert.ok(remaining.includes("gone-stale 2.json"), "a conflicted copy is never read as a peer, so it is never reaped either");
+  });
+});
+
+test("`mps sessions --prune` also prunes stale presence, and the text mode hints at it before anyone asks", () => {
+  const { proj, vault } = project();
+  const run = (args) => spawnSync(process.execPath, [MPS, ...args], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO, MPS_SESSION_ID: "me" },
+  });
+  mkdirSync(presenceDir(vault), { recursive: true });
+  writeFileSync(join(presenceDir(vault), "long-gone.json"), JSON.stringify({
+    session: "long-gone", host: "otherbox", os: "linux-6", harness: "codex", seq: 1,
+    at: new Date(Date.now() - 48 * 3600e3).toISOString(),
+    started_at: new Date(Date.now() - 48 * 3600e3).toISOString(), project_root: "/elsewhere",
+  }), "utf8");
+
+  const pruned = JSON.parse(run(["sessions", "--prune", "--json"]).stdout);
+  assert.equal(pruned.pruned_presence, 1, "a 48h-quiet, first-sight peer is reaped by --prune");
+  assert.ok(!readdirSync(presenceDir(vault)).includes("long-gone.json"));
+});
+
 // ─── leases ────────────────────────────────────────────────────────────
 
 test("a lease is refused while the holder is live, and taken over once it is not", () => {
@@ -141,6 +182,39 @@ test("a lease is refused while the holder is live, and taken over once it is not
     assert.equal(mine.session, "me");
     assert.equal(mine.taken_over_from.session, "remote", "the takeover is recorded, not silent");
   });
+});
+
+test("acquire --force overrides a live rival, marks the result forced, and leaves the rival's own record on disk (P3-8)", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    peerFile(vault, { session: "remote", seq: 1 });
+    peers(vault, { self: "me" });                       // observe it once: live
+    leaseFile(vault, { path: "src/auth.ts", session: "remote" });
+
+    const forced = acquire(vault, ["src/auth.ts"], { sessionId: "me", settleMs: 0, force: true });
+    assert.equal(forced.results[0].ok, true);
+    assert.equal(forced.results[0].forced, true, "forcing over a LIVE rival must read differently from an uncontested acquire");
+    assert.equal(forced.results[0].over, "remote");
+
+    const rows = readLeases(vault, { self: "me" });
+    assert.ok(rows.some((l) => l.session === "me" && l.path === "src/auth.ts"), "our own lease is written");
+    assert.ok(rows.some((l) => l.session === "remote" && l.path === "src/auth.ts"),
+      "the live rival's own record survives — force overrides it, it does not destroy someone else's file (only a STALE rival is removed)");
+  });
+});
+
+test("`mps lease --force` reports the override in its own words (P3-8)", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    peerFile(vault, { session: "remote", seq: 1 });
+    peers(vault, { self: "me" });
+    leaseFile(vault, { path: "src/auth.ts", session: "remote" });
+  });
+  const r = spawnSync(process.execPath, [MPS, "lease", "src/auth.ts", "--force"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO, MPS_SESSION_ID: "me" },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^leased\s+src\/auth\.ts {2}\(forced over remote\)$/m);
 });
 
 test("two devices that acquire at once converge on one owner, both computing the same winner", () => {

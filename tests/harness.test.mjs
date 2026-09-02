@@ -77,6 +77,8 @@ test("each harness gets the same role in its own dialect, with provenance", () =
   assert.match(codex, /^sandbox_mode = "read-only"$/m,
     "Codex is the one harness that can enforce read-only outright — say so in its own words");
   assert.match(codex, /^developer_instructions = """$/m, "the role prompt is the agent's system prompt");
+  assert.match(codex, /^model_reasoning_effort = "high"$/m,
+    "roles.effort.map (P3-5, C-5) translates the role's max into Codex's own high, not a fixed literal");
 
   for (const [name, text] of [["claude", claude], ["opencode", opencode], ["codex", codex]]) {
     assert.ok(text.includes(`agents/critic.md@${role.hash}`), `${name} carries the source hash`);
@@ -657,9 +659,6 @@ test("sessions: the registry is reachable by command from any harness", () => {
   const listed = JSON.parse(mps(proj, ["sessions", "--id", "beta", "--json"]).stdout);
   assert.ok(listed.active.some((s) => s.id === "alpha"), "another session sees it");
   assert.ok(existsSync(join(vault, ".projectstore", "sessions", "alpha.json")));
-
-  const outside = mps(proj, ["sessions", "--touch", "--id", "alpha", "--file", join(proj, "x.md")], { expectFail: true });
-  assert.notEqual(outside.status, 0, "activity is vault-scoped");
 });
 
 test("unknown commands and unbound vaults fail loudly, never silently", () => {

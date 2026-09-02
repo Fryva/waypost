@@ -8,7 +8,7 @@
 
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, lstatSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -79,32 +79,45 @@ function readConfig() {
 // `draft --lang ru adr "T"` (four tokens, one flag with a value). Guessing
 // "the token after any flag is its value" ate the first positional whenever a
 // boolean flag was written before it.
-const VALUED = new Set(["--harness", "--layout", "--lang", "--only", "--id", "--file",
-  "--budget", "--project", "--home", "--since", "--for", "--kind", "--limit", "-m", "--message",
-  "--story", "--merge", "-n", "--session", "--provider"]);
+const VALUED = new Set(["--harness", "--layout", "--lang", "--only", "--id",
+  "--budget", "--project", "--home", "--since", "--for", "--kind", "--limit", "--message",
+  "--story", "--merge", "--session", "--provider"]);
+
+// The literal `--` stops flag parsing, same as most POSIX CLIs: everything
+// after it is positional even if it is spelled like a flag (`mps search --
+// --literal`). Only tokens before it are eligible to be a flag name or a
+// flag's value.
+function splitAtTerminator(args) {
+  const i = args.indexOf("--");
+  return i === -1 ? { head: args, tail: [] } : { head: args.slice(0, i), tail: args.slice(i + 1) };
+}
 
 function flag(args, name) {
-  return args.includes(name) || args.some((a) => a === `${name}=true`);
+  const { head } = splitAtTerminator(args);
+  return head.includes(name) || head.some((a) => a === `${name}=true`);
 }
 
 function opt(args, name, dflt = null) {
-  const i = args.indexOf(name);
+  const { head } = splitAtTerminator(args);
+  const i = head.indexOf(name);
   if (i !== -1) {
-    const v = args[i + 1];
+    const v = head[i + 1];
     if (v === undefined) fail(`${name} requires a value`);
     return v;
   }
-  const eq = args.find((a) => a.startsWith(`${name}=`));
+  const eq = head.find((a) => a.startsWith(`${name}=`));
   return eq ? eq.slice(name.length + 1) : dflt;
 }
 
 function positionals(args) {
+  const { head, tail } = splitAtTerminator(args);
   const out = [];
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
+  for (let i = 0; i < head.length; i++) {
+    const a = head[i];
     if (a.startsWith("--")) { if (VALUED.has(a)) i++; continue; }
     out.push(a);
   }
+  out.push(...tail);
   return out;
 }
 
@@ -511,15 +524,35 @@ function handleSearch(args) {
   if (!Number.isInteger(limit) || limit <= 0) fail(`--limit must be a positive integer, got "${limitRaw}"`);
   const re = new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
   const out = [];
+  // iCloud leaves a placeholder — ".<name>.icloud" — for a file evicted from
+  // local storage; the real name never appears in the listing until it syncs
+  // back down. Counted, not searched: its content is not on disk to match.
+  const notDownloaded = [];
   const walk = (dir, rel) => {
     let names = [];
     try { names = readdirSync(dir); } catch { return; }
     for (const n of names) {
-      if (n.startsWith(".")) continue;
+      if (n.startsWith(".")) {
+        const icloud = /^\.(.+)\.icloud$/.exec(n);
+        if (icloud) notDownloaded.push(rel ? `${rel}/${icloud[1]}` : icloud[1]);
+        continue;
+      }
       const abs = join(dir, n);
       const r = rel ? `${rel}/${n}` : n;
-      let st; try { st = statSync(abs); } catch { continue; }
-      if (st.isDirectory()) { walk(abs, r); continue; }
+      let lst; try { lst = lstatSync(abs); } catch { continue; }
+      // A symlinked directory is never descended into: cheap protection
+      // against a cycle (a directory symlinked into itself or an ancestor),
+      // at the cost of not walking a legitimate symlinked subtree. A
+      // symlinked FILE falls through to the same read path as a real one.
+      if (lst.isSymbolicLink()) {
+        let target; try { target = statSync(abs); } catch { continue; }
+        if (target.isDirectory()) continue;
+      } else if (lst.isDirectory()) {
+        walk(abs, r);
+        continue;
+      } else if (!lst.isFile()) {
+        continue;
+      }
       if (!n.endsWith(".md")) continue;
       if (["kanban.md", "graph.md", "code-map.md"].includes(n)) continue;
       let text; try { text = readFileSync(abs, "utf8"); } catch { continue; }
@@ -538,12 +571,17 @@ function handleSearch(args) {
     }
   };
   walk(cfg.vault_path, "");
-  if (!out.length) { process.stdout.write("no match\n"); return; }
-  for (const h of out.slice(0, limit)) {
-    process.stdout.write(`${h.path}${h.status ? `  (${h.status})` : ""}\n  ${h.title}\n`
-      + (h.line ? `  ${h.line}\n` : ""));
+  if (!out.length) { process.stdout.write("no match\n"); }
+  else {
+    for (const h of out.slice(0, limit)) {
+      process.stdout.write(`${h.path}${h.status ? `  (${h.status})` : ""}\n  ${h.title}\n`
+        + (h.line ? `  ${h.line}\n` : ""));
+    }
+    if (out.length > limit) process.stdout.write(`…and ${out.length - limit} more (--limit)\n`);
   }
-  if (out.length > limit) process.stdout.write(`…and ${out.length - limit} more (--limit)\n`);
+  if (notDownloaded.length) {
+    process.stdout.write(`${notDownloaded.length} file(s) not downloaded from iCloud — open them once to sync\n`);
+  }
 }
 
 function handleDerived(cmd, args) {
@@ -632,6 +670,7 @@ function help() {
 
 USAGE
   mps <command> [args]
+  mps <command> [args] -- <literal positional, even if it looks like a flag>
 
 START HERE
   setup                    do the whole install: bind a vault, scaffold it,

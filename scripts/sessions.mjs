@@ -13,37 +13,32 @@
 // stable for the life of one terminal/harness process, distinct between two
 // harnesses open on the same project.
 //
-// `--touch --file <path>` also records a vault write in this session's
-// activity log — the same log `mps brief` reads back to say where a compacted
-// or resumed session left off. Upstream filled it from a PostToolUse hook;
-// here whoever edits the vault says so.
-//
 // `--claim <story>` records that this session is working on a story, and
 // `--release` drops it. The registry lives in the vault, so a session in any
 // harness bound to the same vault reads the same answer — that shared file is
 // the whole coordination channel, and `mps commit` refuses to close a story
 // another live session still claims.
 //
-// CLI: node sessions.mjs [--touch [--file <path>]] [--claim <story>] [--release]
+// `--prune` reaps this session's own legacy registry (24h+ idle) and the
+// presence records of sessions that are gone: not live, not ours, quiet past
+// the same 24h threshold — the normal path ADR-0007 describes for stale
+// presence, as opposed to hand-deleting another session's file.
+//
+// CLI: node sessions.mjs [--touch] [--claim <story>] [--release]
 //                        [--prune] [--id <id>] [--json]
 //      no flag = list the sessions active in the last 30 minutes.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
 import {
-  beat, clearPresence, peers, storageOf, readLeases, acquire, release, vaultRel,
+  beat, clearPresence, peers, storageOf, readLeases, acquire, release, vaultRel, prunePresence,
 } from "./presence.mjs";
 import {
   readConfig,
   projectRoot,
-  appendActivity,
-  isInsideVault,
   sessionsDir,
-  sessionFilePath,
   writeSession,
   touchSession,
-  readActiveSessions,
   cleanupStaleSessions,
   ignoreEpipe,
   sessionId,
@@ -81,13 +76,6 @@ export function claimsOf(vault, { windowMs = CLAIM_WINDOW_MS, now = Date.now() }
     }));
 }
 
-function patchSession(vault, sid, patch) {
-  const p = sessionFilePath(vault, sid);
-  let data = {};
-  try { data = JSON.parse(readFileSync(p, "utf8")); } catch {}
-  writeFileSync(p, JSON.stringify({ ...data, ...patch }, null, 2), "utf8");
-}
-
 function die(msg) {
   process.stderr.write(`mps sessions: ${msg}\n`);
   process.exit(1);
@@ -101,23 +89,12 @@ function main() {
   const vault = cfg.vault_path;
   const sid = sessionId();
   const json = args.includes("--json");
-  const out = { session_id: sid, vault, touched: false, pruned: 0, active: [] };
+  const out = { session_id: sid, vault, touched: false, pruned: 0, pruned_presence: 0, active: [] };
 
   if (args.includes("--touch")) {
     if (!touchSession(vault, sid)) writeSession(vault, sid, projectRoot());
-    // The activity log stays in the session file (it feeds `mps brief`); the
-    // heartbeat is a separate, tiny write whose counter is what other devices
-    // actually judge liveness by.
     beat(vault, sid, { harness: process.env.MPS_HARNESS || null });
     out.touched = true;
-    const fi = args.indexOf("--file");
-    if (fi !== -1) {
-      if (!args[fi + 1]) die("--file requires a path");
-      const abs = resolve(args[fi + 1]);
-      if (!isInsideVault(abs, vault)) die(`--file is outside the vault: ${abs}`);
-      appendActivity(vault, sid, abs, "Write");
-      out.recorded = abs;
-    }
   }
   const ci = args.indexOf("--claim");
   if (ci !== -1) {
@@ -144,6 +121,7 @@ function main() {
   }
   if (args.includes("--prune")) {
     out.pruned = cleanupStaleSessions(vault, 24, sid);
+    out.pruned_presence = prunePresence(vault, { self: sid });
   }
 
   const view = peers(vault, { self: sid });
@@ -173,11 +151,20 @@ function main() {
     return;
   }
   if (out.touched) process.stdout.write(`registered ${sid}\n`);
-  if (out.recorded) process.stdout.write(`recorded   ${out.recorded}\n`);
   if (out.claimed) process.stdout.write(`claimed    ${out.claimed}\n`);
   if (out.released) process.stdout.write(`released\n`);
   if (out.ended) process.stdout.write(`ended      presence cleared\n`);
   if (out.pruned) process.stdout.write(`pruned ${out.pruned} stale session(s)\n`);
+  if (out.pruned_presence) process.stdout.write(`pruned ${out.pruned_presence} stale presence record(s)\n`);
+  if (!args.includes("--prune")) {
+    // Both registries count: the legacy per-session files and the presence
+    // records --prune would reap (dry run — nothing is removed here).
+    const staleCount = cleanupStaleSessions(vault, 24, sid, { dryRun: true })
+      + prunePresence(vault, { self: sid, dryRun: true });
+    if (staleCount > 0) {
+      process.stdout.write(`${staleCount} stale session record(s) — mps sessions --prune\n`);
+    }
+  }
   if (!existsSync(sessionsDir(vault))) {
     process.stdout.write("no session registry yet — run `mps sessions --touch` at the start of a session\n");
     return;
@@ -204,5 +191,3 @@ function main() {
 }
 
 if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) main();
-
-export { sessionFilePath };

@@ -138,7 +138,8 @@ One project may be driven by several sessions at the same time (ADR-0006):
   means "nothing has synced", not "nobody is there".
 - **Never delete what is not yours**: other hosts' temp files, other sessions'
   presence or lease records, files without mps provenance. A stale lease is
-  taken over through the normal path, never by hand.
+  taken over through the normal path, never by hand; a presence record quiet
+  for 24h+ is reaped the same way, by `mps sessions --prune`, never by hand.
 - **Cross-OS hygiene**: `mps doctor` catches names that cannot be checked out on
   Windows, case collisions and a missing line-ending policy; `--fix` writes
   `* text=auto`. Do not create vault names with `<>:"|?*`, with a trailing space

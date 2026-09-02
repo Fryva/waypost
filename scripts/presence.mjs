@@ -197,6 +197,12 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
     // avoid calling a perfectly live peer dead the moment we start watching.
     let claimedAge = null;
     try { claimedAge = now - Date.parse(rec.at); } catch {}
+    // `claimedAge < 0` is a peer whose clock reads ahead of ours (assumption 1
+    // at the top of this file: clocks do not agree). Left as live rather than
+    // guarded against — a clock-ahead peer is judged the same as a fresh one,
+    // deliberately fail-safe: a spurious "someone else is live" costs a commit
+    // refusal or a lease wait, a spurious "dead" costs a missed collision, and
+    // the first is the cheaper mistake to make by default.
     const live = firstSight
       ? (claimedAge === null || claimedAge < window || claimedAge < 0)
       : sinceLocalChange < window;
@@ -212,6 +218,32 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
   }
   if (persist) writeObservations(obs);
   return { peers: out.sort((a, b) => String(a.session).localeCompare(String(b.session))), storage, conflicts };
+}
+
+// A presence record left behind by a session that is simply gone (crashed,
+// closed without `--end`) is never removed by liveness alone — a session
+// merely quiet for a few minutes must not be reaped. 24h is the same
+// threshold `cleanupStaleSessions` already uses for the legacy registry
+// (ADR-0007 names this the normal path for stale presence, not a hand
+// deletion of someone else's file): not live, not ours, and quiet for longer
+// than that by either evidence — our own observation of it standing still, or
+// its own timestamp (24h dwarfs any realistic clock skew).
+export function prunePresence(vault, { self = null, maxAgeMs = 24 * 60 * 60 * 1000, now = Date.now(), dryRun = false } = {}) {
+  const { peers: ps } = peers(vault, { self, now, persist: false });
+  let removed = 0;
+  for (const p of ps) {
+    if (p.self || p.live) continue;
+    // Either evidence is enough once the record is not live: our own
+    // observation of it standing still, or its own timestamp — a remote clock,
+    // but the 24h threshold dwarfs any real skew, and without it a device that
+    // just joined would have to watch a two-day-old ghost for a full day first.
+    const own = Date.parse(p.at);
+    const age = Math.max(p.quiet_ms != null ? p.quiet_ms : -1, Number.isNaN(own) ? -1 : now - own);
+    if (age <= maxAgeMs) continue;
+    if (!dryRun) { try { unlinkSync(p.file); } catch {} }
+    removed++;
+  }
+  return removed;
 }
 
 // ─── Leases ────────────────────────────────────────────────────────────
@@ -296,6 +328,12 @@ export function acquire(vault, paths, { sessionId, harness = null, now = Date.no
       results.push({ path: rel, ok: false, reason: "held", by: liveRival });
       continue;
     }
+    // `force` over a live rival: the write below proceeds and the rival's
+    // record is left on disk (see the taken_over_from note below — only
+    // STALE records are removed), but the result must say so, or "forced
+    // over a live session" and "acquired an uncontested path" render the
+    // same line.
+    const forcedOver = liveRival && force ? liveRival : null;
     // A stale rival is taken over through the normal path (ADR-0007: "never
     // delete what is not yours… a stale lease is taken over through the
     // normal path, never by hand") — this IS that path, and taken_over_from
@@ -309,7 +347,7 @@ export function acquire(vault, paths, { sessionId, harness = null, now = Date.no
     }
     try { writeFileSync(file, JSON.stringify(rec, null, 2) + "\n", "utf8"); }
     catch (e) { results.push({ path: rel, ok: false, reason: "write failed", error: e.message }); continue; }
-    held.push({ rel, file, rec });
+    held.push({ rel, file, rec, forcedOver });
   }
 
   // Settle, then look again: a peer's copy of the same lease may have arrived
@@ -338,6 +376,10 @@ export function acquire(vault, paths, { sessionId, harness = null, now = Date.no
       // rival's file is theirs to remove (it will, on its own next re-read) —
       // nothing here to overwrite or touch.
       results.push({ path: h.rel, ok: true, contested: true, over: rival.session });
+      continue;
+    }
+    if (h.forcedOver) {
+      results.push({ path: h.rel, ok: true, forced: true, contested: true, over: h.forcedOver.session });
       continue;
     }
     results.push({ path: h.rel, ok: true, contested: false });
@@ -393,7 +435,10 @@ function main() {
       const out = acquire(vault, paths, { sessionId: sid, force: rest.includes("--force") });
       if (json) { process.stdout.write(JSON.stringify(out, null, 2) + "\n"); return; }
       for (const r of out.results) {
-        if (r.ok) process.stdout.write(`leased    ${r.path}${r.contested ? `  (won a tie-break against ${r.over})` : ""}\n`);
+        if (r.ok) {
+          const suffix = r.forced ? `  (forced over ${r.over})` : r.contested ? `  (won a tie-break against ${r.over})` : "";
+          process.stdout.write(`leased    ${r.path}${suffix}\n`);
+        }
         else process.stdout.write(`REFUSED   ${r.path}  — ${r.reason}`
           + (r.by ? `: ${r.by.session} on ${r.by.host} (${r.by.harness || "?"})` : "") + "\n");
       }

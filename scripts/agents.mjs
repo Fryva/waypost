@@ -424,6 +424,17 @@ function fill(tpl, vars) {
 // No fields means no frontmatter: an empty `---\n---` block is not "no
 // metadata", it is a metadata block that parses to nothing, and a harness that
 // reads rules as plain markdown then shows two dashes to the model.
+// `roles.effort.map` is the same value-mapping mechanism `roles.model.tiers`
+// already is for models, applied to the one other field a harness may want in
+// its own vocabulary: `{max: "high", high: "high", ...}` turns the role's
+// neutral tier into whatever word that harness's own reasoning-effort field
+// expects. Passed through unchanged where the harness declares no map, or the
+// role's own effort has no entry in it.
+function mapEffort(spec, raw) {
+  const map = (spec.effort || {}).map;
+  return map && map[raw] ? map[raw] : raw;
+}
+
 function frontmatter(fields, vars, role, spec) {
   if (!fields || !fields.length) return null;
   const lines = ["---"];
@@ -432,6 +443,7 @@ function frontmatter(fields, vars, role, spec) {
     if (tpl === "{tools}") value = renderTools((spec.tools || {}).style, role);
     else if (tpl === "{denied_tools}") value = renderDenied((spec.tools || {}).style, role);
     else if (tpl === "{model}") value = vars.model ? scalar(vars.model) : null;
+    else if (tpl === "{effort}") value = vars.effort ? scalar(mapEffort(spec, vars.effort)) : null;
     else if (/^\{\w+\}$/.test(tpl)) {
       const raw = vars[tpl.slice(1, -1)];
       value = raw ? scalar(raw) : null;
@@ -480,7 +492,8 @@ function renderRole(h, role, model) {
       const q = (v) => JSON.stringify(String(v));
       const bodyKey = spec.body_key || "prompt";
       const head = (spec.fields || [["description", "{description}"]]).map(([k, tpl]) => {
-        const v = /^\{\w+\}$/.test(tpl) ? vars[tpl.slice(1, -1)] : fill(tpl, vars);
+        const v = tpl === "{effort}" ? (vars.effort ? mapEffort(spec, vars.effort) : null)
+          : /^\{\w+\}$/.test(tpl) ? vars[tpl.slice(1, -1)] : fill(tpl, vars);
         return v ? `${k} = ${q(v)}` : null;
       }).filter(Boolean);
       // A TOML basic multi-line string ends at the first unescaped `"""`, so a
