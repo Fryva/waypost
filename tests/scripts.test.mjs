@@ -932,69 +932,133 @@ test("bin/waypost search -- <literal>: `--` stops flag parsing so a flag-shaped 
 
 // ── ADR-0009: artifact integrity ───────────────────────────────────────
 //
-// The three properties frontmatter asserts and doctor used not to verify. Each
-// case here reproduces a defect the checks caught on their first real run.
+// Built from real frontmatter, not hand-made objects: the first version of these
+// tests supplied `fm` directly and so never exercised the reader — which is
+// exactly where the check was blind (a bare scalar, the form these fields are
+// normally written in and the form this file's own older fixtures use).
 
-const adrArtifact = (rel, fm) => ({ rel, kind: "adr", fm, body: "" });
+function vaultWithAdrs(entries, vaultCfg = null) {
+  const { proj, vault } = makeVaultProject();
+  for (const [name, fm, body = ""] of entries) {
+    writeFileSync(join(vault, "adr", name), `---\n${fm}\n---\n\n# T\n${body}`, "utf8");
+  }
+  if (vaultCfg) {
+    writeFileSync(join(vault, ".projectstore.json"), JSON.stringify(vaultCfg), "utf8");
+  }
+  return { proj, vault };
+}
 
-test("doctor code_refs: an unresolved path is a warning at proposed, an issue at done (ADR-0009)", async () => {
+async function vaultFindings(proj, check) {
+  const { readConfig, loadLayout, readVaultConfig } = await import("../scripts/lib.mjs");
+  const { scanArtifacts } = await import("../scripts/doctor.mjs");
+  const prev = process.env.WAYPOST_PROJECT_DIR;
+  process.env.WAYPOST_PROJECT_DIR = proj;
+  try {
+    const cfg = readConfig();
+    const layout = loadLayout(cfg.layout);
+    return check({ cfg, layout, artifacts: scanArtifacts(cfg, layout), vaultCfg: readVaultConfig(cfg.vault_path) });
+  } finally {
+    if (prev === undefined) delete process.env.WAYPOST_PROJECT_DIR;
+    else process.env.WAYPOST_PROJECT_DIR = prev;
+  }
+}
+
+test("doctor code_refs: unresolved is a warning at proposed, an issue at done (ADR-0009)", async () => {
   const { checkCodeRefs } = await import("../scripts/doctor.mjs");
   const proj = mkdtempSync(join(tmpdir(), "wp-refs-"));
-
-  const proposed = checkCodeRefs([adrArtifact("adr/a.md", { status: "proposed", code_refs: ["nope.rs"] })], proj);
-  assert.equal(proposed.length, 1, "a proposed artifact is no longer exempt");
-  assert.equal(proposed[0].level, "warn", "but it must not turn an existing vault red");
-
-  const done = checkCodeRefs([{ rel: "s.md", kind: "spec", fm: { status: "done", code_refs: ["nope.rs"] }, body: "" }], proj);
-  assert.equal(done[0].level, "issue", "done keeps the stronger severity");
+  const at = (status) => checkCodeRefs([{ rel: "a.md", kind: "adr", fm: { status, code_refs: '["nope.rs"]' }, body: "" }], proj);
+  assert.equal(at("proposed")[0].level, "warn", "a proposed artifact is checked but must not turn a vault red");
+  assert.equal(at("done")[0].level, "issue", "done keeps the stronger severity");
 });
 
 test("doctor code_refs: (waiting)/(deleted)/(planned) suffixes are exempt at every status (ADR-0009)", async () => {
   const { checkCodeRefs } = await import("../scripts/doctor.mjs");
   const proj = mkdtempSync(join(tmpdir(), "wp-refs2-"));
-  const refs = ["gone.rs (deleted)", "later.rs (waiting)", "soon.rs (planned)"];
+  const refs = '["gone.rs (deleted)", "later.rs (waiting)", "soon.rs (planned)"]';
   for (const status of ["proposed", "done"]) {
-    const out = checkCodeRefs([adrArtifact("adr/a.md", { status, code_refs: refs })], proj);
-    assert.deepEqual(out, [], `annotated paths are a promise, not a claim (status: ${status})`);
+    assert.deepEqual(checkCodeRefs([{ rel: "a.md", kind: "adr", fm: { status, code_refs: refs }, body: "" }], proj), [],
+      `annotated paths are a promise, not a claim (status: ${status})`);
   }
-  const bare = checkCodeRefs([adrArtifact("adr/a.md", { status: "proposed", code_refs: ["x.rs (deleted) trailing"] })], proj);
-  assert.equal(bare.length, 1, "the annotation is a suffix, not a substring anywhere in the path");
+  const mid = checkCodeRefs([{ rel: "a.md", kind: "adr", fm: { status: "proposed", code_refs: '["x.rs (deleted) trailing"]' }, body: "" }], proj);
+  assert.equal(mid.length, 1, "the annotation is a suffix, not a substring anywhere in the path");
 });
 
-test("doctor supersedes: dangling target is an issue, one-directional link is a warning (ADR-0009)", async () => {
+test("doctor supersedes: reads the bare-scalar form, like graph does (ADR-0009)", async () => {
   const { checkSupersedes } = await import("../scripts/doctor.mjs");
+  const { proj } = vaultWithAdrs([
+    ["old.md", 'type: adr\nid: "old"\ntitle: "Old"\nstatus: superseded\ndate: 2026-01-01\nsuperseded_by: "new"'],
+    ["new.md", 'type: adr\nid: "new"\ntitle: "New"\nstatus: accepted\ndate: 2026-01-02\nsupersedes: "old"'],
+  ]);
+  const ok = await vaultFindings(proj, ({ cfg, layout, artifacts }) => checkSupersedes(cfg, layout, artifacts));
+  assert.deepEqual(ok, [], "a well-formed scalar pair is silent");
 
-  const dangling = checkSupersedes([adrArtifact("adr/a.md", { id: "a", supersedes: ["ghost"] })]);
-  assert.equal(dangling.length, 1);
+  const { proj: proj2 } = vaultWithAdrs([
+    ["a.md", 'type: adr\nid: "a"\ntitle: "A"\nstatus: accepted\ndate: 2026-01-01\nsupersedes: "ghost"'],
+  ]);
+  const dangling = await vaultFindings(proj2, ({ cfg, layout, artifacts }) => checkSupersedes(cfg, layout, artifacts));
+  assert.equal(dangling.length, 1, "a scalar dangling target is caught — it used to be invisible");
   assert.equal(dangling[0].level, "issue");
-  assert.match(dangling[0].message, /not an artifact in this vault/);
-
-  const oneWay = checkSupersedes([
-    adrArtifact("adr/a.md", { id: "a", status: "proposed", supersedes: ["b"] }),
-    adrArtifact("adr/b.md", { id: "b", status: "proposed" }),
-  ]);
-  assert.ok(oneWay.some((f) => f.level === "warn" && /one-directional/.test(f.message)));
-  assert.ok(oneWay.some((f) => /not "superseded"/.test(f.message)), "the replaced artifact must say so");
 });
 
-test("doctor supersedes: a correct mutual pair is silent (ADR-0009)", async () => {
+test("doctor supersedes: a slug reference resolves through the shared resolver (ADR-0009)", async () => {
   const { checkSupersedes } = await import("../scripts/doctor.mjs");
-  const out = checkSupersedes([
-    adrArtifact("adr/new.md", { id: "new", status: "accepted", supersedes: ["old"], superseded_by: [] }),
-    adrArtifact("adr/old.md", { id: "old", status: "superseded", superseded_by: ["new"] }),
+  // Legacy-numbered filenames referenced by slug: legal for graph, and the first
+  // version of this check reported both sides as dangling.
+  const { proj } = vaultWithAdrs([
+    ["ADR-001-old-way.md", 'type: adr\nid: "old-way"\ntitle: "Old"\nstatus: superseded\ndate: 2026-01-01\nsuperseded_by: "new-way"'],
+    ["ADR-002-new-way.md", 'type: adr\nid: "new-way"\ntitle: "New"\nstatus: accepted\ndate: 2026-01-02\nsupersedes: "old-way"'],
   ]);
-  assert.deepEqual(out, [], "no finding for a well-formed replacement chain");
+  const out = await vaultFindings(proj, ({ cfg, layout, artifacts }) => checkSupersedes(cfg, layout, artifacts));
+  assert.deepEqual(out, [], "a correct pair must not be reported because of how the link is written");
 });
 
-test("doctor acceptance gate: only under lifecycle_gates, and satisfied by a real review (ADR-0009)", async () => {
-  const { checkAcceptanceGate } = await import("../scripts/doctor.mjs");
-  const unreviewed = [adrArtifact("adr/a.md", { status: "accepted", review_status: "pending" })];
+test("doctor supersedes: asymmetry, self-reference and duplicates each report once (ADR-0009)", async () => {
+  const { checkSupersedes } = await import("../scripts/doctor.mjs");
+  const { proj } = vaultWithAdrs([
+    ["a.md", 'type: adr\nid: "a"\ntitle: "A"\nstatus: accepted\ndate: 2026-01-01\nsupersedes: ["b", "b"]'],
+    ["b.md", 'type: adr\nid: "b"\ntitle: "B"\nstatus: proposed\ndate: 2026-01-02'],
+    ["self.md", 'type: adr\nid: "self"\ntitle: "S"\nstatus: accepted\ndate: 2026-01-03\nsupersedes: "self"'],
+  ]);
+  const out = await vaultFindings(proj, ({ cfg, layout, artifacts }) => checkSupersedes(cfg, layout, artifacts));
+  assert.equal(out.filter((f) => /one-directional/.test(f.message)).length, 1, "a repeated entry is one finding");
+  assert.ok(out.some((f) => /not "superseded"/.test(f.message)), "the replaced artifact must say so");
+  assert.ok(out.some((f) => /points at the artifact itself/.test(f.message)), "self-reference is named, not left implicit");
+});
 
-  assert.deepEqual(checkAcceptanceGate(unreviewed, {}), [], "policy stays opt-in");
-  const gated = checkAcceptanceGate(unreviewed, { lifecycle_gates: "on" });
+test("doctor acceptance gate: its own key, and any explicit review outcome satisfies it (ADR-0009)", async () => {
+  const { checkAcceptanceGate } = await import("../scripts/doctor.mjs");
+  const art = (review) => [{ rel: "adr/a.md", kind: "adr", fm: { status: "accepted", review_status: review }, body: "" }];
+
+  assert.deepEqual(checkAcceptanceGate(art("pending"), {}), [], "off by default");
+  assert.deepEqual(checkAcceptanceGate(art("pending"), { lifecycle_gates: "on" }), [],
+    "story gates must not enrol a project into an acceptance policy it never chose");
+
+  const gated = checkAcceptanceGate(art("pending"), { acceptance_gate: "on" });
   assert.equal(gated.length, 1);
   assert.equal(gated[0].level, "issue");
 
-  const reviewed = [adrArtifact("adr/a.md", { status: "accepted", review_status: "reviewed" })];
-  assert.deepEqual(checkAcceptanceGate(reviewed, { lifecycle_gates: "on" }), []);
+  for (const answer of ["reviewed", "n/a", "waived", "grandfathered"]) {
+    assert.deepEqual(checkAcceptanceGate(art(answer), { acceptance_gate: "on" }), [],
+      `"${answer}" is an answer to the review question, not silence`);
+  }
+  const runbook = [{ rel: "ops/r.md", kind: "runbook", fm: { status: "accepted" }, body: "" }];
+  assert.deepEqual(checkAcceptanceGate(runbook, { acceptance_gate: "on" }), [],
+    "kinds whose template has no review_status are out of scope");
+});
+
+test("doctor: the ADR-0009 checks add no issue to a well-formed vault (ADR-0009)", async () => {
+  const { runVaultChecks } = await import("../scripts/doctor.mjs");
+  const { proj } = vaultWithAdrs([
+    ["kept.md", 'type: adr\nid: "kept"\ntitle: "Kept"\nstatus: accepted\ndate: 2026-01-01\nreview_status: pending\ncode_refs: ["src/soon.rs (planned)"]'],
+  ]);
+  const prev = process.env.WAYPOST_PROJECT_DIR;
+  process.env.WAYPOST_PROJECT_DIR = proj;
+  try {
+    const { readConfig } = await import("../scripts/lib.mjs");
+    const issues = runVaultChecks(readConfig()).filter((f) => f.level === "issue");
+    assert.deepEqual(issues, [], "the promise of the ADR: an existing vault does not turn red on upgrade");
+  } finally {
+    if (prev === undefined) delete process.env.WAYPOST_PROJECT_DIR;
+    else process.env.WAYPOST_PROJECT_DIR = prev;
+  }
 });

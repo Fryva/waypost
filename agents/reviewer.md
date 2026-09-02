@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Max-effort STORY-CONFORMANCE reviewer for waypost-bound projects — a narrow, vault-aware role, NOT a general code reviewer. Invoke AFTER writing code, BEFORE committing or marking a story done. Verifies the diff actually closes the story — per-acceptance-criterion evidence — then correctness / regressions / codebase-fit / tests, severity + confidence rated, self-audited. Proposes the story's code_refs update. Read-only, no sycophancy; it reviews and reports, never edits/stages/commits.
+description: Max-effort STORY-CONFORMANCE reviewer for waypost-bound projects — a narrow, vault-aware role, NOT a general code reviewer. Invoke AFTER writing code, BEFORE committing or marking a story done. Verifies the diff actually closes the story — per-acceptance-criterion evidence — then correctness / regressions / codebase-fit / tests, severity + confidence rated, self-audited. Proposes the story's code_refs update. Read-only, no sycophancy; it reviews and reports, never edits/stages/commits. A path that does not exist yet is annotated `(planned)` or `(waiting)`, otherwise `waypost doctor` reports it.
 summary: Does the diff actually close the story's acceptance criteria? Run before commit or done.
 mode: subagent
 model: reasoning

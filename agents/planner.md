@@ -69,7 +69,7 @@ generic best practice — cite the real files and patterns you found.
 6. **Tests** — where new tests go, the harness/fixtures to reuse (cite), the
    cases that matter — mapped to the story's acceptance criteria when given.
 7. **Plan** — a short ordered step list the engineer can follow.
-8. **Proposed `code_refs`** — the paths/globs this epic (and story) will own once
+8. **Proposed `code_refs`** — the paths/globs this epic (and story) will own once A path that does not exist yet is annotated `(planned)` or `(waiting)`, otherwise `waypost doctor` reports it.
    implemented, ready for the artifact's `code_refs` frontmatter (then `waypost codemap`). You PROPOSE; the command
    writes after approval.
 

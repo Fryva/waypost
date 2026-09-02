@@ -321,6 +321,20 @@ export function listOf(fm, key) {
   }
 }
 
+// The same fields written as a bare scalar. `supersedes`/`superseded_by` are
+// routinely single-valued, and the repository's own fixtures write them that way
+// (`superseded_by: "new-way"`), so anything reading them must accept both forms.
+// Lived in graph.mjs; moved here the moment doctor needed it too — two readers of
+// one field is how the two views drift apart.
+export function refsOf(fm, key) {
+  const viaList = listOf(fm, key);
+  if (viaList.length) return viaList;
+  const raw = fm[key];
+  return typeof raw === "string" && raw && raw !== "[]" && !raw.trim().startsWith("[")
+    ? [raw.trim()]
+    : [];
+}
+
 // ─── Markdown table cell escaping ───────────────────────────────────────
 //
 // A `|` inside a cell (most often a title) splits a markdown table row into

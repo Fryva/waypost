@@ -20,6 +20,7 @@ import {
   loadLayout,
   folderByKind,
   listOf,
+  refsOf,
   nowIso,
   buildNodeIndex,
   extractLinks,
@@ -32,17 +33,6 @@ import { walkVaultFiles } from "./doctor.mjs";
 function die(msg) {
   process.stderr.write(`waypost graph: ${msg}\n`);
   process.exit(1);
-}
-
-// Frontmatter refs arrive as inline-flow lists (listOf) or, for
-// supersedes/superseded_by, as a bare scalar — normalize both to a list.
-function refsOf(fm, key) {
-  const viaList = listOf(fm, key);
-  if (viaList.length) return viaList;
-  const raw = fm[key];
-  return typeof raw === "string" && raw && raw !== "[]" && !raw.trim().startsWith("[")
-    ? [raw.trim()]
-    : [];
 }
 
 // Resolve a qualified "<epic-id>/<story-id>" spec entry to a story node —

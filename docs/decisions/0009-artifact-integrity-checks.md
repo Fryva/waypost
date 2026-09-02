@@ -6,7 +6,7 @@
 - Supersedes: —
 - Superseded by: —
 - Related: `scripts/doctor.mjs`, `scripts/graph.mjs`, `docs/decisions/0008-token-budget.md`
-- code_refs: ["scripts/doctor.mjs", "tests/scripts.test.mjs", "AGENTS.md", "README.md", "docs/how-it-works.md"]
+- code_refs: ["scripts/doctor.mjs", "scripts/lib.mjs", "scripts/graph.mjs", "bin/waypost", "tests/scripts.test.mjs", "AGENTS.md", "docs/how-it-works.md", "docs/decisions/README.md", "agents/planner.md", "agents/reviewer.md", "prompts/story.md"]
 
 ## Context
 
@@ -34,9 +34,10 @@ evidence comes from — every one of them caught a real defect on its first run.
 The cost of leaving them out is not theoretical: a downstream project carrying its
 own YAML reader for exactly these checks hit three separate parser defects
 (`supersedes: null` iterated character by character, block-form lists silently
-read as empty, CRLF frontmatter rejected outright). Every one of them is a bug
-this repository does not have, in a parser that exists only because the checks are
-missing here.
+read as empty, CRLF frontmatter rejected outright). Two of the three are bugs this
+repository does not have; the block-form trap it shares, and compensates for with
+a dedicated finding on `specs:` and `external_refs:` — which these fields do not
+yet have. The parser existed only because the checks were missing here.
 
 ## Decision drivers
 
@@ -55,12 +56,20 @@ missing here.
 `issue`; annotated paths (`(deleted)`, `(waiting)`, `(planned)`) are exempt
 everywhere. Supersede links get a new check: dangling target is an `issue`,
 missing reciprocal and a non-`superseded` status are `warn` — matching how
-spec↔story asymmetry is already treated. The acceptance gate is an `issue`, but
-only under `lifecycle_gates: on`.
+spec↔story asymmetry is already treated. The acceptance gate is an `issue` under
+its own vault key, `acceptance_gate`.
 
-**Pros:** one implementation, one parser, no downstream duplication; upgrade is
-quiet because new default findings are warnings.
-**Cons:** `lifecycle_gates` widens from stories to artifacts generally.
+Both new checks read their fields with `refsOf` and resolve targets with
+`resolveLinkTarget` — the reader and the resolver `graph.mjs` already uses. This
+is not an implementation detail: a private lookup was the first version of the
+supersede check, and it simultaneously missed the bare-scalar form these fields
+are normally written in and rejected legal slug and case variants, turning a
+correct vault red. An ADR whose premise is "a second reader is a defect
+generator" cannot ship a third one.
+
+**Pros:** one implementation, one reader, one resolver, no downstream
+duplication; upgrade is quiet because new default findings are warnings.
+**Cons:** a new vault-config key to explain.
 
 ### Option 2: leave `doctor` alone, document the gap
 
@@ -81,8 +90,14 @@ Take option 1. `doctor` verifies what frontmatter asserts: that a named path
 exists, that a supersede link is mutual and lands somewhere, and — where the
 project has switched lifecycle gates on — that acceptance followed a review.
 
-Severity is graded so that the upgrade is quiet: only the acceptance gate and a
-dangling supersede target are `issue`, and the gate is opt-in.
+Severity is graded so that the upgrade is quiet: only the acceptance gate, a
+dangling or ambiguous supersede target and a self-reference are `issue`, and the
+gate is opt-in behind its own key.
+
+The gate's invariant is deliberately narrow — acceptance must not happen while the
+review question is open. Any explicit answer satisfies it (`reviewed`, `n/a`,
+`waived`, or a project's own word for a conscious non-review); only silence fails.
+That way a project supplies its own vocabulary without this check knowing it.
 
 ## Consequences
 
@@ -98,18 +113,26 @@ dangling supersede target are `issue`, and the gate is opt-in.
 - Vaults with `proposed` artifacts pointing at future paths gain warnings. The
   `(waiting)`/`(planned)` annotation is the documented way to silence them, and
   it is now honoured at every status.
-- `lifecycle_gates` no longer means "story gates" — the name outlives its original
-  scope. Renaming it would break vault configs, so the scope is documented instead.
+- One more vault-config key. The alternative — hanging the gate on
+  `lifecycle_gates` — was tried and rejected: that switch is story-scoped, every
+  finding under it is a warning, and `waypost bind` recommends turning it on, so an
+  issue-level acceptance policy there would enrol projects that only ever agreed to
+  story gates.
 - Annotations are recognised by suffix only. A path that legitimately ends in
   `(deleted)` cannot exist, so the collision is theoretical.
 
 ## Verification and follow-up
 
-- `npm test` — the checks are covered in `tests/scripts.test.mjs`: a resolving and
-  a dangling `code_ref` at `proposed`, an annotated one, a mutual and a
-  one-directional supersede pair, a dangling target, and the acceptance gate both
-  with `lifecycle_gates` off and on.
-- `waypost doctor` on this repository stays at its current finding count.
+- `npm test` — covered in `tests/scripts.test.mjs`, built from real frontmatter
+  rather than hand-made objects (the first version of these tests supplied `fm`
+  directly and so never exercised the reader, which is exactly where the check was
+  blind): the bare-scalar form, a slug reference to a legacy-numbered filename,
+  asymmetry, self-reference, duplicate entries reported once, the acceptance gate
+  off / under `lifecycle_gates` / under its own key / satisfied by each answer
+  form, and a well-formed vault gaining no new issue.
+- This repository has no bound vault, so the vault group never runs here; the
+  checks were measured against a real 15-artifact vault downstream, where they
+  report nothing on a correct state.
 - Follow-up: the downstream project removes the duplicated checks and keeps only
   what is genuinely outside a vault (its Memory index, a pointer file, references
   aimed at ADRs from source).

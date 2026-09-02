@@ -72,6 +72,6 @@ the two cannot collide).
    re-preview, re-ask.
 
 6. **On Yes**: Write the full file. Then suggest `waypost kanban` (status
-   changed) and — on `close` — the reviewer's proposed `code_refs` via
+   changed) and — on `close` — the reviewer's proposed `code_refs` via A path that does not exist yet is annotated `(planned)` or `(waiting)`, otherwise `waypost doctor` reports it.
    the artifact's `code_refs` frontmatter (then `waypost codemap`) (the reviewer computes it from
    `scripts/diff-refs.mjs --since <started_at>`).

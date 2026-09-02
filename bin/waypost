@@ -262,6 +262,9 @@ function handleNext(args) {
 }
 
 function repairFor(f) {
+  if (f.check === "code-refs") return "fix the path, or mark it (waiting)/(planned)/(deleted)";
+  if (f.check === "supersedes") return "correct supersedes/superseded_by on both artifacts";
+  if (f.check === "acceptance-gate") return "record the review outcome in review_status";
   const map = {
     kanban: "waypost reconcile --write", "code-map": "waypost reconcile --write", indexes: "waypost reconcile --write",
     graph: "waypost graph", "agent-roles": "waypost agents install", "agents-block": "waypost agents register",
