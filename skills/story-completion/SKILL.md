@@ -1,5 +1,5 @@
 ---
-description: When the user finishes work that maps to a known story (story file exists in epics/<id>/stories/) — all acceptance criteria appear satisfied, code merged, tests passing — suggest updating the story's frontmatter status (e.g. planned → in-progress → review → done) and regenerating the kanban. Never write to vault directly without the `mps` flow and explicit approval.
+description: When the user finishes work that maps to a known story (story file exists in epics/<id>/stories/) — all acceptance criteria appear satisfied, code merged, tests passing — suggest updating the story's frontmatter status (e.g. planned → in-progress → review → done) and regenerating the kanban. Never write to vault directly without the `waypost` flow and explicit approval.
 ---
 
 # Story completion / status update suggester
@@ -13,13 +13,13 @@ You watch for moments where the conversation indicates progress on a known story
 
 ## What to do
 
-1. **Confirm a vault is bound** (`.mps/projectstore.json` exists). Otherwise stay silent.
+1. **Confirm a vault is bound** (`.waypost/projectstore.json` exists). Otherwise stay silent.
 2. **Confirm `active_skills` is true** in config.
 3. **Try to identify the story file**: search `<vault>/epics/*/stories/` for files matching keywords from the conversation. If multiple candidates, ask the user which one via plain text (not an explicit approval question — keep it light).
 4. **Propose the right transition**:
-   - Work about to **start** on a story → suggest `mps story plan <story>`
+   - Work about to **start** on a story → suggest `waypost story plan <story>`
      (writes the Implementation Plan, stamps `started_at`, moves to in-progress).
-   - Story looks **finished** → suggest `mps story close <story>`
+   - Story looks **finished** → suggest `waypost story close <story>`
      (Final Summary, evidence suffixes on acceptance criteria, stamps
      `closed_at`, moves to done) — and, before closing, the `reviewer` agent,
      whose proposed `code_refs` come from `scripts/diff-refs.mjs` anchored at
@@ -37,7 +37,7 @@ You watch for moments where the conversation indicates progress on a known story
      `closed_at` when moving to done outside the close gate — timestamps must
      not be lost just because the gate was skipped; ISO-8601).
    - Use an explicit approval question to confirm the Edit before applying.
-   - After Edit, suggest running `mps kanban` to refresh the board.
+   - After Edit, suggest running `waypost kanban` to refresh the board.
 
 ## Anti-patterns
 
@@ -45,5 +45,5 @@ You watch for moments where the conversation indicates progress on a known story
 - Don't bulk-update multiple stories in one go without per-file approval.
 - Don't change anything beyond `status`, `updated` and the lifecycle
   timestamps (`started_at` / `closed_at`). Section content (plan, summary,
-  evidence) belongs to the `mps story plan|close` gates.
+  evidence) belongs to the `waypost story plan|close` gates.
 - Don't trigger after every code change — only on clear completion signals.

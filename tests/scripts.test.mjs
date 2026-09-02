@@ -1,4 +1,4 @@
-// mps — CLI-script tests. The core scripts are pure compute; drive them via
+// waypost — CLI-script tests. The core scripts are pure compute; drive them via
 // spawnSync against a throwaway bound project, never against whatever vault
 // the developer's own checkout happens to be bound to.
 //   node --test tests/*.test.mjs
@@ -18,15 +18,15 @@ const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 // from the config, and a test that borrows the developer's bind passes or
 // fails depending on their machine.
 const SCRATCH = (() => {
-  const proj = mkdtempSync(join(tmpdir(), "mps-scratch-"));
-  mkdirSync(join(proj, ".mps"), { recursive: true });
+  const proj = mkdtempSync(join(tmpdir(), "waypost-scratch-"));
+  mkdirSync(join(proj, ".waypost"), { recursive: true });
   const vault = join(proj, "vault");
   mkdirSync(join(vault, "epics"), { recursive: true });
-  writeFileSync(join(proj, ".mps", "projectstore.json"),
+  writeFileSync(join(proj, ".waypost", "projectstore.json"),
     JSON.stringify({ vault_path: vault, layout: "engineering", language: "en" }), "utf8");
   return proj;
 })();
-const ENV = { ...process.env, MPS_PROJECT_DIR: SCRATCH, MPS_HOME: REPO };
+const ENV = { ...process.env, WAYPOST_PROJECT_DIR: SCRATCH, WAYPOST_HOME: REPO };
 
 function run(script, args) {
   const r = spawnSync(process.execPath, [join(REPO, "scripts", script), ...args], {
@@ -36,11 +36,11 @@ function run(script, args) {
   return JSON.parse(r.stdout);
 }
 
-// bin/mps end to end. MPS_NO_BEAT=1 keeps a test from writing presence
+// bin/waypost end to end. WAYPOST_NO_BEAT=1 keeps a test from writing presence
 // files and from paying for the heartbeat's dynamic imports on every call.
 function runBinRaw(projectDir, args) {
-  return spawnSync(process.execPath, [join(REPO, "bin", "mps"), ...args], {
-    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: projectDir, MPS_NO_BEAT: "1" },
+  return spawnSync(process.execPath, [join(REPO, "bin", "waypost"), ...args], {
+    encoding: "utf8", env: { ...ENV, WAYPOST_PROJECT_DIR: projectDir, WAYPOST_NO_BEAT: "1" },
     cwd: REPO, timeout: 15000,
   });
 }
@@ -142,12 +142,12 @@ test("story-section plan: insertSection's fallback never splices into frontmatte
 // ─── draft.mjs golden tests (ADR-010 / SPEC-002 contracts 1–4) ─────────
 //
 // draft reads the project config for vault/language, so these run against a
-// throwaway project dir + vault; MPS_HOME stays this repo (layouts,
+// throwaway project dir + vault; WAYPOST_HOME stays this repo (layouts,
 // templates).
 
 function runIn(projectDir, script, args) {
   const r = spawnSync(process.execPath, [join(REPO, "scripts", script), ...args], {
-    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: projectDir }, cwd: REPO, timeout: 15000,
+    encoding: "utf8", env: { ...ENV, WAYPOST_PROJECT_DIR: projectDir }, cwd: REPO, timeout: 15000,
   });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
@@ -159,8 +159,8 @@ function makeVaultProject() {
   for (const d of ["adr", "specs", join("epics", "PS-X", "stories")]) {
     mkdirSync(join(vault, d), { recursive: true });
   }
-  mkdirSync(join(proj, ".mps"), { recursive: true });
-  writeFileSync(join(proj, ".mps", "projectstore.json"), JSON.stringify({
+  mkdirSync(join(proj, ".waypost"), { recursive: true });
+  writeFileSync(join(proj, ".waypost", "projectstore.json"), JSON.stringify({
     vault_path: vault, layout: "engineering", language: "en", default_author: "Test",
   }));
   return { proj, vault };
@@ -237,7 +237,7 @@ test("mixed-era vault: index orders by date with number badge, doctor identity c
   assert.deepEqual(labels, ["ADR-001", "apple", "zebra"]);
 
   const r = spawnSync(process.execPath, [join(REPO, "scripts", "doctor.mjs"), "--vault", "--json"], {
-    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
+    encoding: "utf8", env: { ...ENV, WAYPOST_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
   });
   const findings = JSON.parse(r.stdout);
   const identityChecks = findings.filter((f) =>
@@ -264,7 +264,7 @@ test("draft: nextNumber is gone from the creation path (contract 1)", () => {
 // do not loosen it.
 function runInRaw(projectDir, script, args) {
   return spawnSync(process.execPath, [join(REPO, "scripts", script), ...args], {
-    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: projectDir }, cwd: REPO, timeout: 15000,
+    encoding: "utf8", env: { ...ENV, WAYPOST_PROJECT_DIR: projectDir }, cwd: REPO, timeout: 15000,
   });
 }
 
@@ -505,7 +505,7 @@ test("index header: extra hand-added columns are not the managed table — no si
 
 test("creation e2e: a localized index header reconciles (registry-driven, not an English literal)", () => {
   const { proj, vault } = makeVaultProject();
-  writeFileSync(join(proj, ".mps", "projectstore.json"), JSON.stringify({
+  writeFileSync(join(proj, ".waypost", "projectstore.json"), JSON.stringify({
     vault_path: vault, layout: "engineering", language: "de", default_author: "Test",
   }));
   mkdirSync(join(vault, "adr"), { recursive: true });
@@ -724,12 +724,12 @@ test("index title containing '|' round-trips without a false doctor index findin
   assert.deepEqual(idxFindings, [], JSON.stringify(idxFindings));
 });
 
-// ─── bin/mps: vault containment, atomic writes, and the rest of the CLI
-// fixes in the plan's Проход 1 (P1-5 .. P1-12). bin/mps had no drive at all
+// ─── bin/waypost: vault containment, atomic writes, and the rest of the CLI
+// fixes in the plan's Проход 1 (P1-5 .. P1-12). bin/waypost had no drive at all
 // before this pass — every test below is a first, not a regression guard for
 // something checked elsewhere. ──────────────────────────────────────────
 
-test("bin/mps story --write refuses to write outside the vault, file left untouched (P1-5, A-1)", () => {
+test("bin/waypost story --write refuses to write outside the vault, file left untouched (P1-5, A-1)", () => {
   const { proj } = makeVaultProject();
   const outside = join(proj, "outside.md"); // inside the project, but not under vault/
   const original = '---\ntype: story\nstatus: planned\n---\n\n# Notes\nHand-written text, not a vault artifact.\n';
@@ -740,19 +740,19 @@ test("bin/mps story --write refuses to write outside the vault, file left untouc
   assert.equal(readFileSync(outside, "utf8"), original, "the file outside the vault is untouched");
 });
 
-// Simulates the race between story-section.mjs's read and bin/mps's own
+// Simulates the race between story-section.mjs's read and bin/waypost's own
 // pre-write re-read without timing two real processes against each other: a
-// copy of bin/mps (a real file — its ROOT comes from import.meta.url, which
+// copy of bin/waypost (a real file — its ROOT comes from import.meta.url, which
 // follows a symlink to the real repo and would defeat the substitution) plus
 // a story-section.mjs that delegates to the REAL script and then, using the
 // answer it got back, overwrites the story file with different bytes before
-// returning — landing bin/mps in exactly the position "someone else wrote
+// returning — landing bin/waypost in exactly the position "someone else wrote
 // this file after I read it" describes.
 function makeRaceRepo(raceContent) {
   const tmp = mkdtempSync(join(tmpdir(), "ps-race-"));
   mkdirSync(join(tmp, "bin"));
   mkdirSync(join(tmp, "scripts"));
-  writeFileSync(join(tmp, "bin", "mps"), readFileSync(join(REPO, "bin", "mps"), "utf8"), "utf8");
+  writeFileSync(join(tmp, "bin", "waypost"), readFileSync(join(REPO, "bin", "waypost"), "utf8"), "utf8");
   for (const f of readdirSync(join(REPO, "scripts"))) {
     if (f === "story-section.mjs") continue;
     symlinkSync(join(REPO, "scripts", f), join(tmp, "scripts", f));
@@ -764,33 +764,33 @@ function makeRaceRepo(raceContent) {
     'import { writeFileSync } from "node:fs";',
     `const r = spawnSync(process.execPath, [${realStorySection}, ...process.argv.slice(2)], { encoding: "utf8" });`,
     'if (r.status !== 0) { process.stderr.write(r.stderr || ""); process.exit(r.status ?? 1); }',
-    "// The concurrent edit: lands between the real script's read (just above) and bin/mps's own pre-write re-read.",
+    "// The concurrent edit: lands between the real script's read (just above) and bin/waypost's own pre-write re-read.",
     `writeFileSync(process.argv[3], ${JSON.stringify(raceContent)}, "utf8");`,
     "process.stdout.write(r.stdout);",
   ].join("\n"), "utf8");
   return tmp;
 }
 
-test("bin/mps story --write refuses a stale sha256 — a concurrent edit is not silently discarded (P1-6, A-2/A-3)", () => {
+test("bin/waypost story --write refuses a stale sha256 — a concurrent edit is not silently discarded (P1-6, A-2/A-3)", () => {
   const { proj, vault } = makeVaultProject();
   const storyPath = join(vault, "epics", "PS-X", "stories", "story-race.md");
   const original = '---\ntype: story\nid: "story-race"\nstatus: planned\n---\n\n# Race\n';
   writeFileSync(storyPath, original, "utf8");
   const raceContent = '---\ntype: story\nid: "story-race"\nstatus: planned\nconcurrent: "yes"\n---\n\n# Race\n';
   const raceRepo = makeRaceRepo(raceContent);
-  const r = spawnSync(process.execPath, [join(raceRepo, "bin", "mps"), "story", "plan", storyPath, "--write"], {
-    encoding: "utf8", env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_NO_BEAT: "1" }, timeout: 15000,
+  const r = spawnSync(process.execPath, [join(raceRepo, "bin", "waypost"), "story", "plan", storyPath, "--write"], {
+    encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" }, timeout: 15000,
   });
   assert.notEqual(r.status, 0, r.stdout);
   assert.match(r.stderr, /changed since it was read/);
   assert.equal(readFileSync(storyPath, "utf8"), raceContent,
-    "the concurrent write survives — bin/mps must not overwrite it with content computed from stale bytes");
+    "the concurrent write survives — bin/waypost must not overwrite it with content computed from stale bytes");
 });
 
-test("bin/mps: a broken .mps/projectstore.json fails loudly instead of letting setup rebind over it (P1-7, G-5)", () => {
+test("bin/waypost: a broken .waypost/projectstore.json fails loudly instead of letting setup rebind over it (P1-7, G-5)", () => {
   const proj = mkdtempSync(join(tmpdir(), "ps-badcfg-"));
-  mkdirSync(join(proj, ".mps"), { recursive: true });
-  const cfgPath = join(proj, ".mps", "projectstore.json");
+  mkdirSync(join(proj, ".waypost"), { recursive: true });
+  const cfgPath = join(proj, ".waypost", "projectstore.json");
   const broken = '{ "vault_path": "/some/vault", "layout": "engineering", }'; // trailing comma
   writeFileSync(cfgPath, broken, "utf8");
   const r = runBinRaw(proj, ["setup", "--dry-run"]);
@@ -801,10 +801,10 @@ test("bin/mps: a broken .mps/projectstore.json fails loudly instead of letting s
 
 test("readConfig (lib.mjs): a script sees an unparseable config as a loud failure, not \"unbound\" (P1-7, G-5)", () => {
   const proj = mkdtempSync(join(tmpdir(), "ps-badcfg2-"));
-  mkdirSync(join(proj, ".mps"), { recursive: true });
-  writeFileSync(join(proj, ".mps", "projectstore.json"), "{ not json", "utf8");
+  mkdirSync(join(proj, ".waypost"), { recursive: true });
+  writeFileSync(join(proj, ".waypost", "projectstore.json"), "{ not json", "utf8");
   const r = spawnSync(process.execPath, [join(REPO, "scripts", "kanban.mjs")], {
-    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
+    encoding: "utf8", env: { ...ENV, WAYPOST_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
   });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /unreadable/);
@@ -815,7 +815,7 @@ test("doctor: a broken <vault>/.projectstore.json is its own issue-level finding
   const { proj, vault } = makeVaultProject();
   writeFileSync(join(vault, ".projectstore.json"), '{ "spec_policy": "required", }', "utf8"); // trailing comma
   const r = spawnSync(process.execPath, [join(REPO, "scripts", "doctor.mjs"), "--vault", "--json"], {
-    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
+    encoding: "utf8", env: { ...ENV, WAYPOST_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
   });
   const findings = JSON.parse(r.stdout);
   const policy = findings.find((f) => f.check === "vault-policy" && f.level === "issue");
@@ -823,37 +823,37 @@ test("doctor: a broken <vault>/.projectstore.json is its own issue-level finding
   assert.match(r.stderr, /vault policy unreadable/);
 });
 
-test("mps next: a warn message truncates on a sentence boundary, not the first literal dot (P1-8, G-7)", () => {
+test("waypost next: a warn message truncates on a sentence boundary, not the first literal dot (P1-8, G-7)", () => {
   const proj = mkdtempSync(join(tmpdir(), "ps-next-"));
   spawnSync("git", ["init", "-q"], { cwd: proj });
   const vault = join(proj, "vault");
   mkdirSync(join(vault, "epics"), { recursive: true });
-  mkdirSync(join(proj, ".mps"), { recursive: true });
-  writeFileSync(join(proj, ".mps", "projectstore.json"),
+  mkdirSync(join(proj, ".waypost"), { recursive: true });
+  writeFileSync(join(proj, ".waypost", "projectstore.json"),
     JSON.stringify({ vault_path: vault, layout: "engineering", language: "en" }), "utf8");
   const r = runBinRaw(proj, ["next"]);
   assert.equal(r.status, 0, r.stderr);
-  // checkGitignore's message: "Machine-specific files not gitignored: .mps/projectstore.json, ...".
-  // Its first literal "." sits inside ".mps/projectstore.json" — cutting there
+  // checkGitignore's message: "Machine-specific files not gitignored: .waypost/projectstore.json, ...".
+  // Its first literal "." sits inside ".waypost/projectstore.json" — cutting there
   // used to leave a dangling "not gitignored: " with nothing after the colon.
-  assert.ok(r.stdout.includes("Machine-specific files not gitignored: .mps/projectstore.json"),
+  assert.ok(r.stdout.includes("Machine-specific files not gitignored: .waypost/projectstore.json"),
     `expected the full clause in:\n${r.stdout}`);
 });
 
 test("doctor: text-mode exit reflects an issue finding; --json stays a reporting tool (P1-9, G-10)", () => {
   const proj = mkdtempSync(join(tmpdir(), "ps-doctorexit-"));
-  // No .mps/projectstore.json at all => checkConfig is an issue-level finding.
+  // No .waypost/projectstore.json at all => checkConfig is an issue-level finding.
   const rText = spawnSync(process.execPath, [join(REPO, "scripts", "doctor.mjs")], {
-    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
+    encoding: "utf8", env: { ...ENV, WAYPOST_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
   });
   assert.notEqual(rText.status, 0, "text mode must fail on an issue-level finding");
   const rJson = spawnSync(process.execPath, [join(REPO, "scripts", "doctor.mjs"), "--json"], {
-    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
+    encoding: "utf8", env: { ...ENV, WAYPOST_PROJECT_DIR: proj }, cwd: REPO, timeout: 15000,
   });
   assert.equal(rJson.status, 0, "json mode (a reporting tool) always exits 0");
 });
 
-test("mps setup: the repair step prints doctor's own report instead of swallowing it (P1-9, G-10)", () => {
+test("waypost setup: the repair step prints doctor's own report instead of swallowing it (P1-9, G-10)", () => {
   const proj = mkdtempSync(join(tmpdir(), "ps-setup-"));
   spawnSync("git", ["init", "-q"], { cwd: proj });
   const r = runBinRaw(proj, ["setup", "--vault", join(proj, "vault")]);
@@ -874,7 +874,7 @@ test("draft --lang rejects an unknown language before touching the vault (P1-10,
   assert.match(r.stderr, /unknown language/);
 });
 
-test("bin/mps draft --lang forwards to draft.mjs (P1-10, A-5)", () => {
+test("bin/waypost draft --lang forwards to draft.mjs (P1-10, A-5)", () => {
   const { proj } = makeVaultProject();
   const r = runBinRaw(proj, ["draft", "adr", "Lang Test", "--lang", "ru", "--json"]);
   assert.equal(r.status, 0, r.stderr);
@@ -882,14 +882,14 @@ test("bin/mps draft --lang forwards to draft.mjs (P1-10, A-5)", () => {
   assert.match(out.content, /## Контекст/);
 });
 
-test("bin/mps scaffold --json prints only JSON (P1-11, A-6)", () => {
+test("bin/waypost scaffold --json prints only JSON (P1-11, A-6)", () => {
   const { proj } = makeVaultProject();
   const r = runBinRaw(proj, ["scaffold", "--json"]);
   assert.equal(r.status, 0, r.stderr);
   assert.doesNotThrow(() => JSON.parse(r.stdout), `stdout must be pure JSON, got:\n${r.stdout}`);
 });
 
-test("bin/mps search --limit rejects a non-integer instead of silently printing nothing (P1-12, A-10)", () => {
+test("bin/waypost search --limit rejects a non-integer instead of silently printing nothing (P1-12, A-10)", () => {
   const { proj } = makeVaultProject();
   runBin(proj, ["draft", "adr", "Findable Thing", "--write"]);
   const ok = runBinRaw(proj, ["search", "Findable", "--limit", "5"]);
@@ -900,7 +900,7 @@ test("bin/mps search --limit rejects a non-integer instead of silently printing 
   assert.match(bad.stderr, /--limit/);
 });
 
-test("bin/mps search: a symlinked directory is never descended into, so a cycle cannot hang the walk (P3-3, G-13)", () => {
+test("bin/waypost search: a symlinked directory is never descended into, so a cycle cannot hang the walk (P3-3, G-13)", () => {
   const { proj, vault } = makeVaultProject();
   const loopDir = join(vault, "adr", "loop");
   mkdirSync(loopDir, { recursive: true });
@@ -912,7 +912,7 @@ test("bin/mps search: a symlinked directory is never descended into, so a cycle 
   assert.match(r.stdout, /adr\/loop\/inside\.md/, "a real file in the loop directory is still found");
 });
 
-test("bin/mps search: .icloud placeholders are counted and reported, not silently skipped (P3-3, G-13)", () => {
+test("bin/waypost search: .icloud placeholders are counted and reported, not silently skipped (P3-3, G-13)", () => {
   const { proj, vault } = makeVaultProject();
   writeFileSync(join(vault, "adr", ".evicted.md.icloud"), "", "utf8");
   const r = runBinRaw(proj, ["search", "nomatchanywhere"]);
@@ -921,7 +921,7 @@ test("bin/mps search: .icloud placeholders are counted and reported, not silentl
   assert.match(r.stdout, /1 file\(s\) not downloaded from iCloud — open them once to sync/);
 });
 
-test("bin/mps search -- <literal>: `--` stops flag parsing so a flag-shaped term is searched literally (P3-7, A-8)", () => {
+test("bin/waypost search -- <literal>: `--` stops flag parsing so a flag-shaped term is searched literally (P3-7, A-8)", () => {
   const { proj, vault } = makeVaultProject();
   writeFileSync(join(vault, "adr", "flaglike.md"),
     "---\ntype: adr\ntitle: Flag Title\n---\n\nliteral --project marker\n", "utf8");

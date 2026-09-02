@@ -8,7 +8,7 @@
   "detect": [".iflow", "IFLOW.md"],
   "env": ["IFLOW_CLI"],
   "instructions": ["IFLOW.md", "AGENTS.md"],
-  "invoke": "delegate to the `mps-<role>` subagent, or paste `mps agents show <role>` into a new session",
+  "invoke": "delegate to the `waypost-<role>` subagent, or paste `waypost agents show <role>` into a new session",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".iflow/agents",

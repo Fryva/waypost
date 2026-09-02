@@ -12,10 +12,10 @@
     "CLINE_AGENT"
   ],
   "instructions": [
-    ".clinerules/mps-agents.md",
+    ".clinerules/waypost-agents.md",
     "AGENTS.md"
   ],
-  "invoke": "/mps-<role>.md (workflow), or paste `mps agents show <role>` into a new task",
+  "invoke": "/waypost-<role>.md (workflow), or paste `waypost agents show <role>` into a new task",
   "roles": {
     "shape": "prompt-md",
     "dir": ".clinerules/workflows",

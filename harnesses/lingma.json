@@ -7,8 +7,8 @@
   "confidence": "documented",
   "detect": [".lingma"],
   "env": ["LINGMA_IDE"],
-  "instructions": [".lingma/rules/mps-agents.md", "AGENTS.md"],
-  "invoke": "reference the mps-<role> rule, or paste `mps agents show <role>` into a new session",
+  "instructions": [".lingma/rules/waypost-agents.md", "AGENTS.md"],
+  "invoke": "reference the waypost-<role> rule, or paste `waypost agents show <role>` into a new session",
   "roles": {
     "shape": "prompt-md",
     "dir": ".lingma/rules",

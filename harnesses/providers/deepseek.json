@@ -21,5 +21,5 @@
       "deepseek.ai"
     ]
   },
-  "notes": "DeepSeek now ships its own harness — the `dsh` entry above — as well as the models. This entry is the model side: point any harness at the DeepSeek endpoint and mps records deepseek as the provider on each commit. The community terminal agents (Deep Code, DeepSeek-TUI) are separate projects and are not registry entries."
+  "notes": "DeepSeek now ships its own harness — the `dsh` entry above — as well as the models. This entry is the model side: point any harness at the DeepSeek endpoint and waypost records deepseek as the provider on each commit. The community terminal agents (Deep Code, DeepSeek-TUI) are separate projects and are not registry entries."
 }

@@ -7,7 +7,7 @@
   "detect": [".github/agents", ".github/copilot-instructions.md", ".github/chatmodes"],
   "env": ["COPILOT_AGENT", "GITHUB_COPILOT_CLI"],
   "instructions": [".github/copilot-instructions.md", "AGENTS.md"],
-  "invoke": "pick the `mps-<role>` custom agent in the chat view",
+  "invoke": "pick the `waypost-<role>` custom agent in the chat view",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".github/agents",

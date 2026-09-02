@@ -1,4 +1,4 @@
-// mps — the commit protocol for parallel harness sessions (ADR-0006):
+// waypost — the commit protocol for parallel harness sessions (ADR-0006):
 // trailers, claims, and the merge driver that keeps derived views out of
 // conflict resolution.
 //   node --test tests/*.test.mjs
@@ -14,14 +14,14 @@ import { composeMessage, storyRef, detectSessionHarness } from "../scripts/commi
 import { storyRefOf, storyPathOf } from "../scripts/lib.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
-const MPS = join(REPO, "bin", "mps");
+const Waypost = join(REPO, "bin", "waypost");
 
-function mps(proj, args, { harness = "claude", session = null, expectFail = false } = {}) {
-  const r = spawnSync(process.execPath, [MPS, ...args], {
+function waypost(proj, args, { harness = "claude", session = null, expectFail = false } = {}) {
+  const r = spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd: proj, timeout: 40000,
     env: {
-      ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO,
-      MPS_HARNESS: harness, ...(session ? { MPS_SESSION_ID: session } : {}),
+      ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO,
+      WAYPOST_HARNESS: harness, ...(session ? { WAYPOST_SESSION_ID: session } : {}),
     },
   });
   if (!expectFail) assert.equal(r.status, 0, `${args.join(" ")}\n${r.stderr}${r.stdout}`);
@@ -36,12 +36,12 @@ function git(proj, args, opts = {}) {
 // two sessions can collide inside one repository, and therefore the one the
 // protocol is about.
 function repo() {
-  const proj = mkdtempSync(join(tmpdir(), "mps-c-"));
+  const proj = mkdtempSync(join(tmpdir(), "waypost-c-"));
   git(proj, ["init", "-q", "-b", "main"]);
   git(proj, ["config", "user.email", "t@example.com"]);
   git(proj, ["config", "user.name", "T"]);
-  mps(proj, ["bind", join(proj, "vault")]);
-  mps(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
+  waypost(proj, ["bind", join(proj, "vault")]);
+  waypost(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
   git(proj, ["add", "-A"]);
   git(proj, ["commit", "-qm", "base"]);
   return proj;
@@ -53,13 +53,13 @@ test("the trailer block is a trailer block, by git's own parser", () => {
   const msg = composeMessage("Do the thing", {
     harness: "codex", session: "s1", story: "PS-1/story-x", coauthor: "A <a@example.com>",
   });
-  const proj = mkdtempSync(join(tmpdir(), "mps-t-"));
+  const proj = mkdtempSync(join(tmpdir(), "waypost-t-"));
   const r = git(proj, ["interpret-trailers", "--parse"], { input: msg });
   const parsed = (r.stdout || "").trim().split("\n");
   assert.deepEqual(parsed, [
-    "Mps-Harness: codex",
-    "Mps-Session: s1",
-    "Mps-Story: PS-1/story-x",
+    "Waypost-Harness: codex",
+    "Waypost-Session: s1",
+    "Waypost-Story: PS-1/story-x",
     "Co-Authored-By: A <a@example.com>",
   ], "git must see four trailers, not prose");
   assert.match(msg, /^Do the thing\n\n/, "the subject keeps its own paragraph");
@@ -69,46 +69,46 @@ test("a message that already ends in trailers gains ours without breaking the bl
   const msg = composeMessage("Subject\n\nSigned-off-by: X <x@example.com>", {
     harness: "claude", session: "s2",
   });
-  const proj = mkdtempSync(join(tmpdir(), "mps-t2-"));
+  const proj = mkdtempSync(join(tmpdir(), "waypost-t2-"));
   const parsed = (git(proj, ["interpret-trailers", "--parse"], { input: msg }).stdout || "").trim().split("\n");
-  assert.deepEqual(parsed, ["Signed-off-by: X <x@example.com>", "Mps-Harness: claude", "Mps-Session: s2"]);
+  assert.deepEqual(parsed, ["Signed-off-by: X <x@example.com>", "Waypost-Harness: claude", "Waypost-Session: s2"]);
 });
 
 test("commit records harness, session and story; log reads them back", () => {
   const proj = repo();
-  mps(proj, ["draft", "story", "PS-1", "First", "--write"]);
-  mps(proj, ["commit", "-m", "Open the first story", "--story", "PS-1/story-first", "--all"],
+  waypost(proj, ["draft", "story", "PS-1", "First", "--write"]);
+  waypost(proj, ["commit", "-m", "Open the first story", "--story", "PS-1/story-first", "--all"],
     { harness: "codex", session: "codex-1" });
 
   const body = git(proj, ["log", "-1", "--format=%B"]).stdout;
-  assert.match(body, /^Mps-Harness: codex$/m);
-  assert.match(body, /^Mps-Session: codex-1$/m);
-  assert.match(body, /^Mps-Story: PS-1\/story-first$/m);
+  assert.match(body, /^Waypost-Harness: codex$/m);
+  assert.match(body, /^Waypost-Session: codex-1$/m);
+  assert.match(body, /^Waypost-Story: PS-1\/story-first$/m);
 
-  const rows = JSON.parse(mps(proj, ["log", "--json"]).stdout);
+  const rows = JSON.parse(waypost(proj, ["log", "--json"]).stdout);
   assert.equal(rows[0].harness, "codex");
   assert.equal(rows[0].story, "PS-1/story-first");
-  assert.match(mps(proj, ["log", "--harness", "codex"]).stdout, /Open the first story/);
-  assert.match(mps(proj, ["log", "--harness", "cursor"]).stdout, /no commits match/,
+  assert.match(waypost(proj, ["log", "--harness", "codex"]).stdout, /Open the first story/);
+  assert.match(waypost(proj, ["log", "--harness", "cursor"]).stdout, /no commits match/,
     "a filter that matches nothing says so rather than showing everything");
 });
 
 test("a story reference is resolved against the vault, so a typo cannot enter the record", () => {
   const proj = repo();
-  mps(proj, ["draft", "story", "PS-1", "Second", "--write"]);
-  const cfg = JSON.parse(readFileSync(join(proj, ".mps", "projectstore.json"), "utf8"));
+  waypost(proj, ["draft", "story", "PS-1", "Second", "--write"]);
+  const cfg = JSON.parse(readFileSync(join(proj, ".waypost", "projectstore.json"), "utf8"));
   assert.equal(storyRef(join(cfg.vault_path, "epics/PS-1/stories/story-second.md"), cfg), "PS-1/story-second");
   assert.equal(storyRef("story-second", cfg), "PS-1/story-second");
 
   writeFileSync(join(proj, "x.txt"), "x", "utf8");
   git(proj, ["add", "-A"]);
-  const r = mps(proj, ["commit", "-m", "m", "--story", "PS-9/nope"], { expectFail: true });
+  const r = waypost(proj, ["commit", "-m", "m", "--story", "PS-9/nope"], { expectFail: true });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /no story matches/);
 });
 
 test("storyRefOf understands all three on-disk story shapes, and storyPathOf is its inverse (G-9)", () => {
-  const vault = mkdtempSync(join(tmpdir(), "mps-ref-"));
+  const vault = mkdtempSync(join(tmpdir(), "waypost-ref-"));
   const plain = join(vault, "epics", "E1", "stories", "s.md");
   const folderShaped = join(vault, "epics", "E1", "stories", "folder-shaped", "README.md");
   const standalone = join(vault, "epics", "E1", "story-standalone.md");
@@ -134,7 +134,7 @@ test("storyRefOf understands all three on-disk story shapes, and storyPathOf is 
 });
 
 test("the harness is taken from the environment the harness itself sets", () => {
-  assert.equal(detectSessionHarness({ MPS_HARNESS: "windsurf" }), "windsurf", "an explicit label wins");
+  assert.equal(detectSessionHarness({ WAYPOST_HARNESS: "windsurf" }), "windsurf", "an explicit label wins");
   assert.equal(detectSessionHarness({ CLAUDECODE: "1" }), "claude");
   assert.equal(detectSessionHarness({ CURSOR_TRACE_ID: "abc" }), "cursor");
   assert.equal(detectSessionHarness({}), "unknown",
@@ -145,61 +145,61 @@ test("the harness is taken from the environment the harness itself sets", () => 
 
 test("a story claimed by another live session blocks the commit until it is forced", () => {
   const proj = repo();
-  mps(proj, ["draft", "story", "PS-1", "Shared", "--write"]);
-  mps(proj, ["sessions", "--claim", "PS-1/story-shared"], { harness: "cursor", session: "cursor-9" });
+  waypost(proj, ["draft", "story", "PS-1", "Shared", "--write"]);
+  waypost(proj, ["sessions", "--claim", "PS-1/story-shared"], { harness: "cursor", session: "cursor-9" });
 
   writeFileSync(join(proj, "a.txt"), "a", "utf8");
   git(proj, ["add", "-A"]);
-  const blocked = mps(proj, ["commit", "-m", "m", "--story", "PS-1/story-shared"],
+  const blocked = waypost(proj, ["commit", "-m", "m", "--story", "PS-1/story-shared"],
     { harness: "claude", session: "claude-1", expectFail: true });
   assert.notEqual(blocked.status, 0);
   assert.match(blocked.stderr, /claimed by cursor-9 \(cursor/);
 
-  mps(proj, ["commit", "-m", "m", "--story", "PS-1/story-shared", "--force"],
+  waypost(proj, ["commit", "-m", "m", "--story", "PS-1/story-shared", "--force"],
     { harness: "claude", session: "claude-1" });
-  assert.match(git(proj, ["log", "-1", "--format=%B"]).stdout, /Mps-Story: PS-1\/story-shared/);
+  assert.match(git(proj, ["log", "-1", "--format=%B"]).stdout, /Waypost-Story: PS-1\/story-shared/);
 });
 
 test("the story gate claims on plan and releases on close", () => {
   const proj = repo();
-  mps(proj, ["draft", "story", "PS-1", "Gated", "--write"]);
+  waypost(proj, ["draft", "story", "PS-1", "Gated", "--write"]);
   const story = join(proj, "vault", "epics", "PS-1", "stories", "story-gated.md");
 
-  mps(proj, ["story", "plan", story, "--write"], { session: "claude-2" });
-  let state = JSON.parse(mps(proj, ["sessions", "--json"], { session: "claude-2" }).stdout);
+  waypost(proj, ["story", "plan", story, "--write"], { session: "claude-2" });
+  let state = JSON.parse(waypost(proj, ["sessions", "--json"], { session: "claude-2" }).stdout);
   assert.deepEqual(state.claims.map((c) => c.story), ["PS-1/story-gated"],
     "opening a story announces it to every session on the vault");
 
-  mps(proj, ["story", "close", story, "--write"], { session: "claude-2" });
-  state = JSON.parse(mps(proj, ["sessions", "--json"], { session: "claude-2" }).stdout);
+  waypost(proj, ["story", "close", story, "--write"], { session: "claude-2" });
+  state = JSON.parse(waypost(proj, ["sessions", "--json"], { session: "claude-2" }).stdout);
   assert.deepEqual(state.claims, [], "closing it hands the story back");
 });
 
-// Without MPS_SESSION_ID or any terminal env var, bin/mps falls back to
+// Without WAYPOST_SESSION_ID or any terminal env var, bin/waypost falls back to
 // deriving one from its own process.ppid — the real parent process here is
 // this test file's node process, constant across every spawnSync below, so
 // the derivation must land on the same id every time (G-1). Before the fix,
-// each script bin/mps spawned computed its OWN id from ITS OWN parent (bin/mps
+// each script bin/waypost spawned computed its OWN id from ITS OWN parent (bin/waypost
 // itself, a different pid every call), so a story opened in one call was
 // "claimed by a stranger" by the very next.
-const TERMINAL_ENV_VARS = ["MPS_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID",
+const TERMINAL_ENV_VARS = ["WAYPOST_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID",
   "TERM_SESSION_ID", "ITERM_SESSION_ID", "TMUX_PANE", "WT_SESSION", "KITTY_WINDOW_ID", "SSH_TTY"];
 
 function withoutSessionEnv(proj) {
-  const env = { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO };
+  const env = { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO };
   for (const k of TERMINAL_ENV_VARS) delete env[k];
   return env;
 }
 
-test("with no MPS_SESSION_ID and no terminal env, the derived session id is stable, and a story it opened does not block its own commit (G-1)", () => {
+test("with no WAYPOST_SESSION_ID and no terminal env, the derived session id is stable, and a story it opened does not block its own commit (G-1)", () => {
   const proj = repo();
-  const bare = (args) => spawnSync(process.execPath, [MPS, ...args], { encoding: "utf8", cwd: proj, env: withoutSessionEnv(proj) });
+  const bare = (args) => spawnSync(process.execPath, [Waypost, ...args], { encoding: "utf8", cwd: proj, env: withoutSessionEnv(proj) });
 
   const first = JSON.parse(bare(["sessions", "--json"]).stdout).session_id;
   const second = JSON.parse(bare(["sessions", "--json"]).stdout).session_id;
-  assert.equal(first, second, "two separate mps invocations from the same process derive the same id");
+  assert.equal(first, second, "two separate waypost invocations from the same process derive the same id");
 
-  mps(proj, ["draft", "story", "PS-1", "Bare", "--write"]);
+  waypost(proj, ["draft", "story", "PS-1", "Bare", "--write"]);
   const story = join(proj, "vault", "epics", "PS-1", "stories", "story-bare.md");
   const planned = bare(["story", "plan", story, "--write"]);
   assert.equal(planned.status, 0, planned.stderr);
@@ -214,23 +214,23 @@ test("with no MPS_SESSION_ID and no terminal env, the derived session id is stab
 
 test("two branches that both add a story merge without a conflict in the board", () => {
   const proj = repo();
-  mps(proj, ["doctor", "--fix"]);
-  assert.match(readFileSync(join(proj, ".gitattributes"), "utf8"), /vault\/kanban\.md merge=mps-derived/);
+  waypost(proj, ["doctor", "--fix"]);
+  assert.match(readFileSync(join(proj, ".gitattributes"), "utf8"), /vault\/kanban\.md merge=waypost-derived/);
   assert.ok(!existsSync(join(proj, "vault", ".git")),
     "a vault inside the repository must not be turned into a nested repository");
   git(proj, ["add", "-A"]);
   git(proj, ["commit", "-qm", "wire the merge driver"]);
 
   git(proj, ["checkout", "-qb", "a"]);
-  mps(proj, ["draft", "story", "PS-1", "From claude", "--write"]);
-  mps(proj, ["commit", "-m", "story a", "--all"], { harness: "claude", session: "s-a" });
+  waypost(proj, ["draft", "story", "PS-1", "From claude", "--write"]);
+  waypost(proj, ["commit", "-m", "story a", "--all"], { harness: "claude", session: "s-a" });
 
   git(proj, ["checkout", "-q", "main"]);
   git(proj, ["checkout", "-qb", "b"]);
-  mps(proj, ["draft", "story", "PS-1", "From codex", "--write"]);
-  mps(proj, ["commit", "-m", "story b", "--all"], { harness: "codex", session: "s-b" });
+  waypost(proj, ["draft", "story", "PS-1", "From codex", "--write"]);
+  waypost(proj, ["commit", "-m", "story b", "--all"], { harness: "codex", session: "s-b" });
 
-  const merged = mps(proj, ["merge", "a"], { harness: "codex", session: "s-b" });
+  const merged = waypost(proj, ["merge", "a"], { harness: "codex", session: "s-b" });
   assert.match(merged.stdout, /recorded [0-9a-f]+/, "the merge is committed through the protocol");
 
   const board = git(proj, ["show", "HEAD:vault/kanban.md"]).stdout;
@@ -238,31 +238,31 @@ test("two branches that both add a story merge without a conflict in the board",
   assert.match(board, /From claude/);
   assert.match(board, /From codex/, "and the merge commit's board holds BOTH sides' stories");
 
-  const findings = JSON.parse(mps(proj, ["doctor", "--vault", "--json"]).stdout);
+  const findings = JSON.parse(waypost(proj, ["doctor", "--vault", "--json"]).stdout);
   assert.ok(!findings.some((f) => f.check === "kanban" && f.level === "issue"),
     "…so doctor has nothing to say about the board afterwards");
 });
 
 test("merge stages the merge result and the re-derived views, never a stray uncommitted file (G-8)", () => {
   const proj = repo();
-  mps(proj, ["doctor", "--fix"]);
+  waypost(proj, ["doctor", "--fix"]);
   git(proj, ["add", "-A"]);
   git(proj, ["commit", "-qm", "wire the merge driver"]);
 
   git(proj, ["checkout", "-qb", "a"]);
-  mps(proj, ["draft", "story", "PS-1", "From claude", "--write"]);
-  mps(proj, ["commit", "-m", "story a", "--all"], { harness: "claude", session: "s-a" });
+  waypost(proj, ["draft", "story", "PS-1", "From claude", "--write"]);
+  waypost(proj, ["commit", "-m", "story a", "--all"], { harness: "claude", session: "s-a" });
 
   git(proj, ["checkout", "-q", "main"]);
   git(proj, ["checkout", "-qb", "b"]);
-  mps(proj, ["draft", "story", "PS-1", "From codex", "--write"]);
-  mps(proj, ["commit", "-m", "story b", "--all"], { harness: "codex", session: "s-b" });
+  waypost(proj, ["draft", "story", "PS-1", "From codex", "--write"]);
+  waypost(proj, ["commit", "-m", "story b", "--all"], { harness: "codex", session: "s-b" });
 
   // Work in progress on branch "b", unrelated to the merge — exactly what a
   // bare `--all` inside merge() used to sweep into the merge commit (G-8).
   writeFileSync(join(proj, "wip.txt"), "not part of the merge\n", "utf8");
 
-  const merged = mps(proj, ["merge", "a"], { harness: "codex", session: "s-b" });
+  const merged = waypost(proj, ["merge", "a"], { harness: "codex", session: "s-b" });
   assert.match(merged.stdout, /recorded [0-9a-f]+/, merged.stderr);
 
   assert.match(git(proj, ["status", "--porcelain"]).stdout, /^\?\? wip\.txt$/m,
@@ -273,26 +273,26 @@ test("merge stages the merge result and the re-derived views, never a stray unco
 
 test("doctor reports the merge driver, and repairs a stale one", () => {
   const proj = repo();
-  let findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  let findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   assert.ok(findings.some((f) => f.check === "merge-driver"), "an unwired repo is reported");
 
-  mps(proj, ["doctor", "--fix"]);
-  findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  waypost(proj, ["doctor", "--fix"]);
+  findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   assert.ok(!findings.some((f) => f.check === "merge-driver"), "…and wired once, it stays quiet");
 
-  git(proj, ["config", "merge.mps-derived.driver", "some-old-command %A"]);
-  findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  git(proj, ["config", "merge.waypost-derived.driver", "some-old-command %A"]);
+  findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   const drift = findings.find((f) => f.check === "merge-driver");
   assert.ok(drift, "a driver from another version is worse than none — git calls it and it fails");
   assert.match(drift.message, /expected:/);
-  mps(proj, ["doctor", "--fix"]);
-  assert.match(git(proj, ["config", "--get", "merge.mps-derived.driver"]).stdout, /merge-derived\.mjs %A %O %B %P/);
+  waypost(proj, ["doctor", "--fix"]);
+  assert.match(git(proj, ["config", "--get", "merge.waypost-derived.driver"]).stdout, /merge-derived\.mjs %A %O %B %P/);
 });
 
 test("the merge driver refuses rather than guessing when it cannot re-derive", () => {
   const proj = repo();
   const r = spawnSync(process.execPath, [join(REPO, "scripts", "merge-derived.mjs"), join(proj, "README.md")], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   assert.notEqual(r.status, 0, "a file that is not a derived view leaves the conflict for a human");
   assert.match(r.stderr, /not a derived view/);

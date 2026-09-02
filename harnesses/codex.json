@@ -7,7 +7,7 @@
   "detect": [".codex", "AGENTS.md"],
   "env": ["CODEX_SANDBOX", "CODEX_HOME", "CODEX_SANDBOX_NETWORK_DISABLED"],
   "instructions": ["AGENTS.md", ".codex/AGENTS.md"],
-  "invoke": "spawn the `mps-<role>` agent, or `codex exec \"$(mps agents show <role>) <target>\"`",
+  "invoke": "spawn the `waypost-<role>` agent, or `codex exec \"$(waypost agents show <role>) <target>\"`",
   "roles": {
     "shape": "toml",
     "dir": ".codex/agents",
@@ -24,5 +24,5 @@
       ["sandbox_mode", "read-only"]
     ]
   },
-  "notes": "Codex has project-level agents now: .codex/agents/<name>.toml with name, description and developer_instructions (the system prompt), plus optional model, model_reasoning_effort and sandbox_mode. `sandbox_mode = \"read-only\"` is emitted, which is the one place a harness enforces the roles' read-only contract rather than asking for it. The older ~/.codex/prompts custom prompts are deprecated by OpenAI in favour of skills, so mps no longer writes them; project agents need no follow-up copy step, so this entry has no after_install. `model_reasoning_effort` uses `{effort}` through `roles.effort.map`, which only covers Codex's own documented values (low/medium/high) — deliberately not inventing an `xhigh` or similar tier no vendor doc names. Every shipped role is effort:max today, which this maps to \"high\"; revisit the map if Codex's own scale changes. The official docs page could not be fetched directly (learn.chatgpt.com returned 404 to the fetcher); the format is taken from a reference that cites it — check once against `codex --help`."
+  "notes": "Codex has project-level agents now: .codex/agents/<name>.toml with name, description and developer_instructions (the system prompt), plus optional model, model_reasoning_effort and sandbox_mode. `sandbox_mode = \"read-only\"` is emitted, which is the one place a harness enforces the roles' read-only contract rather than asking for it. The older ~/.codex/prompts custom prompts are deprecated by OpenAI in favour of skills, so waypost no longer writes them; project agents need no follow-up copy step, so this entry has no after_install. `model_reasoning_effort` uses `{effort}` through `roles.effort.map`, which only covers Codex's own documented values (low/medium/high) — deliberately not inventing an `xhigh` or similar tier no vendor doc names. Every shipped role is effort:max today, which this maps to \"high\"; revisit the map if Codex's own scale changes. The official docs page could not be fetched directly (learn.chatgpt.com returned 404 to the fetcher); the format is taken from a reference that cites it — check once against `codex --help`."
 }

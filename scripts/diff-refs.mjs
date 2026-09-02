@@ -3,12 +3,12 @@
 // Computes the files a story touched, for the reviewer's proposed code_refs.
 // Our own extension: neither Backlog.md nor projectstore derived code mapping
 // from git before this. Pure compute — the write path stays
-// mps codemap set, approval-gated.
+// waypost codemap set, approval-gated.
 //
 //   node diff-refs.mjs --since <iso-timestamp> [--range <git-range>]
 //
 // Range derivation is STORY-SCOPED: `--since` is the story's started_at (set
-// by mps story plan). Branch-wide ranges (merge-base..HEAD) are
+// by waypost story plan). Branch-wide ranges (merge-base..HEAD) are
 // deliberately not the default — shared feature branches over-attribute and
 // direct-to-main work yields an empty diff (research note, adoption item 3).
 // Output: { since, range, files, uncommitted, fallback } — fallback=true

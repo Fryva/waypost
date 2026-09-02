@@ -1,7 +1,7 @@
-// mps — tokens.mjs: usage/cost accounting from Claude Code's own transcripts
+// waypost — tokens.mjs: usage/cost accounting from Claude Code's own transcripts
 // (P3-4, G-14). Builds a minimal transcript fixture under a throwaway HOME
 // and drives the CLI with `--project <dir>`, since tokens.mjs reads
-// ~/.claude/projects/<slug> rather than anything mps itself writes.
+// ~/.claude/projects/<slug> rather than anything waypost itself writes.
 //   node --test tests/*.test.mjs
 
 import { test } from "node:test";
@@ -26,10 +26,10 @@ const slugOf = (dir) => dir.replace(/[^a-zA-Z0-9]/g, "-");
 //     (req1) split across two JSONL records — the shape every real turn with
 //     a tool call takes: one record per content block, output cumulative.
 //   - a subagent transcript, <session>/subagents/agent-1.{meta,jsonl}, with
-//     agentType "mps-critic" — the exact attribution shape Claude Code writes.
+//     agentType "waypost-critic" — the exact attribution shape Claude Code writes.
 function fixture() {
-  const home = mkdtempSync(join(tmpdir(), "mps-tok-home-"));
-  const project = join(tmpdir(), "mps-tok-project-does-not-exist");
+  const home = mkdtempSync(join(tmpdir(), "waypost-tok-home-"));
+  const project = join(tmpdir(), "waypost-tok-project-does-not-exist");
   const slug = slugOf(project);
   const dir = join(home, ".claude", "projects", slug);
   mkdirSync(dir, { recursive: true });
@@ -65,7 +65,7 @@ function fixture() {
   const subs = join(dir, "session1", "subagents");
   mkdirSync(subs, { recursive: true });
   writeFileSync(join(subs, "agent-1.meta.json"),
-    JSON.stringify({ agentType: "mps-critic", description: "Test critic run" }), "utf8");
+    JSON.stringify({ agentType: "waypost-critic", description: "Test critic run" }), "utf8");
   const rec2 = {
     type: "assistant", requestId: "req2", timestamp: "2026-08-20T10:05:00Z",
     message: {
@@ -96,20 +96,20 @@ test("tokens: dedups by requestId — output is max() across records, tool calls
   assert.equal(main.tool_calls, 2, "tool_use ids from BOTH records are unioned, not just the last record's");
 });
 
-test("tokens: a subagent run is attributed by its meta.json's agentType, and counted as mps work", () => {
+test("tokens: a subagent run is attributed by its meta.json's agentType, and counted as waypost work", () => {
   const { home, project } = fixture();
   const r = run(home, ["--project", project, "--json"]);
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
-  const agent = out.buckets.find((b) => b.bucket === "agent: mps-critic");
-  assert.ok(agent, `expected an "agent: mps-critic" bucket, got: ${JSON.stringify(out.buckets)}`);
+  const agent = out.buckets.find((b) => b.bucket === "agent: waypost-critic");
+  assert.ok(agent, `expected an "agent: waypost-critic" bucket, got: ${JSON.stringify(out.buckets)}`);
   assert.equal(agent.requests, 1);
   assert.equal(agent.runs, 1, "one meta.json is one spawn");
-  // isProjectstore requires kind !== "main" and a bucket naming mps/projectstore
+  // isProjectstore requires kind !== "main" and a bucket naming waypost/projectstore
   // — the reason vault-work totals do not also count the main thread's own,
   // unattributed requests.
   const critique = out.stages.find((s) => s.bucket === "critique");
-  assert.ok(critique, `mps-critic maps to the "critique" lifecycle stage: ${JSON.stringify(out.stages)}`);
+  assert.ok(critique, `waypost-critic maps to the "critique" lifecycle stage: ${JSON.stringify(out.stages)}`);
   assert.equal(critique.requests, 1);
 });
 
@@ -121,7 +121,7 @@ test("tokens: --json carries the shape callers rely on (transcript_dir, sessions
   assert.equal(out.transcript_dir, join(home, ".claude", "projects", slugOf(project)));
   assert.equal(out.sessions, 1, "both the main thread and the subagent belong to session1");
   assert.ok(out.pricing_usd_per_mtok["claude-sonnet-5"], "pricing table is exposed for the model actually used");
-  assert.ok(out.totals.mps && out.totals.other && out.totals.all, "the three-way split is always present");
+  assert.ok(out.totals.waypost && out.totals.other && out.totals.all, "the three-way split is always present");
   assert.equal(out.totals.all.requests, 2, "req1 + req2, deduped");
 });
 
@@ -129,13 +129,13 @@ test("tokens: text mode (no --json) runs end to end without throwing", () => {
   const { home, project } = fixture();
   const r = run(home, ["--project", project]);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /mps token usage/);
+  assert.match(r.stdout, /waypost token usage/);
   assert.match(r.stdout, /vault share:/);
 });
 
 test("tokens: no transcripts for this project says so, rather than crashing or printing nothing", () => {
-  const home = mkdtempSync(join(tmpdir(), "mps-tok-home-"));
-  const project = join(tmpdir(), "mps-tok-project-truly-absent");
+  const home = mkdtempSync(join(tmpdir(), "waypost-tok-home-"));
+  const project = join(tmpdir(), "waypost-tok-project-truly-absent");
   const r = run(home, ["--project", project]);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /no transcripts for this project/);

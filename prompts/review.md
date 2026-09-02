@@ -3,11 +3,11 @@ description: Peer-review an existing artifact (ADR / research / epic / etc.) usi
 argument-hint: <path-to-artifact>
 ---
 
-You are running a peer review on an mps artifact.
+You are running a peer review on a waypost artifact.
 
 ## Steps
 
-1. **Resolve path**: `$ARGUMENTS` is the target file. If it is relative, resolve against the bound vault (read `.mps/projectstore.json` → `vault_path`). If config missing, stop with: "Run `mps bind <path>` first."
+1. **Resolve path**: `$ARGUMENTS` is the target file. If it is relative, resolve against the bound vault (read `.waypost/projectstore.json` → `vault_path`). If config missing, stop with: "Run `waypost bind <path>` first."
 
 2. **Read the artifact**: use the Read tool on the resolved path. Stop if file does not exist.
 
@@ -16,14 +16,14 @@ You are running a peer review on an mps artifact.
 4. **Load the checklist**:
 
    ```bash
-   cat "$MPS_HOME/scaffold/checklists.json"
+   cat "$WAYPOST_HOME/scaffold/checklists.json"
    ```
 
    Parse JSON, pick the entry by kind. If the kind has no entry, use the `adr` checklist as a generic fallback and note this to the user.
 
 5. **Gather domain context**: read the vault's top-level `README.md` and the folder README of the artifact's parent (e.g. `adr/README.md`). Keep both short — they're context for the critic, not the focus.
 
-6. **Run the critic in a fresh context.** Use the bundled role, whatever the harness calls it: the `mps-critic` subagent (Claude Code, OpenCode), `/mps-critic <path>` (Codex), or a separate run seeded with `mps agents show critic`. Only if no role is installed, fall back to a general-purpose agent — and say in your report that the fallback was used. Use this exact prompt template:
+6. **Run the critic in a fresh context.** Use the bundled role, whatever the harness calls it: the `waypost-critic` subagent (Claude Code, OpenCode), `/waypost-critic <path>` (Codex), or a separate run seeded with `waypost agents show critic`. Only if no role is installed, fall back to a general-purpose agent — and say in your report that the fallback was used. Use this exact prompt template:
 
    ```
    You are a critic-mode reviewer. You have ONLY the artifact and the
@@ -64,7 +64,7 @@ You are running a peer review on an mps artifact.
 
    Set the agent description to: `Peer-review of {{kind}} artifact at {{path}}`. Pass it as a foreground task (you need the result to continue).
 
-   **Model (ADR-008)**: resolve `agents.per_agent.critic.model ?? agents.default.model` from `.mps/projectstore.json` and pass it as the spawn's model parameter. Missing key, `inherit`, or unreadable config → pass nothing and let the agent's own frontmatter decide; never guess a model. This is the only way the configured model reaches the agent — there are no override copies (`mps agents configure`). When falling back to `oh-my-claudecode:critic` or `general-purpose`, pass the same model.
+   **Model (ADR-008)**: resolve `agents.per_agent.critic.model ?? agents.default.model` from `.waypost/projectstore.json` and pass it as the spawn's model parameter. Missing key, `inherit`, or unreadable config → pass nothing and let the agent's own frontmatter decide; never guess a model. This is the only way the configured model reaches the agent — there are no override copies (`waypost agents configure`). When falling back to `oh-my-claudecode:critic` or `general-purpose`, pass the same model.
 
 7. **Show findings**: print the agent's report verbatim. Number is its number.
 
@@ -86,4 +86,4 @@ You are running a peer review on an mps artifact.
 
 - Critic agent MUST NOT see the conversation that produced the artifact. Only the artifact + minimal context. That fresh framing is the whole point.
 - If the critic returns suspiciously sycophantic findings ("good overall, minor nit:"), retry once with an explicit `NO PRAISE, NO HEDGING.` injected into the prompt.
-- Selective default: if user invoked the review procedure (`mps prompt review`) on a kind whose `default_review` is `false` in checklists.json (e.g. meeting), still run — they asked explicitly. Just don't auto-trigger via skill.
+- Selective default: if user invoked the review procedure (`waypost prompt review`) on a kind whose `default_review` is `false` in checklists.json (e.g. meeting), still run — they asked explicitly. Just don't auto-trigger via skill.

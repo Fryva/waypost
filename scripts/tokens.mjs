@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// mps — tokens.mjs
+// waypost — tokens.mjs
 //
 // Answers "how many tokens did we spend on keeping the vault, as opposed to
 // writing code?" — read-only, from the Claude Code transcripts this project
@@ -9,12 +9,12 @@
 // HARNESS-SPECIFIC BY NATURE, and the only such script here: it reads Claude
 // Code's own transcript format. Under Codex or OpenCode it has nothing to read
 // and says so. Attribution matches the role prefix this fork installs
-// ("mps-critic", …); upstream's slash-command attribution no longer exists, so
+// ("waypost-critic", …); upstream's slash-command attribution no longer exists, so
 // vault work done from the main thread lands in the unattributed bucket.
 //
 // Two attribution sources, both written by Claude Code itself:
 //   1. subagents — <session>/subagents/agent-*.meta.json carries `agentType`
-//      ("mps-critic", "mps-reviewer", …). Exact, per agent.
+//      ("waypost-critic", "waypost-reviewer", …). Exact, per agent.
 //   2. slash commands — main-thread records carry `attributionSkill` /
 //      `attributionPlugin` when a harness plugin provides them; this fork ships
 //      no slash commands, so that source is empty unless one is added.
@@ -58,7 +58,7 @@ import { homedir } from "node:os";
 import { projectRoot } from "./lib.mjs";
 
 function die(msg) {
-  process.stderr.write(`mps/tokens: ${msg}\n`);
+  process.stderr.write(`waypost/tokens: ${msg}\n`);
   process.exit(1);
 }
 
@@ -69,7 +69,7 @@ const STAGE_OF = {
   adr: "authoring", research: "authoring", epic: "authoring", story: "authoring",
   spec: "authoring", concept: "authoring", meeting: "authoring", runbook: "authoring",
   // checking the artifact — independent adversarial pass
-  critic: "critique", "mps-critic": "critique", "projectstore-critic": "critique", review: "critique",
+  critic: "critique", "waypost-critic": "critique", "projectstore-critic": "critique", review: "critique",
   // planning the implementation, then checking the diff against the story
   planner: "planning", "code-planner": "planning",
   reviewer: "code-review", "code-reviewer": "code-review",
@@ -169,9 +169,9 @@ export function ingest(rows, rec, meta) {
   }
 }
 
-// Strip the plugin prefix: "mps:critic" / "mps-critic" → "critic". Attribution and
+// Strip the plugin prefix: "waypost:critic" / "waypost-critic" → "critic". Attribution and
 // agentType both carry it; the lifecycle stage is keyed on the bare name.
-const bare = (s) => (s.includes(":") ? s.slice(s.lastIndexOf(":") + 1) : s).replace(/^mps-/, "");
+const bare = (s) => (s.includes(":") ? s.slice(s.lastIndexOf(":") + 1) : s).replace(/^waypost-/, "");
 
 function stageOf(row) {
   return (row.kind !== "main" && STAGE_OF[row.short]) || "other";
@@ -290,7 +290,7 @@ function collect(dir, since) {
 }
 
 function isProjectstore(row) {
-  return row.kind !== "main" && /(^|[: ])(mps|projectstore)-?/.test(row.bucket);
+  return row.kind !== "main" && /(^|[: ])(waypost|projectstore)-?/.test(row.bucket);
 }
 
 export function aggregate(rows, keyFn, calls) {
@@ -406,7 +406,7 @@ function main() {
           buckets: byBucket.map(shape),
           stages: byStage.map(shape),
           totals: Object.fromEntries(
-            Object.entries({ mps: psT, other: restT, all: allT }).map(([k, t]) => [k, {
+            Object.entries({ waypost: psT, other: restT, all: allT }).map(([k, t]) => [k, {
               requests: t.reqs, input: t.input, cache_write: t.cacheWrite,
               cache_read: t.cacheRead, output: t.output, cost_usd: +t.cost.toFixed(4),
             }]),
@@ -423,7 +423,7 @@ function main() {
 
   const sessions = new Set([...rows.values()].map((r) => r.session)).size;
   const out = [
-    `mps token usage — ${n(rows.size)} requests across ${sessions} session(s)${opts.since ? `, since ${opts.since}` : ""}`,
+    `waypost token usage — ${n(rows.size)} requests across ${sessions} session(s)${opts.since ? `, since ${opts.since}` : ""}`,
     `source: ${dir}`,
     "",
     table(byBucket, "bucket", { runs: true }),

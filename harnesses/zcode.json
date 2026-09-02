@@ -8,8 +8,8 @@
   "detect": [".zcode"],
   "env": ["ZCODE"],
   "instructions": ["AGENTS.md"],
-  "invoke": "@mps-<role> in the chat box, or let the agent pick it",
-  "after_install": "ZCode currently loads sub-agents from the USER directory only — copy them there:\n  cp .zcode/agents/mps-*.md ~/.zcode/agents/",
+  "invoke": "@waypost-<role> in the chat box, or let the agent pick it",
+  "after_install": "ZCode currently loads sub-agents from the USER directory only — copy them there:\n  cp .zcode/agents/waypost-*.md ~/.zcode/agents/",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".zcode/agents",
@@ -23,5 +23,5 @@
       ["disallowedTools", "{denied_tools}"]
     ]
   },
-  "notes": "Sub-agents are Markdown + frontmatter (name, description, model, thoughtLevel, tools/disallowedTools, maxTurns, injectAgentsMd). As of the current beta ZCode reads them from ~/.zcode/agents/ only — project-level is announced but not shipped — so mps writes them in the project (where they can be committed) and prints the copy step. injectAgentsMd defaults true, so the routing block in AGENTS.md reaches it."
+  "notes": "Sub-agents are Markdown + frontmatter (name, description, model, thoughtLevel, tools/disallowedTools, maxTurns, injectAgentsMd). As of the current beta ZCode reads them from ~/.zcode/agents/ only — project-level is announced but not shipped — so waypost writes them in the project (where they can be committed) and prints the copy step. injectAgentsMd defaults true, so the routing block in AGENTS.md reaches it."
 }

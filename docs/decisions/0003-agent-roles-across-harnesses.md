@@ -6,7 +6,7 @@
 - Supersedes: —
 - Superseded by: —
 - Related: `agents/*.md`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, ADR-0001, ADR-0005
-- code_refs: ["scripts/agents.mjs", "agents/critic.md", "agents/planner.md", "agents/reviewer.md", "agents/librarian.md", "agents/archaeologist.md", "templates/agents-block.md.tmpl", "scripts/doctor.mjs", "tests/harness.test.mjs", "bin/mps"]
+- code_refs: ["scripts/agents.mjs", "agents/critic.md", "agents/planner.md", "agents/reviewer.md", "agents/librarian.md", "agents/archaeologist.md", "templates/agents-block.md.tmpl", "scripts/doctor.mjs", "tests/harness.test.mjs", "bin/waypost"]
 
 ## Context
 
@@ -40,25 +40,25 @@ self-approval bias the roles exist to remove.
 `agents/<role>.md` carries neutral frontmatter: `name`, `description`, `summary`,
 `mode`, `model: reasoning|balanced|fast` (a tier, not a vendor id), `effort`,
 `access: read-only`, `tools: [read, grep, glob, bash, web]` — a closed
-vocabulary, where an unknown tool is an error at read time. `mps agents install`
+vocabulary, where an unknown tool is an error at read time. `waypost agents install`
 renders that into each harness's native file (see ADR-0005 for the registry that
 describes them). Every emitted frontmatter scalar is escaped as a YAML
 double-quoted string: role descriptions contain `": "`, and a plain scalar ends
 there.
 
-For anything with no role format at all, `mps agents show <role>` prints the raw
-prompt: `codex exec "$(mps agents show critic) <target>"`.
+For anything with no role format at all, `waypost agents show <role>` prints the raw
+prompt: `codex exec "$(waypost agents show critic) <target>"`.
 
 **Read-only is a contract, not full isolation.** Where a harness has a tool map
 or a sandbox mode, edits are denied there (OpenCode's `permission: edit: deny`,
 Codex's `sandbox_mode = "read-only"`, Claude's `disallowedTools`). The shell
 stays available everywhere, because these roles need `git diff`, `git log` and
-`mps doctor` — so "never write" is also carried by the role prompt itself.
+`waypost doctor` — so "never write" is also carried by the role prompt itself.
 
 **Pros:** one source; restrictions expressed in each harness's own language where
 it has one; extension is a new file in `agents/`, not a new branch in a renderer;
 provenance with a hash of the render gives doctor a deterministic freshness
-check; the `mps-` prefix cannot collide with a user's own agents.
+check; the `waypost-` prefix cannot collide with a user's own agents.
 **Cons:** generated files must be reinstalled when the source, the config or an
 adapter changes (closed by doctor and `--fix`); the neutral frontmatter is one
 more format to know.
@@ -69,7 +69,7 @@ more format to know.
 **Cons:** N copies of one prompt that inevitably diverge, and no way to check
 freshness deterministically. Rejected.
 
-### Option 3: `mps agents show` only, with no installation
+### Option 3: `waypost agents show` only, with no installation
 
 **Pros:** minimal machinery.
 **Cons:** the roles never appear where a user looks for them (subagents), and
@@ -85,9 +85,9 @@ Model resolution, per harness:
 `agents.per_harness.<harness>.model` → (`agents.per_agent.<role>.model` ??
 `agents.default.model`, **only** where the registry maps tiers onto real ids) →
 the tier mapping itself. The middle two keys are harness-blind, so they must not
-reach a harness whose ids they cannot be valid for: `mps agents model default
+reach a harness whose ids they cannot be valid for: `waypost agents model default
 sonnet` writes `sonnet` for Claude Code, while OpenCode needs
-`mps agents model harness:opencode anthropic/…`. A format that carries no model
+`waypost agents model harness:opencode anthropic/…`. A format that carries no model
 at all (a rule file) refuses the pin outright — accepting a key and discarding it
 at render time is worse than saying no.
 
@@ -97,7 +97,7 @@ now, so a changed model or a changed adapter is as visible as a changed
 of that check — it marks provenance and distinguishes "edited by hand" from
 "source, config or adapter changed" in the finding text.
 
-A file under the `mps-` prefix without a provenance line is someone else's:
+A file under the `waypost-` prefix without a provenance line is someone else's:
 `install` skips it (`skipped (not ours)`), `uninstall` never deletes it, and
 doctor reports it under its own `agent-roles-foreign` check, which `--fix` does
 not act on.
@@ -107,30 +107,30 @@ choices: guessing "install into all of them" created `.claude/`, `.opencode/`
 and `.codex/` in a project that used none — and since detection is by directory,
 the guess made itself true forever. For the same reason `uninstall` removes the
 directories it emptied, and `doctor --fix` only repairs `issue`/`warn` levels:
-on `info` ("this harness has no mps roles") it used to install roles nobody had
+on `info` ("this harness has no waypost roles") it used to install roles nobody had
 asked for, undoing an explicit uninstall.
 
 **Context budget (see ADR-0008).** A harness injects every agent's *description*
 into the main context of every session, so the roles carry a short `summary`
 which is what the generated files and the routing block use; the long
-`description` stays in the source for `mps agents list -v` and for humans.
+`description` stays in the source for `waypost agents list -v` and for humans.
 
 ## Consequences
 
 ### Positive
 
 - The same roles and the same prompt in every supported harness, and in any
-  other runner through `mps agents show`.
-- `mps doctor` reports per-harness state (`current`/`stale`/`foreign`/`absent`),
-  and `mps doctor --fix` re-renders what drifted.
-- A file under the `mps-` prefix that mps did not generate is never touched.
+  other runner through `waypost agents show`.
+- `waypost doctor` reports per-harness state (`current`/`stale`/`foreign`/`absent`),
+  and `waypost doctor --fix` re-renders what drifted.
+- A file under the `waypost-` prefix that waypost did not generate is never touched.
 
 ### Negative / risks
 
 - Harness formats change; when one does, the adapter (or the registry entry)
   has to be updated — localised in `scripts/agents.mjs` and `harnesses/*.json`.
 - The Claude tier mapping (`reasoning → opus`) is hard-coded; new model families
-  mean editing that map or using `mps agents model`.
+  mean editing that map or using `waypost agents model`.
 - A harness whose sub-agents are user-level only (ZCode) gets project files plus
   a printed copy step; the freshness check then watches the project copy, not
   the home one.
@@ -146,7 +146,7 @@ which is what the generated files and the routing block use; the long
   harness; rejection of an unknown tool and of a vendor id used as a tier;
   install idempotence; refusal without a harness; a foreign file surviving
   `install` and `doctor --fix`; staleness after a model change; no leak of a
-  harness-blind pin into a harness that cannot use it; `mps agents model
+  harness-blind pin into a harness that cannot use it; `waypost agents model
   harness:<name>`; `register` idempotence; `show` output; and the token budgets
   from ADR-0008.
 - 2026-08-29: two critic passes were run over this ADR (Opus; 16 and 12

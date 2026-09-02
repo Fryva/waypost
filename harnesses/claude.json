@@ -19,7 +19,7 @@
     "CLAUDE.md",
     "AGENTS.md"
   ],
-  "invoke": "spawn the `mps-<role>` subagent",
+  "invoke": "spawn the `waypost-<role>` subagent",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".claude/agents",

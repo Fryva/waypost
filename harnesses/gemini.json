@@ -7,7 +7,7 @@
   "detect": [".gemini", "GEMINI.md"],
   "env": ["GEMINI_CLI", "GEMINI_SANDBOX"],
   "instructions": ["GEMINI.md", "AGENTS.md"],
-  "invoke": "delegate to the `mps-<role>` subagent",
+  "invoke": "delegate to the `waypost-<role>` subagent",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".gemini/agents",

@@ -14,10 +14,10 @@
     "WINDSURF_SESSION"
   ],
   "instructions": [
-    ".windsurf/rules/mps-agents.md",
+    ".windsurf/rules/waypost-agents.md",
     "AGENTS.md"
   ],
-  "invoke": "/mps-<role> (workflow), or paste `mps agents show <role>` into a fresh conversation",
+  "invoke": "/waypost-<role> (workflow), or paste `waypost agents show <role>` into a fresh conversation",
   "roles": {
     "shape": "prompt-md",
     "dir": ".windsurf/workflows",

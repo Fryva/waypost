@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// mps — doctor.mjs
+// waypost — doctor.mjs
 // Deterministic, no-LLM diagnostics engine. Exports individual check functions
-// plus group runners; consumed by `mps doctor` and by reconcile.
+// plus group runners; consumed by `waypost doctor` and by reconcile.
 //
 // The install group is harness-aware, not Claude-specific: it checks the bind,
 // the layout/templates the CLI needs, and whether the agent roles are installed
@@ -18,7 +18,7 @@
 // CLI: node doctor.mjs [--install] [--vault] [--startup] [--json]
 //      default = --install --vault. --json (and --startup) always exit 0 (a
 //      reporting tool); the plain-text report exits 1 when an issue-level
-//      finding exists, so `mps doctor && ...` sees failures.
+//      finding exists, so `waypost doctor && ...` sees failures.
 
 import {
   existsSync,
@@ -84,7 +84,7 @@ function finding(group, level, check, message, file) {
   return f;
 }
 
-function mpsVersion() {
+function waypostVersion() {
   try {
     return JSON.parse(readFileSync(join(pluginRoot(), "package.json"), "utf8")).version;
   } catch {
@@ -105,7 +105,7 @@ function listMd(dir) {
 export function checkConfig(cfg) {
   if (!cfg) {
     return [finding("install", "issue", "config",
-      "No mps config (.mps/projectstore.json). Run `mps bind <vault-path>`.")];
+      "No waypost config (.waypost/projectstore.json). Run `waypost bind <vault-path>`.")];
   }
   const out = [];
   if (!cfg.vault_path) out.push(finding("install", "issue", "config", "Config has no vault_path."));
@@ -183,15 +183,15 @@ export function checkAgentsBlock(proj) {
   }
   if (blocks === 0) {
     out.push(finding("install", "info", "agents-block",
-      "Agent routing block not registered — the roles exist but no instruction file routes to them. `mps agents register` writes it."));
+      "Agent routing block not registered — the roles exist but no instruction file routes to them. `waypost agents register` writes it."));
   }
   if (blocks > 1) {
     out.push(finding("install", "issue", "agents-block",
-      `Duplicated mps:agents block (${blocks} markers across CLAUDE.md/AGENTS.md) — keep exactly one; register migrates, never duplicates.`));
+      `Duplicated waypost:agents block (${blocks} markers across CLAUDE.md/AGENTS.md) — keep exactly one; register migrates, never duplicates.`));
   }
   for (const s of staleVersions) {
     out.push(finding("install", "issue", "agents-block",
-      `Agents block in ${s.file} is v${s.v}, expected v${AGENT_BLOCK_VERSION} — re-run \`mps agents register\`.`, s.file));
+      `Agents block in ${s.file} is v${s.v}, expected v${AGENT_BLOCK_VERSION} — re-run \`waypost agents register\`.`, s.file));
   }
   return out;
 }
@@ -205,13 +205,13 @@ export function checkEnvEffort() {
   const v = process.env.CLAUDE_CODE_EFFORT_LEVEL;
   if (!v) return [];
   return [finding("install", "warn", "env-effort",
-    `CLAUDE_CODE_EFFORT_LEVEL=${v} is set — it overrides the bundled agents' "effort: max" frontmatter, so every mps role installed for Claude Code runs at "${v}" regardless of what \`agents/*.md\` declares. Unset the variable to restore the roles' own effort.`)];
+    `CLAUDE_CODE_EFFORT_LEVEL=${v} is set — it overrides the bundled agents' "effort: max" frontmatter, so every waypost role installed for Claude Code runs at "${v}" regardless of what \`agents/*.md\` declares. Unset the variable to restore the roles' own effort.`)];
 }
 
 export function checkEnvModel() {
   if (process.env.CLAUDE_CODE_SUBAGENT_MODEL) {
     return [finding("install", "warn", "env-model",
-      `CLAUDE_CODE_SUBAGENT_MODEL=${process.env.CLAUDE_CODE_SUBAGENT_MODEL} is set — it overrides the model every mps role declares, including anything pinned with \`mps agents model\`.`)];
+      `CLAUDE_CODE_SUBAGENT_MODEL=${process.env.CLAUDE_CODE_SUBAGENT_MODEL} is set — it overrides the model every waypost role declares, including anything pinned with \`waypost agents model\`.`)];
   }
   return [];
 }
@@ -222,16 +222,16 @@ export function checkGitignore(proj) {
   try {
     lines = readFileSync(join(proj, ".gitignore"), "utf8").split("\n").map((l) => l.trim());
   } catch {}
-  if (lines.includes(".mps/") || lines.includes(".mps")) return [];
+  if (lines.includes(".waypost/") || lines.includes(".waypost")) return [];
   // The bind config names a machine-local absolute path and the state dir is
   // per-session runtime — neither survives a clone meaningfully. The generated
   // harness role files are the opposite: committing them is how a team gets the
   // same roles, so they are never suggested here.
-  const wanted = [".mps/projectstore.json", ".mps/state/"];
+  const wanted = [".waypost/projectstore.json", ".waypost/state/"];
   const missing = wanted.filter((w) => !lines.includes(w));
   if (!missing.length) return [];
   return [finding("install", "warn", "gitignore",
-    `Machine-specific files not gitignored: ${missing.join(", ")} (or ignore ".mps/" wholesale).`)];
+    `Machine-specific files not gitignored: ${missing.join(", ")} (or ignore ".waypost/" wholesale).`)];
 }
 
 // Are the roles installed, and do they match agents/<role>.md as it ships?
@@ -257,26 +257,26 @@ export function checkAgentRoles(proj, cfg) {
     if (stale.length) {
       const why = [...new Set(stale.map((r) => r.reason).filter(Boolean))].join("; ");
       out.push(finding("install", "issue", "agent-roles",
-        `${h.harness}: ${stale.length} role file(s) no longer match what install would write (${stale.map((r) => r.role).join(", ")}${why ? ` — ${why}` : ""}) — re-run \`mps agents install --harness ${h.harness}\`.`));
+        `${h.harness}: ${stale.length} role file(s) no longer match what install would write (${stale.map((r) => r.role).join(", ")}${why ? ` — ${why}` : ""}) — re-run \`waypost agents install --harness ${h.harness}\`.`));
     }
     // Its OWN check id, not `agent-roles`: --fix keys repairs off the id, and a
     // foreign file is precisely the thing no repair may touch.
     if (foreign.length) {
       out.push(finding("install", "warn", "agent-roles-foreign",
-        `${h.harness}: ${foreign.map((r) => AGENT_PREFIX + r.role).join(", ")} exist under the mps- prefix but were not generated by mps — install and --fix skip them. Rename them if they are yours, or delete them to let install take the name.`));
+        `${h.harness}: ${foreign.map((r) => AGENT_PREFIX + r.role).join(", ")} exist under the waypost- prefix but were not generated by waypost — install and --fix skip them. Rename them if they are yours, or delete them to let install take the name.`));
     }
     if (absent.length && absent.length < h.roles.length) {
       out.push(finding("install", "warn", "agent-roles",
-        `${h.harness}: ${absent.length} of ${h.roles.length} roles missing (${absent.map((r) => r.role).join(", ")}) — \`mps agents install --harness ${h.harness}\`.`));
+        `${h.harness}: ${absent.length} of ${h.roles.length} roles missing (${absent.map((r) => r.role).join(", ")}) — \`waypost agents install --harness ${h.harness}\`.`));
     }
     if (absent.length === h.roles.length && used.includes(h.harness)) {
       out.push(finding("install", "info", "agent-roles",
-        `${h.harness} is used by this project but has no mps roles — \`mps agents install --harness ${h.harness}\` renders them.`));
+        `${h.harness} is used by this project but has no waypost roles — \`waypost agents install --harness ${h.harness}\` renders them.`));
     }
   }
   if (!anyInstalled && !used.length) {
     out.push(finding("install", "info", "agent-roles",
-      `No harness detected in this project — \`mps agents install --harness <${HARNESSES.join("|")}>\` when you pick one.`));
+      `No harness detected in this project — \`waypost agents install --harness <${HARNESSES.join("|")}>\` when you pick one.`));
   }
   return out;
 }
@@ -293,21 +293,21 @@ export function checkMergeDriver(cfg, proj) {
   const out = [];
   let attrs = "";
   try { attrs = readFileSync(join(proj, ".gitattributes"), "utf8"); } catch {}
-  if (!/merge=mps-derived/.test(attrs)) {
+  if (!/merge=waypost-derived/.test(attrs)) {
     out.push(finding("install", "warn", "merge-driver",
-      "Derived views (kanban.md, graph.md, code-map.md, folder indexes) are not marked `merge=mps-derived` in .gitattributes — two sessions working in parallel will hand you a conflict in a generated file. `mps doctor --fix` writes it."));
+      "Derived views (kanban.md, graph.md, code-map.md, folder indexes) are not marked `merge=waypost-derived` in .gitattributes — two sessions working in parallel will hand you a conflict in a generated file. `waypost doctor --fix` writes it."));
   }
-  const current = (spawnSync("git", ["config", "--get", "merge.mps-derived.driver"],
+  const current = (spawnSync("git", ["config", "--get", "merge.waypost-derived.driver"],
     { cwd: proj, encoding: "utf8" }).stdout || "").trim();
   if (!current) {
     out.push(finding("install", "warn", "merge-driver",
-      "The mps-derived merge driver is not configured in this clone (git config merge.mps-derived.driver). It is machine-local, so every clone sets it once — `mps doctor --fix` does."));
+      "The waypost-derived merge driver is not configured in this clone (git config merge.waypost-derived.driver). It is machine-local, so every clone sets it once — `waypost doctor --fix` does."));
   } else if (current !== mergeDriverCommand()) {
     // A driver configured by an older version is worse than none: git calls it,
     // it cannot identify the file from git's temp name, and the conflict comes
     // back anyway — with a confusing line of output in front of it.
     out.push(finding("install", "warn", "merge-driver",
-      `merge.mps-derived.driver points at a different command than this version installs:\n      configured: ${current}\n      expected:   ${mergeDriverCommand()}\n      \`mps doctor --fix\` rewrites it.`));
+      `merge.waypost-derived.driver points at a different command than this version installs:\n      configured: ${current}\n      expected:   ${mergeDriverCommand()}\n      \`waypost doctor --fix\` rewrites it.`));
   }
   return out;
 }
@@ -365,7 +365,7 @@ export function checkLineEndings(cfg, proj) {
   try { attrs = readFileSync(join(proj, ".gitattributes"), "utf8"); } catch {}
   if (/^\*\s+text=auto/m.test(attrs)) return [];
   return [finding("install", "warn", "line-endings",
-    "No `* text=auto` in .gitattributes — a session on Windows will commit CRLF and every file it touches becomes a whole-file diff that conflicts with everyone else's edits. `mps doctor --fix` writes it.")];
+    "No `* text=auto` in .gitattributes — a session on Windows will commit CRLF and every file it touches becomes a whole-file diff that conflicts with everyone else's edits. `waypost doctor --fix` writes it.")];
 }
 
 // Presence and leases left behind by sessions that are no longer live, and the
@@ -451,7 +451,7 @@ export function checkKanbanSync(cfg) {
   const vault = cfg.vault_path;
   const onDisk = join(vault, "kanban.md");
   if (!existsSync(onDisk)) {
-    return [finding("vault", "info", "kanban", "No kanban.md yet — run mps kanban to create the board.")];
+    return [finding("vault", "info", "kanban", "No kanban.md yet — run waypost kanban to create the board.")];
   }
   const r = spawnSync(process.execPath, [join(pluginRoot(), "scripts", "kanban.mjs")], {
     encoding: "utf8",
@@ -468,7 +468,7 @@ export function checkKanbanSync(cfg) {
   const norm = (s) => s.split("\n").filter((l) => !l.startsWith("generated_at:")).join("\n").trimEnd();
   if (norm(expected) !== norm(readFileSync(onDisk, "utf8"))) {
     return [finding("vault", "issue", "kanban",
-      "kanban.md is out of sync with story frontmatter — run mps kanban (or reconcile).", "kanban.md")];
+      "kanban.md is out of sync with story frontmatter — run waypost kanban (or reconcile).", "kanban.md")];
   }
   return [];
 }
@@ -874,7 +874,7 @@ export function checkLifecycleGates(artifacts, vaultCfg) {
     const plan = sectionOf(story.body, "implementation_plan");
     if (plan !== null && (!story.fm.plan_updated_at || story.fm.plan_updated_at === "null")) {
       out.push(finding("vault", "warn", "plan-gate",
-        "Story has an Implementation Plan section but no plan_updated_at — the plan bypassed the mps story plan gate.", story.rel));
+        "Story has an Implementation Plan section but no plan_updated_at — the plan bypassed the waypost story plan gate.", story.rel));
     }
     const summary = sectionOf(story.body, "final_summary");
     if (summary === null) {
@@ -1174,7 +1174,7 @@ export function checkWorkWithoutStory(cfg, proj) {
   }
   if (openStoryFrom(fms)) return out;
 
-  // ENTRY_IGNORE, not the shared set: mps bind writes AGENTS.md,
+  // ENTRY_IGNORE, not the shared set: waypost bind writes AGENTS.md,
   // CLAUDE.md and .gitignore in a session that by construction has no story, so
   // the shared set would make this fire on every project's first run.
   const dirty = uncommittedProjectFiles(proj, ENTRY_IGNORE);
@@ -1196,7 +1196,7 @@ export function checkWorkWithoutStory(cfg, proj) {
   if (dirty.length) what.push(`${dirty.length} uncommitted source file(s)`);
   if (committedSince) what.push("commits newer than the vault's last activity");
   out.push(finding("vault", "warn", "work-without-story",
-    `${what.join(" and ")} in the project, and no story is in progress. If this is feature-sized work, open it in the vault: \`mps draft story <EPIC> "<title>" --write\`.`));
+    `${what.join(" and ")} in the project, and no story is in progress. If this is feature-sized work, open it in the vault: \`waypost draft story <EPIC> "<title>" --write\`.`));
   return out;
 }
 
@@ -1263,7 +1263,7 @@ export function checkCodeMap(cfg) {
   const norm = (s) => s.split("\n").filter((l) => !l.startsWith("generated_at:")).join("\n").trimEnd();
   if (norm(expected) !== norm(readFileSync(p, "utf8"))) {
     return [finding("vault", "issue", "code-map",
-      "code-map.md is stale against frontmatter code_refs — run mps codemap (or reconcile).", "code-map.md")];
+      "code-map.md is stale against frontmatter code_refs — run waypost codemap (or reconcile).", "code-map.md")];
   }
   return [];
 }
@@ -1276,7 +1276,7 @@ export function checkCodeMap(cfg) {
 export function checkGraph(cfg) {
   const p = join(cfg.vault_path, "graph.md");
   if (!existsSync(p)) {
-    return [finding("vault", "info", "graph", "No graph.md yet — run mps graph to create the link graph.")];
+    return [finding("vault", "info", "graph", "No graph.md yet — run waypost graph to create the link graph.")];
   }
   const r = spawnSync(process.execPath, [join(pluginRoot(), "scripts", "graph.mjs")], {
     encoding: "utf8",
@@ -1291,7 +1291,7 @@ export function checkGraph(cfg) {
   const norm = (s) => s.split("\n").filter((l) => !l.startsWith("generated_at:")).join("\n").trimEnd();
   if (norm(expected) !== norm(readFileSync(p, "utf8"))) {
     return [finding("vault", "issue", "graph",
-      "graph.md is out of sync with vault links — run mps graph (or reconcile).", "graph.md")];
+      "graph.md is out of sync with vault links — run waypost graph (or reconcile).", "graph.md")];
   }
   return [];
 }
@@ -1387,8 +1387,8 @@ function icon(level) {
 }
 
 function report(findings, groups) {
-  const ver = mpsVersion();
-  const lines = [`mps doctor — v${ver || "?"}, ${new Date().toISOString().slice(0, 10)}`];
+  const ver = waypostVersion();
+  const lines = [`waypost doctor — v${ver || "?"}, ${new Date().toISOString().slice(0, 10)}`];
   for (const g of groups) {
     const fs = findings.filter((f) => f.group === g);
     lines.push("", `## ${g} (${fs.filter((f) => f.level === "issue").length} issue(s), ${fs.filter((f) => f.level === "warn").length} warning(s))`);
@@ -1399,7 +1399,7 @@ function report(findings, groups) {
   }
   const issues = findings.filter((f) => f.level === "issue").length;
   const warns = findings.filter((f) => f.level === "warn").length;
-  lines.push("", `Summary: ${issues} issue(s), ${warns} warning(s). ${issues ? "Repairs: `mps doctor --fix` (install), `mps reconcile --write` (vault)." : "Vault and wiring look healthy."}`);
+  lines.push("", `Summary: ${issues} issue(s), ${warns} warning(s). ${issues ? "Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault)." : "Vault and wiring look healthy."}`);
   return lines.join("\n");
 }
 
@@ -1419,7 +1419,7 @@ export function applyFixes(cfg, proj, findings) {
     let text = "";
     try { text = readFileSync(p, "utf8"); } catch {}
     const lines = text.split("\n").map((l) => l.trim());
-    const add = [".mps/projectstore.json", ".mps/state/"].filter((w) => !lines.includes(w));
+    const add = [".waypost/projectstore.json", ".waypost/state/"].filter((w) => !lines.includes(w));
     if (add.length) {
       writeFileSync(p, `${text.replace(/\s*$/, "")}\n${add.join("\n")}\n`, "utf8");
       done.push(`.gitignore += ${add.join(", ")}`);
@@ -1435,16 +1435,16 @@ export function applyFixes(cfg, proj, findings) {
   // "there is a file here that is not ours". install skips those anyway; not
   // triggering on them keeps the two facts independent.
   //
-  // And never on `info` either: the info case is "this harness has no mps roles
+  // And never on `info` either: the info case is "this harness has no waypost roles
   // at all", which is a choice the user has not made yet. Repairing it turned
-  // `--fix` into an installer — after `mps agents uninstall`, the next `--fix`
+  // `--fix` into an installer — after `waypost agents uninstall`, the next `--fix`
   // put all fifteen files back.
   if (has("line-endings")) {
     const p = join(proj, ".gitattributes");
     let text = "";
     try { text = readFileSync(p, "utf8"); } catch {}
     if (!/^\*\s+text=auto/m.test(text)) {
-      const block = "\n# mps: one line-ending policy, or a Windows session's first commit\n"
+      const block = "\n# waypost: one line-ending policy, or a Windows session's first commit\n"
         + "# rewrites every file it touches and conflicts with every parallel edit.\n"
         + "* text=auto\n*.md text eol=lf\n*.mjs text eol=lf\n";
       writeFileSync(p, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${block}`, "utf8");
@@ -1458,21 +1458,21 @@ export function applyFixes(cfg, proj, findings) {
       const p = join(proj, ".gitattributes");
       let text = "";
       try { text = readFileSync(p, "utf8"); } catch {}
-      if (!/merge=mps-derived/.test(text)) {
+      if (!/merge=waypost-derived/.test(text)) {
         const block = [
-          "", "# mps: derived views are regenerated from the artifacts, never merged.",
-          "# `mps merge-derived` re-derives them; see docs/decisions/0006-*.md.",
-          `${rel}/kanban.md merge=mps-derived`,
-          `${rel}/graph.md merge=mps-derived`,
-          `${rel}/code-map.md merge=mps-derived`,
-          `${rel}/**/README.md merge=mps-derived`, "",
+          "", "# waypost: derived views are regenerated from the artifacts, never merged.",
+          "# `waypost merge-derived` re-derives them; see docs/decisions/0006-*.md.",
+          `${rel}/kanban.md merge=waypost-derived`,
+          `${rel}/graph.md merge=waypost-derived`,
+          `${rel}/code-map.md merge=waypost-derived`,
+          `${rel}/**/README.md merge=waypost-derived`, "",
         ].join("\n");
         writeFileSync(p, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${block}`, "utf8");
-        done.push(".gitattributes += merge=mps-derived for the derived views");
+        done.push(".gitattributes += merge=waypost-derived for the derived views");
       }
-      const a = spawnSync("git", ["config", "merge.mps-derived.driver", mergeDriverCommand()], { cwd: proj, encoding: "utf8" });
-      spawnSync("git", ["config", "merge.mps-derived.name", "regenerate mps derived views"], { cwd: proj, encoding: "utf8" });
-      done.push(a.status === 0 ? "git config merge.mps-derived.driver" : `git config failed: ${(a.stderr || "").trim()}`);
+      const a = spawnSync("git", ["config", "merge.waypost-derived.driver", mergeDriverCommand()], { cwd: proj, encoding: "utf8" });
+      spawnSync("git", ["config", "merge.waypost-derived.name", "regenerate waypost derived views"], { cwd: proj, encoding: "utf8" });
+      done.push(a.status === 0 ? "git config merge.waypost-derived.driver" : `git config failed: ${(a.stderr || "").trim()}`);
     }
   }
 
@@ -1481,7 +1481,7 @@ export function applyFixes(cfg, proj, findings) {
     if (harnesses.length) {
       const r = spawnSync(process.execPath,
         [join(pluginRoot(), "scripts", "agents.mjs"), "install", "--harness", harnesses.join(",")],
-        { encoding: "utf8", env: { ...process.env, MPS_PROJECT_DIR: proj } });
+        { encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: proj } });
       done.push(r.status === 0
         ? `agents install --harness ${harnesses.join(",")}`
         : `agents install failed: ${(r.stderr || "").trim()}`);
@@ -1491,7 +1491,7 @@ export function applyFixes(cfg, proj, findings) {
   if (has("agents-block", "issue")) {
     const r = spawnSync(process.execPath,
       [join(pluginRoot(), "scripts", "agents.mjs"), "register"],
-      { encoding: "utf8", env: { ...process.env, MPS_PROJECT_DIR: proj } });
+      { encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: proj } });
     done.push(r.status === 0 ? "agents register" : `agents register failed: ${(r.stderr || "").trim()}`);
   }
 
@@ -1536,9 +1536,9 @@ function main() {
   // Text mode only, and only when NOT repairing — --json/--startup stay a
   // reporting tool (exit 0 always), matching upstream ADR-005's "a script
   // parses the JSON, a human reads the text" split. Without this,
-  // `mps doctor && ...` never saw a failure. --fix is exempt: its findings
+  // `waypost doctor && ...` never saw a failure. --fix is exempt: its findings
   // are the PRE-repair snapshot, and a fixable issue this same call just
-  // resolved must not make `mps doctor --fix` (or `mps setup`, which runs it
+  // resolved must not make `waypost doctor --fix` (or `waypost setup`, which runs it
   // internally) report failure for having done its job.
   if (!wantFix && findings.some((f) => f.level === "issue")) process.exitCode = 1;
   if (!wantFix) return;

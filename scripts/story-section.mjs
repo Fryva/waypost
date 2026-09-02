@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // projectstore — story-section.mjs (PS-SPEC story-007)
-// Computes the story lifecycle-gate mutations for mps story
+// Computes the story lifecycle-gate mutations for waypost story
 // plan|close. Pure compute, models reconcile.mjs rebuildIndex: reads the
 // original, splices the managed pieces, returns {path, changed, content,
 // notes} on stdout — the COMMAND writes after approval, never this script.
@@ -35,7 +35,7 @@ import {
 } from "./lib.mjs";
 
 function die(msg) {
-  process.stderr.write(`mps story-section: ${msg}\n`);
+  process.stderr.write(`waypost story-section: ${msg}\n`);
   process.exit(1);
 }
 
@@ -86,12 +86,12 @@ function main() {
     die("usage: story-section.mjs <plan|close> <story-path>");
   }
   const cfg = readConfig();
-  if (!cfg) die("No projectstore config. Run mps bind first.");
+  if (!cfg) die("No projectstore config. Run waypost bind first.");
   const lang = cfg.language || "en";
   const abs = resolve(storyPath);
   if (!existsSync(abs)) die(`story not found: ${abs}`);
 
-  // The sha256 travels in the JSON output so the writer (bin/mps) can refuse
+  // The sha256 travels in the JSON output so the writer (bin/waypost) can refuse
   // to apply `content` if the file changed after THIS read — the hash is of
   // the exact bytes read from disk, before any BOM/CRLF normalization below.
   const diskText = readFileSync(abs, "utf8");

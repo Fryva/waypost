@@ -14,10 +14,10 @@
     "CURSOR_AGENT"
   ],
   "instructions": [
-    ".cursor/rules/mps-agents.mdc",
+    ".cursor/rules/waypost-agents.mdc",
     "AGENTS.md"
   ],
-  "invoke": "@mps-<role> in chat to pull the rule in, or paste `mps agents show <role>` into a new chat",
+  "invoke": "@waypost-<role> in chat to pull the rule in, or paste `waypost agents show <role>` into a new chat",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".cursor/rules",

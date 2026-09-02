@@ -46,7 +46,7 @@ import {
 import { scanArtifacts } from "./doctor.mjs";
 
 function die(msg) {
-  process.stderr.write(`mps reconcile: ${msg}\n`);
+  process.stderr.write(`waypost reconcile: ${msg}\n`);
   process.exit(1);
 }
 
@@ -140,7 +140,7 @@ const SKIP = {
       : null,
   "graph.mjs": (g, onDisk) =>
     onDisk === null
-      ? "graph.md does not exist yet — create it explicitly (--only graph or mps graph)"
+      ? "graph.md does not exist yet — create it explicitly (--only graph or waypost graph)"
       : null,
 };
 
@@ -302,7 +302,7 @@ function applyDerived(script, explicit, fallbackPath) {
 
 export function runReconcile({ write = false, only = null } = {}) {
   const cfg = readConfig();
-  if (!cfg) throw new Error("No projectstore config. Run mps bind first.");
+  if (!cfg) throw new Error("No projectstore config. Run waypost bind first.");
   const layout = loadLayout(cfg.layout);
   const sel = resolveSelection(layout, only);
   if (sel.error) throw new Error(sel.error);

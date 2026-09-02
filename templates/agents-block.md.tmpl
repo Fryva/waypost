@@ -1,16 +1,16 @@
-<!-- mps:agents v{{version}} (managed by mps — edit outside the markers) -->
-## mps agent roles
+<!-- waypost:agents v{{version}} (managed by waypost — edit outside the markers) -->
+## waypost agent roles
 
 - **Feature-sized work opens a vault artifact before an editor.** Analysis →
-  placement (epic, story) → ADR/spec if the "how" is non-trivial → `mps-critic`
-  → implementation → `mps-reviewer`. Feature-sized = about to write across
+  placement (epic, story) → ADR/spec if the "how" is non-trivial → `waypost-critic`
+  → implementation → `waypost-reviewer`. Feature-sized = about to write across
   several files.
 - **Every role runs in a FRESH context, separate from the author** — spawn the
   subagent, switch to the mode, or run the command your harness installed
-  (`mps harnesses`). Where it has none:
-  `<cli> "$(mps agents show <role>) <target>"`.
+  (`waypost harnesses`). Where it has none:
+  `<cli> "$(waypost agents show <role>) <target>"`.
 - Say so and ask which wins if a session instruction contradicts this block.
 - Name artifacts by their frontmatter `title:` and parent epic.
 
 {{roles}}
-<!-- /mps:agents -->
+<!-- /waypost:agents -->

@@ -6,7 +6,7 @@
 - Supersedes: —
 - Superseded by: —
 - Related: `scaffold/layouts/engineering.json`, `README.md`, `AGENTS.md`
-- code_refs: ["scaffold/layouts/engineering.json", "bin/mps", "AGENTS.md", "README.md", "tests/harness.test.mjs"]
+- code_refs: ["scaffold/layouts/engineering.json", "bin/waypost", "AGENTS.md", "README.md", "tests/harness.test.mjs"]
 
 ## Context
 
@@ -26,12 +26,12 @@ the default and where the vault lives.
 
 ### Option 1: `engineering` by default, vault in git (chosen)
 
-`mps bind` uses `engineering` unless told otherwise; the vault is markdown in
-git; the bind config is `.mps/projectstore.json` in the project root.
+`waypost bind` uses `engineering` unless told otherwise; the vault is markdown in
+git; the bind config is `.waypost/projectstore.json` in the project root.
 **Pros:** compatible with upstream, few new decisions, portable.
 **Cons:** the layout is fixed (not tuned for product or data projects).
 
-### Option 2: customisation via `mps bind --layout <name>`
+### Option 2: customisation via `waypost bind --layout <name>`
 
 **Pros:** flexibility.
 **Cons:** only `engineering` ships, so the choice changes nothing today.
@@ -47,7 +47,7 @@ Rejected.
 ## Decision
 
 Take option 1: `engineering` by default; the vault is plain markdown in git; the
-bind config is `.mps/projectstore.json` in the project root (the vault may live
+bind config is `.waypost/projectstore.json` in the project root (the vault may live
 in the same repository or in a separate vault repository for teams).
 
 ## Consequences
@@ -64,10 +64,10 @@ in the same repository or in a separate vault repository for teams).
 
 ## Verification and follow-up
 
-- `bin/mps bind <vault>` creates the `engineering` structure and
-  `.mps/projectstore.json` (covered by "bind scaffolds the layout…" in
+- `bin/waypost bind <vault>` creates the `engineering` structure and
+  `.waypost/projectstore.json` (covered by "bind scaffolds the layout…" in
   `tests/harness.test.mjs`).
-- `bin/mps status` reads `vault_path`/`layout` correctly.
+- `bin/waypost status` reads `vault_path`/`layout` correctly.
 - `--layout`/`--lang` are implemented and validated before any write: an unknown
   value is rejected and nothing is written ("bind rejects an unknown layout or
   language").

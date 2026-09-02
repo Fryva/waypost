@@ -1,4 +1,4 @@
-// mps — presence, leases and cross-OS safety on a shared vault (ADR-0007).
+// waypost — presence, leases and cross-OS safety on a shared vault (ADR-0007).
 // The cases that matter here cannot be produced by running the tool normally:
 // a peer whose clock is wrong, a sync client that duplicates a file, a device
 // that vanishes. They are constructed on disk directly.
@@ -19,13 +19,13 @@ import { claimsOf } from "../scripts/sessions.mjs";
 import { checkPortableNames } from "../scripts/doctor.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
-const MPS = join(REPO, "bin", "mps");
+const Waypost = join(REPO, "bin", "waypost");
 
 function project() {
-  const proj = mkdtempSync(join(tmpdir(), "mps-p-"));
+  const proj = mkdtempSync(join(tmpdir(), "waypost-p-"));
   spawnSync("git", ["init", "-q"], { cwd: proj });
-  spawnSync(process.execPath, [MPS, "bind", join(proj, "vault")], {
-    encoding: "utf8", env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO },
+  spawnSync(process.execPath, [Waypost, "bind", join(proj, "vault")], {
+    encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   return { proj, vault: join(proj, "vault") };
 }
@@ -54,10 +54,10 @@ function leaseFile(vault, { path, session, host = "otherbox", os = "win32", harn
 }
 
 function withProject(proj, fn) {
-  const prev = process.env.MPS_PROJECT_DIR;
-  process.env.MPS_PROJECT_DIR = proj;
+  const prev = process.env.WAYPOST_PROJECT_DIR;
+  process.env.WAYPOST_PROJECT_DIR = proj;
   try { return fn(); } finally {
-    if (prev === undefined) delete process.env.MPS_PROJECT_DIR; else process.env.MPS_PROJECT_DIR = prev;
+    if (prev === undefined) delete process.env.WAYPOST_PROJECT_DIR; else process.env.WAYPOST_PROJECT_DIR = prev;
   }
 }
 
@@ -110,7 +110,7 @@ test("a sync client's conflicted copies are reported, never read as peers", () =
     writeFileSync(join(presenceDir(vault), "s1 2.json"), "{}", "utf8");                        // iCloud
     writeFileSync(join(presenceDir(vault), "s1 (conflicted copy 2026-09-01).json"), "{}", "utf8"); // Dropbox
     const view = peers(vault, { self: "s1" });
-    // `mps bind` in the fixture beats too, so count only what came from s1:
+    // `waypost bind` in the fixture beats too, so count only what came from s1:
     // the point is that its duplicates did not become extra sessions.
     assert.deepEqual(view.peers.filter((p) => p.session === "s1").length, 1,
       "duplicates are not extra sessions");
@@ -142,10 +142,10 @@ test("prunePresence removes only records that are gone, ours excepted, and quiet
   });
 });
 
-test("`mps sessions --prune` also prunes stale presence, and the text mode hints at it before anyone asks", () => {
+test("`waypost sessions --prune` also prunes stale presence, and the text mode hints at it before anyone asks", () => {
   const { proj, vault } = project();
-  const run = (args) => spawnSync(process.execPath, [MPS, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO, MPS_SESSION_ID: "me" },
+  const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
   });
   mkdirSync(presenceDir(vault), { recursive: true });
   writeFileSync(join(presenceDir(vault), "long-gone.json"), JSON.stringify({
@@ -203,15 +203,15 @@ test("acquire --force overrides a live rival, marks the result forced, and leave
   });
 });
 
-test("`mps lease --force` reports the override in its own words (P3-8)", () => {
+test("`waypost lease --force` reports the override in its own words (P3-8)", () => {
   const { proj, vault } = project();
   withProject(proj, () => {
     peerFile(vault, { session: "remote", seq: 1 });
     peers(vault, { self: "me" });
     leaseFile(vault, { path: "src/auth.ts", session: "remote" });
   });
-  const r = spawnSync(process.execPath, [MPS, "lease", "src/auth.ts", "--force"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO, MPS_SESSION_ID: "me" },
+  const r = spawnSync(process.execPath, [Waypost, "lease", "src/auth.ts", "--force"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
   });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /^leased\s+src\/auth\.ts {2}\(forced over remote\)$/m);
@@ -227,7 +227,7 @@ test("two devices that acquire at once converge on one owner, both computing the
 });
 
 test("two live sessions racing to acquire the same path converge on exactly one file, and agree on the winner (C-1/G-3)", async () => {
-  const vault = mkdtempSync(join(tmpdir(), "mps-race-"));
+  const vault = mkdtempSync(join(tmpdir(), "waypost-race-"));
   const barrier = join(vault, ".race-go");
   const presenceUrl = new URL("../scripts/presence.mjs", import.meta.url).href;
   // Two REAL, separate node processes — not two calls in this process — so the
@@ -270,20 +270,20 @@ test("two live sessions racing to acquire the same path converge on exactly one 
   assert.equal(again.results[0].contested, false);
 });
 
-test("`mps lease <path>` and `mps lease --json` both work in the documented form (G-2)", () => {
+test("`waypost lease <path>` and `waypost lease --json` both work in the documented form (G-2)", () => {
   const { proj } = project();
-  const run = (args) => spawnSync(process.execPath, [MPS, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO, MPS_SESSION_ID: "me" },
+  const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
   });
 
-  // AGENTS.md, README and help() all document `mps lease <path…>` — a bare
+  // AGENTS.md, README and help() all document `waypost lease <path…>` — a bare
   // path was previously read as an unknown subcommand of presence.mjs.
   const leased = run(["lease", "adr/x.md"]);
   assert.equal(leased.status, 0, leased.stderr);
   assert.match(leased.stdout, /^leased\s+adr\/x\.md/m);
 
   // A bare flag with no path has nothing to lease — it lists this session's
-  // own leases instead of failing as "usage: mps lease <path…>".
+  // own leases instead of failing as "usage: waypost lease <path…>".
   const asJson = run(["lease", "--json"]);
   assert.equal(asJson.status, 0, asJson.stderr);
   const rows = JSON.parse(asJson.stdout);
@@ -321,8 +321,8 @@ test("releasing frees only this session's leases", () => {
 
 test("commit refuses to write over a file another live session is editing", () => {
   const { proj, vault } = project();
-  const run = (args, env = {}) => spawnSync(process.execPath, [MPS, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO, ...env },
+  const run = (args, env = {}) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, ...env },
   });
   spawnSync("git", ["config", "user.email", "t@e.com"], { cwd: proj });
   spawnSync("git", ["config", "user.name", "T"], { cwd: proj });
@@ -335,12 +335,12 @@ test("commit refuses to write over a file another live session is editing", () =
     leaseFile(vault, { path: "app.ts", session: "remote" });
   });
 
-  const blocked = run(["commit", "-m", "touch it"], { MPS_SESSION_ID: "me" });
+  const blocked = run(["commit", "-m", "touch it"], { WAYPOST_SESSION_ID: "me" });
   assert.notEqual(blocked.status, 0);
   assert.match(blocked.stderr, /leased by another live session/);
   assert.match(blocked.stderr, /app\.ts — remote on otherbox \(cursor\)/);
 
-  const forced = run(["commit", "-m", "touch it", "--force"], { MPS_SESSION_ID: "me" });
+  const forced = run(["commit", "-m", "touch it", "--force"], { WAYPOST_SESSION_ID: "me" });
   assert.equal(forced.status, 0, forced.stderr);
 });
 
@@ -356,10 +356,10 @@ test("storage kind decides how stale presence may be, and it is stated", () => {
     "a cloud vault must widen both the liveness window and the settle wait");
 });
 
-test("`mps sessions` says what the vault is stored on when it is not local", () => {
+test("`waypost sessions` says what the vault is stored on when it is not local", () => {
   const { proj } = project();
-  const r = spawnSync(process.execPath, [MPS, "sessions", "--json"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO, MPS_SESSION_ID: "s" },
+  const r = spawnSync(process.execPath, [Waypost, "sessions", "--json"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "s" },
   });
   const out = JSON.parse(r.stdout);
   assert.ok(out.storage && out.storage.kind, "the storage judgement is part of the machine-readable answer");
@@ -389,8 +389,8 @@ test("names that cannot survive another OS are reported before that OS sees them
 
 test("doctor wires one line-ending policy, so a Windows session cannot rewrite every file", () => {
   const { proj } = project();
-  const run = (args) => spawnSync(process.execPath, [MPS, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO },
+  const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   const before = JSON.parse(run(["doctor", "--install", "--json"]).stdout);
   assert.ok(before.some((f) => f.check === "line-endings"));
@@ -407,8 +407,8 @@ test("a temp file from another machine is never swept by this one", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, ".x.md.otherbox.999999.tmp"), "in flight elsewhere", "utf8");
     beat(vault, "s1", {});                     // any atomic write triggers the sweep
-    spawnSync(process.execPath, [MPS, "reconcile", "--write"], {
-      encoding: "utf8", cwd: proj, env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO },
+    spawnSync(process.execPath, [Waypost, "reconcile", "--write"], {
+      encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
     });
     assert.ok(existsSync(join(dir, ".x.md.otherbox.999999.tmp")),
       "pid liveness is a local fact; sweeping another host's temp destroys a write in progress there");

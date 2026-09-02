@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// mps — presence.mjs
+// waypost — presence.mjs
 // Who is working right now, from which device, OS and harness — across a vault
 // that may live on iCloud, Dropbox, SMB or NFS (ADR-0007).
 //
@@ -96,12 +96,12 @@ function mountTypeOf(p) {
 
 export const presenceDir = (vault) => join(vault, ".projectstore", "presence");
 export const leaseDir = (vault) => join(vault, ".projectstore", "leases");
-const observationsPath = () => join(projectRoot(), ".mps", "state", "peers.json");
+const observationsPath = () => join(projectRoot(), ".waypost", "state", "peers.json");
 
 function ensure(dir) {
   mkdirSync(dir, { recursive: true });
   const gi = join(dir, "..", ".gitignore");
-  if (!existsSync(gi)) { try { writeFileSync(gi, "# mps — runtime data, do not commit\n*\n", "utf8"); } catch {} }
+  if (!existsSync(gi)) { try { writeFileSync(gi, "# waypost — runtime data, do not commit\n*\n", "utf8"); } catch {} }
   return dir;
 }
 
@@ -118,7 +118,7 @@ export function selfDescriptor(sessionId, harness) {
     host: hostname().split(".")[0],
     os: `${platform()}-${osRelease().split(".")[0]}`,
     user: (() => { try { return userInfo().username; } catch { return null; } })(),
-    harness: harness || process.env.MPS_HARNESS || null,
+    harness: harness || process.env.WAYPOST_HARNESS || null,
     project_root: projectRoot(),
   };
 }
@@ -154,7 +154,7 @@ function readObservations() {
 
 function writeObservations(obs) {
   try {
-    mkdirSync(join(projectRoot(), ".mps", "state"), { recursive: true });
+    mkdirSync(join(projectRoot(), ".waypost", "state"), { recursive: true });
     writeFileAtomic(observationsPath(), JSON.stringify(obs, null, 2) + "\n", { sweep: false });
   } catch { /* observations are a cache; losing them costs one window of accuracy */ }
 }
@@ -319,7 +319,7 @@ export function acquire(vault, paths, { sessionId, harness = null, now = Date.no
       session: sessionId,
       host: hostname().split(".")[0],
       os: platform(),
-      harness: harness || process.env.MPS_HARNESS || null,
+      harness: harness || process.env.WAYPOST_HARNESS || null,
       acquired_at: new Date(now).toISOString(),
     };
     const rivals = readLeases(vault, { now, self: sessionId }).filter((l) => l.path === rel && !l.mine);
@@ -410,18 +410,18 @@ function main() {
   const [sub = "storage", ...rest] = process.argv.slice(2);
   const cfg = readConfig();
   if (!cfg || !cfg.vault_path) {
-    process.stderr.write("mps lease: no bound vault — run `mps bind <vault-path>` first\n");
+    process.stderr.write("waypost lease: no bound vault — run `waypost bind <vault-path>` first\n");
     process.exit(1);
   }
   const vault = cfg.vault_path;
   const json = rest.includes("--json");
   const paths = rest.filter((a) => !a.startsWith("--"));
-  // bin/mps sets MPS_SESSION_ID before spawning this script (G-1); the
+  // bin/waypost sets WAYPOST_SESSION_ID before spawning this script (G-1); the
   // fallback (derive it here, from OUR OWN parent pid) only matters when
-  // presence.mjs is invoked directly, not through bin/mps — it used to cost
+  // presence.mjs is invoked directly, not through bin/waypost — it used to cost
   // two spawnSync calls into sessions.mjs just to compute the same value
   // lib.mjs already exports.
-  const sid = process.env.MPS_SESSION_ID || sessionId();
+  const sid = process.env.WAYPOST_SESSION_ID || sessionId();
 
   switch (sub) {
     case "storage": {
@@ -430,8 +430,8 @@ function main() {
       return;
     }
     case "lease": case "acquire": {
-      if (!paths.length) { process.stderr.write("mps lease: usage: mps lease <path…>\n"); process.exit(1); }
-      beat(vault, sid, { harness: process.env.MPS_HARNESS || null });
+      if (!paths.length) { process.stderr.write("waypost lease: usage: waypost lease <path…>\n"); process.exit(1); }
+      beat(vault, sid, { harness: process.env.WAYPOST_HARNESS || null });
       const out = acquire(vault, paths, { sessionId: sid, force: rest.includes("--force") });
       if (json) { process.stdout.write(JSON.stringify(out, null, 2) + "\n"); return; }
       for (const r of out.results) {
@@ -468,13 +468,13 @@ function main() {
       // is no push channel on a sync drive — this is polling, and the interval
       // is bounded below by the storage's own propagation delay anyway.
       const { storage } = peers(vault, { persist: false });
-      const every = Math.max(5000, Number(process.env.MPS_BEAT_MS) || BEAT_INTERVAL_MS);
+      const every = Math.max(5000, Number(process.env.WAYPOST_BEAT_MS) || BEAT_INTERVAL_MS);
       process.stdout.write(`watching ${vault}\n`
         + `  storage: ${storage.provider} (${storage.kind}), peer changes can lag ~${Math.round(storage.lag_ms / 1000)}s\n`
-        + `  beating every ${Math.round(every / 1000)}s as ${sid}${process.env.MPS_HARNESS ? ` (${process.env.MPS_HARNESS})` : ""} — ctrl-c to stop\n\n`);
+        + `  beating every ${Math.round(every / 1000)}s as ${sid}${process.env.WAYPOST_HARNESS ? ` (${process.env.WAYPOST_HARNESS})` : ""} — ctrl-c to stop\n\n`);
       let known = null;      // null = first tick: print a roster, not N "joined" events
       const tick = () => {
-        beat(vault, sid, { harness: process.env.MPS_HARNESS || null });
+        beat(vault, sid, { harness: process.env.WAYPOST_HARNESS || null });
         const view = peers(vault, { self: sid });
         const now = new Map();
         for (const p2 of view.peers) now.set(p2.session, p2);
@@ -518,7 +518,7 @@ function main() {
       return;
     }
     default:
-      process.stderr.write(`mps lease: unknown subcommand "${sub}" (lease|release|list|watch|storage)\n`);
+      process.stderr.write(`waypost lease: unknown subcommand "${sub}" (lease|release|list|watch|storage)\n`);
       process.exit(1);
   }
 }

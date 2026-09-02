@@ -7,7 +7,7 @@
   "confidence": "documented",
   "detect": [".grok"],
   "instructions": ["AGENTS.md", "CLAUDE.md"],
-  "invoke": "spawn the `mps-<role>` subagent (`spawn_subagent`, `subagent_type: mps-<role>`)",
+  "invoke": "spawn the `waypost-<role>` subagent (`spawn_subagent`, `subagent_type: waypost-<role>`)",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".grok/agents",
@@ -22,5 +22,5 @@
       ["model", "{model}"]
     ]
   },
-  "notes": "Agents are Markdown + YAML frontmatter in .grok/agents/ (user level ~/.grok/agents/), and the parent reaches one with the spawn_subagent tool. The documented frontmatter is name, description, model, tools, mcpInheritance, permissionMode. `tools` is omitted deliberately: the documented example mixes MCP tool ids with Claude-style names, and an allowlist written from a guess would silently strip the role's tools. Read-only therefore rides on the prompt; where it must be enforced, add a .grok/roles/<name>.toml with default_capability_mode = \"read-only\" and point the agent at it. Grok Build reads AGENTS.md and CLAUDE.md plus .grok/rules/ and .claude/rules/, so `mps agents register` reaches it. No `env` markers: every documented GROK_* variable is a user-set config knob (GROK_HOME, GROK_THEME, feature flags), not something the harness sets for its own session — attributing a commit on one would be a guess, so a session in Grok Build labels itself with MPS_HARNESS=grok."
+  "notes": "Agents are Markdown + YAML frontmatter in .grok/agents/ (user level ~/.grok/agents/), and the parent reaches one with the spawn_subagent tool. The documented frontmatter is name, description, model, tools, mcpInheritance, permissionMode. `tools` is omitted deliberately: the documented example mixes MCP tool ids with Claude-style names, and an allowlist written from a guess would silently strip the role's tools. Read-only therefore rides on the prompt; where it must be enforced, add a .grok/roles/<name>.toml with default_capability_mode = \"read-only\" and point the agent at it. Grok Build reads AGENTS.md and CLAUDE.md plus .grok/rules/ and .claude/rules/, so `waypost agents register` reaches it. No `env` markers: every documented GROK_* variable is a user-set config knob (GROK_HOME, GROK_THEME, feature flags), not something the harness sets for its own session — attributing a commit on one would be a guess, so a session in Grok Build labels itself with WAYPOST_HARNESS=grok."
 }

@@ -45,8 +45,8 @@ delegates to whichever harness it runs, Pi ships no sub-agents by design).
 the shape, the frontmatter fields, whether the format carries a model, and which
 tool vocabulary it speaks. The renderer knows only shapes: `frontmatter-md`,
 `prompt-md`, `toml`, `aggregate-json`, and `none`. Project entries in
-`<project>/.mps/harnesses/<id>.json` override the bundled ones.
-**Pros:** a new harness is a data file; overriding needs no fork; `mps harnesses`
+`<project>/.waypost/harnesses/<id>.json` override the bundled ones.
+**Pros:** a new harness is a data file; overriding needs no fork; `waypost harnesses`
 documents itself; the guarantees are implemented once for everyone.
 **Cons:** the template language is deliberately poor (a field is a scalar or a
 block), so a genuinely exotic format needs a new shape; the JSON is not strictly
@@ -63,13 +63,13 @@ cannot add their own. Rejected.
 
 **Pros:** no work.
 **Cons:** exactly the dependency on specific CLIs the fork exists to remove.
-Rejected — but the floor is kept: `mps agents show <role>` always works and is
+Rejected — but the floor is kept: `waypost agents show <role>` always works and is
 the contract for any harness not in the registry.
 
 ## Decision
 
 Take option 1. Each entry carries its confidence level in the JSON, and
-`mps harnesses` prints it, so the difference is never lost. Three levels, about
+`waypost harnesses` prints it, so the difference is never lost. Three levels, about
 **evidence** rather than about how good the tool is:
 
 - `verified` — documented **and** exercised in that harness;
@@ -86,8 +86,8 @@ MiniMax's MMX-CLI generates media rather than driving a codebase. Registering a
 model vendor as a harness would promise role files with nowhere to land, so such
 entries carry `kind: "provider"`: they are excluded from install/status/doctor,
 listed separately, and detected from the environment (`match.env`,
-`match.url_contains`). Their practical payoff is the record: `mps commit` writes
-an `Mps-Provider` trailer and `mps log --provider deepseek` reads it back. The
+`match.url_contains`). Their practical payoff is the record: `waypost commit` writes
+an `Waypost-Provider` trailer and `waypost log --provider deepseek` reads it back. The
 same harness behaves very differently behind a different model, and six months
 later nothing else in the repository remembers which one wrote a commit.
 
@@ -110,7 +110,7 @@ checking every vendor's own documentation:
 |---|---|---|
 | `codex` | `~/.codex/prompts/*.md` | `.codex/agents/*.toml` — project-level agents (`developer_instructions`, `sandbox_mode = "read-only"`); the old custom prompts are deprecated in favour of skills |
 | `opencode` | `.opencode/agent/`, a `tools:` map | `.opencode/agents/` (plural), access through `permission:` allow/ask/deny — the `tools` map is legacy |
-| `gemini` | TOML commands in `.gemini/commands/mps/` | `.gemini/agents/*.md` — Gemini CLI gained subagents |
+| `gemini` | TOML commands in `.gemini/commands/waypost/` | `.gemini/agents/*.md` — Gemini CLI gained subagents |
 | `copilot` | `.github/chatmodes/*.chatmode.md` | `.github/agents/*.agent.md` — chat modes deprecated; VS Code also reads `.claude/agents` |
 | `claude` | no `disallowedTools` | the field is documented and is now emitted: edits denied, not merely described |
 | `qwen` | TOML commands | `.qwen/agents/*.md` subagents; only the deny-list is emitted, because Qwen's allowlist uses Gemini-CLI tool names |
@@ -146,8 +146,8 @@ the registry stayed data, and the next such harness is still a JSON file.
 ### Positive
 
 - Twenty-one harnesses out of the box, and the twenty-second is a data file.
-- A format that changes under you is fixed in `.mps/harnesses/` the same day.
-- `mps harnesses` shows what is supported, what is detected here, and how to
+- A format that changes under you is fixed in `.waypost/harnesses/` the same day.
+- `waypost harnesses` shows what is supported, what is detected here, and how to
   invoke a role in each.
 
 ### Negative / risks

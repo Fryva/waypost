@@ -14,17 +14,17 @@ the two cannot collide).
 
 # Create flow
 
-1. **Check config**: stop if `.mps/projectstore.json` missing.
+1. **Check config**: stop if `.waypost/projectstore.json` missing.
 
-2. **Validate args**: epic-id (positional 1) + title (rest). If only one word, ask for the title. An optional `--spec SPEC-ID` names the covering spec — put it into the rendered draft's `specs:` list (inline flow: `specs: ["SPEC-001"]`). Under `spec_policy: required` (vault's `.mps.json`), remind that every story needs a covering spec before implementation starts.
+2. **Validate args**: epic-id (positional 1) + title (rest). If only one word, ask for the title. An optional `--spec SPEC-ID` names the covering spec — put it into the rendered draft's `specs:` list (inline flow: `specs: ["SPEC-001"]`). Under `spec_policy: required` (vault's `.waypost.json`), remind that every story needs a covering spec before implementation starts.
 
 3. **Render draft**:
 
    ```bash
-   mps draft story "$ARGUMENTS"
+   waypost draft story "$ARGUMENTS"
    ```
 
-   The script fails if the epic folder does not exist. Surface the error and suggest `mps draft epic <id> "<title>" --write` first.
+   The script fails if the epic folder does not exist. Surface the error and suggest `waypost draft epic <id> "<title>" --write` first.
 
 4. **Preview**: path + first ~25 lines.
 
@@ -36,7 +36,7 @@ the two cannot collide).
 
 7. **On Yes** (path free): Write file.
 
-8. **Suggest next**: "Now decompose the work in the `Decomposition` section, or run `mps kanban` to refresh the board. Before implementation: `mps story plan <story>`."
+8. **Suggest next**: "Now decompose the work in the `Decomposition` section, or run `waypost kanban` to refresh the board. Before implementation: `waypost story plan <story>`."
 
 # Lifecycle gate flow (plan / close)
 
@@ -45,7 +45,7 @@ the two cannot collide).
 2. **Run the compute script** (pure — writes nothing):
 
    ```bash
-   mps story <plan|close> "<story-path>" --write
+   waypost story <plan|close> "<story-path>" --write
    ```
 
    It returns `{ path, changed, notes, content }`: section inserted when
@@ -71,7 +71,7 @@ the two cannot collide).
    human may have edited the file in Obsidian meanwhile. On divergence:
    re-preview, re-ask.
 
-6. **On Yes**: Write the full file. Then suggest `mps kanban` (status
+6. **On Yes**: Write the full file. Then suggest `waypost kanban` (status
    changed) and — on `close` — the reviewer's proposed `code_refs` via
-   the artifact's `code_refs` frontmatter (then `mps codemap`) (the reviewer computes it from
+   the artifact's `code_refs` frontmatter (then `waypost codemap`) (the reviewer computes it from
    `scripts/diff-refs.mjs --since <started_at>`).

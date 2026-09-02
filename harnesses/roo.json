@@ -14,10 +14,10 @@
     "ROO_AGENT"
   ],
   "instructions": [
-    ".roo/rules/mps-agents.md",
+    ".roo/rules/waypost-agents.md",
     "AGENTS.md"
   ],
-  "invoke": "switch to the `mps-<role>` mode",
+  "invoke": "switch to the `waypost-<role>` mode",
   "roles": {
     "shape": "aggregate-json",
     "file": ".roomodes",
@@ -26,7 +26,7 @@
     "model": false,
     "entry": {
       "slug": "{prefix}{role}",
-      "name": "mps {role}",
+      "name": "waypost {role}",
       "description": "{description}",
       "whenToUse": "{description}",
       "roleDefinition": "{body}",
@@ -36,5 +36,5 @@
       ]
     }
   },
-  "notes": "Roo keeps every custom mode in one .roomodes file and merges: entries whose slug starts with mps- are ours, everything else is left alone. Roo now prefers YAML but JSON is documented as fully supported and not deprecated, so mps writes JSON — it can be produced and re-read without a YAML parser, and this tool ships no dependencies. If your .roomodes is already YAML, mps refuses to touch it rather than converting it; convert it to JSON or invoke roles with `mps agents show`. groups read+command keep the mode read-only apart from the shell."
+  "notes": "Roo keeps every custom mode in one .roomodes file and merges: entries whose slug starts with waypost- are ours, everything else is left alone. Roo now prefers YAML but JSON is documented as fully supported and not deprecated, so waypost writes JSON — it can be produced and re-read without a YAML parser, and this tool ships no dependencies. If your .roomodes is already YAML, waypost refuses to touch it rather than converting it; convert it to JSON or invoke roles with `waypost agents show`. groups read+command keep the mode read-only apart from the shell."
 }

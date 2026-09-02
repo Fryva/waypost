@@ -1,20 +1,20 @@
 #!/usr/bin/env node
-// mps — commit.mjs
+// waypost — commit.mjs
 // The commit protocol for work happening in several harnesses at once (ADR-0006).
 //
 // Three sessions in three harnesses on one repository produce three kinds of
 // confusion: history that does not say who did what, derived views that collide
 // in every merge, and two agents opening the same story. This command addresses
 // the first and refuses to make the third worse; the merge driver
-// (`mps merge-derived`) handles the second.
+// (`waypost merge-derived`) handles the second.
 //
 // What a commit records, as git trailers — machine-readable, greppable with
 // `git log --grep` or `git interpret-trailers`, and invisible to the prose:
 //
-//   Mps-Harness:  claude         which harness the work happened in
-//   Mps-Session:  mbp-42311      which session, so parallel work is separable
-//   Mps-Story:    PS-1/story-x   the story it serves, when it serves one
-//   Mps-Provider: kimi           which model provider produced it, when the
+//   Waypost-Harness:  claude         which harness the work happened in
+//   Waypost-Session:  mbp-42311      which session, so parallel work is separable
+//   Waypost-Story:    PS-1/story-x   the story it serves, when it serves one
+//   Waypost-Provider: kimi           which model provider produced it, when the
 //                                harness is pointed at one (DeepSeek, Kimi,
 //                                GLM, MiniMax, DashScope…): the same harness
 //                                behaves very differently behind a different
@@ -51,7 +51,7 @@ import { readLeases, vaultRel } from "./presence.mjs";
 import { runReconcile } from "./reconcile.mjs";
 
 function die(msg) {
-  process.stderr.write(`mps commit: ${msg}\n`);
+  process.stderr.write(`waypost commit: ${msg}\n`);
   process.exit(1);
 }
 
@@ -60,10 +60,10 @@ function git(args, opts = {}) {
 }
 
 // Which harness this session is running in. The registry knows the env vars
-// each one sets; `MPS_HARNESS` overrides, because detection by environment is
+// each one sets; `WAYPOST_HARNESS` overrides, because detection by environment is
 // best-effort by nature and a wrong label in the history is worse than none.
 export function detectSessionHarness(env = process.env) {
-  if (env.MPS_HARNESS) return env.MPS_HARNESS;
+  if (env.WAYPOST_HARNESS) return env.WAYPOST_HARNESS;
   for (const [id, h] of registry()) {
     if ((h.env || []).some((k) => env[k])) return id;
   }
@@ -98,10 +98,10 @@ export function storyPathOf(ref, cfg) {
 
 export function composeMessage(subject, { harness: h, session, story, provider, coauthor }) {
   const trailers = [
-    `Mps-Harness: ${h}`,
-    `Mps-Session: ${session}`,
-    ...(provider ? [`Mps-Provider: ${provider}`] : []),
-    ...(story ? [`Mps-Story: ${story}`] : []),
+    `Waypost-Harness: ${h}`,
+    `Waypost-Session: ${session}`,
+    ...(provider ? [`Waypost-Provider: ${provider}`] : []),
+    ...(story ? [`Waypost-Story: ${story}`] : []),
     ...(coauthor ? [`Co-Authored-By: ${coauthor}`] : []),
   ];
   const body = subject.replace(/\s*$/, "");
@@ -158,7 +158,7 @@ function main() {
 
   if (!existsSync(join(projectRoot(), ".git"))) die("not a git repository");
   const subject = opt("-m") || opt("--message");
-  if (!subject) die('a message is required: mps commit -m "<what changed>" [--story <id>]');
+  if (!subject) die('a message is required: waypost commit -m "<what changed>" [--story <id>]');
 
   const self = sessionId();
   const h = detectSessionHarness();
@@ -209,7 +209,7 @@ function main() {
 
   const message = composeMessage(subject, {
     harness: h, session: self, story, provider: detectProvider(),
-    coauthor: (cfg && cfg.commit && cfg.commit.coauthor) || process.env.MPS_COAUTHOR || null,
+    coauthor: (cfg && cfg.commit && cfg.commit.coauthor) || process.env.WAYPOST_COAUTHOR || null,
   });
 
   if (has("--dry-run")) {
@@ -240,7 +240,7 @@ function merge(argv, mi) {
   if (r.stderr) process.stderr.write(r.stderr);
   const unresolved = (git(["diff", "--name-only", "--diff-filter=U"]).stdout || "").split("\n").filter(Boolean);
   if (unresolved.length) {
-    process.stderr.write(`mps commit: ${unresolved.length} file(s) still conflict — resolve them, then run \`mps commit -m "…"\`:\n`
+    process.stderr.write(`waypost commit: ${unresolved.length} file(s) still conflict — resolve them, then run \`waypost commit -m "…"\`:\n`
       + unresolved.map((f) => `  ${f}\n`).join(""));
     process.exit(1);
   }
@@ -283,15 +283,15 @@ function log(argv) {
   const opt = (name) => { const i = argv.indexOf(name); return i === -1 ? null : argv[i + 1]; };
   const n = opt("-n") || "20";
   const filters = [
-    ["Mps-Story", opt("--story")],
-    ["Mps-Session", opt("--session")],
-    ["Mps-Harness", opt("--harness")],
-    ["Mps-Provider", opt("--provider")],
+    ["Waypost-Story", opt("--story")],
+    ["Waypost-Session", opt("--session")],
+    ["Waypost-Harness", opt("--harness")],
+    ["Waypost-Provider", opt("--provider")],
   ].filter(([, v]) => v);
   const r = git(["log", `-n${Number(n) * (filters.length ? 20 : 1)}`,
-    "--format=%h%x1f%an%x1f%ad%x1f%s%x1f%(trailers:key=Mps-Harness,valueonly,separator=%x2c)"
-    + "%x1f%(trailers:key=Mps-Session,valueonly,separator=%x2c)%x1f%(trailers:key=Mps-Story,valueonly,separator=%x2c)"
-    + "%x1f%(trailers:key=Mps-Provider,valueonly,separator=%x2c)",
+    "--format=%h%x1f%an%x1f%ad%x1f%s%x1f%(trailers:key=Waypost-Harness,valueonly,separator=%x2c)"
+    + "%x1f%(trailers:key=Waypost-Session,valueonly,separator=%x2c)%x1f%(trailers:key=Waypost-Story,valueonly,separator=%x2c)"
+    + "%x1f%(trailers:key=Waypost-Provider,valueonly,separator=%x2c)",
     "--date=short"]);
   if (!r || r.status !== 0) die("git log failed — is this a repository with commits?");
   const rows = (r.stdout || "").split("\n").filter(Boolean).map((line) => {
@@ -299,9 +299,9 @@ function log(argv) {
     return { sha, author, date, subject, harness: harness.trim(), session: session.trim(),
       story: story.trim(), provider: (provider || "").trim() };
   }).filter((row) => filters.every(([k, v]) =>
-    (k === "Mps-Story" ? row.story
-      : k === "Mps-Session" ? row.session
-      : k === "Mps-Provider" ? row.provider : row.harness).includes(v)))
+    (k === "Waypost-Story" ? row.story
+      : k === "Waypost-Session" ? row.session
+      : k === "Waypost-Provider" ? row.provider : row.harness).includes(v)))
     .slice(0, Number(n));
 
   if (argv.includes("--json")) { process.stdout.write(JSON.stringify(rows, null, 2) + "\n"); return; }
@@ -312,7 +312,7 @@ function log(argv) {
   }
   const untagged = rows.filter((r2) => !r2.harness).length;
   if (untagged) {
-    process.stdout.write(`\n${untagged} of ${rows.length} carry no mps trailers — committed outside \`mps commit\`.\n`);
+    process.stdout.write(`\n${untagged} of ${rows.length} carry no waypost trailers — committed outside \`waypost commit\`.\n`);
   }
 }
 

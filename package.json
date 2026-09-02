@@ -1,10 +1,10 @@
 {
-  "name": "multiprojectstore",
+  "name": "waypost",
   "version": "0.11.0",
-  "description": "Harness-agnostic fork of ProjectStore: one vault, one CLI, the same agent roles in Claude Code, Codex and OpenCode.",
+  "description": "One project vault — decisions, specs, epics, stories, a board — as markdown in git, and the same agent roles in every harness. Harness-agnostic fork of ProjectStore.",
   "license": "MIT",
   "type": "module",
-  "bin": { "mps": "bin/mps" },
+  "bin": { "waypost": "bin/waypost", "wyp": "bin/waypost" },
   "engines": { "node": ">=20" },
   "scripts": { "test": "node --test tests/*.test.mjs" },
   "files": ["bin", "scripts", "agents", "harnesses", "prompts", "skills", "scaffold", "templates", "docs", "AGENTS.md", "README.md"]

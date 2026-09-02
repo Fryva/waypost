@@ -30,7 +30,7 @@ import {
 import { walkVaultFiles } from "./doctor.mjs";
 
 function die(msg) {
-  process.stderr.write(`mps graph: ${msg}\n`);
+  process.stderr.write(`waypost graph: ${msg}\n`);
   process.exit(1);
 }
 
@@ -167,7 +167,7 @@ export function buildGraph(cfg, layout, { files = null } = {}) {
     "",
     "Nodes (layout artifacts, keyed by vault-relative path) and typed edges,",
     "derived from body links and frontmatter relations (source of truth).",
-    "Regenerate via `mps graph`; grep a path to see an artifact's",
+    "Regenerate via `waypost graph`; grep a path to see an artifact's",
     "full typed neighborhood, both directions, in one call.",
     "",
     "## Nodes",
@@ -199,7 +199,7 @@ export function buildGraph(cfg, layout, { files = null } = {}) {
 
 function main() {
   const cfg = readConfig();
-  if (!cfg) die("No projectstore config. Run mps bind first.");
+  if (!cfg) die("No projectstore config. Run waypost bind first.");
   const layout = loadLayout(cfg.layout);
   const g = buildGraph(cfg, layout);
   process.stdout.write(JSON.stringify({

@@ -1,5 +1,5 @@
 ---
-description: When the user makes or accepts an architectural/technical decision (choosing between alternatives, locking in a pattern, picking a library or tool, settling a trade-off), suggest capturing it as an ADR via `mps draft adr`. Never write to the vault directly — only suggest, and let the `mps draft adr` flow handle approval.
+description: When the user makes or accepts an architectural/technical decision (choosing between alternatives, locking in a pattern, picking a library or tool, settling a trade-off), suggest capturing it as an ADR via `waypost draft adr`. Never write to the vault directly — only suggest, and let the `waypost draft adr` flow handle approval.
 ---
 
 # Decision detector
@@ -13,7 +13,7 @@ You watch for **decision moments** in the conversation:
 
 ## When you detect such a moment
 
-1. **Check if a vault is bound**: confirm `.mps/projectstore.json` exists in the current project. If not, do nothing — this skill is silent without binding.
+1. **Check if a vault is bound**: confirm `.waypost/projectstore.json` exists in the current project. If not, do nothing — this skill is silent without binding.
 
 2. **Check `active_skills` in the config**. If `false`, do nothing.
 
@@ -25,15 +25,15 @@ You watch for **decision moments** in the conversation:
 
 4. **Suggest, do not act**. Write one short message to the user:
 
-   > 💡 *This looks like a decision worth recording. Want me to draft an ADR? Run `mps draft adr "<your-title>"` or just say "yes" and I'll fire it with the title above.*
+   > 💡 *This looks like a decision worth recording. Want me to draft an ADR? Run `waypost draft adr "<your-title>"` or just say "yes" and I'll fire it with the title above.*
 
    Propose a concise title (≤80 chars), e.g. *"Use BFF pattern for OIDC"*.
 
-5. **Wait for explicit user confirmation** before invoking `mps draft adr`. Never auto-execute.
+5. **Wait for explicit user confirmation** before invoking `waypost draft adr`. Never auto-execute.
 
 ## Anti-patterns (do not do)
 
 - Don't suggest an ADR for trivial choices (variable names, formatting).
 - Don't suggest an ADR more than once per detected decision — if the user said "not now", drop it for the session.
-- Don't write any vault file directly from this skill. ADR creation always goes through `mps draft adr` which gates writes behind an explicit approval.
-- Don't change the ADR template, status, or numbering — that's `mps draft adr`'s job.
+- Don't write any vault file directly from this skill. ADR creation always goes through `waypost draft adr` which gates writes behind an explicit approval.
+- Don't change the ADR template, status, or numbering — that's `waypost draft adr`'s job.

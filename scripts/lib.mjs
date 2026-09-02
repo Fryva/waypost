@@ -1,4 +1,4 @@
-// mps (MultiProjectStore) — shared helpers used by the CLI and rules.
+// waypost (Waypost) — shared helpers used by the CLI and rules.
 // Pure node, no external deps. Keep this single-file & dependency-free
 // so a repo checkout does not require npm install.
 //
@@ -16,11 +16,11 @@ import { fileURLToPath } from "node:url";
 
 // ─── Paths ─────────────────────────────────────────────────────────────
 
-// The project being managed. Prefer the harness-neutral MPS_PROJECT_DIR,
+// The project being managed. Prefer the harness-neutral WAYPOST_PROJECT_DIR,
 // falling back to the cwd (and, for a Claude plugin install, to
 // CLAUDE_PROJECT_DIR — AgentWorkflow compatibility).
 export function projectRoot() {
-  return process.env.MPS_PROJECT_DIR
+  return process.env.WAYPOST_PROJECT_DIR
     || process.env.CLAUDE_PROJECT_DIR
     || process.cwd();
 }
@@ -28,21 +28,21 @@ export function projectRoot() {
 // The tool root: the directory two levels above scripts/ (i.e. this repo root).
 // fileURLToPath, not URL.pathname: the latter stays percent-encoded, so a
 // checkout path containing a space resolves to a directory that does not exist.
-// MPS_HOME overrides (e.g. a vendored/installed copy); CLAUDE_PLUGIN_ROOT is
+// WAYPOST_HOME overrides (e.g. a vendored/installed copy); CLAUDE_PLUGIN_ROOT is
 // honoured for a Claude plugin install.
 export function pluginRoot() {
-  return process.env.MPS_HOME
+  return process.env.WAYPOST_HOME
     || process.env.CLAUDE_PLUGIN_ROOT
     || dirname(dirname(fileURLToPath(import.meta.url)));
 }
 
-// The project-local config. Cannonical location is .mps/projectstore.json;
+// The project-local config. Cannonical location is .waypost/projectstore.json;
 // a legacy .claude/projectstore.json is honoured for a Claude installing the
 // optional plugin layer.
 export function configPath() {
   const root = projectRoot();
-  const mps = join(root, ".mps", "projectstore.json");
-  if (existsSync(mps) || process.argv.includes("--no-legacy-config")) return mps;
+  const waypost = join(root, ".waypost", "projectstore.json");
+  if (existsSync(waypost) || process.argv.includes("--no-legacy-config")) return waypost;
   return join(root, ".claude", "projectstore.json");
 }
 
@@ -68,10 +68,10 @@ export function ignoreEpipe() {
 
 // ─── Config ────────────────────────────────────────────────────────────
 
-// null means "not bound yet" (mps bind is the right next step) — a caller
+// null means "not bound yet" (waypost bind is the right next step) — a caller
 // must never conflate that with "bound, but the config is corrupt", which
 // needs a loud failure instead: silently treating a broken config as unbound
-// invites `mps setup` to rebind over it, discarding whatever settings the
+// invites `waypost setup` to rebind over it, discarding whatever settings the
 // file still held (upstream ADR-007 gap).
 export function readConfig() {
   const p = configPath();
@@ -79,7 +79,7 @@ export function readConfig() {
   try {
     return JSON.parse(readFileSync(p, "utf8"));
   } catch (e) {
-    process.stderr.write(`mps: config exists but is unreadable: ${p}: ${e.message}\n`);
+    process.stderr.write(`waypost: config exists but is unreadable: ${p}: ${e.message}\n`);
     process.exit(1);
   }
 }
@@ -360,7 +360,7 @@ export function readVaultConfig(vault) {
     // must not take doctor itself down, but it silently turns spec_policy:
     // required into optional, so this is loud on stderr and doctor's own
     // checkVaultPolicy reports it as a first-class finding.
-    process.stderr.write(`mps: vault policy unreadable, using defaults: ${p}: ${e.message}\n`);
+    process.stderr.write(`waypost: vault policy unreadable, using defaults: ${p}: ${e.message}\n`);
     return {};
   }
 }
@@ -1139,7 +1139,7 @@ export function renderVaultSkeleton(facts) {
   const L = [];
 
   if (f.vaultMissing) {
-    return `# mps: vault not found at ${truncFront(String(f.vaultPath ?? ""), PATH_CELL)}\n`;
+    return `# waypost: vault not found at ${truncFront(String(f.vaultPath ?? ""), PATH_CELL)}\n`;
   }
 
   // Contract 10 — the header carries the session-relevant policy. Absent vault
@@ -1147,7 +1147,7 @@ export function renderVaultSkeleton(facts) {
   // Contract 3 — the vault path is bounded only by PATH_MAX, so it is a term of
   // the composed cap like any other. Front-truncated for contract 19's second
   // reason: the tail is the discriminating half of a path.
-  L.push(`# mps vault: ${truncFront(String(f.vaultPath ?? ""), PATH_CELL)}`);
+  L.push(`# waypost vault: ${truncFront(String(f.vaultPath ?? ""), PATH_CELL)}`);
   // Contract 3 — these four are user-supplied config, and config is free text.
   // The previous revision interpolated them raw, which put the 10,000-character
   // breach back into the very line this change added: a 3,000-character
@@ -1230,24 +1230,24 @@ export function renderVaultSkeleton(facts) {
 // one agent. In order of trust:
 //
 //   --id                    the caller knows best
-//   $MPS_SESSION_ID         set once, by bin/mps's own main() — process.ppid
+//   $WAYPOST_SESSION_ID         set once, by bin/waypost's own main() — process.ppid
 //                           there really is the shell/harness that invoked the
-//                           CLI, unlike inside a script bin/mps spawns, whose
-//                           parent pid is bin/mps itself and changes every call
+//                           CLI, unlike inside a script bin/waypost spawns, whose
+//                           parent pid is bin/waypost itself and changes every call
 //   a harness/terminal env var   stable per window across processes
 //   <host>-<parent pid>     last resort, right only when the caller IS that
 //                           original process
 //
-// The harness name is prefixed when known, so `mps sessions` reads as who is
+// The harness name is prefixed when known, so `waypost sessions` reads as who is
 // working rather than as a list of numbers.
-const TERMINAL_ENV = ["MPS_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID",
+const TERMINAL_ENV = ["WAYPOST_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID",
   "TERM_SESSION_ID", "ITERM_SESSION_ID", "TMUX_PANE", "WT_SESSION", "KITTY_WINDOW_ID", "SSH_TTY"];
 
 export function sessionId(argv = process.argv, env = process.env) {
   const i = argv.indexOf("--id");
   if (i !== -1 && argv[i + 1]) return argv[i + 1];
-  if (env.MPS_SESSION_ID) return env.MPS_SESSION_ID;
-  const harness = env.MPS_HARNESS || null;
+  if (env.WAYPOST_SESSION_ID) return env.WAYPOST_SESSION_ID;
+  const harness = env.WAYPOST_HARNESS || null;
   for (const k of TERMINAL_ENV) {
     if (!env[k]) continue;
     const slug = String(env[k]).replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "").slice(-24);
@@ -1267,7 +1267,7 @@ export function sessionId(argv = process.argv, env = process.env) {
 // has not been touched in 30 minutes is considered idle; >24h => stale,
 // removed on next SessionStart.
 //
-// Kept for upstream compatibility (ADR-0004), not because mps itself still
+// Kept for upstream compatibility (ADR-0004), not because waypost itself still
 // reads it: presence.mjs/sessions.mjs (layer 3, ADR-0007) is what this fork's
 // own commands use for liveness now. `recent_activity` in particular is dead
 // from this fork's own side — it was populated by the hook-driven continuity
@@ -1339,7 +1339,7 @@ export function touchSession(vault, sessionId) {
 // whichever session runs cleanup. Mtime cannot tell idle-alive from dead, so
 // the justification above applies to that session word for word and is not
 // cheaply actionable here.
-// `dryRun` counts what would be removed without touching disk — `mps
+// `dryRun` counts what would be removed without touching disk — `waypost
 // sessions` (no `--prune`) uses it to say how many stale records are sitting
 // there before anyone asks to reap them.
 export function cleanupStaleSessions(vault, maxAgeHours = 24, currentSessionId = null, { dryRun = false } = {}) {
@@ -1395,15 +1395,15 @@ export function isInsideVault(filePath, vaultPath) {
 export const SOURCE_IGNORE = [
   /(^|\/)package-lock\.json$/, /(^|\/)yarn\.lock$/, /(^|\/)pnpm-lock\.yaml$/,
   /(^|\/)Cargo\.lock$/, /(^|\/)node_modules\//, /(^|\/)dist\//, /(^|\/)build\//,
-  // Harness wiring, not source: .mps/ is the bind + runtime state, and the
-  // three harness directories hold generated role files (`mps agents install`).
-  /(^|\/)\.claude\//, /(^|\/)\.mps\//, /(^|\/)\.opencode\//, /(^|\/)\.codex\//,
+  // Harness wiring, not source: .waypost/ is the bind + runtime state, and the
+  // three harness directories hold generated role files (`waypost agents install`).
+  /(^|\/)\.claude\//, /(^|\/)\.waypost\//, /(^|\/)\.opencode\//, /(^|\/)\.codex\//,
   /\.min\.(js|css)$/,
 ];
 
 // The entry-rule counter ignores strictly more than the base set, and the
 // difference is deliberate rather than an oversight of one or the other.
-// mps bind writes these three itself, in a session that by
+// waypost bind writes these three itself, in a session that by
 // construction has no story open — counting them makes the plugin nag about its
 // own setup. They must NOT join SOURCE_IGNORE: an edit to AGENTS.md is a real
 // code reference (the PS-AGENTS epic already lists it), and folding these into
@@ -1420,7 +1420,7 @@ export const ENTRY_IGNORE = [
 // artifact scan it already performs while the hook feeds it a budgeted read —
 // one definition, and therefore no way for the two to disagree about the same
 // vault. `planned` is deliberately not open: writing code against a story that
-// never went through mps story plan is itself the order being skipped.
+// never went through waypost story plan is itself the order being skipped.
 export function openStoryFrom(storyFrontmatters) {
   return (storyFrontmatters || []).some((fm) => fm && fm.status === "in-progress");
 }

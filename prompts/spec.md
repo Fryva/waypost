@@ -15,12 +15,12 @@ Dispatch on the first argument:
 
 ## Creation flow
 
-1. **Check config**: stop if `.mps/projectstore.json` missing.
+1. **Check config**: stop if `.waypost/projectstore.json` missing.
 
 2. **Render draft**:
 
    ```bash
-   mps draft spec "$ARGUMENTS"
+   waypost draft spec "$ARGUMENTS"
    ```
 
    Capture the JSON `{ kind, path, content, index, vars }`.
@@ -53,21 +53,21 @@ Dispatch on the first argument:
    step-4 approval covers it):
 
    ```bash
-   mps reconcile --write --only indexes=<index.folder>
+   waypost reconcile --write --only indexes=<index.folder>
    ```
 
    The row is derived state — regenerated in canonical order, written
    atomically, manual prose preserved. The artifact is already on disk, so a
    nonzero exit is a warning naming the folder (stderr with no JSON = rejected
    before any write, fix the header or restore the README; per-target `error`
-   in JSON = I/O failure, suggest `mps reconcile`), never a failed
+   in JSON = I/O failure, suggest `waypost reconcile`), never a failed
    creation.
 
 7. **Reciprocal links**: for every entry in `stories:`, propose an Edit to that
    story's frontmatter adding the spec id to its `specs:` list (inline flow —
    `specs: ["SPEC-001"]`). One question per file.
 
-8. **Remind**: "The spec is `draft`. Run `mps spec activate <ID>`
+8. **Remind**: "The spec is `draft`. Run `waypost spec activate <ID>`
    after review — a covered story must not enter implementation while its spec
    is draft (doctor enforces this under `spec_policy: required`)."
 
@@ -83,9 +83,9 @@ Dispatch on the first argument:
 
 3. **Preview the change**: current vs proposed frontmatter `status:` (+
    `updated:` bump to today). For `activate`, remind that review is expected
-   first (the review procedure (`mps prompt review`)) if `review_status` is still pending —
+   first (the review procedure (`waypost prompt review`)) if `review_status` is still pending —
    ask whether to proceed anyway.
 
 4. **Approval** by asking the user, then apply the Edit (frontmatter lines
-   only). Suggest `mps reconcile` if the specs index shows a stale
+   only). Suggest `waypost reconcile` if the specs index shows a stale
    status.

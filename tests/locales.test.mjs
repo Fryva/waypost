@@ -1,4 +1,4 @@
-// mps — bundled-locale tests (PS-I18N, spec "Adding a bundled locale").
+// waypost — bundled-locale tests (PS-I18N, spec "Adding a bundled locale").
 // Two layers, both run over EVERY bundled locale rather than only the newest, because
 // scaffold/headings.json builds ONE alternation across all registered languages: an
 // edit made for a new locale can change matching for a locale that was already green.
@@ -34,7 +34,7 @@ import {
 import { checkLayoutTemplates } from "../scripts/doctor.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
-const ENV = { ...process.env, MPS_HOME: REPO };
+const ENV = { ...process.env, WAYPOST_HOME: REPO };
 
 // The bundled set, DERIVED from the templates directory rather than hand-listed.
 // A hardcoded list has the same failure shape as the bug this suite exists to catch:
@@ -175,7 +175,7 @@ for (const lang of LOCALES) {
 
 function runScript(proj, script, args) {
   const r = spawnSync(process.execPath, [join(REPO, "scripts", script), ...args], {
-    encoding: "utf8", env: { ...ENV, MPS_PROJECT_DIR: proj }, cwd: REPO, timeout: 30000,
+    encoding: "utf8", env: { ...ENV, WAYPOST_PROJECT_DIR: proj }, cwd: REPO, timeout: 30000,
   });
   assert.equal(r.status, 0, `${script} ${args.join(" ")}: ${r.stderr}`);
   // A checker that greps a text report for a JSON field passes vacuously — parse,
@@ -194,8 +194,8 @@ function makeLocaleVault(lang) {
     "diagrams", join("epics", "PS-X", "stories")]) {
     mkdirSync(join(vault, d), { recursive: true });
   }
-  mkdirSync(join(proj, ".mps"), { recursive: true });
-  writeFileSync(join(proj, ".mps", "projectstore.json"), JSON.stringify({
+  mkdirSync(join(proj, ".waypost"), { recursive: true });
+  writeFileSync(join(proj, ".waypost", "projectstore.json"), JSON.stringify({
     vault_path: vault, layout: "engineering", language: lang, default_author: "Test",
   }));
   writeFileSync(join(vault, ".projectstore.json"), JSON.stringify({

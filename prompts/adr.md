@@ -7,12 +7,12 @@ You are creating a new ADR.
 
 Steps:
 
-1. **Check config**: `test -f .mps/projectstore.json` — if missing, tell user to run `mps bind <path>` and stop.
+1. **Check config**: `test -f .waypost/projectstore.json` — if missing, tell user to run `waypost bind <path>` and stop.
 
 2. **Render draft** by running:
 
    ```bash
-   mps draft adr "$ARGUMENTS"
+   waypost draft adr "$ARGUMENTS"
    ```
 
    The script outputs JSON with shape `{ kind, path, content, index, collision, warnings, vars }`. Capture stdout.
@@ -37,7 +37,7 @@ Steps:
    apply through the core — never a hand-written edit, and do not ask again:
 
    ```bash
-   mps reconcile --write --only indexes=<index.folder>
+   waypost reconcile --write --only indexes=<index.folder>
    ```
 
    The index row is derived state: the regeneration renders it in canonical
@@ -49,9 +49,9 @@ Steps:
    failed creation. Two shapes, both reported naming the folder:
    - **stderr, no stdout JSON** — the named target was rejected before any
      write (README absent, or its index header matches no registered form).
-     Suggest fixing the header (`mps doctor`) or restoring the
+     Suggest fixing the header (`waypost doctor`) or restoring the
      README; the row lands on the next reconcile.
    - **JSON with a per-target `error`, nonzero exit** — an I/O failure during
-     the write. Suggest `mps reconcile`.
+     the write. Suggest `waypost reconcile`.
 
 8. **Final message**: print the file path, a reminder to fill `Context`, `Decision`, `Rationale`, and a hint to commit the new ADR if the vault is git-tracked.

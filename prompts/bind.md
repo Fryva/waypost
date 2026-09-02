@@ -1,5 +1,5 @@
 ---
-description: Bind this project to a vault (an Obsidian vault, or any markdown directory in git) where mps records artifacts, then set the vault's policy and install the agent roles.
+description: Bind this project to a vault (an Obsidian vault, or any markdown directory in git) where waypost records artifacts, then set the vault's policy and install the agent roles.
 argument-hint: <vault-path> [--layout engineering] [--lang en|ru|es|de|fr|zh]
 ---
 
@@ -15,10 +15,10 @@ Parse `$ARGUMENTS`: first positional is the vault path (`~` expands); optional
 
 ## Steps
 
-1. **Check for an existing bind**: `mps status`.
-   - Bound to the same vault → say so and stop; suggest `mps scaffold` if the
+1. **Check for an existing bind**: `waypost status`.
+   - Bound to the same vault → say so and stop; suggest `waypost scaffold` if the
      layout is incomplete.
-   - Bound elsewhere → show both paths and ask which wins. `mps bind` refuses a
+   - Bound elsewhere → show both paths and ask which wins. `waypost bind` refuses a
      silent rebind; only pass `--force` after the user has chosen it.
 
 2. **Decide where the vault lives**, and say the trade-off in one line:
@@ -29,10 +29,10 @@ Parse `$ARGUMENTS`: first positional is the vault path (`~` expands); optional
 3. **Bind and scaffold**:
 
    ```bash
-   mps bind "<vault-path>" --layout <layout> --lang <lang>
+   waypost bind "<vault-path>" --layout <layout> --lang <lang>
    ```
 
-   This writes `.mps/projectstore.json`, creates the layout's folders and their
+   This writes `.waypost/projectstore.json`, creates the layout's folders and their
    index READMEs, and prints what it created. An existing folder is never
    touched; an existing README is never overwritten.
 
@@ -60,25 +60,25 @@ Parse `$ARGUMENTS`: first positional is the vault path (`~` expands); optional
    `spec_policy_since` is stamped only when `spec_policy` becomes `required` — it
    anchors the legacy exemption (stories finished before it stay exempt).
 
-5. **Agent roles**: run `mps agents list` to show what this project's harnesses
-   would get, then offer `mps agents install` and `mps agents register`. Say what
+5. **Agent roles**: run `waypost agents list` to show what this project's harnesses
+   would get, then offer `waypost agents install` and `waypost agents register`. Say what
    the roles are for in one line each (critic after authoring, planner before
-   implementing, reviewer before commit) — see `mps prompt agents`.
+   implementing, reviewer before commit) — see `waypost prompt agents`.
 
-6. **Housekeeping**: run `mps doctor`. Offer `mps doctor --fix` for the
+6. **Housekeeping**: run `waypost doctor`. Offer `waypost doctor --fix` for the
    mechanical findings (gitignore entries, `git init` in the vault). Show what it
    will do before running it.
 
 7. **Print the summary**: the bound path, the layout's folders, and the next
-   commands — `mps brief` (orientation at the start of a session),
-   `mps draft adr "<first decision>" --write`,
-   `mps draft epic <ID> "<title>" --write`.
+   commands — `waypost brief` (orientation at the start of a session),
+   `waypost draft adr "<first decision>" --write`,
+   `waypost draft epic <ID> "<title>" --write`.
 
 ## Notes
 
-- The bind config is machine-local (it holds an absolute path): `.mps/` belongs
+- The bind config is machine-local (it holds an absolute path): `.waypost/` belongs
   in `.gitignore`. The generated role files are the opposite — commit them, so
   the whole team gets the same roles.
 - No hooks, no status line, no slash commands are wired by binding. Whatever
   runs at session start runs because a rule says so — the rule to add is
-  "run `mps brief` when starting work in this project".
+  "run `waypost brief` when starting work in this project".

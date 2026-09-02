@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// mps — sessions.mjs
+// waypost — sessions.mjs
 // Active-session registry, harness-neutral.
 //
 // Upstream kept this registry alive from Claude Code hooks (SessionStart /
@@ -9,14 +9,14 @@
 // working on the same vault can see who else is in there before it opens a
 // Memory topic, an ADR or a story on the same subject.
 //
-// Session identity: --id, else $MPS_SESSION_ID, else <host>-<parent pid> —
+// Session identity: --id, else $WAYPOST_SESSION_ID, else <host>-<parent pid> —
 // stable for the life of one terminal/harness process, distinct between two
 // harnesses open on the same project.
 //
 // `--claim <story>` records that this session is working on a story, and
 // `--release` drops it. The registry lives in the vault, so a session in any
 // harness bound to the same vault reads the same answer — that shared file is
-// the whole coordination channel, and `mps commit` refuses to close a story
+// the whole coordination channel, and `waypost commit` refuses to close a story
 // another live session still claims.
 //
 // `--prune` reaps this session's own legacy registry (24h+ idle) and the
@@ -54,7 +54,7 @@ export { sessionId, storyRefOf };
 // presence.mjs's own LIVE_WINDOW_MS (2.5 minutes), which answers "is anyone
 // there right now" (ADR-0007), not "does this story still belong to them".
 // Both questions read the same per-peer counter; they just apply a different
-// window to it, so a session can be "stale" in `mps sessions` while its claim
+// window to it, so a session can be "stale" in `waypost sessions` while its claim
 // is still live in `conflicts()`.
 export const CLAIM_WINDOW_MS = 30 * 60_000;
 
@@ -77,7 +77,7 @@ export function claimsOf(vault, { windowMs = CLAIM_WINDOW_MS, now = Date.now() }
 }
 
 function die(msg) {
-  process.stderr.write(`mps sessions: ${msg}\n`);
+  process.stderr.write(`waypost sessions: ${msg}\n`);
   process.exit(1);
 }
 
@@ -85,7 +85,7 @@ function main() {
   ignoreEpipe();
   const args = process.argv.slice(2);
   const cfg = readConfig();
-  if (!cfg || !cfg.vault_path) die("no bound vault — run `mps bind <vault-path>` first");
+  if (!cfg || !cfg.vault_path) die("no bound vault — run `waypost bind <vault-path>` first");
   const vault = cfg.vault_path;
   const sid = sessionId();
   const json = args.includes("--json");
@@ -93,7 +93,7 @@ function main() {
 
   if (args.includes("--touch")) {
     if (!touchSession(vault, sid)) writeSession(vault, sid, projectRoot());
-    beat(vault, sid, { harness: process.env.MPS_HARNESS || null });
+    beat(vault, sid, { harness: process.env.WAYPOST_HARNESS || null });
     out.touched = true;
   }
   const ci = args.indexOf("--claim");
@@ -104,7 +104,7 @@ function main() {
     // from a path and a commit made from an id are talking about one story.
     const ref = storyRefOf(args[ci + 1], vault) || args[ci + 1];
     beat(vault, sid, {
-      harness: process.env.MPS_HARNESS || null,
+      harness: process.env.WAYPOST_HARNESS || null,
       claim: { story: ref, at: new Date().toISOString() },
     });
     out.claimed = ref;
@@ -162,11 +162,11 @@ function main() {
     const staleCount = cleanupStaleSessions(vault, 24, sid, { dryRun: true })
       + prunePresence(vault, { self: sid, dryRun: true });
     if (staleCount > 0) {
-      process.stdout.write(`${staleCount} stale session record(s) — mps sessions --prune\n`);
+      process.stdout.write(`${staleCount} stale session record(s) — waypost sessions --prune\n`);
     }
   }
   if (!existsSync(sessionsDir(vault))) {
-    process.stdout.write("no session registry yet — run `mps sessions --touch` at the start of a session\n");
+    process.stdout.write("no session registry yet — run `waypost sessions --touch` at the start of a session\n");
     return;
   }
   const st = out.storage;

@@ -8,7 +8,7 @@
   "detect": [".codebuddy"],
   "env": ["CODEBUDDY_CODE", "CODEBUDDY_CLI"],
   "instructions": ["AGENTS.md", "CLAUDE.md"],
-  "invoke": "delegate to the `mps-<role>` sub-agent",
+  "invoke": "delegate to the `waypost-<role>` sub-agent",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".codebuddy/agents",

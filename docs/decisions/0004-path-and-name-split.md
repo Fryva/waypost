@@ -1,16 +1,16 @@
-# ADR-0004: Name split: the vault stays ProjectStore-compatible, project wiring lives in `.mps/`
+# ADR-0004: Name split: the vault stays ProjectStore-compatible, project wiring lives in `.waypost/`
 
 - Status: proposed
 - Date: 2026-08-29
 - Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
-- Related: `scripts/lib.mjs`, `bin/mps`, `scripts/doctor.mjs`, ADR-0001, ADR-0002
-- code_refs: ["scripts/lib.mjs", "bin/mps", "scripts/doctor.mjs", "scripts/sessions.mjs", ".gitignore"]
+- Related: `scripts/lib.mjs`, `bin/waypost`, `scripts/doctor.mjs`, ADR-0001, ADR-0002
+- code_refs: ["scripts/lib.mjs", "bin/waypost", "scripts/doctor.mjs", "scripts/sessions.mjs", ".gitignore"]
 
 ## Context
 
-The fork renamed the tool (`projectstore` → `mps`), but the name appears in two
+The fork renamed the tool (`projectstore` → `waypost`), but the name appears in two
 different layers: inside the vault (the policy file `<vault>/.projectstore.json`,
 the session registry `<vault>/.projectstore/sessions/`, the `projectstore: derived`
 marker in generated files) and in the project wiring
@@ -32,15 +32,15 @@ nothing leaves non-Claude harnesses writing into `.claude/`.
 
 The vault is not renamed: `<vault>/.projectstore.json`,
 `<vault>/.projectstore/sessions/` and `projectstore: derived` stay as they are.
-The project side moves to `.mps/`: the bind config is `.mps/projectstore.json`
+The project side moves to `.waypost/`: the bind config is `.waypost/projectstore.json`
 (legacy `.claude/projectstore.json` still read) and machine state is
-`.mps/state/`.
+`.waypost/state/`.
 **Pros:** the vault stays compatible in both directions; no harness gets another
 harness's directory; one migration, limited to the project side.
 **Cons:** the tool name inside the vault differs from the CLI name, which has to
 be explained (it is, here and in `docs/how-it-works.md`).
 
-### Option 2: rename everything to `mps`
+### Option 2: rename everything to `waypost`
 
 **Pros:** nomenclature purity.
 **Cons:** the vault stops opening in upstream ProjectStore, and existing vaults
@@ -56,17 +56,17 @@ exists to avoid. Rejected.
 
 Take option 1. In addition: generated role files (`.claude/agents/`,
 `.opencode/agents/`, `.codex/agents/`, …) are meant to be committed — that is how
-a team gets the same roles — while `.mps/` is machine-local and belongs in
-`.gitignore`; `mps doctor --fix` writes exactly those entries.
+a team gets the same roles — while `.waypost/` is machine-local and belongs in
+`.gitignore`; `waypost doctor --fix` writes exactly those entries.
 
 ## Consequences
 
 ### Positive
 
-- One vault can be driven from MPS and from ProjectStore.
+- One vault can be driven from Waypost and from ProjectStore.
 - A project driven from Codex or OpenCode contains no `.claude/` unless Claude
   Code is actually used there.
-- `SOURCE_IGNORE` covers `.mps/`, `.opencode/` and `.codex/`: wiring is not
+- `SOURCE_IGNORE` covers `.waypost/`, `.opencode/` and `.codex/`: wiring is not
   counted as source when doctor asks "work without a story?".
 
 ### Negative / risks
@@ -79,8 +79,8 @@ a team gets the same roles — while `.mps/` is machine-local and belongs in
 
 ## Verification and follow-up
 
-- `tests/harness.test.mjs`: the config is created at `.mps/projectstore.json`
+- `tests/harness.test.mjs`: the config is created at `.waypost/projectstore.json`
   and doctor names exactly that path; the session registry is written to
   `<vault>/.projectstore/sessions/`.
-- `mps doctor --fix` adds `.mps/projectstore.json` and `.mps/state/` to
+- `waypost doctor --fix` adds `.waypost/projectstore.json` and `.waypost/state/` to
   `.gitignore` (covered by "a freshly bound … clean under doctor").

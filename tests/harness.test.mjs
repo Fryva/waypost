@@ -1,4 +1,4 @@
-// mps — harness-agnostic surface tests: the agent roles and their per-harness
+// waypost — harness-agnostic surface tests: the agent roles and their per-harness
 // adapters (ADR-0003), and the CLI that every harness shares (ADR-0001).
 //   node --test tests/*.test.mjs
 
@@ -13,19 +13,19 @@ import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleO
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES } from "../scripts/agents.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
-const MPS = join(REPO, "bin", "mps");
+const Waypost = join(REPO, "bin", "waypost");
 
 function project() {
-  const proj = mkdtempSync(join(tmpdir(), "mps-h-"));
+  const proj = mkdtempSync(join(tmpdir(), "waypost-h-"));
   spawnSync("git", ["init", "-q"], { cwd: proj });
   return proj;
 }
 
-function mps(proj, args, { expectFail = false, session = null } = {}) {
-  const r = spawnSync(process.execPath, [MPS, ...args], {
+function waypost(proj, args, { expectFail = false, session = null } = {}) {
+  const r = spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd: proj, timeout: 30000,
-    env: { ...process.env, MPS_PROJECT_DIR: proj, MPS_HOME: REPO,
-      ...(session ? { MPS_SESSION_ID: session } : {}) },
+    env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO,
+      ...(session ? { WAYPOST_SESSION_ID: session } : {}) },
   });
   if (!expectFail) assert.equal(r.status, 0, `${args.join(" ")}\n${r.stderr}${r.stdout}`);
   return r;
@@ -34,7 +34,7 @@ function mps(proj, args, { expectFail = false, session = null } = {}) {
 function bound() {
   const proj = project();
   const vault = join(proj, "vault");
-  mps(proj, ["bind", vault]);
+  waypost(proj, ["bind", vault]);
   return { proj, vault };
 }
 
@@ -145,13 +145,13 @@ test("a TOML agent file is valid TOML, and the body block is closed exactly once
 });
 
 test("a role naming a tool outside the neutral vocabulary is rejected at read time", () => {
-  const dir = mkdtempSync(join(tmpdir(), "mps-roles-"));
+  const dir = mkdtempSync(join(tmpdir(), "waypost-roles-"));
   mkdirSync(join(dir, "agents"), { recursive: true });
   writeFileSync(join(dir, "agents", "bogus.md"),
     "---\nname: bogus\ndescription: x\ntools: [read, telepathy]\n---\nbody\n", "utf8");
   const r = spawnSync(process.execPath, ["-e",
     `import(${JSON.stringify(join(REPO, "scripts", "agents.mjs"))}).then(m => m.readRole("bogus")).catch(e => { console.log(e.message); })`],
-    { encoding: "utf8", env: { ...process.env, MPS_HOME: dir } });
+    { encoding: "utf8", env: { ...process.env, WAYPOST_HOME: dir } });
   assert.match(r.stdout, /unknown tool\(s\) telepathy/, "the error names the tool and the file");
 });
 
@@ -183,22 +183,22 @@ test("the harness registry is data, and every entry renders every role", () => {
 test("a harness with no role-file format installs nothing and is not nagged about", () => {
   const { proj } = bound();
   mkdirSync(join(proj, ".dsh"), { recursive: true });          // detected
-  const out = mps(proj, ["agents", "install", "--harness", "dsh"]).stdout;
+  const out = waypost(proj, ["agents", "install", "--harness", "dsh"]).stdout;
   assert.match(out, /no role files/, "install says so instead of writing something meaningless");
   assert.ok(!existsSync(join(proj, ".dsh", "agents")), "…and creates nothing");
 
-  const findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  const findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   assert.ok(!findings.some((f) => f.check === "agent-roles" && /dsh/.test(f.message)),
     "doctor must not ask why a harness that cannot hold role files has none");
 
   // The routing block is how such a harness reaches the roles, so it must be a
   // registration target.
-  mps(proj, ["agents", "register"]);
-  assert.match(readFileSync(join(proj, "AGENTS.md"), "utf8"), /mps:agents/);
+  waypost(proj, ["agents", "register"]);
+  assert.match(readFileSync(join(proj, "AGENTS.md"), "utf8"), /waypost:agents/);
 });
 
 test("a harness that declares no frontmatter fields gets no empty block", () => {
-  const dir = mkdtempSync(join(tmpdir(), "mps-nofm-"));
+  const dir = mkdtempSync(join(tmpdir(), "waypost-nofm-"));
   mkdirSync(join(dir, "harnesses"), { recursive: true });
   mkdirSync(join(dir, "agents"), { recursive: true });
   writeFileSync(join(dir, "agents", "solo.md"),
@@ -211,7 +211,7 @@ test("a harness that declares no frontmatter fields gets no empty block", () => 
     `import(${JSON.stringify(join(REPO, "scripts", "agents.mjs"))}).then(m => {` +
     `  const t = m.renderFor("bare", m.readRole("solo"), null);` +
     `  console.log(JSON.stringify(t.slice(0, 40)));` +
-    `})`], { encoding: "utf8", env: { ...process.env, MPS_HOME: dir } });
+    `})`], { encoding: "utf8", env: { ...process.env, WAYPOST_HOME: dir } });
   const head = JSON.parse(r.stdout.trim());
   assert.ok(!head.startsWith("---\n---"),
     "an empty frontmatter block is a block that parses to nothing, not the absence of one");
@@ -234,7 +234,7 @@ test("providers are vendors of models, not harnesses, and are kept apart from th
 });
 
 test("the provider is detected from the endpoint or the vendor key, and never guessed", () => {
-  assert.equal(detectProvider({ MPS_PROVIDER: "whatever" }), "whatever", "an explicit label wins");
+  assert.equal(detectProvider({ WAYPOST_PROVIDER: "whatever" }), "whatever", "an explicit label wins");
   assert.equal(detectProvider({ ANTHROPIC_BASE_URL: "https://api.moonshot.ai/anthropic" }), "moonshot",
     "the vendor ships a harness (`kimi`) AND models; the provider id is the vendor, so the two never collide");
   assert.equal(detectProvider({ OPENAI_BASE_URL: "https://api.deepseek.com/v1" }), "deepseek");
@@ -258,37 +258,37 @@ test("every registry entry declares how confident we are in its file format", ()
   }
   // The compact default answers "what applies here"; --all is the reference,
   // and only the reference pays for the whole table.
-  const compact = mps(project(), ["harnesses"]).stdout;
+  const compact = waypost(project(), ["harnesses"]).stdout;
   assert.ok(compact.split("\n").length < 12, `the default view stays small, got:\n${compact}`);
   assert.match(compact, /harnesses known, \d+ model providers/, "…and says what it is not showing");
-  const listed = mps(project(), ["harnesses", "--all"]).stdout;
+  const listed = waypost(project(), ["harnesses", "--all"]).stdout;
   assert.match(listed, /MODEL PROVIDERS/, "the two kinds are shown as two kinds");
   assert.match(listed, /inferred|documented/, "and the confidence of each entry is printed, not hidden");
 });
 
 test("a project can add a harness without touching the code", () => {
   const { proj } = bound();
-  mkdirSync(join(proj, ".mps", "harnesses"), { recursive: true });
+  mkdirSync(join(proj, ".waypost", "harnesses"), { recursive: true });
   mkdirSync(join(proj, ".myagent"), { recursive: true });
-  writeFileSync(join(proj, ".mps", "harnesses", "myagent.json"), JSON.stringify({
+  writeFileSync(join(proj, ".waypost", "harnesses", "myagent.json"), JSON.stringify({
     id: "myagent", name: "My Agent", detect: [".myagent"],
     roles: { shape: "prompt-md", dir: ".myagent/roles", file: "{prefix}{role}.md", model: false,
              fields: [["description", "{description}"]] },
   }), "utf8");
 
-  const listed = mps(proj, ["harnesses"]).stdout;
+  const listed = waypost(proj, ["harnesses"]).stdout;
   assert.match(listed, /myagent/, "the registry picks up a project-local entry");
-  mps(proj, ["agents", "install"]);
+  waypost(proj, ["agents", "install"]);
   const p = join(proj, ".myagent", "roles", `${PREFIX}critic.md`);
   assert.ok(existsSync(p), "and installs into it, with no code change");
   assert.ok(installedRoleOf(readFileSync(p, "utf8")), "with the same provenance contract");
-  mps(proj, ["agents", "uninstall", "--harness", "myagent"]);
+  waypost(proj, ["agents", "uninstall", "--harness", "myagent"]);
   assert.ok(!existsSync(p));
 });
 
 test("an aggregate harness merges into its shared file and leaves other entries alone", () => {
   const { proj } = bound();
-  mps(proj, ["agents", "install", "--harness", "roo"]);
+  waypost(proj, ["agents", "install", "--harness", "roo"]);
   const read = () => JSON.parse(readFileSync(join(proj, ".roomodes"), "utf8"));
   assert.deepEqual(read().customModes.map((m) => m.slug).sort(),
     roleNames().map((n) => PREFIX + n).sort(), "every role became a mode");
@@ -296,19 +296,19 @@ test("an aggregate harness merges into its shared file and leaves other entries 
   const doc = read();
   doc.customModes.push({ slug: "my-mode", name: "mine", roleDefinition: "hand written" });
   writeFileSync(join(proj, ".roomodes"), JSON.stringify(doc, null, 2), "utf8");
-  mps(proj, ["agents", "install", "--harness", "roo"]);
+  waypost(proj, ["agents", "install", "--harness", "roo"]);
   assert.ok(read().customModes.some((m) => m.slug === "my-mode"), "a user's own mode survives install");
 
-  mps(proj, ["agents", "uninstall", "--harness", "roo"]);
+  waypost(proj, ["agents", "uninstall", "--harness", "roo"]);
   assert.deepEqual(read().customModes.map((m) => m.slug), ["my-mode"],
-    "uninstall removes only the modes mps generated");
+    "uninstall removes only the modes waypost generated");
 });
 
 test("uninstall clears nested empty directories, whatever the file is named", () => {
   const { proj } = bound();
-  mps(proj, ["agents", "install", "--harness", "codex"]);      // .codex/agents/mps-<role>.toml
+  waypost(proj, ["agents", "install", "--harness", "codex"]);      // .codex/agents/waypost-<role>.toml
   assert.ok(existsSync(join(proj, ".codex", "agents", `${PREFIX}critic.toml`)));
-  mps(proj, ["agents", "uninstall", "--harness", "codex"]);
+  waypost(proj, ["agents", "uninstall", "--harness", "codex"]);
   assert.ok(!existsSync(join(proj, ".codex")),
     "a directory left behind would make detection resurrect the harness");
 });
@@ -319,13 +319,13 @@ test("a role whose unit is a directory is installed and uninstalled whole", () =
   // carries a directory segment, which install has to create and uninstall has
   // to walk into. A flat listing saw the directory, could not read it as text,
   // and left the whole harness behind.
-  mps(proj, ["agents", "install", "--harness", "antigravity"]);
+  waypost(proj, ["agents", "install", "--harness", "antigravity"]);
   const p = join(proj, ".agents", "agents", `${PREFIX}critic`, "agent.md");
   assert.ok(existsSync(p), "the per-agent directory is created, not assumed");
   assert.ok(installedRoleOf(readFileSync(p, "utf8")), "with the same provenance contract");
 
   writeFileSync(join(proj, ".agents", "agents", "mine.md"), "hand written\n", "utf8");
-  mps(proj, ["agents", "uninstall", "--harness", "antigravity"]);
+  waypost(proj, ["agents", "uninstall", "--harness", "antigravity"]);
   assert.ok(!existsSync(join(proj, ".agents", "agents", `${PREFIX}critic`)),
     "the agent's own directory goes with its file, or detection resurrects the harness");
   assert.ok(existsSync(join(proj, ".agents", "agents", "mine.md")),
@@ -336,12 +336,12 @@ test("install: idempotent, per-harness, and detected harnesses are the default",
   const { proj } = bound();
   mkdirSync(join(proj, ".opencode"), { recursive: true });
 
-  const first = mps(proj, ["agents", "install"]).stdout;
-  assert.ok(/\.opencode\/agents\/mps-critic\.md/.test(first), "the harness in use is installed");
+  const first = waypost(proj, ["agents", "install"]).stdout;
+  assert.ok(/\.opencode\/agents\/waypost-critic\.md/.test(first), "the harness in use is installed");
   assert.ok(!/\.codex\/prompts/.test(first), "a harness this project does not use is left alone");
   assert.ok(!existsSync(join(proj, ".codex")), "no directory is conjured for an unused harness");
 
-  const second = mps(proj, ["agents", "install"]).stdout;
+  const second = waypost(proj, ["agents", "install"]).stdout;
   assert.ok(!/created|updated/.test(second), `second install is a no-op:\n${second}`);
 
   const files = readdirSync(join(proj, ".opencode", "agents"));
@@ -350,52 +350,52 @@ test("install: idempotent, per-harness, and detected harnesses are the default",
 
 test("install with no harness detected refuses instead of guessing all three", () => {
   const proj = project();          // bare git repo: no CLAUDE.md, no .opencode, no .codex
-  mps(proj, ["bind", join(proj, "vault")]);
-  const r = mps(proj, ["agents", "install"], { expectFail: true });
+  waypost(proj, ["bind", join(proj, "vault")]);
+  const r = waypost(proj, ["agents", "install"], { expectFail: true });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /no harness detected/);
   for (const d of [".claude", ".opencode", ".codex"]) {
     assert.ok(!existsSync(join(proj, d)), `${d} must not be conjured — detection is by directory, so a guess becomes permanent`);
   }
-  mps(proj, ["agents", "install", "--harness", "codex"]);
+  waypost(proj, ["agents", "install", "--harness", "codex"]);
   assert.ok(existsSync(join(proj, ".codex", "agents", `${PREFIX}critic.toml`)), "naming one works");
   assert.ok(!existsSync(join(proj, ".claude")), "and only that one");
 });
 
-test("uninstall removes what mps generated and keeps what it did not", () => {
+test("uninstall removes what waypost generated and keeps what it did not", () => {
   const { proj } = bound();
-  mps(proj, ["agents", "install", "--harness", "claude"]);
+  waypost(proj, ["agents", "install", "--harness", "claude"]);
   const mine = join(proj, ".claude", "agents", `${PREFIX}critic.md`);
   const theirs = join(proj, ".claude", "agents", `${PREFIX}mine.md`);
-  writeFileSync(theirs, "---\nname: mps-mine\n---\nhand written\n", "utf8");
+  writeFileSync(theirs, "---\nname: waypost-mine\n---\nhand written\n", "utf8");
 
-  mps(proj, ["agents", "uninstall", "--harness", "claude"]);
+  waypost(proj, ["agents", "uninstall", "--harness", "claude"]);
   assert.ok(!existsSync(mine), "generated role files go");
-  assert.equal(readFileSync(theirs, "utf8"), "---\nname: mps-mine\n---\nhand written\n",
+  assert.equal(readFileSync(theirs, "utf8"), "---\nname: waypost-mine\n---\nhand written\n",
     "a file with no provenance line is not ours to delete");
 });
 
 test("a hand-edited role file is stale, and doctor says so as an issue", () => {
   const { proj } = bound();
-  mps(proj, ["agents", "install", "--harness", "claude"]);
+  waypost(proj, ["agents", "install", "--harness", "claude"]);
   const p = join(proj, ".claude", "agents", `${PREFIX}critic.md`);
   writeFileSync(p, readFileSync(p, "utf8").replace(/@[0-9a-f]{12}/, "@deadbeefcafe"), "utf8");
 
-  const findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  const findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   const stale = findings.find((f) => f.check === "agent-roles" && f.level === "issue");
   assert.ok(stale, `expected a stale-role issue, got:\n${JSON.stringify(findings, null, 2)}`);
-  assert.match(stale.message, /mps agents install --harness claude/, "it names the repair");
+  assert.match(stale.message, /waypost agents install --harness claude/, "it names the repair");
 
-  mps(proj, ["doctor", "--fix"]);
-  const after = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  waypost(proj, ["doctor", "--fix"]);
+  const after = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   assert.ok(!after.some((f) => f.check === "agent-roles" && f.level === "issue"), "--fix re-renders it");
 });
 
 test("agents model: the config pins the model the adapters render", () => {
   const { proj } = bound();
-  mps(proj, ["agents", "model", "default", "sonnet"]);
-  mps(proj, ["agents", "model", "reviewer", "fable"]);
-  mps(proj, ["agents", "install", "--harness", "claude"]);
+  waypost(proj, ["agents", "model", "default", "sonnet"]);
+  waypost(proj, ["agents", "model", "reviewer", "fable"]);
+  waypost(proj, ["agents", "install", "--harness", "claude"]);
   const read = (n) => readFileSync(join(proj, ".claude", "agents", `${PREFIX}${n}.md`), "utf8");
   assert.match(read("critic"), /^model: "sonnet"$/m, "the default applies to every role");
   assert.match(read("reviewer"), /^model: "fable"$/m, "a per-role pin wins over the default");
@@ -403,54 +403,54 @@ test("agents model: the config pins the model the adapters render", () => {
 
 test("a harness-blind model pin never reaches a harness whose ids it cannot be valid for", () => {
   const { proj } = bound();
-  const out = mps(proj, ["agents", "model", "default", "sonnet"]).stdout;
+  const out = waypost(proj, ["agents", "model", "default", "sonnet"]).stdout;
   assert.match(out, /applies to: claude\b/, "the CLI says where the pin lands");
-  mps(proj, ["agents", "install", "--harness", "claude,opencode,codex"]);
+  waypost(proj, ["agents", "install", "--harness", "claude,opencode,codex"]);
   const oc = readFileSync(join(proj, ".opencode", "agents", `${PREFIX}critic.md`), "utf8");
   const cx = readFileSync(join(proj, ".codex", "agents", `${PREFIX}critic.toml`), "utf8");
   assert.ok(!/^model:/m.test(oc), "a bare Claude id must not be written where OpenCode wants provider/model");
   assert.ok(!/^model = /m.test(cx), "Codex takes no model from us at all");
 
   // …and naming one per harness is how you do reach it.
-  mps(proj, ["agents", "model", "harness:opencode", "anthropic/claude-sonnet-4-5"]);
-  mps(proj, ["agents", "install", "--harness", "opencode"]);
+  waypost(proj, ["agents", "model", "harness:opencode", "anthropic/claude-sonnet-4-5"]);
+  waypost(proj, ["agents", "install", "--harness", "opencode"]);
   assert.match(readFileSync(join(proj, ".opencode", "agents", `${PREFIX}critic.md`), "utf8"),
     /^model: "anthropic\/claude-sonnet-4-5"$/m);
 });
 
 test("changing the model makes installed files stale — the hash covers the render, not just the source", () => {
   const { proj } = bound();
-  mps(proj, ["agents", "install", "--harness", "claude"]);
-  let findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  waypost(proj, ["agents", "install", "--harness", "claude"]);
+  let findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   assert.ok(!findings.some((f) => f.check === "agent-roles" && f.level === "issue"), "clean right after install");
 
-  mps(proj, ["agents", "model", "default", "sonnet"]);
-  findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  waypost(proj, ["agents", "model", "default", "sonnet"]);
+  findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   const stale = findings.find((f) => f.check === "agent-roles" && f.level === "issue");
   assert.ok(stale, "a config change that alters the render must show up as stale");
   assert.match(stale.message, /config or adapter changed/);
 
-  mps(proj, ["doctor", "--fix"]);
+  waypost(proj, ["doctor", "--fix"]);
   assert.match(readFileSync(join(proj, ".claude", "agents", `${PREFIX}critic.md`), "utf8"), /^model: "sonnet"$/m);
 });
 
-test("install and --fix never overwrite a file mps did not generate", () => {
+test("install and --fix never overwrite a file waypost did not generate", () => {
   const { proj } = bound();
   const p = join(proj, ".claude", "agents", `${PREFIX}critic.md`);
   mkdirSync(join(proj, ".claude", "agents"), { recursive: true });
-  const mine = "---\nname: mps-critic\ndescription: \"my own critic\"\n---\nhand written, keep me\n";
+  const mine = "---\nname: waypost-critic\ndescription: \"my own critic\"\n---\nhand written, keep me\n";
   writeFileSync(p, mine, "utf8");
 
-  const out = mps(proj, ["agents", "install", "--harness", "claude"]).stdout;
+  const out = waypost(proj, ["agents", "install", "--harness", "claude"]).stdout;
   assert.match(out, /skipped \(not ours\)/, "install reports the skip rather than doing it silently");
   assert.equal(readFileSync(p, "utf8"), mine, "the user's file survives install");
 
-  const findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  const findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   const foreign = findings.find((f) => f.check === "agent-roles-foreign");
   assert.ok(foreign, "doctor reports it under its own check id");
   assert.match(foreign.message, /skip them/);
 
-  mps(proj, ["doctor", "--fix"]);
+  waypost(proj, ["doctor", "--fix"]);
   assert.equal(readFileSync(p, "utf8"), mine, "the user's file survives doctor --fix, which is where it used to die");
 });
 
@@ -458,30 +458,30 @@ test("a model cannot be pinned for a harness whose files cannot carry one", () =
   const { proj } = bound();
   // A Cursor rule file has no model field at all — accepting a pin we would
   // then discard is worse than refusing it.
-  const r = mps(proj, ["agents", "model", "harness:cursor", "some/model"], { expectFail: true });
+  const r = waypost(proj, ["agents", "model", "harness:cursor", "some/model"], { expectFail: true });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /carry no model/);
-  const cfg = JSON.parse(readFileSync(join(proj, ".mps", "projectstore.json"), "utf8"));
+  const cfg = JSON.parse(readFileSync(join(proj, ".waypost", "projectstore.json"), "utf8"));
   assert.ok(!(cfg.agents && cfg.agents.per_harness && cfg.agents.per_harness.cursor),
     "and nothing was written to the config");
 
   // Codex's agent TOML does take `model`, so pinning it is accepted and lands.
-  mps(proj, ["agents", "model", "harness:codex", "gpt-5.4"]);
-  mps(proj, ["agents", "install", "--harness", "codex"]);
+  waypost(proj, ["agents", "model", "harness:codex", "gpt-5.4"]);
+  waypost(proj, ["agents", "install", "--harness", "codex"]);
   assert.match(readFileSync(join(proj, ".codex", "agents", `${PREFIX}critic.toml`), "utf8"),
     /^model = "gpt-5\.4"$/m);
 });
 
 test("uninstall leaves no empty directory for detection to trip over", () => {
   const { proj } = bound();
-  mps(proj, ["agents", "install", "--harness", "all"]);
-  mps(proj, ["agents", "uninstall", "--harness", "all"]);
+  waypost(proj, ["agents", "install", "--harness", "all"]);
+  waypost(proj, ["agents", "uninstall", "--harness", "all"]);
   for (const d of [".claude", ".opencode", ".codex"]) {
     assert.ok(!existsSync(join(proj, d)),
       `${d} survived uninstall — detection is by directory, so the harness would come back`);
   }
   // …and the repair path must not reinstall behind the user's back either.
-  mps(proj, ["doctor", "--fix"]);
+  waypost(proj, ["doctor", "--fix"]);
   assert.equal(readdirSync(proj).filter((n) => [".claude", ".opencode", ".codex"].includes(n)).length, 0,
     "doctor --fix put the roles back after an explicit uninstall");
 });
@@ -489,28 +489,28 @@ test("uninstall leaves no empty directory for detection to trip over", () => {
 test("doctor --fix repairs drift but never installs roles a project has not asked for", () => {
   const { proj } = bound();
   writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");   // a harness in use, no roles
-  const findings = JSON.parse(mps(proj, ["doctor", "--install", "--json"]).stdout);
+  const findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   const info = findings.find((f) => f.check === "agent-roles" && f.level === "info");
   assert.ok(info, "the offer is made as info");
 
-  mps(proj, ["doctor", "--fix"]);
+  waypost(proj, ["doctor", "--fix"]);
   assert.ok(!existsSync(join(proj, ".claude", "agents")), "an info-level offer is not a repair");
 
   // A partially installed set IS drift, and --fix does repair that.
-  mps(proj, ["agents", "install", "--harness", "claude"]);
+  waypost(proj, ["agents", "install", "--harness", "claude"]);
   rmSync(join(proj, ".claude", "agents", `${PREFIX}critic.md`));
-  mps(proj, ["doctor", "--fix"]);
+  waypost(proj, ["doctor", "--fix"]);
   assert.ok(existsSync(join(proj, ".claude", "agents", `${PREFIX}critic.md`)), "a missing file is restored");
 });
 
 test("a role declaring a vendor model id instead of a tier is rejected", () => {
-  const dir = mkdtempSync(join(tmpdir(), "mps-roles-"));
+  const dir = mkdtempSync(join(tmpdir(), "waypost-roles-"));
   mkdirSync(join(dir, "agents"), { recursive: true });
   writeFileSync(join(dir, "agents", "upstreamish.md"),
     "---\nname: upstreamish\ndescription: x\nmodel: opus\ntools: [read]\n---\nbody\n", "utf8");
   const r = spawnSync(process.execPath, ["-e",
     `import(${JSON.stringify(join(REPO, "scripts", "agents.mjs"))}).then(m => m.readRole("upstreamish")).catch(e => console.log(e.message))`],
-    { encoding: "utf8", env: { ...process.env, MPS_HOME: dir } });
+    { encoding: "utf8", env: { ...process.env, WAYPOST_HOME: dir } });
   assert.match(r.stdout, /not a neutral tier/,
     "an upstream role file must fail loudly, not render with the model silently dropped");
 });
@@ -518,23 +518,23 @@ test("a role declaring a vendor model id instead of a tier is rejected", () => {
 test("register writes exactly one routing block and migrates it in place", () => {
   const { proj } = bound();
   writeFileSync(join(proj, "AGENTS.md"), "# Project rules\n\nkeep me\n", "utf8");
-  mps(proj, ["agents", "register"]);
+  waypost(proj, ["agents", "register"]);
   let text = readFileSync(join(proj, "AGENTS.md"), "utf8");
-  assert.equal((text.match(/<!-- mps:agents v\d+/g) || []).length, 1);
+  assert.equal((text.match(/<!-- waypost:agents v\d+/g) || []).length, 1);
   assert.ok(text.includes("keep me"), "existing instructions survive");
   for (const n of roleNames()) assert.ok(text.includes(`${PREFIX}${n}`), `${n} is routed`);
 
-  mps(proj, ["agents", "register"]);
-  assert.equal((readFileSync(join(proj, "AGENTS.md"), "utf8").match(/<!-- mps:agents v\d+/g) || []).length, 1,
+  waypost(proj, ["agents", "register"]);
+  assert.equal((readFileSync(join(proj, "AGENTS.md"), "utf8").match(/<!-- waypost:agents v\d+/g) || []).length, 1,
     "re-registering replaces, never duplicates");
 
-  mps(proj, ["agents", "unregister"]);
-  assert.ok(!/mps:agents/.test(readFileSync(join(proj, "AGENTS.md"), "utf8")));
+  waypost(proj, ["agents", "unregister"]);
+  assert.ok(!/waypost:agents/.test(readFileSync(join(proj, "AGENTS.md"), "utf8")));
 });
 
 test("agents show prints the prompt alone — a harness with no subagents can pipe it", () => {
   const { proj } = bound();
-  const out = mps(proj, ["agents", "show", "critic", "adr/foo.md"]).stdout;
+  const out = waypost(proj, ["agents", "show", "critic", "adr/foo.md"]).stdout;
   assert.match(out, /^Target: adr\/foo\.md$/m, "the target is passed through");
   assert.ok(!out.includes("---\nname:"), "no frontmatter — this is a prompt, not a file");
   assert.ok(out.includes(readRole("critic").body.split("\n")[0]));
@@ -547,53 +547,53 @@ test("bind scaffolds the layout and refuses a silent rebind", () => {
   for (const d of ["adr", "specs", "epics", "research", "concepts", "meetings", "ops", "diagrams"]) {
     assert.ok(existsSync(join(vault, d, "README.md")), `${d}/README.md`);
   }
-  const cfg = JSON.parse(readFileSync(join(proj, ".mps", "projectstore.json"), "utf8"));
+  const cfg = JSON.parse(readFileSync(join(proj, ".waypost", "projectstore.json"), "utf8"));
   assert.equal(cfg.vault_path, vault);
   assert.equal(cfg.layout, "engineering");
 
-  const r = mps(proj, ["bind", join(proj, "other")], { expectFail: true });
+  const r = waypost(proj, ["bind", join(proj, "other")], { expectFail: true });
   assert.notEqual(r.status, 0, "a rebind elsewhere needs --force");
   assert.match(r.stderr, /--force/);
 });
 
 test("bind rejects an unknown layout or language before touching anything", () => {
   const proj = project();
-  const bad = mps(proj, ["bind", join(proj, "v"), "--layout", "nope"], { expectFail: true });
+  const bad = waypost(proj, ["bind", join(proj, "v"), "--layout", "nope"], { expectFail: true });
   assert.notEqual(bad.status, 0);
   assert.match(bad.stderr, /unknown layout/);
-  assert.ok(!existsSync(join(proj, ".mps")), "nothing was written");
+  assert.ok(!existsSync(join(proj, ".waypost")), "nothing was written");
 });
 
 test("draft --write creates the artifact and reconciles the derived views", () => {
   const { proj, vault } = bound();
-  mps(proj, ["draft", "adr", "Use Postgres", "--write"]);
+  waypost(proj, ["draft", "adr", "Use Postgres", "--write"]);
   const adr = join(vault, "adr", "use-postgres.md");
   assert.ok(existsSync(adr), "the artifact lands at its slug");
   assert.match(readFileSync(join(vault, "adr", "README.md"), "utf8"), /use-postgres/,
     "the folder index row is regenerated, not hand-patched");
 
-  const again = mps(proj, ["draft", "adr", "Use Postgres", "--write"], { expectFail: true });
+  const again = waypost(proj, ["draft", "adr", "Use Postgres", "--write"], { expectFail: true });
   assert.notEqual(again.status, 0, "creating the same identity twice is refused");
 
-  mps(proj, ["draft", "epic", "PS-1", "First epic", "--write"]);
-  mps(proj, ["draft", "story", "PS-1", "First story", "--write"]);
+  waypost(proj, ["draft", "epic", "PS-1", "First epic", "--write"]);
+  waypost(proj, ["draft", "story", "PS-1", "First story", "--write"]);
   assert.match(readFileSync(join(vault, "kanban.md"), "utf8"), /First story/, "the board picked it up");
 
-  mps(proj, ["graph"]);
+  waypost(proj, ["graph"]);
   assert.ok(existsSync(join(vault, "graph.md")));
-  mps(proj, ["codemap"]);
+  waypost(proj, ["codemap"]);
   assert.ok(existsSync(join(vault, "code-map.md")));
 });
 
 test("draft without --write previews cheaply, and --json still gives everything", () => {
   const { proj, vault } = bound();
-  const preview = mps(proj, ["draft", "adr", "Only a draft"]).stdout;
+  const preview = waypost(proj, ["draft", "adr", "Only a draft"]).stdout;
   assert.match(preview, /^would create .*adr\/only-a-draft\.md$/m);
   assert.ok(preview.length < 900, `a preview is a decision aid, not a copy of the file:\n${preview}`);
   assert.ok(!preview.includes("## Consequences"),
     "the whole rendered template in a preview is several hundred tokens of what is about to be on disk");
 
-  const out = JSON.parse(mps(proj, ["draft", "adr", "Only a draft", "--json"]).stdout);
+  const out = JSON.parse(waypost(proj, ["draft", "adr", "Only a draft", "--json"]).stdout);
   assert.equal(out.kind, "adr");
   assert.ok(out.content.includes("# Only a draft"), "--json is still the complete payload");
   assert.ok(!existsSync(out.path), "a preview is not a write");
@@ -602,19 +602,19 @@ test("draft without --write previews cheaply, and --json still gives everything"
 
 test("story gates: preview by default, applied with --write", () => {
   const { proj, vault } = bound();
-  mps(proj, ["draft", "epic", "PS-1", "E", "--write"]);
-  mps(proj, ["draft", "story", "PS-1", "S", "--write"]);
+  waypost(proj, ["draft", "epic", "PS-1", "E", "--write"]);
+  waypost(proj, ["draft", "story", "PS-1", "S", "--write"]);
   const story = join(vault, "epics", "PS-1", "stories", "story-s.md");
 
-  mps(proj, ["story", "plan", story]);
+  waypost(proj, ["story", "plan", story]);
   assert.match(readFileSync(story, "utf8"), /status: planned/, "a preview does not stamp the file");
 
-  mps(proj, ["story", "plan", story, "--write"]);
+  waypost(proj, ["story", "plan", story, "--write"]);
   const planned = readFileSync(story, "utf8");
   assert.match(planned, /status: in-progress/);
   assert.match(planned, /plan_updated_at: "20/);
 
-  mps(proj, ["story", "close", story, "--write"]);
+  waypost(proj, ["story", "close", story, "--write"]);
   const closed = readFileSync(story, "utf8");
   assert.match(closed, /status: done/);
   assert.match(closed, /closed_at: "20/);
@@ -624,28 +624,28 @@ test("story gates: preview by default, applied with --write", () => {
 
 test("a freshly bound and scaffolded project is clean under doctor", () => {
   const { proj } = bound();
-  mps(proj, ["agents", "install", "--harness", "claude"]);
-  mps(proj, ["agents", "register"]);
-  mps(proj, ["doctor", "--fix"]);
-  const findings = JSON.parse(mps(proj, ["doctor", "--json"]).stdout);
+  waypost(proj, ["agents", "install", "--harness", "claude"]);
+  waypost(proj, ["agents", "register"]);
+  waypost(proj, ["doctor", "--fix"]);
+  const findings = JSON.parse(waypost(proj, ["doctor", "--json"]).stdout);
   const issues = findings.filter((f) => f.level === "issue");
   assert.deepEqual(issues, [], `no issues expected:\n${JSON.stringify(issues, null, 2)}`);
 });
 
 test("doctor names the missing bind rather than the harness that is missing", () => {
   const proj = project();
-  const findings = JSON.parse(mps(proj, ["doctor", "--json"]).stdout);
+  const findings = JSON.parse(waypost(proj, ["doctor", "--json"]).stdout);
   const cfg = findings.find((f) => f.check === "config");
   assert.ok(cfg, "the unbound project is reported");
-  assert.match(cfg.message, /\.mps\/projectstore\.json/);
+  assert.match(cfg.message, /\.waypost\/projectstore\.json/);
   assert.ok(!/\.claude/.test(cfg.message), "the canonical path is not Claude's");
 });
 
 test("brief is the session-start packet, on demand and without a hook", () => {
   const { proj, vault } = bound();
-  mps(proj, ["draft", "epic", "PS-1", "E", "--write"]);
-  mps(proj, ["draft", "story", "PS-1", "S", "--write"]);
-  const out = mps(proj, ["brief"]).stdout;
+  waypost(proj, ["draft", "epic", "PS-1", "E", "--write"]);
+  waypost(proj, ["draft", "story", "PS-1", "S", "--write"]);
+  const out = waypost(proj, ["brief"]).stdout;
   assert.ok(out.includes(vault), "it names the vault it is orienting in");
   assert.match(out, /## Where things live/);
   assert.match(out, /\| `adr\/` \| adr \|/, "folders come from the layout");
@@ -654,9 +654,9 @@ test("brief is the session-start packet, on demand and without a hook", () => {
 
 test("sessions: the registry is reachable by command from any harness", () => {
   const { proj, vault } = bound();
-  const touched = mps(proj, ["sessions", "--touch", "--id", "alpha", "--json"]).stdout;
+  const touched = waypost(proj, ["sessions", "--touch", "--id", "alpha", "--json"]).stdout;
   assert.match(touched, /"touched": true/);
-  const listed = JSON.parse(mps(proj, ["sessions", "--id", "beta", "--json"]).stdout);
+  const listed = JSON.parse(waypost(proj, ["sessions", "--id", "beta", "--json"]).stdout);
   assert.ok(listed.active.some((s) => s.id === "alpha"), "another session sees it");
   assert.ok(existsSync(join(vault, ".projectstore", "sessions", "alpha.json")));
 });
@@ -664,14 +664,14 @@ test("sessions: the registry is reachable by command from any harness", () => {
 test("unknown commands and unbound vaults fail loudly, never silently", () => {
   const proj = project();
   for (const args of [["nope"], ["draft"], ["scaffold"], ["brief"], ["sessions"]]) {
-    const r = mps(proj, args, { expectFail: true });
+    const r = waypost(proj, args, { expectFail: true });
     assert.notEqual(r.status, 0, `${args.join(" ")} should exit non-zero`);
   }
 });
 
 test("help lists every command the dispatcher actually implements", () => {
   const proj = project();
-  const help = mps(proj, ["help"]).stdout;
+  const help = waypost(proj, ["help"]).stdout;
   for (const cmd of ["bind", "scaffold", "status", "draft", "story", "kanban", "graph", "codemap",
     "reconcile", "doctor", "diff-refs", "agents", "harnesses", "prompt", "skill", "sessions", "brief"]) {
     assert.ok(help.includes(cmd), `help mentions ${cmd}`);
@@ -681,14 +681,14 @@ test("help lists every command the dispatcher actually implements", () => {
 
 test("prompts and skills print, and name no upstream slash command", () => {
   const proj = project();
-  const list = mps(proj, ["prompt"]).stdout;
+  const list = waypost(proj, ["prompt"]).stdout;
   assert.match(list, /adr/);
   for (const name of ["adr", "story", "review"]) {
-    const text = mps(proj, ["prompt", name]).stdout;
+    const text = waypost(proj, ["prompt", name]).stdout;
     assert.ok(!/\/projectstore:/.test(text), `${name} names no upstream slash command`);
     assert.ok(!/CLAUDE_PLUGIN_ROOT/.test(text), `${name} names no Claude plugin path`);
   }
-  const skill = mps(proj, ["skill", "decision-detector"]).stdout;
+  const skill = waypost(proj, ["skill", "decision-detector"]).stdout;
   assert.ok(!/\/projectstore:/.test(skill));
 });
 
@@ -729,18 +729,18 @@ test("no user-facing message cites an ADR this fork does not have", () => {
 //
 // Everything below is a budget, not a style preference. The routing block and
 // the role descriptions sit in the context of EVERY turn of every session, and
-// `mps brief` starts every session — so a paragraph added here is paid for
+// `waypost brief` starts every session — so a paragraph added here is paid for
 // hundreds of times. Characters stand in for tokens: the ratio is stable enough
 // for a ceiling, and it needs no tokenizer.
 
 test("the standing context stays small — it is re-read on every turn", () => {
   const { proj } = bound();
   writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");
-  mps(proj, ["agents", "install", "--harness", "claude"]);
-  mps(proj, ["agents", "register"]);
+  waypost(proj, ["agents", "install", "--harness", "claude"]);
+  waypost(proj, ["agents", "register"]);
 
   const block = readFileSync(join(proj, "CLAUDE.md"), "utf8")
-    .match(/<!-- mps:agents[\s\S]*?<!-- \/mps:agents -->/)[0];
+    .match(/<!-- waypost:agents[\s\S]*?<!-- \/waypost:agents -->/)[0];
   assert.ok(block.length < 1400, `routing block is ${block.length} chars — it is in every turn`);
 
   // What a harness injects into the main context is the description of each
@@ -756,9 +756,9 @@ test("the standing context stays small — it is re-read on every turn", () => {
 
 test("routine commands answer without pasting the vault into the context", () => {
   const { proj } = bound();
-  mps(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
-  for (let i = 0; i < 12; i++) mps(proj, ["draft", "adr", `Decision number ${i}`, "--write"]);
-  mps(proj, ["graph"]);
+  waypost(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
+  for (let i = 0; i < 12; i++) waypost(proj, ["draft", "adr", `Decision number ${i}`, "--write"]);
+  waypost(proj, ["graph"]);
 
   const budgets = [
     [["brief"], 2200, "starts every session"],
@@ -769,24 +769,24 @@ test("routine commands answer without pasting the vault into the context", () =>
     [["search", "Decision number 7"], 900, "a search returns pointers, not documents"],
   ];
   for (const [args, max, why] of budgets) {
-    const out = mps(proj, args).stdout;
-    assert.ok(out.length < max, `\`mps ${args.join(" ")}\` is ${out.length} chars (budget ${max}) — ${why}`);
+    const out = waypost(proj, args).stdout;
+    assert.ok(out.length < max, `\`waypost ${args.join(" ")}\` is ${out.length} chars (budget ${max}) — ${why}`);
   }
 });
 
 test("a query beats reading a derived view whole, and the gap widens with the vault", () => {
   const { proj, vault } = bound();
-  mps(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
-  for (let i = 0; i < 12; i++) mps(proj, ["draft", "adr", `Decision number ${i}`, "--write"]);
-  mps(proj, ["graph"]);
+  waypost(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
+  for (let i = 0; i < 12; i++) waypost(proj, ["draft", "adr", `Decision number ${i}`, "--write"]);
+  waypost(proj, ["graph"]);
 
   const whole = readFileSync(join(vault, "graph.md"), "utf8");
-  const one = mps(proj, ["graph", "--for", "adr/decision-number-7.md"]).stdout;
+  const one = waypost(proj, ["graph", "--for", "adr/decision-number-7.md"]).stdout;
   assert.match(one, /decision-number-7/);
   assert.ok(one.length * 5 < whole.length,
     `one node cost ${one.length} chars against ${whole.length} for the file — at 200 artifacts the file is the whole budget`);
 
-  const missing = mps(proj, ["graph", "--for", "adr/not-a-node.md"], { expectFail: true });
+  const missing = waypost(proj, ["graph", "--for", "adr/not-a-node.md"], { expectFail: true });
   assert.notEqual(missing.status, 0, "an unknown node is an error, not an empty answer");
   assert.match(missing.stderr, /vault-relative path/, "…and it says what a node key looks like");
 });
@@ -797,55 +797,55 @@ test("one command leaves a project ready, and says what it did", () => {
   const proj = project();
   writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");   // a harness in use
 
-  const dry = mps(proj, ["setup", "--dry-run"]).stdout;
+  const dry = waypost(proj, ["setup", "--dry-run"]).stdout;
   assert.match(dry, /would bind vault/, "a dry run explains itself before touching anything");
-  assert.ok(!existsSync(join(proj, ".mps")), "…and touches nothing");
+  assert.ok(!existsSync(join(proj, ".waypost")), "…and touches nothing");
 
-  const out = mps(proj, ["setup"]).stdout;
+  const out = waypost(proj, ["setup"]).stdout;
   assert.match(out, /install roles for claude/, "the harness in use is detected, not asked about");
-  assert.ok(existsSync(join(proj, ".mps", "projectstore.json")), "bound");
+  assert.ok(existsSync(join(proj, ".waypost", "projectstore.json")), "bound");
   assert.ok(existsSync(join(proj, "vault", "adr", "README.md")), "vault scaffolded at a conventional path");
   assert.ok(existsSync(join(proj, ".claude", "agents", `${PREFIX}critic.md`)), "roles installed");
-  assert.match(readFileSync(join(proj, "CLAUDE.md"), "utf8"), /mps:agents/, "roles routed");
-  assert.match(readFileSync(join(proj, ".gitignore"), "utf8"), /\.mps\//, "mechanical findings repaired");
+  assert.match(readFileSync(join(proj, "CLAUDE.md"), "utf8"), /waypost:agents/, "roles routed");
+  assert.match(readFileSync(join(proj, ".gitignore"), "utf8"), /\.waypost\//, "mechanical findings repaired");
 
-  const again = mps(proj, ["setup"]).stdout;
+  const again = waypost(proj, ["setup"]).stdout;
   assert.match(again, /already bound/, "running it twice is safe and says so");
 });
 
 test("setup adopts a vault the project already has instead of making a second one", () => {
   const proj = project();
   mkdirSync(join(proj, "docs", "vault", "adr"), { recursive: true });
-  mps(proj, ["setup"]);
-  const cfg = JSON.parse(readFileSync(join(proj, ".mps", "projectstore.json"), "utf8"));
+  waypost(proj, ["setup"]);
+  const cfg = JSON.parse(readFileSync(join(proj, ".waypost", "projectstore.json"), "utf8"));
   assert.match(cfg.vault_path, /docs\/vault$/, "an existing vault is found, not duplicated");
 });
 
-test("`mps next` ranks what to do, and `mps` alone answers the two real questions", () => {
+test("`waypost next` ranks what to do, and `waypost` alone answers the two real questions", () => {
   const proj = project();
-  assert.match(mps(proj, []).stdout, /not set up[\s\S]*mps setup/,
+  assert.match(waypost(proj, []).stdout, /not set up[\s\S]*waypost setup/,
     "an unconfigured project is told the one command that configures it");
 
-  mps(proj, ["setup"]);
-  mps(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
-  mps(proj, ["draft", "story", "PS-1", "Story", "--write"]);
+  waypost(proj, ["setup"]);
+  waypost(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
+  waypost(proj, ["draft", "story", "PS-1", "Story", "--write"]);
   writeFileSync(join(proj, "vault", "kanban.md"), "hand-broken\n", "utf8");
 
-  const next = mps(proj, ["next"]).stdout;
+  const next = waypost(proj, ["next"]).stdout;
   assert.match(next, /kanban\.md is out of sync/, "a real inconsistency is surfaced");
-  assert.match(next, /mps reconcile --write/, "…with the command that fixes it");
+  assert.match(next, /waypost reconcile --write/, "…with the command that fixes it");
   assert.ok(next.length < 900, `next is a decision aid, not a report: ${next.length} chars`);
 
-  mps(proj, ["reconcile", "--write"]);
-  const clean = mps(proj, ["next"]).stdout;
+  waypost(proj, ["reconcile", "--write"]);
+  const clean = waypost(proj, ["next"]).stdout;
   assert.ok(!/kanban/.test(clean), "and it stops mentioning what is fixed");
 });
 
 test("presence beats on its own, so another device sees this session without being told", () => {
   const proj = project();
-  mps(proj, ["setup"]);
-  mps(proj, ["doctor"], { session: "auto-1" });          // any working command
-  const state = JSON.parse(mps(proj, ["sessions", "--json"], { session: "auto-2" }).stdout);
+  waypost(proj, ["setup"]);
+  waypost(proj, ["doctor"], { session: "auto-1" });          // any working command
+  const state = JSON.parse(waypost(proj, ["sessions", "--json"], { session: "auto-2" }).stdout);
   assert.ok(state.active.some((s) => s.id === "auto-1"),
     "a session that only ran doctor is still visible to the next device");
 });
@@ -856,22 +856,22 @@ test("--project/--home only capture a value when they lead argv, not a token tha
   const { proj, vault } = bound();
   // `status` ignores its own argv entirely, so this isolates main()'s global
   // flag scan: a trailing "--project somewhere-else" used to be stripped out
-  // and silently repointed MPS_PROJECT_DIR (A-8), making an already-bound
+  // and silently repointed WAYPOST_PROJECT_DIR (A-8), making an already-bound
   // project report as unbound.
-  const r = mps(proj, ["status", "--project", "somewhere-else"]);
+  const r = waypost(proj, ["status", "--project", "somewhere-else"]);
   assert.match(r.stdout, new RegExp(vault.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     "status still reports the real bound vault, not one derived from a trailing token");
 });
 
 test("a leading --project expands `~` the same way `bind` does", () => {
-  const fakeHome = mkdtempSync(join(tmpdir(), "mps-home-"));
+  const fakeHome = mkdtempSync(join(tmpdir(), "waypost-home-"));
   const target = join(fakeHome, "proj");
   mkdirSync(target, { recursive: true });
   spawnSync("git", ["init", "-q"], { cwd: target });
-  const r = spawnSync(process.execPath, [MPS, "--project", "~/proj", "bind", join(target, "vault")], {
-    encoding: "utf8", env: { ...process.env, MPS_HOME: REPO, HOME: fakeHome },
+  const r = spawnSync(process.execPath, [Waypost, "--project", "~/proj", "bind", join(target, "vault")], {
+    encoding: "utf8", env: { ...process.env, WAYPOST_HOME: REPO, HOME: fakeHome },
   });
   assert.equal(r.status, 0, r.stderr);
-  assert.ok(existsSync(join(target, ".mps", "projectstore.json")),
+  assert.ok(existsSync(join(target, ".waypost", "projectstore.json")),
     "~ resolved against HOME (A-9), not as a literal two-character path segment");
 });

@@ -12,7 +12,7 @@
     "AGENTS.md",
     "GEMINI.md"
   ],
-  "invoke": "pick the `mps-<role>` agent with `/agents`, or name it when delegating from the agent manager",
+  "invoke": "pick the `waypost-<role>` agent with `/agents`, or name it when delegating from the agent manager",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".agents/agents",

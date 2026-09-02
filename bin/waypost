@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// mps — MultiProjectStore: harness-agnostic project store & verified loop.
+// waypost — Waypost: harness-agnostic project store & verified loop.
 // One entry point for Claude Code, Codex and OpenCode. The dispatcher owns
 // every write to disk; the scripts under scripts/ stay pure compute printing
 // JSON, which is what lets doctor re-run them to detect drift.
 //
-// Subcommands: see help() at the bottom, or `mps help`.
+// Subcommands: see help() at the bottom, or `waypost help`.
 
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,18 +23,18 @@ const VERSION = (() => {
 })();
 
 function fail(msg) {
-  process.stderr.write(`mps: ${msg}\n`);
+  process.stderr.write(`waypost: ${msg}\n`);
   process.exit(1);
 }
 
 // Run a core script. `capture` pipes stdout so the dispatcher can act on the
 // JSON; otherwise the child owns the terminal. Either way the child's exit
-// code is ours — a harness scripting `mps doctor && ...` must see failures.
+// code is ours — a harness scripting `waypost doctor && ...` must see failures.
 function run(script, args = [], { capture = false } = {}) {
   const r = spawnSync(process.execPath, [SCRIPT(script), ...args], {
     encoding: "utf8",
     stdio: capture ? ["inherit", "pipe", "inherit"] : "inherit",
-    env: { ...process.env, MPS_HOME: process.env.MPS_HOME || ROOT },
+    env: { ...process.env, WAYPOST_HOME: process.env.WAYPOST_HOME || ROOT },
   });
   if (r.error) fail(`${script}: ${r.error.message}`);
   if (r.status !== 0) process.exit(r.status ?? 1);
@@ -52,20 +52,20 @@ function runJson(script, args = []) {
 }
 
 function projectRoot() {
-  return process.env.MPS_PROJECT_DIR || process.env.CLAUDE_PROJECT_DIR || process.cwd();
+  return process.env.WAYPOST_PROJECT_DIR || process.env.CLAUDE_PROJECT_DIR || process.cwd();
 }
 
 function configPath() {
   const r = projectRoot();
-  const mps = join(r, ".mps", "projectstore.json");
-  if (existsSync(mps)) return mps;
+  const waypost = join(r, ".waypost", "projectstore.json");
+  if (existsSync(waypost)) return waypost;
   const legacy = join(r, ".claude", "projectstore.json");
-  return existsSync(legacy) ? legacy : mps;
+  return existsSync(legacy) ? legacy : waypost;
 }
 
-// null means "not bound" — the right next step is `mps bind`/`mps setup`. A
+// null means "not bound" — the right next step is `waypost bind`/`waypost setup`. A
 // config that exists but does not parse is a different, louder problem: left
-// indistinguishable from "not bound", `mps setup` would silently rebind over
+// indistinguishable from "not bound", `waypost setup` would silently rebind over
 // it and discard whatever settings the file still held.
 function readConfig() {
   const p = configPath();
@@ -84,7 +84,7 @@ const VALUED = new Set(["--harness", "--layout", "--lang", "--only", "--id",
   "--story", "--merge", "--session", "--provider"]);
 
 // The literal `--` stops flag parsing, same as most POSIX CLIs: everything
-// after it is positional even if it is spelled like a flag (`mps search --
+// after it is positional even if it is spelled like a flag (`waypost search --
 // --literal`). Only tokens before it are eligible to be a flag name or a
 // flag's value.
 function splitAtTerminator(args) {
@@ -150,29 +150,29 @@ function handleSetup(args) {
       () => run("agents", ["install", ...(harnesses ? ["--harness", harnesses] : [])]));
     step("register the routing block", () => run("agents", ["register"]));
   } else {
-    say("no harness detected — run `mps agents install --harness <id>` once you pick one");
-    say("  (`mps harnesses --all` lists what is supported)");
+    say("no harness detected — run `waypost agents install --harness <id>` once you pick one");
+    say("  (`waypost harnesses --all` lists what is supported)");
   }
 
   // Not run(): doctor is a diagnostic, and `--fix` only mends what is
   // mechanical — a harness/spec/layout finding it cannot touch must not turn
-  // `mps setup` into a hard failure for having done the mechanical part of
+  // `waypost setup` into a hard failure for having done the mechanical part of
   // its job. spawnSync here so setup can read and print the report itself
   // and add the one line that matters: whether anything still needs a human.
   step("repair the mechanical install findings", () => {
     const r = spawnSync(process.execPath, [SCRIPT("doctor"), "--install", "--fix"], {
-      encoding: "utf8", env: { ...process.env, MPS_HOME: process.env.MPS_HOME || ROOT },
+      encoding: "utf8", env: { ...process.env, WAYPOST_HOME: process.env.WAYPOST_HOME || ROOT },
     });
     process.stdout.write(r.stdout || "");
     if (r.stderr) process.stderr.write(r.stderr);
     const m = (r.stdout || "").match(/Summary: (\d+) issue/);
-    if (m && Number(m[1]) > 0) process.stdout.write(`${m[1]} finding(s) remain — mps doctor\n`);
+    if (m && Number(m[1]) > 0) process.stdout.write(`${m[1]} finding(s) remain — waypost doctor\n`);
   });
   if (!dry) {
     process.stdout.write("\nready. Next:\n");
-    process.stdout.write("  mps next                      what this project needs right now\n");
-    process.stdout.write("  mps brief                     orientation at the start of a session\n");
-    process.stdout.write('  mps draft adr "<decision>" --write\n');
+    process.stdout.write("  waypost next                      what this project needs right now\n");
+    process.stdout.write("  waypost brief                     orientation at the start of a session\n");
+    process.stdout.write('  waypost draft adr "<decision>" --write\n');
   }
 }
 
@@ -206,7 +206,7 @@ function passThrough(args, names) {
 // clause separator), else on the first SENTENCE-ending period (one followed
 // by whitespace or end of string) — never the first bare ".", which cuts a
 // message off mid-path on anything naming a file (kanban.md, .gitattributes,
-// .mps/…) or a domain-shaped word.
+// .waypost/…) or a domain-shaped word.
 function leadClause(message) {
   const dash = message.split(" — ")[0];
   return dash !== message ? dash : message.split(/\.(?:\s|$)/)[0];
@@ -221,7 +221,7 @@ function handleNext(args) {
   const cfg = readConfig();
   const items = [];
   if (!cfg || !cfg.vault_path) {
-    process.stdout.write("not bound to a vault yet — run `mps setup`\n");
+    process.stdout.write("not bound to a vault yet — run `waypost setup`\n");
     return;
   }
   const findings = (() => {
@@ -240,7 +240,7 @@ function handleNext(args) {
       "coordinate before touching it"]);
   }
   for (const f of by("work-without-story", "warn")) {
-    items.push([3, "source changes with no story open", 'mps draft story <EPIC> "<title>" --write']);
+    items.push([3, "source changes with no story open", 'waypost draft story <EPIC> "<title>" --write']);
   }
   for (const f of findings.filter((f) => f.level === "warn" && f.check !== "work-without-story")) {
     items.push([4, leadClause(f.message).slice(0, 110), repairFor(f)]);
@@ -251,22 +251,22 @@ function handleNext(args) {
 
   if (!items.length) {
     process.stdout.write("nothing needs doing: vault consistent, roles installed, no conflicting session.\n"
-      + "Next feature-sized change starts with `mps draft story <EPIC> \"<title>\" --write`.\n");
+      + "Next feature-sized change starts with `waypost draft story <EPIC> \"<title>\" --write`.\n");
     return;
   }
   items.sort((a, b) => a[0] - b[0]);
   for (const [, what, how] of items.slice(0, 8)) {
     process.stdout.write(`- ${what}\n${how ? `    ${how}\n` : ""}`);
   }
-  if (items.length > 8) process.stdout.write(`…and ${items.length - 8} more (mps doctor)\n`);
+  if (items.length > 8) process.stdout.write(`…and ${items.length - 8} more (waypost doctor)\n`);
 }
 
 function repairFor(f) {
   const map = {
-    kanban: "mps reconcile --write", "code-map": "mps reconcile --write", indexes: "mps reconcile --write",
-    graph: "mps graph", "agent-roles": "mps agents install", "agents-block": "mps agents register",
-    gitignore: "mps doctor --fix", "vault-git": "mps doctor --fix", "merge-driver": "mps doctor --fix",
-    "line-endings": "mps doctor --fix", config: "mps setup",
+    kanban: "waypost reconcile --write", "code-map": "waypost reconcile --write", indexes: "waypost reconcile --write",
+    graph: "waypost graph", "agent-roles": "waypost agents install", "agents-block": "waypost agents register",
+    gitignore: "waypost doctor --fix", "vault-git": "waypost doctor --fix", "merge-driver": "waypost doctor --fix",
+    "line-endings": "waypost doctor --fix", config: "waypost setup",
   };
   return map[f.check] || null;
 }
@@ -290,7 +290,7 @@ function handleBind(args) {
     fail(`already bound to ${existing.vault_path} — re-run with --force to rebind to ${abs}`);
   }
   mkdirSync(abs, { recursive: true });
-  const cfgPath = join(projectRoot(), ".mps", "projectstore.json");
+  const cfgPath = join(projectRoot(), ".waypost", "projectstore.json");
   mkdirSync(dirname(cfgPath), { recursive: true });
   const cfg = {
     ...(existing || {}),
@@ -298,17 +298,17 @@ function handleBind(args) {
     layout,
     language: lang,
     default_author: (existing && existing.default_author) || gitUser(),
-    mps: { version: VERSION },
+    waypost: { version: VERSION },
   };
   writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + "\n", "utf8");
   process.stdout.write(`bound  ${abs}\nconfig ${cfgPath}\n`);
-  process.env.MPS_PROJECT_DIR = projectRoot();
+  process.env.WAYPOST_PROJECT_DIR = projectRoot();
   handleScaffold([]);
   process.stdout.write(
     "\nnext:\n" +
-    "  mps agents install         install the roles into the harnesses this project uses\n" +
-    '  mps draft adr "<title>" --write\n' +
-    "  mps doctor\n",
+    "  waypost agents install         install the roles into the harnesses this project uses\n" +
+    '  waypost draft adr "<title>" --write\n' +
+    "  waypost doctor\n",
   );
 }
 
@@ -324,7 +324,7 @@ function gitUser() {
 // they are the CLI's job and never an LLM's.
 function handleScaffold(args) {
   const cfg = readConfig();
-  if (!cfg || !cfg.vault_path) fail("no bound vault — run `mps bind <vault-path>` first");
+  if (!cfg || !cfg.vault_path) fail("no bound vault — run `waypost bind <vault-path>` first");
   const layout = JSON.parse(readFileSync(join(ROOT, "scaffold", "layouts", `${cfg.layout || "engineering"}.json`), "utf8"));
   const lang = cfg.language || "en";
   const created = [];
@@ -341,7 +341,7 @@ function handleScaffold(args) {
     writeFileSync(p, tmpl
       .replace(/\{\{folder_name\}\}/g, title)
       .replace(/\{\{folder_description\}\}/g,
-        `\`${folder.kind}\` artifacts of the \`${layout.name}\` layout, maintained by mps.`), "utf8");
+        `\`${folder.kind}\` artifacts of the \`${layout.name}\` layout, maintained by waypost.`), "utf8");
     created.push(`${folder.path}/README.md`);
   }
   if (flag(args, "--json")) { process.stdout.write(JSON.stringify({ created }, null, 2) + "\n"); return; }
@@ -393,7 +393,7 @@ function handleDraft(args) {
 
 function reconcileAfterWrite() {
   const r = spawnSync(process.execPath, [SCRIPT("reconcile"), "--write"], {
-    encoding: "utf8", env: { ...process.env, MPS_HOME: process.env.MPS_HOME || ROOT },
+    encoding: "utf8", env: { ...process.env, WAYPOST_HOME: process.env.WAYPOST_HOME || ROOT },
   });
   let failed = [];
   try {
@@ -405,9 +405,9 @@ function reconcileAfterWrite() {
     process.stdout.write("derived views reconciled (indexes, kanban, code-map, graph)\n");
     return;
   }
-  process.stderr.write("mps: the artifact was written, but reconciling the derived views failed:\n"
+  process.stderr.write("waypost: the artifact was written, but reconciling the derived views failed:\n"
     + (failed.length ? failed.map((f) => `  ${f}\n`).join("") : `  ${(r.stderr || "").trim()}\n`)
-    + "  fix the cause, then run `mps reconcile --write`.\n");
+    + "  fix the cause, then run `waypost reconcile --write`.\n");
   process.exitCode = 1;
 }
 
@@ -457,7 +457,7 @@ function claimForStory(storyPath, vault) {
   // But the session that is about to duplicate work should hear about it here.
   if (storyPath) {
     const r = spawnSync(process.execPath, [SCRIPT("sessions"), "--json"], {
-      encoding: "utf8", env: { ...process.env, MPS_HOME: process.env.MPS_HOME || ROOT },
+      encoding: "utf8", env: { ...process.env, WAYPOST_HOME: process.env.WAYPOST_HOME || ROOT },
     });
     try {
       const { claims = [], session_id: self } = JSON.parse(r.stdout || "{}");
@@ -471,10 +471,10 @@ function claimForStory(storyPath, vault) {
   }
   const args = storyPath ? ["--claim", storyPath] : ["--release"];
   const r = spawnSync(process.execPath, [SCRIPT("sessions"), ...args], {
-    encoding: "utf8", env: { ...process.env, MPS_HOME: process.env.MPS_HOME || ROOT },
+    encoding: "utf8", env: { ...process.env, WAYPOST_HOME: process.env.WAYPOST_HOME || ROOT },
   });
   const line = (r.stdout || "").split("\n").find((l) => l.startsWith("claimed") || l.startsWith("released"));
-  if (line) process.stdout.write(`  ${line.trim()}  (visible to other sessions via \`mps sessions\`)\n`);
+  if (line) process.stdout.write(`  ${line.trim()}  (visible to other sessions via \`waypost sessions\`)\n`);
 }
 
 // ─── derived views ─────────────────────────────────────────────────────
@@ -487,9 +487,9 @@ const DERIVED = { kanban: "kanban", graph: "graph", codemap: "codemap" };
 // question instead — the derived views stay the source, this is just a lens.
 function handleGraphQuery(target, args) {
   const cfg = readConfig();
-  if (!cfg || !cfg.vault_path) fail("no bound vault — run `mps bind <vault-path>` first");
+  if (!cfg || !cfg.vault_path) fail("no bound vault — run `waypost bind <vault-path>` first");
   const p = join(cfg.vault_path, "graph.md");
-  if (!existsSync(p)) fail("no graph.md yet — run `mps graph`");
+  if (!existsSync(p)) fail("no graph.md yet — run `waypost graph`");
   const needle = target.replace(/\\/g, "/").replace(/^\.\//, "");
   const lines = readFileSync(p, "utf8").split("\n");
   const hits = lines.filter((l) => l.includes(needle) && l.startsWith("|"));
@@ -515,7 +515,7 @@ function handleGraphQuery(target, args) {
 // handful of full-file reads.
 function handleSearch(args) {
   const cfg = readConfig();
-  if (!cfg || !cfg.vault_path) fail("no bound vault — run `mps bind <vault-path>` first");
+  if (!cfg || !cfg.vault_path) fail("no bound vault — run `waypost bind <vault-path>` first");
   const terms = positionals(args);
   if (!terms.length) fail('search "<text>" [--kind adr|spec|epic|story|…] [--limit 20]');
   const kind = opt(args, "--kind");
@@ -602,10 +602,10 @@ function printDoc(dir, name, suffix) {
     .filter((n) => !n.startsWith("."))
     .sort();
   if (!name) {
-    process.stdout.write(`${dir}:\n  ${names.join("\n  ")}\n\nPrint one with: mps ${dir === "prompts" ? "prompt" : "skill"} <name>\n`);
+    process.stdout.write(`${dir}:\n  ${names.join("\n  ")}\n\nPrint one with: waypost ${dir === "prompts" ? "prompt" : "skill"} <name>\n`);
     return;
   }
-  // A name, never a path: `mps prompt ../README` used to print whatever the
+  // A name, never a path: `waypost prompt ../README` used to print whatever the
   // traversal landed on.
   if (!/^[\w.-]+$/.test(name) || name.includes("..")) fail(`not a valid name: ${name}`);
   const p = suffix ? join(base, name, suffix) : join(base, `${name}.md`);
@@ -618,9 +618,9 @@ function printDoc(dir, name, suffix) {
 function handleStatus() {
   const p = configPath();
   const cfg = readConfig();
-  process.stdout.write(`mps ${VERSION}\n`);
+  process.stdout.write(`waypost ${VERSION}\n`);
   if (!cfg) {
-    process.stdout.write(`config  (none — run \`mps bind <vault-path>\`)\n        expected at ${p}\n`);
+    process.stdout.write(`config  (none — run \`waypost bind <vault-path>\`)\n        expected at ${p}\n`);
     return;
   }
   process.stdout.write(`config  ${p}\n`);
@@ -638,39 +638,39 @@ function handleStatus() {
   // Who else is live on this vault, before anything about roles: on a shared
   // vault that is the fact that changes what you should do next.
   run("sessions", []);
-  // Roles: a count, not five paragraphs. `mps agents list` is one command away
+  // Roles: a count, not five paragraphs. `waypost agents list` is one command away
   // when the detail is actually wanted.
   const st = JSON.parse(run("agents", ["list", "--json"], { capture: true }) || "{}");
   const per = (st.install || []).filter((h) => h.roles.some((r) => r.state !== "absent" && r.state !== "n/a"))
     .map((h) => `${h.harness}: ${h.roles.filter((r) => r.state === "current").length}/${h.roles.length}`);
   process.stdout.write(`roles   ${(st.roles || []).length} defined · ${per.length ? per.join(" · ") : "not installed"}`
-    + `  (mps agents list)\n`);
+    + `  (waypost agents list)\n`);
 }
 
-// Bare `mps` is the most likely first thing anyone types. Answer the two
+// Bare `waypost` is the most likely first thing anyone types. Answer the two
 // questions they actually have — is this set up, and what do I do — rather than
 // printing a manual.
 function handleDefault() {
   const cfg = readConfig();
   if (!cfg || !cfg.vault_path) {
-    process.stdout.write(`mps ${VERSION} — not set up in ${projectRoot()}\n\n`
-      + "  mps setup         bind a vault, install the roles for this project's harnesses,\n"
+    process.stdout.write(`waypost ${VERSION} — not set up in ${projectRoot()}\n\n`
+      + "  waypost setup         bind a vault, install the roles for this project's harnesses,\n"
       + "                    register them, and repair anything mechanical\n"
-      + "  mps setup --dry-run   see what that would do first\n"
-      + "  mps help          every command\n");
+      + "  waypost setup --dry-run   see what that would do first\n"
+      + "  waypost help          every command\n");
     return;
   }
-  process.stdout.write(`mps ${VERSION} · vault ${cfg.vault_path}\n\n`);
+  process.stdout.write(`waypost ${VERSION} · vault ${cfg.vault_path}\n\n`);
   handleNext([]);
-  process.stdout.write("\nmps brief (orientation) · mps help (every command)\n");
+  process.stdout.write("\nwaypost brief (orientation) · waypost help (every command)\n");
 }
 
 function help() {
-  process.stdout.write(`mps — MultiProjectStore ${VERSION}
+  process.stdout.write(`waypost — Waypost ${VERSION}
 
 USAGE
-  mps <command> [args]
-  mps <command> [args] -- <literal positional, even if it looks like a flag>
+  waypost <command> [args]
+  waypost <command> [args] -- <literal positional, even if it looks like a flag>
 
 START HERE
   setup                    do the whole install: bind a vault, scaffold it,
@@ -722,7 +722,7 @@ WORKING IN SEVERAL HARNESSES AT ONCE
 ROLES (same roles in every harness)
   agents list              roles + per-harness install state
   agents show <role>       print the role prompt (fresh-context handoff)
-  harnesses                every harness mps can render roles for, and where
+  harnesses                every harness waypost can render roles for, and where
                            they land (* = detected here)
   agents install           render the roles into the harnesses this project
                            uses  [--harness <id>[,<id>…]|all]
@@ -742,19 +742,19 @@ PROCEDURES
 HARNESS-AGNOSTIC
   No hooks, no status line, no slash commands: the CLI is the interface, and
   the roles are rendered into whatever each harness understands. A harness is a
-  JSON file in harnesses/ — add your own in .mps/harnesses/ (mps harnesses).
-  Project root: MPS_PROJECT_DIR (else cwd). Tool root: MPS_HOME.
+  JSON file in harnesses/ — add your own in .waypost/harnesses/ (waypost harnesses).
+  Project root: WAYPOST_PROJECT_DIR (else cwd). Tool root: WAYPOST_HOME.
 `);
 }
 
 // ─── lease ─────────────────────────────────────────────────────────────
 //
-// AGENTS.md and this file's own help() document `mps lease <path…>` — a path
+// AGENTS.md and this file's own help() document `waypost lease <path…>` — a path
 // as the first token, not a subcommand. presence.mjs's own CLI takes
 // `lease|acquire|release|list|watch|storage` as its first token, so a path
 // forwarded unchanged reads as an unknown subcommand. Insert the implied
 // "lease" subcommand unless the caller already named a real one, or gave only
-// flags (`mps lease --json`, read as "list mine, as json" — there is no path
+// flags (`waypost lease --json`, read as "list mine, as json" — there is no path
 // to lease, so there is nothing to insert "lease" in front of).
 const LEASE_SUBCOMMANDS = new Set(["lease", "acquire", "release", "list", "watch", "storage"]);
 function leaseArgs(rest) {
@@ -766,31 +766,31 @@ function leaseArgs(rest) {
 
 // Presence is only useful if it happens without being asked. Every command that
 // implies work beats the session's heartbeat, so another device sees this
-// session without anyone remembering `mps sessions --touch`. Never fails the
-// command, never runs for a read-only lookup, and MPS_NO_BEAT=1 turns it off.
+// session without anyone remembering `waypost sessions --touch`. Never fails the
+// command, never runs for a read-only lookup, and WAYPOST_NO_BEAT=1 turns it off.
 const QUIET_COMMANDS = new Set(["help", "--help", "-h", "version", "--version", "-v",
   "harnesses", "prompt", "skill", "agents", "log", "storage"]);
 
 async function heartbeat(cmd) {
-  if (QUIET_COMMANDS.has(cmd) || process.env.MPS_NO_BEAT) return;
+  if (QUIET_COMMANDS.has(cmd) || process.env.WAYPOST_NO_BEAT) return;
   try {
-    // Session id is already resolved and pinned in MPS_SESSION_ID by main()
+    // Session id is already resolved and pinned in WAYPOST_SESSION_ID by main()
     // before this runs (G-1) — no need to import sessions.mjs or lib.mjs just
     // to derive it again here.
     const { beat } = await import(`file://${SCRIPT("presence")}`);
     const cfg = readConfig();
     if (cfg && cfg.vault_path && existsSync(cfg.vault_path)) {
-      beat(cfg.vault_path, process.env.MPS_SESSION_ID, { harness: process.env.MPS_HARNESS || null });
+      beat(cfg.vault_path, process.env.WAYPOST_SESSION_ID, { harness: process.env.WAYPOST_HARNESS || null });
     }
   } catch { /* presence is advisory; a command must never fail because of it */ }
 }
 
 async function main() {
   // Resolved ONCE, here, where process.ppid genuinely is the shell or harness
-  // that invoked the CLI — not inside a script bin/mps spawns, whose parent
-  // pid is bin/mps itself and is different on every single invocation (G-1).
+  // that invoked the CLI — not inside a script bin/waypost spawns, whose parent
+  // pid is bin/waypost itself and is different on every single invocation (G-1).
   // Every child this process spawns inherits it via `env: { ...process.env }`.
-  if (!process.env.MPS_SESSION_ID) process.env.MPS_SESSION_ID = sessionId(process.argv);
+  if (!process.env.WAYPOST_SESSION_ID) process.env.WAYPOST_SESSION_ID = sessionId(process.argv);
 
   const argv = process.argv.slice(2);
   // --project/--home are recognised ONLY in the leading position, before the
@@ -800,10 +800,10 @@ async function main() {
   let i = 0;
   while (i < argv.length) {
     if (argv[i] === "--project" && argv[i + 1] !== undefined) {
-      process.env.MPS_PROJECT_DIR = resolve(expandHome(argv[i + 1]));
+      process.env.WAYPOST_PROJECT_DIR = resolve(expandHome(argv[i + 1]));
       i += 2;
     } else if (argv[i] === "--home" && argv[i + 1] !== undefined) {
-      process.env.MPS_HOME = resolve(expandHome(argv[i + 1]));
+      process.env.WAYPOST_HOME = resolve(expandHome(argv[i + 1]));
       i += 2;
     } else break;
   }
@@ -847,7 +847,7 @@ async function main() {
     case "version": case "--version": case "-v": process.stdout.write(`${VERSION}\n`); break;
     case "help": case "--help": case "-h": help(); break;
     default:
-      process.stderr.write(`mps: unknown command "${cmd}"\n\n`);
+      process.stderr.write(`waypost: unknown command "${cmd}"\n\n`);
       help();
       process.exit(1);
   }

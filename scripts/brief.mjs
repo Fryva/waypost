@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// mps — brief.mjs
+// waypost — brief.mjs
 // The session-start orientation packet, on demand.
 //
 // Upstream injected this through Claude Code's SessionStart hook. A hook is
 // exactly the thing this fork cannot have in three harnesses, so the same
-// payload is printed by a command instead: a rule ("run `mps brief` when you
+// payload is printed by a command instead: a rule ("run `waypost brief` when you
 // start work in this project") reaches Claude Code, Codex and OpenCode alike.
 //
 // What it prints is a SKELETON, not vault content: where things live, how many
@@ -39,8 +39,8 @@ function condense(text) {
   }
   return keep.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\s*$/, "\n")
     + "\nDerived: `kanban.md`, `code-map.md`, `graph.md` are regenerated from frontmatter —"
-    + " query `graph.md` by vault-relative path (`mps graph --for <path>`), never read it whole."
-    + " `mps brief --full` explains the descent order.\n";
+    + " query `graph.md` by vault-relative path (`waypost graph --for <path>`), never read it whole."
+    + " `waypost brief --full` explains the descent order.\n";
 }
 
 // Who else is working on this vault right now — the first thing that matters
@@ -79,7 +79,7 @@ async function main() {
   const args = process.argv.slice(2);
   const cfg = readConfig();
   if (!cfg || !cfg.vault_path) {
-    process.stderr.write("mps brief: no bound vault — run `mps bind <vault-path>` first\n");
+    process.stderr.write("waypost brief: no bound vault — run `waypost bind <vault-path>` first\n");
     process.exit(1);
   }
   const i = args.indexOf("--budget");
@@ -87,7 +87,7 @@ async function main() {
   if (i !== -1) {
     budgetMs = Number(args[i + 1]);
     if (!Number.isFinite(budgetMs) || budgetMs <= 0) {
-      process.stderr.write(`mps brief: --budget takes a positive number of milliseconds, got "${args[i + 1]}"\n`);
+      process.stderr.write(`waypost brief: --budget takes a positive number of milliseconds, got "${args[i + 1]}"\n`);
       process.exit(1);
     }
   }
@@ -97,7 +97,7 @@ async function main() {
 
 if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((e) => {
-    process.stderr.write(`mps brief: ${e.message}\n`);
+    process.stderr.write(`waypost brief: ${e.message}\n`);
     process.exit(1);
   });
 }

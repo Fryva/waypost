@@ -22,7 +22,7 @@ import {
 } from "./lib.mjs";
 
 function die(msg) {
-  process.stderr.write(`mps codemap: ${msg}\n`);
+  process.stderr.write(`waypost codemap: ${msg}\n`);
   process.exit(1);
 }
 
@@ -38,7 +38,7 @@ function parseRefs(raw) {
 
 function main() {
   const cfg = readConfig();
-  if (!cfg) die("No projectstore config. Run mps bind first.");
+  if (!cfg) die("No projectstore config. Run waypost bind first.");
   const layout = loadLayout(cfg.layout);
   const folder = folderByKind(layout, "epic");
   if (!folder) die("Layout has no epic folder — nothing to map.");
@@ -78,7 +78,7 @@ function main() {
     "# Code map",
     "",
     "Epic ↔ code mapping, derived from frontmatter `code_refs` (source of truth).",
-    "Regenerate via `mps codemap`; edit refs via `mps codemap set`.",
+    "Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.",
     "",
     "| Epic | Title | Status | code_refs |",
     "|------|-------|--------|-----------|",

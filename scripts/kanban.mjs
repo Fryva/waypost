@@ -26,7 +26,7 @@ import {
 } from "./lib.mjs";
 
 function die(msg) {
-  process.stderr.write(`mps kanban: ${msg}\n`);
+  process.stderr.write(`waypost kanban: ${msg}\n`);
   process.exit(1);
 }
 
@@ -116,7 +116,7 @@ function renderItem(story) {
 
 function main() {
   const cfg = readConfig();
-  if (!cfg) die("No projectstore config. Run mps bind first.");
+  if (!cfg) die("No projectstore config. Run waypost bind first.");
   const layout = loadLayout(cfg.layout);
   if (!layout.kanban) die(`Layout ${cfg.layout} does not declare a kanban config.`);
 

@@ -1,4 +1,4 @@
-// mps — predicate tests. Zero-dependency: run with
+// waypost — predicate tests. Zero-dependency: run with
 //   node --test tests/*.test.mjs
 // Covers the deterministic predicates the core is built on: numbering, heading
 // registry matching, legacy exemption, list parsing, layout-driven template
@@ -933,7 +933,7 @@ function seedEntryFixture() {
 test("openStoryFrom: only in-progress counts as open (contract 5)", () => {
   assert.equal(openStoryFrom([{ status: "in-progress" }]), true);
   assert.equal(openStoryFrom([{ status: "planned" }]), false,
-    "a story that never went through `mps story plan` is not open work");
+    "a story that never went through `waypost story plan` is not open work");
   assert.equal(openStoryFrom([{ status: "done" }]), false);
   assert.equal(openStoryFrom([{ status: "planned" }, { status: "done" }]), false);
   assert.equal(openStoryFrom([{ status: "planned" }, { status: "in-progress" }]), true);
@@ -978,8 +978,8 @@ test("checkWorkWithoutStory: fires on dirty tree with no open story, silent othe
     writeFileSync(join(vault, "epics", "PS-A", "stories", name),
       `---\ntype: story\nstatus: ${status}\n---\n\n# s\n`, "utf8");
 
-  const prevProj = process.env.MPS_PROJECT_DIR;
-  process.env.MPS_PROJECT_DIR = proj;
+  const prevProj = process.env.WAYPOST_PROJECT_DIR;
+  process.env.WAYPOST_PROJECT_DIR = proj;
   try {
     // Not a git repository at all → cannot tell → no finding, not an error.
     story("story-a.md", "planned");
@@ -995,7 +995,7 @@ test("checkWorkWithoutStory: fires on dirty tree with no open story, silent othe
     assert.equal(fired.length, 1, "dirty tree + no story in progress");
     assert.equal(fired[0].level, "warn", "never issue — spikes legitimately look like this");
     assert.equal(fired[0].check, "work-without-story");
-    assert.ok(/mps draft story/.test(fired[0].message),
+    assert.ok(/waypost draft story/.test(fired[0].message),
       "the finding names the command that opens the work in the vault");
     assert.ok(!/reminder/i.test(fired[0].message),
       "no hook counts reminders in this fork, so the finding must not claim any");
@@ -1017,8 +1017,8 @@ test("checkWorkWithoutStory: fires on dirty tree with no open story, silent othe
         "a diagnostic that cannot read must say so, not go quiet");
     }
   } finally {
-    if (prevProj === undefined) delete process.env.MPS_PROJECT_DIR;
-    else process.env.MPS_PROJECT_DIR = prevProj;
+    if (prevProj === undefined) delete process.env.WAYPOST_PROJECT_DIR;
+    else process.env.WAYPOST_PROJECT_DIR = prevProj;
   }
 });
 

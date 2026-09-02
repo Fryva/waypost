@@ -5,8 +5,8 @@
 - Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
-- Related: `bin/mps`, `scripts/*.mjs`, `AGENTS.md`, `opencode.json`
-- code_refs: ["bin/mps", "scripts/lib.mjs", "scripts/doctor.mjs", "scripts/graph.mjs", "scripts/codemap.mjs", "scripts/reconcile.mjs", "scripts/draft.mjs", "scripts/kanban.mjs", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/sessions.mjs", "tests/harness.test.mjs", "AGENTS.md", "opencode.json"]
+- Related: `bin/waypost`, `scripts/*.mjs`, `AGENTS.md`, `opencode.json`
+- code_refs: ["bin/waypost", "scripts/lib.mjs", "scripts/doctor.mjs", "scripts/graph.mjs", "scripts/codemap.mjs", "scripts/reconcile.mjs", "scripts/draft.mjs", "scripts/kanban.mjs", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/sessions.mjs", "tests/harness.test.mjs", "AGENTS.md", "opencode.json"]
 
 ## Context
 
@@ -30,11 +30,11 @@ incompatible everywhere else.
 
 ## Considered options
 
-### Option 1: one neutral CLI, `mps` (chosen)
+### Option 1: one neutral CLI, `waypost` (chosen)
 
-`bin/mps` dispatches into the core scripts and prints the same JSON for every
-harness. Paths in `lib.mjs` become neutral (`MPS_PROJECT_DIR` / `MPS_HOME`, with
-`CLAUDE_*` as fallbacks) and the bind config moves to `.mps/projectstore.json`
+`bin/waypost` dispatches into the core scripts and prints the same JSON for every
+harness. Paths in `lib.mjs` become neutral (`WAYPOST_PROJECT_DIR` / `WAYPOST_HOME`, with
+`CLAUDE_*` as fallbacks) and the bind config moves to `.waypost/projectstore.json`
 (legacy `.claude/projectstore.json` still read). Shared rules live in `AGENTS.md`,
 which all three harnesses read (Claude via `@AGENTS.md`, OpenCode via
 `opencode.json` instructions).
@@ -82,11 +82,11 @@ shared rules in `AGENTS.md` / `opencode.json`. Path handling is neutralised in
 
 - The first revision of this ADR claimed the CLI had been "run by hand against a
   test vault". That was false: at the time not one script parsed — a bulk
-  rewrite of `/projectstore:X` into `"mps X"` had broken string literals across
+  rewrite of `/projectstore:X` into `"waypost X"` had broken string literals across
   every `scripts/*.mjs`. Fixed on 2026-08-29 together with the code; the record
   is kept here as a warning about self-confirming verification.
 - Actual verification (2026-08-29): `node --check` over every `scripts/*.mjs`
-  and `bin/mps`; an end-to-end run of
+  and `bin/waypost`; an end-to-end run of
   `bind → scaffold → draft adr|epic|story --write → story plan|close --write →
   kanban/graph/codemap → doctor --fix → brief → agents install/register`
   in a temporary project; `node --test tests/*.test.mjs` green.

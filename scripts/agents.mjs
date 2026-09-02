@@ -1,19 +1,19 @@
 #!/usr/bin/env node
-// mps — agents.mjs
+// waypost — agents.mjs
 // Harness-neutral agent roles + per-harness adapters (ADR-0003).
 //
 // One source of truth: agents/<role>.md, whose frontmatter is neutral
 // (name / description / mode / model tier / effort / access / tools). Each
 // harness gets that same role rendered into ITS native format:
 //
-//   claude    .claude/agents/mps-<role>.md      (subagent, model opus/sonnet/haiku)
-//   opencode  .opencode/agent/mps-<role>.md     (mode: subagent, tools map)
-//   codex     .codex/prompts/mps-<role>.md      (custom prompt, fresh context)
+//   claude    .claude/agents/waypost-<role>.md      (subagent, model opus/sonnet/haiku)
+//   opencode  .opencode/agent/waypost-<role>.md     (mode: subagent, tools map)
+//   codex     .codex/prompts/waypost-<role>.md      (custom prompt, fresh context)
 //
 // Everything a harness cannot express natively is still reachable the same
-// way from all of them: `mps agents show <role>` prints the raw prompt, so a
+// way from all of them: `waypost agents show <role>` prints the raw prompt, so a
 // harness with neither subagents nor prompt files can spawn a fresh context
-// with it (e.g. `codex exec "$(mps agents show critic)"`).
+// with it (e.g. `codex exec "$(waypost agents show critic)"`).
 //
 // Generated files carry a provenance line with the source hash, so doctor can
 // tell "installed and current" from "installed and stale" without an LLM.
@@ -41,7 +41,7 @@ import {
 // more agent CLI is a JSON file, not a branch in a renderer — which is the only
 // way "works with whatever harness you use" can stay true as the field churns.
 //
-// A project can add or override an entry in <project>/.mps/harnesses/<id>.json;
+// A project can add or override an entry in <project>/.waypost/harnesses/<id>.json;
 // nothing here is a closed list.
 //
 // Shapes:
@@ -54,23 +54,23 @@ import {
 //                   several editors only read a rules file. Such an entry is
 //                   still worth having — it is detected, it receives the
 //                   routing block, and it says how a role is reached instead
-//                   (`mps agents show`, or a harness it can spawn) — but
+//                   (`waypost agents show`, or a harness it can spawn) — but
 //                   install writes nothing and doctor must not ask why.
 
 export const AGENT_BLOCK_VERSION = 1;
-export const AGENT_BLOCK_MARKER = /<!--\s*mps:agents v(\d+)/g;
-// Roles register under an mps- prefix in every harness. Bare names (critic,
+export const AGENT_BLOCK_MARKER = /<!--\s*waypost:agents v(\d+)/g;
+// Roles register under a waypost- prefix in every harness. Bare names (critic,
 // planner, reviewer) are common enough that a user's own agent would collide;
 // a prefix keeps both, and makes "which of these is ours" a string match.
-export const PREFIX = "mps-";
+export const PREFIX = "waypost-";
 export const TIERS = ["reasoning", "balanced", "fast"];
 
 function registryDirs() {
   return [
     join(pluginRoot(), "harnesses"),
     join(pluginRoot(), "harnesses", "providers"),
-    join(projectRoot(), ".mps", "harnesses"),
-    join(projectRoot(), ".mps", "harnesses", "providers"),
+    join(projectRoot(), ".waypost", "harnesses"),
+    join(projectRoot(), ".waypost", "harnesses", "providers"),
   ];
 }
 
@@ -102,7 +102,7 @@ export function harness(id) {
 // A vendor is not a harness. DeepSeek, Kimi, GLM and MiniMax ship MODELS that
 // run inside somebody else's harness — usually Claude Code against an
 // Anthropic-compatible endpoint. Registering them as harnesses would promise
-// role files that have nowhere to go; registering them as providers lets mps
+// role files that have nowhere to go; registering them as providers lets waypost
 // name which model produced a commit while installing into the harness that is
 // actually running.
 export const isProvider = (h) => (typeof h === "string" ? harness(h) : h).kind === "provider";
@@ -132,10 +132,10 @@ export const providerIds = () => [...registry().values()]
 
 // Which model provider this session is pointed at, if any. Read from the
 // environment the way harness detection is: an endpoint override or a vendor
-// key. `MPS_PROVIDER` wins, because a guess in a permanent record is worse than
+// key. `WAYPOST_PROVIDER` wins, because a guess in a permanent record is worse than
 // a blank.
 export function detectProvider(env = process.env) {
-  if (env.MPS_PROVIDER) return env.MPS_PROVIDER;
+  if (env.WAYPOST_PROVIDER) return env.WAYPOST_PROVIDER;
   const urls = ["ANTHROPIC_BASE_URL", "ANTHROPIC_API_URL", "OPENAI_BASE_URL", "OPENAI_API_BASE",
     "OPENAI_API_HOST", "LLM_BASE_URL"].map((k) => env[k]).filter(Boolean).join(" ").toLowerCase();
   for (const id of providerIds()) {
@@ -177,7 +177,7 @@ const CLAUDE_TOOLS = {
 
 // OpenCode takes an explicit allow/deny map, so the EDIT half of the read-only
 // contract is enforced by the harness. The shell half is not: these roles need
-// `git diff`, `git log` and `mps doctor` to do their job, so `bash: true`
+// `git diff`, `git log` and `waypost doctor` to do their job, so `bash: true`
 // stands and "read-only" there is prose in the role body, exactly as it is
 // everywhere else. Say that plainly rather than claiming enforcement the tool
 // map does not deliver.
@@ -251,7 +251,7 @@ export function roleNames() {
 
 // Memoized on (path, mtime, size): status() asks for every role of every
 // harness, so with a dozen entries this was re-reading and re-hashing the same
-// five files sixty times per `mps doctor`.
+// five files sixty times per `waypost doctor`.
 const _roleCache = new Map();
 
 export function readRole(name) {
@@ -288,12 +288,12 @@ function parseRole(p, raw, name) {
   if (!TIERS.includes(tier)) {
     throw new Error(
       `${p}: model: ${tier} is not a neutral tier — use one of ${TIERS.join(", ")}`
-      + " (a vendor id belongs in the config: `mps agents model`)");
+      + " (a vendor id belongs in the config: `waypost agents model`)");
   }
   // Two descriptions, and the difference is a token budget: `summary` is what
   // goes into every generated harness file and into the routing block, because
   // a harness injects every agent's description into the MAIN context of every
-  // session. The long `description` stays here for `mps agents list` and for
+  // session. The long `description` stays here for `waypost agents list` and for
   // humans reading the source. Five roles × 110 tokens of prose was 554 tokens
   // paid on every turn of every session to say five things twice.
   const description = String(data.description || "").trim();
@@ -336,7 +336,7 @@ export function rosterFor(cfg) {
 //   the tier mapping itself
 //
 // The middle two are deliberately harness-blind, so they must not reach a
-// harness whose model ids they cannot be valid for: `mps agents model default
+// harness whose model ids they cannot be valid for: `waypost agents model default
 // sonnet` used to write a bare Claude id into .opencode/agent, where OpenCode
 // wants `provider/model`. Naming a model there is possible, but per harness.
 export function resolveModel(role, cfg, id) {
@@ -366,11 +366,11 @@ export const harnessesNamingModels = () =>
 // The mark is emitted on a line of its own and wrapped in whatever passes for a
 // comment in that shape, so the same line-removal recomputes the hash for
 // markdown, TOML and a JSON string field alike.
-const MARK = "@@MPS_PROVENANCE@@";
-const PROV_RE = /^.*generated by `mps agents install` from agents\/[\w-]+\.md@[0-9a-f]+ render:[0-9a-f]+.*$/gm;
+const MARK = "@@WAYPOST_PROVENANCE@@";
+const PROV_RE = /^.*generated by `waypost agents install` from agents\/[\w-]+\.md@[0-9a-f]+ render:[0-9a-f]+.*$/gm;
 
 const provText = (role, h) =>
-  `generated by \`mps agents install\` from agents/${role.name}.md@${role.hash} render:${h}`
+  `generated by \`waypost agents install\` from agents/${role.name}.md@${role.hash} render:${h}`
   + " — edit the source, not this file";
 
 // Drops the provenance line in either state: the placeholder before stamping,
@@ -378,7 +378,7 @@ const provText = (role, h) =>
 // its own content produces.
 const withoutProvenance = (text) =>
   String(text).split("\n")
-    .filter((l) => !l.includes(MARK) && !/generated by `mps agents install` from agents\//.test(l))
+    .filter((l) => !l.includes(MARK) && !/generated by `waypost agents install` from agents\//.test(l))
     .join("\n");
 
 const hashOf = (text) => createHash("sha256").update(withoutProvenance(text)).digest("hex").slice(0, 12);
@@ -400,7 +400,7 @@ function stampObject(entry, role) {
 
 export function installedRoleOf(text) {
   const m = String(text).match(
-    /generated by `mps agents install` from agents\/([\w-]+)\.md@([0-9a-f]+) render:([0-9a-f]+)/);
+    /generated by `waypost agents install` from agents\/([\w-]+)\.md@([0-9a-f]+) render:([0-9a-f]+)/);
   return m ? { role: m[1], hash: m[2], render: m[3] } : null;
 }
 
@@ -459,12 +459,12 @@ function frontmatter(fields, vars, role, spec) {
 // file is the fresh context and nothing else will state it.
 function preamble(role, h) {
   return [
-    `Run as the mps **${role.name}** role, in this fresh context.`,
+    `Run as the waypost **${role.name}** role, in this fresh context.`,
     "",
     "Target: $ARGUMENTS",
     "",
     role.access === "read-only"
-      ? "This role is READ-ONLY: inspect, verify and report. Do not edit, stage or commit anything — every fix goes back through the approval-gated `mps` flow.\n"
+      ? "This role is READ-ONLY: inspect, verify and report. Do not edit, stage or commit anything — every fix goes back through the approval-gated `waypost` flow.\n"
       : "",
     "---",
     "",
@@ -566,7 +566,7 @@ function readAggregate(h, p) {
   if (!existsSync(p)) return { doc: {}, list: [] };
   let doc;
   try { doc = JSON.parse(readFileSync(p, "utf8")); }
-  catch (e) { throw new Error(`${p}: not valid JSON — ${e.message}. Fix or move it; mps will not overwrite a file it cannot read.`); }
+  catch (e) { throw new Error(`${p}: not valid JSON — ${e.message}. Fix or move it; waypost will not overwrite a file it cannot read.`); }
   return { doc, list: Array.isArray(doc[spec.array]) ? doc[spec.array] : [] };
 }
 
@@ -679,7 +679,7 @@ export function uninstall(harnesses, { proj = projectRoot() } = {}) {
     const emptied = new Set([dir]);
     for (const p of files) {
       // The provenance line is the only test, not the filename: a harness whose
-      // namespace is the directory (Gemini's .gemini/commands/mps/critic.toml)
+      // namespace is the directory (Gemini's .gemini/commands/waypost/critic.toml)
       // carries no prefix in the name, and filtering on one silently left every
       // such file behind. Reading is also the stricter check — a file a user
       // wrote is never ours, whatever it is called.
@@ -694,7 +694,7 @@ export function uninstall(harnesses, { proj = projectRoot() } = {}) {
     // directories — so leaving the shell behind made uninstall undo itself at
     // the next install or `doctor --fix`. Walk up while the directories are
     // empty and still inside the project: a nested target like
-    // .gemini/commands/mps leaves two shells behind, not one, and a per-agent
+    // .gemini/commands/waypost leaves two shells behind, not one, and a per-agent
     // directory leaves three. Deepest first, so the parent is tried after the
     // last child that could still be holding it.
     for (const start of [...emptied].sort((a, b) => b.length - a.length)) {
@@ -760,7 +760,7 @@ export function renderBlock(cfg) {
     .replace(/\{\{roles\}\}/g, roles);
 }
 
-const BLOCK_RE = /<!--\s*mps:agents v\d+[\s\S]*?<!--\s*\/mps:agents\s*-->\n?/g;
+const BLOCK_RE = /<!--\s*waypost:agents v\d+[\s\S]*?<!--\s*\/waypost:agents\s*-->\n?/g;
 
 // Where the routing block goes: every instruction file the project already has,
 // plus the file each DETECTED harness reads. AGENTS.md is the common one, but a
@@ -821,7 +821,7 @@ export function unregister({ proj = projectRoot() } = {}) {
 // ─── CLI ───────────────────────────────────────────────────────────────
 
 function die(msg) {
-  process.stderr.write(`mps agents: ${msg}\n`);
+  process.stderr.write(`waypost agents: ${msg}\n`);
   process.exit(1);
 }
 
@@ -839,7 +839,7 @@ function harnessArg(rest, cfg) {
     // the id list above is already self-sufficient; `--json` (unfiltered,
     // unlike the default text view) carries every harness's own detect array.
     die(`no harness detected in this project — name one: --harness ${HARNESSES.join("|")} (or all).\n`
-      + "       `mps harnesses --json` lists every harness and what its detection looks for.");
+      + "       `waypost harnesses --json` lists every harness and what its detection looks for.");
   }
   const list = raw.split(",").map((s) => s.trim());
   for (const h of list) if (!HARNESSES.includes(h)) die(`unknown harness "${h}" (known: ${HARNESSES.join(", ")}, all)`);
@@ -869,8 +869,8 @@ function main() {
         process.stdout.write(`  ${h.harness.padEnd(10)} ${Object.entries(by).map(([k, v]) => `${v} ${k}`).join(", ")}\n`);
       }
       if (!verbose) {
-        if (!shown.length) process.stdout.write("  (none yet — `mps agents install`)\n");
-        process.stdout.write(`  …and ${st.length - shown.length} harness(es) with none. \`mps agents list -v\` for everything.\n`);
+        if (!shown.length) process.stdout.write("  (none yet — `waypost agents install`)\n");
+        process.stdout.write(`  …and ${st.length - shown.length} harness(es) with none. \`waypost agents list -v\` for everything.\n`);
       }
       return;
     }
@@ -906,7 +906,7 @@ function main() {
       }
       if (!all) {
         process.stdout.write(visible.length ? "" : "no harness detected in this project\n");
-        process.stdout.write(`${rows.length} harnesses known, ${provs.length} model providers — \`mps harnesses --all\` lists them.\n`);
+        process.stdout.write(`${rows.length} harnesses known, ${provs.length} model providers — \`waypost harnesses --all\` lists them.\n`);
         if (here) process.stdout.write(`provider in this environment: ${here}\n`);
         return;
       }
@@ -918,10 +918,10 @@ function main() {
       process.stdout.write(
         "\n* = detected in this project (harnesses) or in this environment (providers).\n"
         + "verified = documented AND exercised here · documented = taken from the vendor's own docs (see\n"
-        + "`mps harnesses --json` for the URL), not run here · inferred = guessed from a convention; the\n"
-        + "entry says what was assumed. Add or override an entry with a JSON file in .mps/harnesses/\n"
-        + "(providers in .mps/harnesses/providers/) — see docs/harnesses.md.\n"
-        + (here ? `\nThis session looks like it is talking to ${here}; install the roles for the harness you\nactually run (\`mps agents install\`), and mps will record ${here} as the provider on each commit.\n` : ""));
+        + "`waypost harnesses --json` for the URL), not run here · inferred = guessed from a convention; the\n"
+        + "entry says what was assumed. Add or override an entry with a JSON file in .waypost/harnesses/\n"
+        + "(providers in .waypost/harnesses/providers/) — see docs/harnesses.md.\n"
+        + (here ? `\nThis session looks like it is talking to ${here}; install the roles for the harness you\nactually run (\`waypost agents install\`), and waypost will record ${here} as the provider on each commit.\n` : ""));
       return;
     }
     case "show": {
@@ -940,7 +940,7 @@ function main() {
         if (r.note) process.stdout.write(`                   ${r.note}\n`);
       }
       if (res.some((r) => r.action.startsWith("skipped"))) {
-        process.stdout.write("\nSkipped files were not generated by mps — rename them if they are yours,\nor delete them to let install take the name.\n");
+        process.stdout.write("\nSkipped files were not generated by waypost — rename them if they are yours,\nor delete them to let install take the name.\n");
       }
       // A registry entry names its own follow-up step, if it has one (C-3: the
       // old code hardcoded a Codex-specific hint that had gone stale — Codex's
@@ -979,7 +979,7 @@ function main() {
           + `       roles: ${roleNames().join(", ")} · harnesses: ${HARNESSES.join(", ")}`);
       }
       const next = { ...(cfg || {}) };
-      if (!next.vault_path) die("no bound vault — run `mps bind <vault-path>` first");
+      if (!next.vault_path) die("no bound vault — run `waypost bind <vault-path>` first");
       next.agents = next.agents || {};
       let key;
       if (who.startsWith("harness:")) {
@@ -987,7 +987,7 @@ function main() {
         if (!HARNESSES.includes(h)) die(`unknown harness "${h}" (known: ${HARNESSES.join(", ")})`);
         if (!harnessTakesModel(h)) {
           die(`${h} prompt files carry no model — the model is the ${h} session's, not ours.\n`
-            + `       Set it in ${h}'s own configuration; mps would accept the key and discard it.`);
+            + `       Set it in ${h}'s own configuration; waypost would accept the key and discard it.`);
         }
         next.agents.per_harness = next.agents.per_harness || {};
         next.agents.per_harness[h] = { ...(next.agents.per_harness[h] || {}), model };
@@ -1008,9 +1008,9 @@ function main() {
       // let the user discover it by reading a generated file.
       if (!who.startsWith("harness:")) {
         const named = harnessesNamingModels();
-        process.stdout.write(`applies to: ${named.join(", ")} (for the others use \`mps agents model harness:<name> <id>\`)\n`);
+        process.stdout.write(`applies to: ${named.join(", ")} (for the others use \`waypost agents model harness:<name> <id>\`)\n`);
       }
-      process.stdout.write("Re-run `mps agents install` to re-render the harness files.\n");
+      process.stdout.write("Re-run `waypost agents install` to re-render the harness files.\n");
       return;
     }
     default:

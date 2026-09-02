@@ -8,7 +8,7 @@
   "detect": [".qwen", "QWEN.md"],
   "env": ["QWEN_CODE"],
   "instructions": ["QWEN.md", "AGENTS.md"],
-  "invoke": "delegate to the `mps-<role>` subagent (/agents to list them)",
+  "invoke": "delegate to the `waypost-<role>` subagent (/agents to list them)",
   "roles": {
     "shape": "frontmatter-md",
     "dir": ".qwen/agents",

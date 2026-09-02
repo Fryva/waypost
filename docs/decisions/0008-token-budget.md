@@ -5,8 +5,8 @@
 - Deciders: not approved by the project owner; status `proposed`
 - Supersedes: —
 - Superseded by: —
-- Related: ADR-0003 (roles), `agents/*.md`, `templates/agents-block.md.tmpl`, `scripts/brief.mjs`, `bin/mps`
-- code_refs: ["agents/critic.md", "templates/agents-block.md.tmpl", "scripts/brief.mjs", "scripts/agents.mjs", "bin/mps", "tests/harness.test.mjs"]
+- Related: ADR-0003 (roles), `agents/*.md`, `templates/agents-block.md.tmpl`, `scripts/brief.mjs`, `bin/waypost`
+- code_refs: ["agents/critic.md", "templates/agents-block.md.tmpl", "scripts/brief.mjs", "scripts/agents.mjs", "bin/waypost", "tests/harness.test.mjs"]
 
 ## Context
 
@@ -20,11 +20,11 @@ Measured before the work (a 32-artifact project, o200k tokenizer):
 
 | What | Tokens |
 |---|---|
-| Standing context: routing block + role descriptions + `mps brief` | **1747** |
-| `mps status` | 1390 |
-| `mps agents list` | 1235 |
-| `mps harnesses` | 938 |
-| `mps draft <kind> "<title>"` (preview) | 575 |
+| Standing context: routing block + role descriptions + `waypost brief` | **1747** |
+| `waypost status` | 1390 |
+| `waypost agents list` | 1235 |
+| `waypost harnesses` | 938 |
+| `waypost draft <kind> "<title>"` (preview) | 575 |
 | `graph.md` read whole (32 artifacts) | 1119 |
 | `adr/README.md` read whole | 1516 |
 
@@ -46,12 +46,12 @@ the graph once costs more than all the standing overhead combined.
 1. **Two descriptions per role.** `summary` (one sentence) goes into the
    generated harness files and the routing block — that is what a harness
    injects into the main context; the long `description` stays in the source for
-   `mps agents list -v` and for humans.
-2. **Compact output by default, detail behind a flag:** `mps brief` (`--full`),
-   `mps harnesses` (`--all`), `mps agents list` (`-v`), `mps draft` without
-   `--write` (`--json`), and `mps status`.
-3. **Queries instead of reading derived views.** `mps graph --for <path>` returns
-   one node's typed neighbourhood; `mps search "<text>" [--kind] [--limit]`
+   `waypost agents list -v` and for humans.
+2. **Compact output by default, detail behind a flag:** `waypost brief` (`--full`),
+   `waypost harnesses` (`--all`), `waypost agents list` (`-v`), `waypost draft` without
+   `--write` (`--json`), and `waypost status`.
+3. **Queries instead of reading derived views.** `waypost graph --for <path>` returns
+   one node's typed neighbourhood; `waypost search "<text>" [--kind] [--limit]`
    returns pointers (path, title, status, matching line) rather than documents.
 4. **Budgets pinned by tests** (`tests/harness.test.mjs`, the token-economy
    section): the block's length, each role description's length, ceilings for the
@@ -94,12 +94,12 @@ Measured after (same project, same tokenizer):
 | What | Before | After |
 |---|---|---|
 | Standing context | 1747 | **698** (block 197 + descriptions 92 + brief 409) |
-| `mps status` | 1390 | 175 |
-| `mps agents list` | 1235 | 147 |
-| `mps harnesses` | 938 | 51 |
-| `mps draft` (preview) | 575 | 156 |
+| `waypost status` | 1390 | 175 |
+| `waypost agents list` | 1235 | 147 |
+| `waypost harnesses` | 938 | 51 |
+| `waypost draft` (preview) | 575 | 156 |
 | One graph node | 1119 (whole file) | **44** (`--for`) |
-| A vault search | 1516 (whole index) | **91** (`mps search`) |
+| A vault search | 1516 (whole index) | **91** (`waypost search`) |
 
 In a 100-turn Opus session the standing context costs about $0.035 instead of
 $0.087; on a large vault the `--for` / `search` saving grows linearly with the
@@ -112,8 +112,8 @@ number of artifacts.
   but only for the bundled roles.
 - Compact output hides detail that is occasionally wanted; the cost of that
   mistake is one repeated call with a flag.
-- `mps search` is a grep over frontmatter and body, not semantic search; "find
-  something like this" is still `mps-librarian`.
+- `waypost search` is a grep over frontmatter and body, not semantic search; "find
+  something like this" is still `waypost-librarian`.
 
 ## Verification and follow-up
 

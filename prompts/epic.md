@@ -7,14 +7,14 @@ You are creating a new epic.
 
 Steps:
 
-1. **Check config**: if `.mps/projectstore.json` is missing — instruct user to `mps bind` and stop.
+1. **Check config**: if `.waypost/projectstore.json` is missing — instruct user to `waypost bind` and stop.
 
 2. **Validate args**: `$ARGUMENTS` must contain at least an ID and a title. ID is a short uppercase token (e.g. `AUTH-001`, `RECPLAT-269`). If only one word was given, ask user for the title by asking the user.
 
 3. **Render draft**:
 
    ```bash
-   mps draft epic "$ARGUMENTS"
+   waypost draft epic "$ARGUMENTS"
    ```
 
    Capture the JSON output.
@@ -32,9 +32,9 @@ Steps:
 9. **Index update**: if `index` is non-null in the draft JSON, apply the row through the core — never a hand-written edit, no second gate (the step-6 approval covers it). Must run **after** step 8: the regeneration scans the disk, so an epic written later would be missing from the table.
 
    ```bash
-   mps reconcile --write --only indexes=<index.folder>
+   waypost reconcile --write --only indexes=<index.folder>
    ```
 
-   The row is derived state — regenerated in canonical order, written atomically, manual prose preserved. The epic is already on disk, so a nonzero exit is a warning naming the folder (stderr with no JSON = rejected before any write, fix the header or restore the README; per-target `error` in JSON = I/O failure, suggest `mps reconcile`), never a failed creation.
+   The row is derived state — regenerated in canonical order, written atomically, manual prose preserved. The epic is already on disk, so a nonzero exit is a warning naming the folder (stderr with no JSON = rejected before any write, fix the header or restore the README; per-target `error` in JSON = I/O failure, suggest `waypost reconcile`), never a failed creation.
 
-10. **Suggest next**: print "Add the first story: `mps story <epic-id> \"<first story title>\"`".
+10. **Suggest next**: print "Add the first story: `waypost story <epic-id> \"<first story title>\"`".

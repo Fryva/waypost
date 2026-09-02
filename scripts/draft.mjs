@@ -61,7 +61,7 @@ import {
 } from "./lib.mjs";
 
 function die(msg, code = 1) {
-  process.stderr.write(`mps draft: ${msg}\n`);
+  process.stderr.write(`waypost draft: ${msg}\n`);
   process.exit(code);
 }
 
@@ -162,7 +162,7 @@ function buildStory(cfg, layout, args) {
   const vault = cfg.vault_path;
   const storiesDir = join(vault, folder.path, epicId, "stories");
   if (!existsSync(join(vault, folder.path, epicId))) {
-    die(`Epic folder not found: ${folder.path}/${epicId}. Create the epic first via mps epic.`);
+    die(`Epic folder not found: ${folder.path}/${epicId}. Create the epic first via waypost epic.`);
   }
   const storyPrefix = folder.story_prefix || "story-";
   const slug = slugify(title);
@@ -234,7 +234,7 @@ function buildSimple(kind, cfg, layout, args) {
 
 function main() {
   const raw = process.argv.slice(2);
-  // --lang can appear anywhere in argv (bin/mps's own arg parser already
+  // --lang can appear anywhere in argv (bin/waypost's own arg parser already
   // treats it as valued and leaves it out of the positionals it forwards
   // first) — strip it here rather than requiring a fixed position.
   let lang = null;
@@ -248,7 +248,7 @@ function main() {
   const rest = argv.slice(1);
 
   const cfg = readConfig();
-  if (!cfg) die("No projectstore config. Run mps bind <vault-path> first.");
+  if (!cfg) die("No projectstore config. Run waypost bind <vault-path> first.");
   if (lang) {
     if (!existsSync(join(pluginRoot(), "templates", lang))) {
       die(`unknown language "${lang}" — available: ${readdirSync(join(pluginRoot(), "templates")).filter((n) => !n.includes(".")).join(", ")}`);

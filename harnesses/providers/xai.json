@@ -9,5 +9,5 @@
     "env": ["XAI_API_KEY"],
     "url_contains": ["api.x.ai"]
   },
-  "notes": "xAI ships both sides: the `grok` harness entry is Grok Build, this one is the model side. XAI_API_KEY is what Grok Build authenticates with outside a browser and what any OpenAI-compatible harness pointed at api.x.ai uses, so the key identifies the vendor rather than the tool — which is exactly the split between Mps-Harness and Mps-Provider."
+  "notes": "xAI ships both sides: the `grok` harness entry is Grok Build, this one is the model side. XAI_API_KEY is what Grok Build authenticates with outside a browser and what any OpenAI-compatible harness pointed at api.x.ai uses, so the key identifies the vendor rather than the tool — which is exactly the split between Waypost-Harness and Waypost-Provider."
 }

@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-MultiProjectStore (MPS) records architectural decisions as markdown in git, in
+Waypost records architectural decisions as markdown in git, in
 this directory. The format and the process follow ProjectStore's, adapted for a
 harness-agnostic fork.
 
@@ -23,7 +23,7 @@ harness-agnostic fork.
 | [0001](0001-harness-agnostic-core.md) | proposed | 2026-08-28 | A harness-agnostic core: one CLI instead of hooks and slash commands |
 | [0002](0002-vault-layout-policy.md) | proposed | 2026-08-28 | The `engineering` layout as the default; the vault is markdown in git |
 | [0003](0003-agent-roles-across-harnesses.md) | proposed | 2026-08-29 | Agent roles: one neutral definition plus per-harness adapters |
-| [0004](0004-path-and-name-split.md) | proposed | 2026-08-29 | Name split: the vault stays ProjectStore-compatible, project wiring lives in `.mps/` |
+| [0004](0004-path-and-name-split.md) | proposed | 2026-08-29 | Name split: the vault stays ProjectStore-compatible, project wiring lives in `.waypost/` |
 | [0005](0005-harness-registry.md) | proposed | 2026-09-01 | A harness is data: the `harnesses/*.json` registry instead of a branch in a renderer |
 | [0006](0006-commit-protocol.md) | proposed | 2026-09-01 | A commit protocol for parallel work across harnesses |
 | [0007](0007-shared-vault-presence.md) | proposed | 2026-09-01 | Working from several devices and operating systems: presence, leases, network drives |
@@ -41,10 +41,10 @@ harness-agnostic fork.
 
 ## Deterministic tooling
 
-`bin/mps doctor` is the single consistency checker (no AI): the install section
+`bin/waypost doctor` is the single consistency checker (no AI): the install section
 covers the bind, the templates, the roles per harness and the routing block; the
 vault section covers statuses, indexes, links and gates. Mechanical repairs are
-`bin/mps doctor --fix`; derived views are rebuilt by `bin/mps reconcile --write`
-(or `bin/mps graph|codemap|kanban`).
+`bin/waypost doctor --fix`; derived views are rebuilt by `bin/waypost reconcile --write`
+(or `bin/waypost graph|codemap|kanban`).
 
 Tests: `npm test` (`node --test tests/*.test.mjs`).

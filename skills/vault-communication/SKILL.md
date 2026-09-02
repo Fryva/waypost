@@ -1,5 +1,5 @@
 ---
-description: When communicating with the user about anything stored in the mps vault (epics, stories, ADRs, research, kanban, backlog), reference every artifact by its human title from frontmatter — never by session-invented shorthand. Name the parent epic for stories; include status/priority when discussing state or plans. Applies by default in bound projects to summaries, plans, and progress reports.
+description: When communicating with the user about anything stored in the waypost vault (epics, stories, ADRs, research, kanban, backlog), reference every artifact by its human title from frontmatter — never by session-invented shorthand. Name the parent epic for stories; include status/priority when discussing state or plans. Applies by default in bound projects to summaries, plans, and progress reports.
 ---
 
 # Vault-native communication
@@ -53,7 +53,7 @@ are fine *within that document*. In chat, expand them on first use in every mess
 ```
 bad:  I suggest T3+T4 first, then T2/T6, T5, T1
 good: I suggest starting with the agent-roster topics — "which new roles fit" and
-      "rename mps-critic → critic" (topics 3–4 in research "v0.13 Design
+      "rename waypost-critic → critic" (topics 3–4 in research "v0.13 Design
       Questions: Statusline, Agents, Doctor, Model Config") — their naming decisions
       leak into every other ADR's wording
 ```
@@ -89,7 +89,7 @@ path as the pointer.
 
 ## Activation
 
-Default-on when a vault is bound (`.mps/projectstore.json` exists) and
+Default-on when a vault is bound (`.waypost/projectstore.json` exists) and
 `active_skills` is not `false` — same gating as the other passive skills. Silent
 otherwise. This skill changes *how you phrase things*; it never writes files and
 never blocks an action.
