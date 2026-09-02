@@ -929,3 +929,72 @@ test("bin/waypost search -- <literal>: `--` stops flag parsing so a flag-shaped 
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /flaglike\.md/, "the literal term after -- is searched, not swallowed as a global/local flag");
 });
+
+// ── ADR-0009: artifact integrity ───────────────────────────────────────
+//
+// The three properties frontmatter asserts and doctor used not to verify. Each
+// case here reproduces a defect the checks caught on their first real run.
+
+const adrArtifact = (rel, fm) => ({ rel, kind: "adr", fm, body: "" });
+
+test("doctor code_refs: an unresolved path is a warning at proposed, an issue at done (ADR-0009)", async () => {
+  const { checkCodeRefs } = await import("../scripts/doctor.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-refs-"));
+
+  const proposed = checkCodeRefs([adrArtifact("adr/a.md", { status: "proposed", code_refs: ["nope.rs"] })], proj);
+  assert.equal(proposed.length, 1, "a proposed artifact is no longer exempt");
+  assert.equal(proposed[0].level, "warn", "but it must not turn an existing vault red");
+
+  const done = checkCodeRefs([{ rel: "s.md", kind: "spec", fm: { status: "done", code_refs: ["nope.rs"] }, body: "" }], proj);
+  assert.equal(done[0].level, "issue", "done keeps the stronger severity");
+});
+
+test("doctor code_refs: (waiting)/(deleted)/(planned) suffixes are exempt at every status (ADR-0009)", async () => {
+  const { checkCodeRefs } = await import("../scripts/doctor.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-refs2-"));
+  const refs = ["gone.rs (deleted)", "later.rs (waiting)", "soon.rs (planned)"];
+  for (const status of ["proposed", "done"]) {
+    const out = checkCodeRefs([adrArtifact("adr/a.md", { status, code_refs: refs })], proj);
+    assert.deepEqual(out, [], `annotated paths are a promise, not a claim (status: ${status})`);
+  }
+  const bare = checkCodeRefs([adrArtifact("adr/a.md", { status: "proposed", code_refs: ["x.rs (deleted) trailing"] })], proj);
+  assert.equal(bare.length, 1, "the annotation is a suffix, not a substring anywhere in the path");
+});
+
+test("doctor supersedes: dangling target is an issue, one-directional link is a warning (ADR-0009)", async () => {
+  const { checkSupersedes } = await import("../scripts/doctor.mjs");
+
+  const dangling = checkSupersedes([adrArtifact("adr/a.md", { id: "a", supersedes: ["ghost"] })]);
+  assert.equal(dangling.length, 1);
+  assert.equal(dangling[0].level, "issue");
+  assert.match(dangling[0].message, /not an artifact in this vault/);
+
+  const oneWay = checkSupersedes([
+    adrArtifact("adr/a.md", { id: "a", status: "proposed", supersedes: ["b"] }),
+    adrArtifact("adr/b.md", { id: "b", status: "proposed" }),
+  ]);
+  assert.ok(oneWay.some((f) => f.level === "warn" && /one-directional/.test(f.message)));
+  assert.ok(oneWay.some((f) => /not "superseded"/.test(f.message)), "the replaced artifact must say so");
+});
+
+test("doctor supersedes: a correct mutual pair is silent (ADR-0009)", async () => {
+  const { checkSupersedes } = await import("../scripts/doctor.mjs");
+  const out = checkSupersedes([
+    adrArtifact("adr/new.md", { id: "new", status: "accepted", supersedes: ["old"], superseded_by: [] }),
+    adrArtifact("adr/old.md", { id: "old", status: "superseded", superseded_by: ["new"] }),
+  ]);
+  assert.deepEqual(out, [], "no finding for a well-formed replacement chain");
+});
+
+test("doctor acceptance gate: only under lifecycle_gates, and satisfied by a real review (ADR-0009)", async () => {
+  const { checkAcceptanceGate } = await import("../scripts/doctor.mjs");
+  const unreviewed = [adrArtifact("adr/a.md", { status: "accepted", review_status: "pending" })];
+
+  assert.deepEqual(checkAcceptanceGate(unreviewed, {}), [], "policy stays opt-in");
+  const gated = checkAcceptanceGate(unreviewed, { lifecycle_gates: "on" });
+  assert.equal(gated.length, 1);
+  assert.equal(gated[0].level, "issue");
+
+  const reviewed = [adrArtifact("adr/a.md", { status: "accepted", review_status: "reviewed" })];
+  assert.deepEqual(checkAcceptanceGate(reviewed, { lifecycle_gates: "on" }), []);
+});

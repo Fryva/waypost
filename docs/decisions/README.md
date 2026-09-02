@@ -28,6 +28,7 @@ harness-agnostic fork.
 | [0006](0006-commit-protocol.md) | proposed | 2026-09-01 | A commit protocol for parallel work across harnesses |
 | [0007](0007-shared-vault-presence.md) | proposed | 2026-09-01 | Working from several devices and operating systems: presence, leases, network drives |
 | [0008](0008-token-budget.md) | proposed | 2026-09-01 | Context spend as a design constraint, not an outcome |
+| [0009](0009-artifact-integrity-checks.md) | proposed | 2026-09-02 | doctor verifies artifact integrity, not just story mechanics |
 
 ## Checklist before finishing
 

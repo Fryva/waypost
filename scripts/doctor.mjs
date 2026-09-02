@@ -1141,13 +1141,18 @@ export function checkArtifactNames(vaultFiles) {
   return out;
 }
 
-// code_refs: status-aware (upstream ADR-004) — required to resolve only for
-// in-progress / done artifacts; globs are skipped in v1 (documented).
-// Story refs must fall under the parent epic's refs (subset) — that is how
-// drift between the two levels is caught.
+// code_refs: status-aware (upstream ADR-004) — an unresolved path is an issue for
+// in-progress / done artifacts and a warning at any other status (ADR-0009: an ADR
+// is never in either state, so its refs used to go unchecked entirely). Globs are
+// skipped in v1 (documented). Story refs must fall under the parent epic's refs
+// (subset) — that is how drift between the two levels is caught.
 function refsOf(fm) {
   return listOf(fm, "code_refs");
 }
+
+// A path annotated as not-yet-there or gone is a promise, not a claim: exempt at
+// every status. Suffix only — a real path cannot end in "(deleted)".
+const REF_ANNOTATION = /\((?:deleted|waiting|planned)\)$/;
 
 // Untracked work, after the fact (spec contract 18). The reminder fires at the
 // moment of the act and cannot see Bash-mediated writes at all; this is the
@@ -1200,6 +1205,81 @@ export function checkWorkWithoutStory(cfg, proj) {
   return out;
 }
 
+// supersedes / superseded_by (ADR-0009). graph.mjs renders these edges but never
+// verifies them, so a dangling or one-directional declaration produced a
+// plausible-looking graph. Severity follows the spec<->story precedent: asymmetry
+// is a warning (a union is legal to write in one edit), a target that resolves to
+// nothing is an issue.
+export function checkSupersedes(artifacts) {
+  const out = [];
+  const byId = new Map();
+  for (const a of artifacts) {
+    byId.set(a.rel, a);
+    const stem = basename(a.rel).replace(/\.md$/, "");
+    if (!byId.has(stem)) byId.set(stem, a);
+    if (a.fm.id && !byId.has(String(a.fm.id))) byId.set(String(a.fm.id), a);
+  }
+  const resolve = (entry) => {
+    const raw = String(entry).trim();
+    return byId.get(raw) || byId.get(raw.replace(/\.md$/, ""))
+      || byId.get(basename(raw).replace(/\.md$/, "")) || null;
+  };
+  const names = (a) => new Set([a.rel, basename(a.rel).replace(/\.md$/, ""), String(a.fm.id || "")]);
+  const declares = (a, key, target) =>
+    listOf(a.fm, key).some((e) => {
+      const n = names(target);
+      const raw = String(e).trim();
+      return n.has(raw) || n.has(raw.replace(/\.md$/, "")) || n.has(basename(raw).replace(/\.md$/, ""));
+    });
+
+  for (const a of artifacts) {
+    for (const [key, mirror] of [["supersedes", "superseded_by"], ["superseded_by", "supersedes"]]) {
+      for (const entry of listOf(a.fm, key)) {
+        const target = resolve(entry);
+        if (!target) {
+          out.push(finding("vault", "issue", "supersedes",
+            `${key} names "${entry}", which is not an artifact in this vault.`, a.rel));
+          continue;
+        }
+        if (!declares(target, mirror, a)) {
+          out.push(finding("vault", "warn", "supersedes",
+            `${key} "${entry}" is one-directional — ${target.rel} does not declare ${mirror} back.`, a.rel));
+        }
+      }
+    }
+    // The superseded side must say so: a live status on a replaced artifact is
+    // how a reader ends up acting on a decision that was already withdrawn.
+    for (const entry of listOf(a.fm, "supersedes")) {
+      const target = resolve(entry);
+      if (target && (target.fm.status || "").toLowerCase() !== "superseded") {
+        out.push(finding("vault", "warn", "supersedes",
+          `Superseded by ${a.rel}, but its status is "${target.fm.status || "—"}", not "superseded".`, target.rel));
+      }
+    }
+  }
+  return out;
+}
+
+// The acceptance gate (ADR-0009). Policy, not format, so it rides the existing
+// lifecycle_gates switch: a project that wants an independent review before
+// `accepted` turns gates on, and the pair review_status/reviewed_at — already
+// half-enforced by checkStoriesAndEpics — becomes enforceable in both directions.
+export function checkAcceptanceGate(artifacts, vaultCfg) {
+  const gates = String(vaultCfg.lifecycle_gates || "off").toLowerCase();
+  if (!["on", "true"].includes(gates)) return [];
+  const out = [];
+  for (const a of artifacts) {
+    if ((a.fm.status || "").toLowerCase() !== "accepted") continue;
+    const review = String(a.fm.review_status || "").toLowerCase();
+    if (review !== "reviewed") {
+      out.push(finding("vault", "issue", "acceptance-gate",
+        `status is "accepted" but review_status is "${a.fm.review_status || "—"}" `
+        + `(lifecycle_gates: on requires a completed review before acceptance).`, a.rel));
+    }
+  }
+  return out;
+}
+
 export function checkCodeRefs(artifacts, proj, epicFolderPath = "epics") {
   const out = [];
   const epicRefs = new Map();
@@ -1210,13 +1290,12 @@ export function checkCodeRefs(artifacts, proj, epicFolderPath = "epics") {
     const refs = refsOf(a.fm);
     if (!refs.length) continue;
     const status = (a.fm.status || "").toLowerCase();
-    if (["in-progress", "in_progress", "done"].includes(status)) {
-      for (const ref of refs) {
-        if (ref.includes("*")) continue;
-        if (!existsSync(join(proj, ref))) {
-          out.push(finding("vault", "issue", "code-refs",
-            `code_refs path "${ref}" does not resolve inside the project (status: ${status}).`, a.rel));
-        }
+    const level = ["in-progress", "in_progress", "done"].includes(status) ? "issue" : "warn";
+    for (const ref of refs) {
+      if (ref.includes("*") || REF_ANNOTATION.test(ref.trim())) continue;
+      if (!existsSync(join(proj, ref))) {
+        out.push(finding("vault", level, "code-refs",
+          `code_refs path "${ref}" does not resolve inside the project (status: ${status || "—"}).`, a.rel));
       }
     }
     if (a.kind === "story") {
@@ -1353,6 +1432,8 @@ export function runVaultChecks(cfg) {
     ...checkSharedVaultState(cfg),
     ...checkExternalRefsForm(artifacts),
     ...checkCodeRefs(artifacts, projectRoot(), folderByKind(layout, "epic")?.path),
+    ...checkSupersedes(artifacts),
+    ...checkAcceptanceGate(artifacts, vaultCfg),
     ...checkWorkWithoutStory(cfg, projectRoot()),
     ...checkCodeMap(cfg),
     ...checkGraph(cfg),

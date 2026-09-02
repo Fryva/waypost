@@ -171,6 +171,11 @@ One project may be driven by several sessions at the same time (ADR-0006):
   by hand it is `waypost reconcile --write` (or `waypost graph` if the graph does not
   exist yet).
 - **Before finishing** — `waypost doctor`, and `waypost next` if anything is unclear.
+- **Frontmatter is checked, not just stored** (ADR-0009): a `code_refs` path must
+  resolve at any status unless annotated `(waiting)`/`(planned)`/`(deleted)`;
+  `supersedes`/`superseded_by` must be mutual and land on a real artifact, and the
+  replaced one carries `status: superseded`; with `lifecycle_gates: on`,
+  `accepted` requires `review_status: reviewed`.
 
 ## Configuration
 

@@ -152,8 +152,17 @@ are pinned by tests.
   routing block, `.gitignore`, git in the vault, the merge driver, the
   line-ending policy.
 - **vault**: statuses ↔ board ↔ indexes, legal names and slugs, acceptance
-  criteria, links (wiki and relative), `code_refs`, spec and lifecycle gates,
-  portable names, shared-vault state.
+  criteria, links (wiki and relative), `code_refs`, supersede links, spec and
+  lifecycle gates, portable names, shared-vault state.
+
+Artifact integrity (ADR-0009): a `code_refs` path that no longer resolves is an
+issue for an in-progress or done artifact and a warning at any other status —
+annotate it `(waiting)`, `(planned)` or `(deleted)` to say it is a promise rather
+than a claim. A `supersedes` / `superseded_by` entry naming nothing is an issue;
+a one-directional link, or a replaced artifact whose status is not `superseded`,
+is a warning. Under `lifecycle_gates: on`, `status: accepted` also requires
+`review_status: reviewed` — the acceptance gate for projects whose process needs
+an independent review first.
 - `--fix` repairs only the mechanical things: `.gitignore` entries, `git init` in
   a vault outside the repository, re-rendering roles and the routing block, the
   merge driver and the line-ending policy. The vault side is repaired by
