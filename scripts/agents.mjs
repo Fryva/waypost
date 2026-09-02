@@ -803,7 +803,7 @@ export function register({ proj = projectRoot(), cfg = readConfig(), files = nul
   return out;
 }
 
-export function unregister({ proj = projectRoot() } = {}) {
+export function unregister({ proj = projectRoot(), dryRun = false } = {}) {
   const out = [];
   for (const f of new Set([...instructionTargets(proj), "AGENTS.md", "CLAUDE.md"])) {
     const p = join(proj, f);
@@ -812,8 +812,8 @@ export function unregister({ proj = projectRoot() } = {}) {
     const next = before.replace(BLOCK_RE, "").replace(/\s*$/, "\n");
     BLOCK_RE.lastIndex = 0;
     if (next === before) continue;
-    writeFileSync(p, next, "utf8");
-    out.push({ file: f, action: "removed" });
+    if (!dryRun) writeFileSync(p, next, "utf8");
+    out.push({ file: f, action: dryRun ? "would remove" : "removed" });
   }
   return out;
 }
@@ -846,9 +846,60 @@ function harnessArg(rest, cfg) {
   return list;
 }
 
+const USAGE = `waypost agents <subcommand>
+
+  list [--json] [-v]        roles + per-harness install state
+  harnesses [--json] [-a]   every harness roles can be rendered for (-a: all)
+  show <role> [target]      print the role prompt (fresh-context handoff)
+  install [--harness <id>[,<id>…]|all] [--json]
+                            render the roles into this project's harnesses
+  uninstall [--harness <id>[,<id>…]|all] [--json]
+                            remove generated role files
+  register                  write the routing block into AGENTS.md / CLAUDE.md
+  unregister [--dry-run]    remove that routing block again
+  model <role|default|harness:<name>> <id>
+                            pin a model for a role or a harness
+`;
+
+// Which flags each subcommand actually understands. Anything else is a typo or
+// a wrong assumption, and for a destructive subcommand that difference matters:
+// `unregister --help` used to strip the routing block and report success,
+// because unknown flags were dropped in silence. They are an error now.
+const FLAGS = {
+  list: ["--json", "--verbose", "-v"],
+  harnesses: ["--json", "--all", "-a"],
+  show: [],
+  install: ["--json", "--harness"],
+  uninstall: ["--json", "--harness"],
+  register: [],
+  unregister: ["--dry-run"],
+  model: [],
+};
+
+function checkFlags(sub, rest) {
+  const known = FLAGS[sub] || [];
+  // `--harness <id>` takes a value; that value is not itself a flag.
+  const values = new Set();
+  rest.forEach((a, i) => { if (a === "--harness") values.add(i + 1); });
+  for (const [i, a] of rest.entries()) {
+    if (values.has(i) || a === "--" || !a.startsWith("-")) continue;
+    if (known.includes(a)) continue;
+    die(`unknown flag "${a}" for \`agents ${sub}\` `
+      + (known.length ? `(accepts ${known.join(", ")})` : "(accepts no flags)")
+      + "\n       `waypost agents --help` lists every subcommand.");
+  }
+}
+
 function main() {
   ignoreEpipe();
   const [sub = "list", ...rest] = process.argv.slice(2);
+  // Help is answered before any subcommand runs: asking what a command does
+  // must never be the same thing as running it.
+  if (["help", "--help", "-h"].includes(sub) || rest.includes("--help") || rest.includes("-h")) {
+    process.stdout.write(USAGE);
+    return;
+  }
+  checkFlags(sub, rest);
   const cfg = readConfig();
   const json = rest.includes("--json");
   switch (sub) {
@@ -967,9 +1018,10 @@ function main() {
       return;
     }
     case "unregister": {
-      const res = unregister();
+      const dryRun = rest.includes("--dry-run");
+      const res = unregister({ dryRun });
       if (!res.length) process.stdout.write("no routing block found\n");
-      for (const r of res) process.stdout.write(`removed  ${r.file}\n`);
+      for (const r of res) process.stdout.write(`${r.action.padEnd(12)} ${r.file}\n`);
       return;
     }
     case "model": {

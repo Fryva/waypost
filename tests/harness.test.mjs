@@ -532,6 +532,33 @@ test("register writes exactly one routing block and migrates it in place", () =>
   assert.ok(!/waypost:agents/.test(readFileSync(join(proj, "AGENTS.md"), "utf8")));
 });
 
+// Asking what a destructive command does must not be the same thing as running
+// it: `agents unregister --help` used to strip the routing block and exit 0,
+// because unknown flags were dropped in silence rather than refused.
+test("agents unregister: --help and --dry-run report, they do not remove", () => {
+  const { proj } = bound();
+  const agents = join(proj, "AGENTS.md");
+  writeFileSync(agents, "# Project rules\n\nkeep me\n", "utf8");
+  waypost(proj, ["agents", "register"]);
+  const registered = readFileSync(agents, "utf8");
+
+  const help = waypost(proj, ["agents", "unregister", "--help"]).stdout;
+  assert.match(help, /waypost agents <subcommand>/, "--help prints usage");
+  assert.equal(readFileSync(agents, "utf8"), registered, "--help left the file untouched");
+
+  const dry = waypost(proj, ["agents", "unregister", "--dry-run"]).stdout;
+  assert.match(dry, /would remove\s+AGENTS\.md/, "--dry-run names what it would remove");
+  assert.equal(readFileSync(agents, "utf8"), registered, "--dry-run wrote nothing");
+
+  const bad = waypost(proj, ["agents", "unregister", "--wat"], { expectFail: true });
+  assert.equal(bad.status, 1);
+  assert.match(bad.stderr, /unknown flag "--wat"/, "an unknown flag is refused, not ignored");
+  assert.equal(readFileSync(agents, "utf8"), registered, "the refusal removed nothing");
+
+  waypost(proj, ["agents", "unregister"]);
+  assert.ok(!/waypost:agents/.test(readFileSync(agents, "utf8")), "the bare command still removes");
+});
+
 test("agents show prints the prompt alone — a harness with no subagents can pipe it", () => {
   const { proj } = bound();
   const out = waypost(proj, ["agents", "show", "critic", "adr/foo.md"]).stdout;

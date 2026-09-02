@@ -728,6 +728,7 @@ ROLES (same roles in every harness)
                            uses  [--harness <id>[,<id>…]|all]
   agents uninstall         remove generated role files
   agents register          write the routing block into AGENTS.md / CLAUDE.md
+  agents unregister        remove that routing block again  [--dry-run]
   agents model <role|default|harness:<name>> <id>
                            pin a model; role/default reach only harnesses with
                            a published tier naming, harness:<name> the rest
