@@ -561,6 +561,20 @@ export function targetDir(id, proj = projectRoot()) {
   return join(proj, rel);
 }
 
+// Paths a harness owns inside a project — its generated role files and its
+// own routing file — as repo-relative prefixes. Registry data, not a list here,
+// so a new harness JSON brings its own.
+export function harnessOwnedPaths() {
+  const out = new Set();
+  for (const h of registry().values()) {
+    const r = h.roles || {};
+    if (r.dir) out.add(String(r.dir).replace(/\/+$/, ""));
+    else if (r.file && !String(r.file).includes("{")) out.add(r.file);
+    for (const f of h.instructions || []) if (f.includes("/")) out.add(f);
+  }
+  return [...out];
+}
+
 export function targetPath(id, roleName, proj = projectRoot()) {
   const h = harness(id);
   const spec = roleSpec(h);
@@ -584,7 +598,34 @@ export function renderFor(id, role, cfg) {
 // file the harness itself owns, never by env: a Codex user must not have
 // .claude/ conjured for them, and a shared project may carry several.
 export function detectHarnesses(proj = projectRoot()) {
-  return harnessIds().filter((id) => (harness(id).detect || []).some((p) => existsSync(join(proj, p))));
+  return harnessIds().filter((id) => (harness(id).detect || []).some((p) => markerCounts(join(proj, p))));
+}
+
+// A detection marker is evidence the USER uses a harness. A file whose entire
+// content is waypost's own routing block is not: waypost wrote it, as another
+// harness's instruction target (E-1). `AGENTS.md` is `codex`'s marker AND the
+// block target for nine other harnesses, so a solo-Pi project's `waypost setup`
+// used to write AGENTS.md, then read it back as "codex is used here" and, on the
+// next run, install an unrequested Codex agent set. Strip our block; a marker
+// counts when the user's own content (or a directory, or a file we never write)
+// remains. An empty file is not evidence either.
+function markerCounts(abs) {
+  if (!existsSync(abs)) return false;
+  let text;
+  try { text = readFileSync(abs, "utf8"); } catch { return true; } // a directory: real evidence
+  return text.replace(BLOCK_RE, "").trim().length > 0;
+}
+
+// The running harness, from an explicit WAYPOST_HARNESS or, failing that, the
+// env markers each registry entry declares — the same detection commit.mjs used
+// for its trailers, lifted here so presence, sessions, leases and watch label a
+// session the same way commits do (E-3) instead of showing "?".
+export function detectHarness(env = process.env) {
+  if (env.WAYPOST_HARNESS) return env.WAYPOST_HARNESS;
+  for (const [id, h] of registry()) {
+    if ((h.env || []).some((k) => env[k])) return id;
+  }
+  return "unknown";
 }
 
 // ─── Install / uninstall / status ──────────────────────────────────────

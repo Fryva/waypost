@@ -1037,6 +1037,31 @@ test("listVaultStoryFiles: sees flat, folder-shape and standalone stories (contr
   assert.deepEqual(listVaultStoryFiles(join(vault, "nope")), [], "missing vault yields nothing");
 });
 
+test("checkWorkWithoutStory: the vault's own files and a harness's generated files are not work on the codebase (G-6)", async () => {
+  const { checkWorkWithoutStory } = await import("../scripts/doctor.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "ps-wws2-"));
+  const vault = join(proj, "vault");
+  mkdirSync(join(vault, "epics", "PS-A", "stories"), { recursive: true });
+  writeFileSync(join(vault, "epics", "PS-A", "stories", "story-a.md"), "---\ntype: story\nstatus: planned\n---\n\n# s\n", "utf8");
+  writeFileSync(join(vault, "README.md"), "# vault\n", "utf8");          // what `setup` scaffolds
+  mkdirSync(join(proj, ".cursor", "rules"), { recursive: true });
+  writeFileSync(join(proj, ".cursor", "rules", "waypost-critic.mdc"), "---\n---\nrole\n", "utf8"); // what `agents install` writes
+  writeFileSync(join(proj, ".gitattributes"), "* text=auto eol=lf\n", "utf8");                        // what `doctor --fix` writes
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  const cfg = { vault_path: vault };
+  const prevProj = process.env.WAYPOST_PROJECT_DIR;
+  process.env.WAYPOST_PROJECT_DIR = proj;
+  try {
+    assert.deepEqual(checkWorkWithoutStory(cfg, proj), [],
+      "a fresh setup used to report its own eighteen scaffolded files as untracked source work");
+    writeFileSync(join(proj, "src.mjs"), "// work\n", "utf8");
+    assert.equal(checkWorkWithoutStory(cfg, proj).length, 1, "real source still counts");
+  } finally {
+    if (prevProj === undefined) delete process.env.WAYPOST_PROJECT_DIR;
+    else process.env.WAYPOST_PROJECT_DIR = prevProj;
+  }
+});
+
 test("checkWorkWithoutStory: fires on dirty tree with no open story, silent otherwise (contract 18)", async () => {
   const { checkWorkWithoutStory } = await import("../scripts/doctor.mjs");
   const root = mkdtempSync(join(tmpdir(), "ps-wws-"));

@@ -153,7 +153,7 @@ windsurf, cline, trae, lingma and roo, each for the reason recorded in its `note
 | `vendor` | who makes it, shown in the listing |
 | `kind` | `provider` for a model vendor: it is listed, detected and recorded, never installed into |
 | `runs_in` / `match` | provider entries only: which harnesses drive it, and the env that identifies it |
-| `roles.shape` | `frontmatter-md`, `prompt-md`, `toml-prompt` or `aggregate-json` |
+| `roles.shape` | `frontmatter-md`, `prompt-md`, `toml` or `aggregate-json` (see Shapes) |
 | `roles.dir` / `roles.file` | where a role lands; `{prefix}` and `{role}` substitute, and `file` may carry a directory segment where the unit of a role is a directory (`{prefix}{role}/agent.md`) |
 | `roles.model` | `false` if the format carries no model, else `{ "tiers": {…} }` |
 | `roles.effort` | optional `{ "map": {…} }` translating a role's neutral effort (`max`/`high`/`medium`/`low`) into this harness's own vocabulary for the `{effort}` template; omitted passes the neutral word through unchanged |

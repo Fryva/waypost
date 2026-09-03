@@ -45,7 +45,7 @@ import {
   readConfig, projectRoot, ignoreEpipe, listVaultStoryFiles, parseFrontmatter,
   storyRefOf, storyPathOf as storyPathOfLib,
 } from "./lib.mjs";
-import { registry, harness, detectProvider } from "./agents.mjs";
+import { detectProvider } from "./agents.mjs";
 import { sessionId, claimsOf, CLAIM_WINDOW_MS } from "./sessions.mjs";
 import { readLeases, vaultRel } from "./presence.mjs";
 import { runReconcile } from "./reconcile.mjs";
@@ -62,13 +62,8 @@ function git(args, opts = {}) {
 // Which harness this session is running in. The registry knows the env vars
 // each one sets; `WAYPOST_HARNESS` overrides, because detection by environment is
 // best-effort by nature and a wrong label in the history is worse than none.
-export function detectSessionHarness(env = process.env) {
-  if (env.WAYPOST_HARNESS) return env.WAYPOST_HARNESS;
-  for (const [id, h] of registry()) {
-    if ((h.env || []).some((k) => env[k])) return id;
-  }
-  return "unknown";
-}
+import { detectHarness } from "./agents.mjs";
+export { detectHarness as detectSessionHarness };
 
 // A story reference is stable across harnesses and machines: <epic>/<stem>,
 // derived from the vault-relative path, never an absolute path. storyRefOf
@@ -170,7 +165,7 @@ function main() {
   if (!subject) die('a message is required: waypost commit -m "<what changed>" [--story <id>]');
 
   const self = sessionId();
-  const h = detectSessionHarness();
+  const h = detectHarness();
   const story = storyRef(opt("--story"), cfg);
   if (opt("--story") && !story) {
     die(`no story matches "${opt("--story")}" in the vault — pass its path, or <epic>/<story-stem>`);

@@ -77,6 +77,7 @@ import {
   PREFIX as AGENT_PREFIX,
   detectHarnesses,
   instructionTargets,
+  harnessOwnedPaths,
   status as agentStatus,
 } from "./agents.mjs";
 
@@ -1237,8 +1238,17 @@ export function checkWorkWithoutStory(cfg, proj) {
   // ENTRY_IGNORE, not the shared set: waypost bind writes AGENTS.md,
   // CLAUDE.md and .gitignore in a session that by construction has no story, so
   // the shared set would make this fire on every project's first run.
-  const dirty = uncommittedProjectFiles(proj, ENTRY_IGNORE);
-  if (dirty === null) return out; // not a git repo, shallow, no commits, detached
+  const all = uncommittedProjectFiles(proj, ENTRY_IGNORE);
+  if (all === null) return out; // not a git repo, shallow, no commits, detached
+  // Neither the vault's own artifacts nor a harness's generated files are work
+  // on the codebase: a fresh `setup` scaffolds the vault and installs roles in
+  // a session that by construction has no story, and counted every one (G-6).
+  const under = (f, p) => f === p || f.startsWith(`${p}/`);
+  const vaultAbs = resolve(cfg.vault_path);
+  const vaultRel = vaultAbs.startsWith(`${resolve(proj)}/`) ? vaultAbs.slice(resolve(proj).length + 1) : null;
+  let owned = [];
+  try { owned = harnessOwnedPaths(); } catch { /* an unreadable registry is doctor's own finding, not this check's */ }
+  const dirty = all.filter((f) => !(vaultRel && under(f, vaultRel)) && !owned.some((p) => under(f, p)));
 
   // The other half: work that WAS committed, with no story to attribute it to.
   // In a repo of small frequent commits that is the common shape, and a

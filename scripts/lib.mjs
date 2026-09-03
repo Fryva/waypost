@@ -284,6 +284,15 @@ export function footerDateRe() {
   return new RegExp(`^(\\*(?:${forms.join("|")})\\s*[:：]\\s*).*(\\*)$`, "mi");
 }
 
+// The `| **Status** | value |` row of a story's field table, in any registered
+// language (the label is the index column's), so story-section can keep it in
+// step with frontmatter: a reader who never sees the frontmatter — a rendered
+// page — used to be told "planned" about a story that was closed months ago.
+export function statusCellRe() {
+  const forms = allForms("index_columns", "status").map(escapeRe);
+  return new RegExp(`^(\\|\\s*\\*\\*(?:${forms.join("|")})\\*\\*\\s*\\|\\s*)[^|\\n]*?(\\s*\\|\\s*)$`, "mi");
+}
+
 // Matches a folder-README index header row in any registered language,
 // in the standard 4-column form: | File | Title | Status | Date |
 //
@@ -917,7 +926,11 @@ export function resolveLinkTarget(rawTarget, linkType, ctx) {
     return { outcome: "dead" };
   }
 
-  const key = target.toLowerCase();
+  // A bare name may carry its extension (`[[note.md]]` resolves in Obsidian;
+  // `supersedes: "second-decision.md"` used to be "not an artifact" while the
+  // path-qualified spelling of the same file resolved).
+  const bare = target.replace(/\.md$/i, "");
+  const key = bare.toLowerCase();
   // Tier 1: exact frontmatter identity. Tier 2: filename-stem readings.
   // Tier 3: legacy numbered-prefix fallback, per node anchor.
   const tiers = [
@@ -925,7 +938,7 @@ export function resolveLinkTarget(rawTarget, linkType, ctx) {
     () => (index.byStem.get(key) || []).filter(eligible),
     () => index.nodes.filter((n) =>
       eligible(n)
-      && isLegacyNumberedId(target, n.story ? { story: true } : { prefix: n.prefix })
+      && isLegacyNumberedId(bare, n.story ? { story: true } : { prefix: n.prefix })
       && n.stem.toLowerCase().startsWith(`${key}-`)),
   ];
   for (const tier of tiers) {
@@ -1464,6 +1477,9 @@ export const SOURCE_IGNORE = [
 export const ENTRY_IGNORE = [
   ...SOURCE_IGNORE,
   /^AGENTS\.md$/, /^CLAUDE\.md$/, /^opencode\.json$/, /^\.gitignore$/,
+  // `doctor --fix` (and therefore `setup`) writes the line-ending policy and the
+  // merge-driver attributes: the tool's own first-run output, not source.
+  /^\.gitattributes$/,
 ];
 
 // The single open-story predicate (contract 5), as a pure core: it decides from

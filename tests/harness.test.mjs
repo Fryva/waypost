@@ -9,6 +9,7 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { detectHarnesses, detectHarness } from "../scripts/agents.mjs";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
   instructionTargets } from "../scripts/agents.mjs";
@@ -159,13 +160,60 @@ test("a role naming a tool outside the neutral vocabulary is rejected at read ti
 // C-6: a tool root with no bundled harnesses/ at all is a misconfigured
 // WAYPOST_HOME, not "this project uses no harnesses" — every agents/harnesses
 // command must fail loudly instead of printing an empty table with exit 0.
+test("a bare AGENTS.md that is only waypost's own routing block does not conjure a Codex install (E-1)", () => {
+  const proj = project();
+  mkdirSync(join(proj, ".pi"), { recursive: true });   // a solo-Pi project
+  waypost(proj, ["bind", join(proj, "vault")]);
+  waypost(proj, ["agents", "register"]);               // pi's block goes into AGENTS.md
+  assert.match(readFileSync(join(proj, "AGENTS.md"), "utf8"), /waypost:agents/, "the block landed");
+  // codex's marker is AGENTS.md, but that file is now purely our block: not evidence.
+  const r = spawnSync(process.execPath, [join(REPO, "scripts", "agents.mjs"), "list"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+  });
+  assert.doesNotMatch(r.stdout, /codex/, "codex must not be detected from a file waypost wrote for pi");
+  // …and the documented "idempotent" second run must not scatter a .codex/ tree.
+  waypost(proj, ["agents", "install"]);
+  assert.ok(!existsSync(join(proj, ".codex")), "no unrequested Codex agents on a re-run");
+});
+
+test("a real user-written AGENTS.md still detects codex (E-1 does not over-correct)", () => {
+  const proj = project();
+  writeFileSync(join(proj, "AGENTS.md"), "# My project rules\n\nUse Codex here.\n", "utf8");
+  const detected = (() => {
+    const prev = process.env.WAYPOST_PROJECT_DIR;
+    process.env.WAYPOST_PROJECT_DIR = proj;
+    try { return detectHarnesses(proj); } finally {
+      if (prev === undefined) delete process.env.WAYPOST_PROJECT_DIR; else process.env.WAYPOST_PROJECT_DIR = prev;
+    }
+  })();
+  assert.ok(detected.includes("codex"), "genuine AGENTS.md content is real evidence");
+});
+
+test("detectHarness falls back to env markers, the way commit trailers already did (E-3)", () => {
+  assert.equal(detectHarness({ WAYPOST_HARNESS: "grok" }), "grok", "an explicit label wins");
+  assert.equal(detectHarness({ CODEX_HOME: "/x" }), "codex", "…else the registry's env markers");
+  assert.equal(detectHarness({}), "unknown", "…else unknown, never a guess");
+});
+
+test("bin/waypost uses its own tree even when the caller exported another WAYPOST_HOME (O-4)", () => {
+  const proj = mkdtempSync(join(tmpdir(), "waypost-o4-"));
+  const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "harnesses"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: "/nonexistent/tool-root" },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /21 harnesses known/, "one invocation, one tree: the dispatcher's own");
+});
+
 test("a tool root missing harnesses/ makes `agents list` exit non-zero, naming WAYPOST_HOME", () => {
   const home = mkdtempSync(join(tmpdir(), "waypost-nohar-"));
   mkdirSync(join(home, "agents"), { recursive: true });
   writeFileSync(join(home, "agents", "critic.md"),
     "---\nname: critic\ndescription: x\ntools: []\n---\nbody\n", "utf8");
   const proj = mkdtempSync(join(tmpdir(), "waypost-nohar-proj-"));
-  const r = spawnSync(process.execPath, [Waypost, "agents", "list"], {
+  // The script run directly, the way a plugin hook would: bin/waypost always
+  // pins WAYPOST_HOME to its own tree, so the misconfiguration cannot reach
+  // it through the dispatcher (O-4).
+  const r = spawnSync(process.execPath, [join(REPO, "scripts", "agents.mjs"), "list"], {
     encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: home },
   });
   assert.notEqual(r.status, 0, "a missing bundled registry must not print an empty table with exit 0");

@@ -30,11 +30,17 @@ function fail(msg) {
 // Run a core script. `capture` pipes stdout so the dispatcher can act on the
 // JSON; otherwise the child owns the terminal. Either way the child's exit
 // code is ours — a harness scripting `waypost doctor && ...` must see failures.
+//
+// The tool root is the tree this executable belongs to, always: the children
+// get WAYPOST_HOME=ROOT even when the caller exported something else. A
+// dispatcher validating layouts against its own tree while its scripts read
+// templates from another (O-4) is two versions of the tool in one command
+// line. WAYPOST_HOME still means "tool root" for a script run directly.
 function run(script, args = [], { capture = false } = {}) {
   const r = spawnSync(process.execPath, [SCRIPT(script), ...args], {
     encoding: "utf8",
     stdio: capture ? ["inherit", "pipe", "inherit"] : "inherit",
-    env: { ...process.env, WAYPOST_HOME: process.env.WAYPOST_HOME || ROOT },
+    env: { ...process.env, WAYPOST_HOME: ROOT },
   });
   if (r.error) fail(`${script}: ${r.error.message}`);
   if (r.status !== 0) process.exit(r.status ?? 1);
@@ -80,7 +86,7 @@ function readConfig() {
 // "the token after any flag is its value" ate the first positional whenever a
 // boolean flag was written before it.
 const VALUED = new Set(["--harness", "--layout", "--lang", "--only", "--id",
-  "--budget", "--project", "--home", "--since", "--for", "--kind", "--limit", "--message",
+  "--budget", "--project", "--since", "--for", "--kind", "--limit", "--message",
   "--story", "--merge", "--session", "--provider"]);
 
 // The literal `--` stops flag parsing, same as most POSIX CLIs: everything
@@ -161,7 +167,7 @@ function handleSetup(args) {
   // and add the one line that matters: whether anything still needs a human.
   step("repair the mechanical install findings", () => {
     const r = spawnSync(process.execPath, [SCRIPT("doctor"), "--install", "--fix"], {
-      encoding: "utf8", env: { ...process.env, WAYPOST_HOME: process.env.WAYPOST_HOME || ROOT },
+      encoding: "utf8", env: { ...process.env, WAYPOST_HOME: ROOT },
     });
     process.stdout.write(r.stdout || "");
     if (r.stderr) process.stderr.write(r.stderr);
@@ -405,16 +411,27 @@ function handleDraft(args) {
 
 function reconcileAfterWrite() {
   const r = spawnSync(process.execPath, [SCRIPT("reconcile"), "--write"], {
-    encoding: "utf8", env: { ...process.env, WAYPOST_HOME: process.env.WAYPOST_HOME || ROOT },
+    encoding: "utf8", env: { ...process.env, WAYPOST_HOME: ROOT },
   });
   let failed = [];
+  let did = null;
   try {
     const out = JSON.parse(r.stdout || "{}");
     failed = [out.kanban, out.codemap, out.graph, ...(out.indexes || [])]
       .filter((t) => t && t.error).map((t) => `${t.path || t.target || "?"}: ${t.error}`);
+    // Name only the views that were actually (re)written: the message used to
+    // claim "code-map, graph" even on a fresh vault where both are skipped by
+    // design, one line above doctor's own "No graph.md yet" (E-2).
+    const wrote = [];
+    if ((out.indexes || []).some((t) => t && t.written)) wrote.push("indexes");
+    for (const k of ["kanban", "codemap", "graph"]) if (out[k] && out[k].written) wrote.push(k === "codemap" ? "code-map" : k);
+    did = wrote;
   } catch { /* fall through to the exit code */ }
   if (r.status === 0 && !failed.length) {
-    process.stdout.write("derived views reconciled (indexes, kanban, code-map, graph)\n");
+    process.stdout.write(did && did.length
+      ? `derived views reconciled (${did.join(", ")})\n`
+      : did ? "derived views already up to date\n"
+      : "derived views reconciled\n");
     return;
   }
   process.stderr.write("waypost: the artifact was written, but reconciling the derived views failed:\n"
@@ -469,7 +486,7 @@ function claimForStory(storyPath, vault) {
   // But the session that is about to duplicate work should hear about it here.
   if (storyPath) {
     const r = spawnSync(process.execPath, [SCRIPT("sessions"), "--json"], {
-      encoding: "utf8", env: { ...process.env, WAYPOST_HOME: process.env.WAYPOST_HOME || ROOT },
+      encoding: "utf8", env: { ...process.env, WAYPOST_HOME: ROOT },
     });
     try {
       const { claims = [], session_id: self } = JSON.parse(r.stdout || "{}");
@@ -483,7 +500,7 @@ function claimForStory(storyPath, vault) {
   }
   const args = storyPath ? ["--claim", storyPath] : ["--release"];
   const r = spawnSync(process.execPath, [SCRIPT("sessions"), ...args], {
-    encoding: "utf8", env: { ...process.env, WAYPOST_HOME: process.env.WAYPOST_HOME || ROOT },
+    encoding: "utf8", env: { ...process.env, WAYPOST_HOME: ROOT },
   });
   const line = (r.stdout || "").split("\n").find((l) => l.startsWith("claimed") || l.startsWith("released"));
   if (line) process.stdout.write(`  ${line.trim()}  (visible to other sessions via \`waypost sessions\`)\n`);
@@ -605,6 +622,28 @@ function handleDerived(cmd, args) {
   process.stdout.write(`${target.written ? "written" : "unchanged"} ${target.path || cmd}\n`);
 }
 
+// `waypost reconcile` is listed beside kanban/graph/codemap, so it answers in
+// the same voice — a line per view — instead of the raw JSON its programmatic
+// callers (draft, commit, the merge driver) consume. `--json` still yields that
+// shape for anyone composing it.
+function handleReconcile(args) {
+  if (flag(args, "--json")) { process.stdout.write(run("reconcile", args.filter((a) => a !== "--json"), { capture: true })); return; }
+  const wrote = flag(args, "--write");
+  const out = runJson("reconcile", args);
+  const line = (label, t) => {
+    if (!t) return;
+    if (t.error) { process.stdout.write(`  ${label}: error — ${t.error}\n`); return; }
+    if (t.skipped) { process.stdout.write(`  ${label}: ${t.skipped}\n`); return; }
+    process.stdout.write(`  ${label}: ${t.written ? "written" : "unchanged"}${t.path ? ` ${t.path}` : ""}\n`);
+  };
+  process.stdout.write(`${wrote ? "reconciled" : "dry run (nothing written; add --write)"}\n`);
+  line("kanban", out.kanban);
+  line("code-map", out.codemap);
+  line("graph", out.graph);
+  for (const idx of out.indexes || []) line(idx.path || "index", idx);
+  if (out.summary && out.summary.failed > 0) process.exitCode = 1;
+}
+
 // ─── prompts & skills ──────────────────────────────────────────────────
 
 function printDoc(dir, name, suffix) {
@@ -698,6 +737,8 @@ VAULT
   scaffold                 (re)create the layout's folders and index READMEs
   status                   bound-vault summary + agent-role install state
   draft <kind> "<title>"   render an artifact; --write creates it and reconciles
+                           (epic/story take a leading id: draft epic <ID> "…",
+                            draft story <EPIC> "…")
                            kinds: adr spec epic story research concept meeting runbook
   story <plan|close> <p>   story lifecycle gate; --write applies
   kanban | graph | codemap regenerate one derived view (--json to preview only)
@@ -756,7 +797,8 @@ HARNESS-AGNOSTIC
   No hooks, no status line, no slash commands: the CLI is the interface, and
   the roles are rendered into whatever each harness understands. A harness is a
   JSON file in harnesses/ — add your own in .waypost/harnesses/ (waypost harnesses).
-  Project root: WAYPOST_PROJECT_DIR (else cwd). Tool root: WAYPOST_HOME.
+  Project root: WAYPOST_PROJECT_DIR (else cwd). Tool root: the tree this
+  executable belongs to (WAYPOST_HOME applies to a script run directly).
 `);
 }
 
@@ -790,6 +832,18 @@ async function heartbeat(cmd) {
     // Session id is already resolved and pinned in WAYPOST_SESSION_ID by main()
     // before this runs (G-1) — no need to import sessions.mjs or lib.mjs just
     // to derive it again here.
+    // Resolve the harness once, here, and pin it in the environment so the
+    // child this command spawns (sessions, lease, watch, status, brief) labels
+    // the session the way commits already do — presence used to show "?" for a
+    // session commit stamped "claude" (E-3). Detection reads the registry, so
+    // do it only when a beat is actually going to happen.
+    if (!process.env.WAYPOST_HARNESS) {
+      try {
+        const { detectHarness } = await import(`file://${SCRIPT("agents")}`);
+        const h = detectHarness();
+        if (h && h !== "unknown") process.env.WAYPOST_HARNESS = h;
+      } catch { /* detection is best-effort; a null harness is still valid */ }
+    }
     const { beat } = await import(`file://${SCRIPT("presence")}`);
     const cfg = readConfig();
     if (cfg && cfg.vault_path && existsSync(cfg.vault_path)) {
@@ -806,17 +860,13 @@ async function main() {
   if (!process.env.WAYPOST_SESSION_ID) process.env.WAYPOST_SESSION_ID = sessionId(process.argv);
 
   const argv = process.argv.slice(2);
-  // --project/--home are recognised ONLY in the leading position, before the
-  // command name (either order between the two) — not anywhere in argv, or a
-  // positional argument that happens to equal one of these strings (a search
-  // term, say) would be swallowed as a global flag instead (A-8).
+  // --project is recognised ONLY in the leading position, before the command
+  // name — not anywhere in argv, or a positional argument that happens to
+  // equal it (a search term, say) would be swallowed as a global flag (A-8).
   let i = 0;
   while (i < argv.length) {
     if (argv[i] === "--project" && argv[i + 1] !== undefined) {
       process.env.WAYPOST_PROJECT_DIR = resolve(expandHome(argv[i + 1]));
-      i += 2;
-    } else if (argv[i] === "--home" && argv[i + 1] !== undefined) {
-      process.env.WAYPOST_HOME = resolve(expandHome(argv[i + 1]));
       i += 2;
     } else break;
   }
@@ -839,7 +889,7 @@ async function main() {
     }
     case "kanban": case "codemap": handleDerived(cmd, rest); break;
     case "search": handleSearch(rest); break;
-    case "reconcile": run("reconcile", rest); break;
+    case "reconcile": handleReconcile(rest); break;
     case "doctor": run("doctor", rest); break;
     case "diff-refs": run("diff-refs", rest); break;
     case "agents": run("agents", rest); break;

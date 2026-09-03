@@ -31,7 +31,7 @@
 //     false "1 call/turn" for every turn (each record holds ≤1 tool_use).
 //
 // COST is computed at current API list prices (PRICING below) with the cache
-// multipliers: read 0.1× input, 5m write 1.25×, 1h write 2× (the usage records
+// multipliers: read 0.1× input (0.025× on Fable 5.1), 5m write 1.25×, 1h write 2× (the usage records
 // carry the 5m/1h split). Under a subscription plan these dollars are a proxy
 // for rate-limit consumption, not an invoice — the RATIOS hold either way.
 // Historical price changes are not modeled; everything is priced at today's
@@ -81,15 +81,18 @@ const STAGE_OF = {
 };
 const STAGE_ORDER = ["authoring", "critique", "planning", "code-review", "curation", "upkeep", "other"];
 
-// USD per MTok [input, output], API list prices as of 2026-08-04
-// (platform.claude.com pricing docs). Cache multipliers applied on top of
-// the input rate.
+// USD per MTok [input, output, cache-read fraction of input], API list prices
+// as of 2026-09-03 (platform.claude.com models overview). Cache reads are 10%
+// of the input rate on every model except Claude Fable 5.1, where they are
+// 2.5%; the write multipliers (5m 1.25×, 1h 2×) are model-independent.
 export const PRICING = {
+  "claude-fable-5-1": [10, 50, 0.025],
   "claude-fable-5": [10, 50],
   "claude-opus-5": [5, 25],
   "claude-opus-4-8": [5, 25],
   "claude-opus-4-7": [5, 25],
-  "claude-sonnet-5": [2, 10], // intro pricing through 2026-08-31; sticker is [3, 15]
+  "claude-opus-4-6": [5, 25],
+  "claude-sonnet-5": [2, 10],
   "claude-sonnet-4-6": [3, 15],
   "claude-haiku-4-5": [1, 5],
 };
@@ -97,7 +100,7 @@ export const PRICING = {
 // Transcripts carry variant ids ("claude-haiku-4-5-20251001", "opus",
 // "claude-opus-5[1m]") — normalize before the PRICING lookup so they don't
 // silently price at $0.
-const MODEL_ALIASES = { opus: "claude-opus-5", sonnet: "claude-sonnet-5", haiku: "claude-haiku-4-5" };
+const MODEL_ALIASES = { fable: "claude-fable-5-1", opus: "claude-opus-5", sonnet: "claude-sonnet-5", haiku: "claude-haiku-4-5" };
 
 export function normModel(model) {
   const m = model.replace(/\[[^\]]*\]$/, "").replace(/-\d{8}$/, "");
@@ -107,9 +110,9 @@ export function normModel(model) {
 export function rowCost(row) {
   const p = PRICING[normModel(row.model)];
   if (!p) return 0;
-  const [inP, outP] = p;
+  const [inP, outP, readFrac = 0.1] = p;
   return (
-    (row.input * inP + row.cw5m * 1.25 * inP + row.cw1h * 2 * inP + row.cacheRead * 0.1 * inP + row.output * outP) / 1e6
+    (row.input * inP + row.cw5m * 1.25 * inP + row.cw1h * 2 * inP + row.cacheRead * readFrac * inP + row.output * outP) / 1e6
   );
 }
 

@@ -173,8 +173,9 @@ decisions get accepted.
 ## Paths and environment
 
 - `WAYPOST_PROJECT_DIR` — the project root (fallback: `CLAUDE_PROJECT_DIR`, cwd).
-- `WAYPOST_HOME` — the tool root (fallback: `CLAUDE_PLUGIN_ROOT`, the directory above
-  `scripts/`).
+- `WAYPOST_HOME` — the tool root for a script run directly (fallback:
+  `CLAUDE_PLUGIN_ROOT`, the directory above `scripts/`). `bin/waypost` always uses
+  the tree it belongs to and sets this for its own children.
 - `WAYPOST_SESSION_ID`, `WAYPOST_HARNESS`, `WAYPOST_PROVIDER` — session identity and labels.
 - `WAYPOST_NO_BEAT=1` — disable the automatic presence heartbeat.
 - Bind config: `.waypost/projectstore.json` (legacy `.claude/projectstore.json`).

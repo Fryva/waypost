@@ -93,6 +93,20 @@ test("story-section plan: idempotent, preserves hand-written plan, no downgrade 
   assert.match(out.content, /\*Last updated: 20\d\d-\d\d-\d\d\*/); // footer synced
 });
 
+test("story-section keeps the field table's Status row in step with frontmatter, in any language (G-5)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ps-ss-"));
+  const en = join(dir, "en.md");
+  writeFileSync(en, "---\ntype: story\nid: \"story-row\"\nstatus: planned\n---\n\n# Row\n\n| Field | Value |\n|---|---|\n| **Epic** | [E1](../epic.md) |\n| **Status** | planned |\n| **Priority** | p2 |\n\n---\n");
+  const planned = run("story-section.mjs", ["plan", en]);
+  assert.match(planned.content, /^\| \*\*Status\*\* \| in-progress \|$/m, "a rendered page never sees the frontmatter");
+  assert.match(planned.content, /^\| \*\*Priority\*\* \| p2 \|$/m, "the neighbouring rows are untouched");
+  writeFileSync(en, planned.content);
+  assert.match(run("story-section.mjs", ["close", en]).content, /^\| \*\*Status\*\* \| done \|$/m);
+  const ru = join(dir, "ru.md");
+  writeFileSync(ru, "---\ntype: story\nid: \"story-ru\"\nstatus: planned\n---\n\n# Строка\n\n| Поле | Значение |\n|---|---|\n| **Статус** | planned |\n\n---\n");
+  assert.match(run("story-section.mjs", ["close", ru]).content, /^\| \*\*Статус\*\* \| done \|$/m, "registry-driven: every bundled label");
+});
+
 test("story-section close: inserts Final Summary, stamps closed_at, status done", () => {
   const p = join(mkdtempSync(join(tmpdir(), "ps-ss-")), "s.md");
   writeFileSync(p, STORY);
@@ -882,6 +896,27 @@ test("bin/waypost draft --lang forwards to draft.mjs (P1-10, A-5)", () => {
   assert.match(out.content, /## Контекст/);
 });
 
+test("draft --write names only the views it actually wrote, not a fixed four (E-2)", () => {
+  const { proj } = makeVaultProject();
+  const r = runBinRaw(proj, ["draft", "adr", "Fresh Decision", "--write"]);
+  assert.equal(r.status, 0, r.stderr);
+  // A fresh vault with no code_refs skips code-map and (first-run) graph by design.
+  assert.match(r.stdout, /derived views reconciled \(/, "it still reports success");
+  assert.doesNotMatch(r.stdout, /graph/, "must not claim graph was written when it was skipped (doctor says 'No graph.md yet' next)");
+  assert.ok(!existsSync(join(proj, "vault", "graph.md")), "…and indeed graph.md was not created");
+});
+
+test("`waypost reconcile` answers in the same voice as kanban/graph/codemap, and --json still yields the raw shape (E-5)", () => {
+  const { proj } = makeVaultProject();
+  runBin(proj, ["draft", "adr", "A Thing", "--write"]);
+  const human = runBinRaw(proj, ["reconcile", "--write"]);
+  assert.equal(human.status, 0, human.stderr);
+  assert.match(human.stdout, /^reconciled$/m, "a human summary, not a JSON dump");
+  assert.doesNotThrow(() => { if (human.stdout.trim().startsWith("{")) throw new Error("still JSON"); });
+  const json = runBinRaw(proj, ["reconcile", "--write", "--json"]);
+  assert.doesNotThrow(() => JSON.parse(json.stdout), `--json must still be pure JSON, got:\n${json.stdout}`);
+});
+
 test("bin/waypost scaffold --json prints only JSON (P1-11, A-6)", () => {
   const { proj } = makeVaultProject();
   const r = runBinRaw(proj, ["scaffold", "--json"]);
@@ -1016,6 +1051,16 @@ test("doctor supersedes: a slug reference resolves through the shared resolver (
   ]);
   const out = await vaultFindings(proj, ({ index, files }) => checkSupersedes(index, files));
   assert.deepEqual(out, [], "a correct pair must not be reported because of how the link is written");
+});
+
+test("doctor supersedes: a bare reference carrying .md resolves like the path-qualified spelling (G-3)", async () => {
+  const { checkSupersedes } = await import("../scripts/doctor.mjs");
+  const { proj } = vaultWithAdrs([
+    ["first-decision.md", 'type: adr\nid: "first-decision"\ntitle: "First"\nstatus: superseded\ndate: 2026-01-01\nsuperseded_by: "second-decision.md"'],
+    ["second-decision.md", 'type: adr\nid: "second-decision"\ntitle: "Second"\nstatus: accepted\ndate: 2026-01-02\nsupersedes: "first-decision.md"'],
+  ]);
+  const out = await vaultFindings(proj, ({ index, files }) => checkSupersedes(index, files));
+  assert.deepEqual(out, [], "[[note.md]] resolves in Obsidian; `adr/first-decision.md` already resolved here");
 });
 
 test("doctor supersedes: asymmetry, self-reference and duplicates each report once (ADR-0009)", async () => {

@@ -79,9 +79,10 @@ graph and board views; GitHub and any editor render it otherwise.
 | `waypost tokens` | what the loop cost — Claude Code transcripts only |
 | `waypost status` | bind summary + per-harness role state |
 
-Project root and tool root resolve via `WAYPOST_PROJECT_DIR` and `WAYPOST_HOME`
-(falling back to `CLAUDE_PROJECT_DIR`/`CLAUDE_PLUGIN_ROOT` for an optional
-Claude plugin layer, and finally to cwd / repo root).
+The project root resolves via `WAYPOST_PROJECT_DIR` (falling back to
+`CLAUDE_PROJECT_DIR`, then cwd). The tool root is the tree `bin/waypost` belongs
+to; `WAYPOST_HOME` (fallback `CLAUDE_PLUGIN_ROOT`) matters only for a script run
+directly.
 
 ## Agent roles, everywhere
 

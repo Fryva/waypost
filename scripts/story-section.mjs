@@ -30,6 +30,7 @@ import {
   headingLineRe,
   heading,
   footerDateRe,
+  statusCellRe,
   nowIso,
   today,
 } from "./lib.mjs";
@@ -150,6 +151,10 @@ function main() {
   // every bundled language is covered; the file's own label and punctuation are
   // preserved and only the date is rewritten.
   text = text.replace(footerDateRe(), (_m, prefix, suffix) => `${prefix}${today()}${suffix}`);
+  // The field table's Status row mirrors frontmatter the same way, first row
+  // only: the template writes it once and nothing updated it afterwards (G-5).
+  const finalStatus = parseFrontmatter(text).data.status || status;
+  text = text.replace(statusCellRe(), (_m, prefix, suffix) => `${prefix}${finalStatus}${suffix}`);
 
   process.stdout.write(JSON.stringify({
     path: abs,

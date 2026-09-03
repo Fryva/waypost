@@ -11,6 +11,7 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { rowCost, normModel } from "../scripts/tokens.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const TOKENS = join(REPO, "scripts", "tokens.mjs");
@@ -139,4 +140,14 @@ test("tokens: no transcripts for this project says so, rather than crashing or p
   const r = run(home, ["--project", project]);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /no transcripts for this project/);
+});
+
+test("tokens: Claude Fable 5.1 is priced by its own id and alias, with cache reads at 2.5% of input, not 10%", () => {
+  assert.equal(normModel("claude-fable-5-1[1m]"), "claude-fable-5-1");
+  assert.equal(normModel("fable"), "claude-fable-5-1");
+  const read = (model) => rowCost({ model, input: 0, cw5m: 0, cw1h: 0, cacheRead: 1e6, output: 0 });
+  assert.equal(read("claude-fable-5-1"), 0.25, "$0.25/MTok on Fable 5.1 (platform.claude.com models overview, 2026-09-03)");
+  assert.equal(read("claude-opus-5"), 0.5, "10% of $5 everywhere else");
+  assert.equal(rowCost({ model: "claude-sonnet-5", input: 1e6, cw5m: 0, cw1h: 0, cacheRead: 0, output: 1e6 }), 12,
+    "$2 in, $10 out is the base price now, not an introductory one");
 });
