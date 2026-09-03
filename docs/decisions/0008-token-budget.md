@@ -1,8 +1,8 @@
 # ADR-0008: Context spend as a design constraint, not an outcome
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-01
-- Deciders: not approved by the project owner; status `proposed`
+- Deciders: Ivan Morozov (project owner); approved 2026-09-03
 - Supersedes: —
 - Superseded by: —
 - Related: ADR-0003 (roles), `agents/*.md`, `templates/agents-block.md.tmpl`, `scripts/brief.mjs`, `bin/waypost`

@@ -1,8 +1,8 @@
 # ADR-0005: A harness is data: the `harnesses/*.json` registry instead of a branch in a renderer
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-01
-- Deciders: not approved by the project owner; status `proposed`
+- Deciders: Ivan Morozov (project owner); approved 2026-09-03
 - Supersedes: —
 - Superseded by: —
 - Related: ADR-0003 (roles), `harnesses/*.json`, `scripts/agents.mjs`, `docs/harnesses.md`

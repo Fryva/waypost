@@ -1,8 +1,8 @@
 # ADR-0004: Name split: the vault stays ProjectStore-compatible, project wiring lives in `.waypost/`
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-08-29
-- Deciders: not approved by the project owner; status `proposed`
+- Deciders: Ivan Morozov (project owner); approved 2026-09-03
 - Supersedes: —
 - Superseded by: —
 - Related: `scripts/lib.mjs`, `bin/waypost`, `scripts/doctor.mjs`, ADR-0001, ADR-0002

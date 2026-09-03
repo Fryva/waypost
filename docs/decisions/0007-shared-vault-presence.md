@@ -1,8 +1,8 @@
 # ADR-0007: Working from several devices and operating systems: presence, leases, network drives
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-01
-- Deciders: not approved by the project owner; status `proposed`
+- Deciders: Ivan Morozov (project owner); approved 2026-09-03
 - Supersedes: —
 - Superseded by: —
 - Related: ADR-0006 (commit protocol), `scripts/presence.mjs`, `scripts/lib.mjs`

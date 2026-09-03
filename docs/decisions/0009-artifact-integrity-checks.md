@@ -1,8 +1,8 @@
 # ADR-0009: doctor verifies artifact integrity, not just story mechanics
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-02
-- Deciders: not approved by the project owner; status `proposed`
+- Deciders: Ivan Morozov (project owner); approved 2026-09-03
 - Supersedes: —
 - Superseded by: —
 - Related: `scripts/doctor.mjs`, `scripts/graph.mjs`, `docs/decisions/0008-token-budget.md`

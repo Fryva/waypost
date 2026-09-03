@@ -1,8 +1,8 @@
 # ADR-0001: A harness-agnostic core: one CLI instead of hooks and slash commands
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-08-28
-- Deciders: not approved by the project owner; status `proposed`
+- Deciders: Ivan Morozov (project owner); approved 2026-09-03
 - Supersedes: —
 - Superseded by: —
 - Related: `bin/waypost`, `scripts/*.mjs`, `AGENTS.md`, `opencode.json`

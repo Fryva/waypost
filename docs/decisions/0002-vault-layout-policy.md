@@ -1,8 +1,8 @@
 # ADR-0002: The `engineering` layout as the default; the vault is markdown in git
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-08-28
-- Deciders: not approved by the project owner; status `proposed`
+- Deciders: Ivan Morozov (project owner); approved 2026-09-03
 - Supersedes: —
 - Superseded by: —
 - Related: `scaffold/layouts/engineering.json`, `README.md`, `AGENTS.md`

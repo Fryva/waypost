@@ -1,8 +1,8 @@
 # ADR-0003: Agent roles: one neutral definition plus per-harness adapters
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-08-29
-- Deciders: not approved by the project owner; status `proposed`
+- Deciders: Ivan Morozov (project owner); approved 2026-09-03
 - Supersedes: —
 - Superseded by: —
 - Related: `agents/*.md`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, ADR-0001, ADR-0005

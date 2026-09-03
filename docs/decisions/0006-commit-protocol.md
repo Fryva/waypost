@@ -1,8 +1,8 @@
 # ADR-0006: A commit protocol for parallel work across harnesses
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-01
-- Deciders: not approved by the project owner; status `proposed`
+- Deciders: Ivan Morozov (project owner); approved 2026-09-03
 - Supersedes: —
 - Superseded by: —
 - Related: ADR-0003 (roles), ADR-0004 (paths), ADR-0007 (shared vaults), `scripts/commit.mjs`, `scripts/merge-derived.mjs`
