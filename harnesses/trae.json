@@ -5,16 +5,30 @@
   "home": "https://trae.ai",
   "docs": "https://docs.trae.ai/ide/rules",
   "confidence": "inferred",
-  "detect": [".trae"],
-  "env": ["TRAE_AGENT", "TRAE_IDE"],
-  "instructions": [".trae/rules/project_rules.md", "AGENTS.md"],
+  "detect": [
+    ".trae"
+  ],
+  "env": [
+    "TRAE_AGENT",
+    "TRAE_IDE"
+  ],
+  "instructions": [
+    ".trae/rules/project_rules.md",
+    "AGENTS.md"
+  ],
   "invoke": "reference the waypost-<role> rule, or paste `waypost agents show <role>` into a new chat",
   "roles": {
     "shape": "prompt-md",
     "dir": ".trae/rules",
     "file": "{prefix}{role}.md",
     "model": false,
-    "fields": [["description", "{description}"]]
+    "fields": [
+      [
+        "description",
+        "{description}"
+      ]
+    ]
   },
-  "notes": "Documented for Trae is ONE project rules file: .trae/rules/project_rules.md. Whether additional files in that directory are loaded is not documented, so the roles are written beside it and the routing block goes into project_rules.md — that part is certain. If your Trae ignores the extra files, invoke a role with `waypost agents show <role>` instead. (The separate open-source bytedance/trae-agent CLI is a different tool with a trae_config.yaml and no role files.)"
+  "notes": "Documented for Trae is ONE project rules file: .trae/rules/project_rules.md. Whether additional files in that directory are loaded is not documented, so the roles are written beside it and the routing block goes into project_rules.md — that part is certain. If your Trae ignores the extra files, invoke a role with `waypost agents show <role>` instead. (The separate open-source bytedance/trae-agent CLI is a different tool with a trae_config.yaml and no role files.) project_rules.md is the documented location; AGENTS.md support is not established.",
+  "instructions_shared_ok": false
 }

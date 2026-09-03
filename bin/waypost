@@ -773,7 +773,7 @@ function leaseArgs(rest) {
 // session without anyone remembering `waypost sessions --touch`. Never fails the
 // command, never runs for a read-only lookup, and WAYPOST_NO_BEAT=1 turns it off.
 const QUIET_COMMANDS = new Set(["help", "--help", "-h", "version", "--version", "-v",
-  "harnesses", "prompt", "skill", "agents", "log", "storage"]);
+  "harnesses", "prompt", "skill", "agents", "log", "storage", "merge-derived"]);
 
 async function heartbeat(cmd) {
   if (QUIET_COMMANDS.has(cmd) || process.env.WAYPOST_NO_BEAT) return;

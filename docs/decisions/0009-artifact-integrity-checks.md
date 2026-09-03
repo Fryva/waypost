@@ -37,15 +37,16 @@ own YAML reader for exactly these checks hit three separate parser defects
 (`supersedes: null` iterated character by character, block-form lists silently
 read as empty, CRLF frontmatter rejected outright). Two of the three are bugs this
 repository does not have; the block-form trap it shares, and compensates for with
-a dedicated finding on `external_refs:` — which these fields do not yet have. The parser existed only because the checks were missing here.
+a dedicated finding on `external_refs:` — which these fields do not yet have. The
+parser existed only because the checks were missing here.
 
 ## Decision drivers
 
 - The properties are universal to the vault format, not to any project's policy.
 - Existing vaults must not turn red on upgrade: new findings have to be additive
   and mostly advisory.
-- Policy that genuinely varies between projects belongs behind the existing
-  `lifecycle_gates` switch, not in the default path.
+- Policy that genuinely varies between projects belongs behind an opt-in switch of
+  its own, not in the default path and not on a switch that means something else.
 - A second parser downstream is a defect generator; the fix is to not need one.
 
 ## Considered options
@@ -94,7 +95,8 @@ all of them. Rejected.
 
 Take option 1. `doctor` verifies what frontmatter asserts: that a named path
 exists, that a supersede link is mutual and lands somewhere, and — where the
-project has switched lifecycle gates on — that acceptance followed a review.
+project has switched `acceptance_gate` on — that the review question was answered
+before the artifact was accepted.
 
 Severity is graded so the upgrade stays quiet where it can: `code_refs` findings
 are warnings outside `in-progress`/`done`, which is the bulk of what an existing
@@ -114,7 +116,8 @@ That way a project supplies its own vocabulary without this check knowing it.
 - The three properties hold for ADRs, not only for stories.
 - A downstream project can drop its own frontmatter reader, which is where the
   defects were.
-- `lifecycle_gates: on` becomes a meaningful switch for decision records too.
+- `acceptance_gate` gives a project a way to make its own acceptance rule
+  mechanical, without this check knowing the project's vocabulary for it.
 
 ### Negative / risks
 
@@ -125,9 +128,9 @@ That way a project supplies its own vocabulary without this check knowing it.
   `lifecycle_gates` — was tried and rejected: that switch is story-scoped, every
   finding under it is a warning, and `waypost bind` recommends turning it on, so an
   issue-level acceptance policy there would enrol projects that only ever agreed to
-  story gates. (`waypost brief` prints `lifecycle_gates: on` for an empty config
-  while doctor reads empty as `off` — a pre-existing disagreement this ADR does not
-  fix, and one more reason not to hang policy on that key.)
+  story gates. (`waypost brief` used to print `lifecycle_gates: on` for an empty
+  config while doctor read empty as `off`; that disagreement has since been fixed
+  separately, and it was one more reason not to hang policy on that key.)
 - Annotations are recognised by suffix only. A path that legitimately ends in
   `(deleted)` cannot exist, so the collision is theoretical.
 - **Unreadable forms pass silently.** `parseFrontmatter` is line-based, so a
@@ -139,9 +142,10 @@ That way a project supplies its own vocabulary without this check knowing it.
   carry `review_status`. Demanding it from a runbook would be asking for a field the
   template never offered; an `epic` has the field but its acceptance is not a review
   decision.
-- Supersede targets resolve within the source artifact's own kind, matching how
-  `graph.mjs` reads these fields. A cross-kind declaration is reported as naming
-  nothing — true, but worded unhelpfully. Better messages are a follow-up.
+- Supersede targets resolve within the source artifact's own kind first, because
+  `graph.mjs` reads these fields for `adr` only. A declaration that lands on another
+  kind is real and is reported as a warning naming what it found, not as a missing
+  target: the edge simply will not appear in the graph.
 
 ## Verification and follow-up
 

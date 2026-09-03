@@ -311,7 +311,7 @@ export function checkMergeDriver(cfg, proj) {
   if (!current) {
     out.push(finding("install", "warn", "merge-driver",
       "The waypost-derived merge driver is not configured in this clone (git config merge.waypost-derived.driver). It is machine-local, so every clone sets it once — `waypost doctor --fix` does."));
-  } else if (current !== mergeDriverCommand()) {
+  } else if (!mergeDriverAccepted().includes(current)) {
     // A driver configured by an older version is worse than none: git calls it,
     // it cannot identify the file from git's temp name, and the conflict comes
     // back anyway — with a confusing line of output in front of it.
@@ -408,6 +408,18 @@ export function checkSharedVaultState(cfg) {
       `Vault is on ${view.storage.provider} (${view.storage.kind}): presence from another device can be up to ~${Math.round(view.storage.lag_ms / 1000)}s behind, so "nobody else is working" is a statement about what has synced, not about the world.`));
   }
   return out;
+}
+
+// Every form this tool is willing to have installed. The shared-worktree case
+// the portable form exists for is exactly the one where two machines resolve
+// `waypost` differently, and a strict comparison would have them rewriting each
+// other's value on every `--fix`.
+export function mergeDriverAccepted() {
+  return [
+    "waypost merge-derived %A %O %B %P",
+    `node ${join(pluginRoot(), "scripts", "merge-derived.mjs")} %A %O %B %P`,
+    `${process.execPath} ${join(pluginRoot(), "scripts", "merge-derived.mjs")} %A %O %B %P`,
+  ];
 }
 
 export function mergeDriverCommand() {
@@ -1264,6 +1276,18 @@ export function checkSupersedes(index, files) {
           continue;
         }
         if (r.outcome !== "node") {
+          // Before calling it missing, look outside this kind: a research note
+          // superseded by an ADR is a true statement, and reporting it as
+          // "not an artifact" was both false and unfixable without deleting the
+          // declaration. The graph does not render that edge, which is worth
+          // saying — but it is not an error.
+          const anywhere = resolveLinkTarget(entry, "ref", { ...ctx, sourceRel: null, kinds: null });
+          if (anywhere.outcome === "node") {
+            add("warn", node.path,
+              `${key} "${entry}" resolves to ${anywhere.node.path}, a ${anywhere.node.type} — `
+              + `graph.mjs reads these fields for adr only, so the edge is not rendered.`);
+            continue;
+          }
           add("issue", node.path, `${key} names "${entry}", which is not an artifact in this vault.`);
           continue;
         }

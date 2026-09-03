@@ -770,14 +770,21 @@ export function instructionTargets(proj = projectRoot()) {
   const out = new Set(["AGENTS.md", "CLAUDE.md"].filter((f) => existsSync(join(proj, f))));
   for (const id of detectHarnesses(proj)) {
     const declared = harness(id).instructions || [];
-    const present = declared.filter((f) => existsSync(join(proj, f)));
-    // Every instruction file the harness already has is a target. A file is
-    // CREATED only when the harness has none at all — writing the block into a
-    // second file next to one that already carries it is how a harness ends up
-    // reading its own routing twice.
-    if (present.length) { present.forEach((f) => out.add(f)); continue; }
-    const own = declared.find((f) => f.includes("/"));
-    if (own) out.add(own);
+    if (!declared.length) continue;
+    // One target per harness, and never a second copy of the same block beside a
+    // file the harness already reads. Which file counts is registry data, not a
+    // guess: `instructions_shared_ok: false` marks a harness whose own notes say
+    // AGENTS.md support is undocumented, so its own path must exist even when a
+    // shared file does.
+    const own = declared.filter((f) => f.includes("/"));
+    const ownPresent = own.filter((f) => existsSync(join(proj, f)));
+    if (ownPresent.length) { ownPresent.forEach((f) => out.add(f)); continue; }
+
+    const sharedOk = harness(id).instructions_shared_ok !== false;
+    const shared = declared.find((f) => !f.includes("/") && existsSync(join(proj, f)));
+    if (sharedOk && shared) { out.add(shared); continue; }
+    if (own.length) { out.add(own[0]); continue; }
+    out.add(shared || declared[0]);
   }
   return [...out];
 }

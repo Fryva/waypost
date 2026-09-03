@@ -28,5 +28,6 @@
       ]
     ]
   },
-  "notes": "Workspace workflows live in .clinerules/workflows/ and are invoked as /<file>.md. Cline's own subagents are automatic research agents, not file-defined roles, so a workflow is the right target. AGENTS.md support is still an open discussion in the Cline repo, so the routing block goes to .clinerules/ first and AGENTS.md second."
+  "notes": "Workspace workflows live in .clinerules/workflows/ and are invoked as /<file>.md. Cline's own subagents are automatic research agents, not file-defined roles, so a workflow is the right target. AGENTS.md support is still an open discussion in the Cline repo, so the routing block goes to .clinerules/ first and AGENTS.md second. AGENTS.md support is an open discussion upstream (see notes), so .clinerules/ is the file that must exist.",
+  "instructions_shared_ok": false
 }

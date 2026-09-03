@@ -15,6 +15,7 @@ import {
   loadLayout,
   folderByKind,
   parseFrontmatter,
+  listOf,
   nowIso,
   listEpicDirs,
   listEpicStories,
@@ -24,16 +25,6 @@ import {
 function die(msg) {
   process.stderr.write(`waypost codemap: ${msg}\n`);
   process.exit(1);
-}
-
-function parseRefs(raw) {
-  if (!raw || raw === "[]") return [];
-  try {
-    const v = JSON.parse(raw);
-    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
 }
 
 function main() {
@@ -51,13 +42,13 @@ function main() {
       const epicMd = join(root, id, "epic.md");
       if (!existsSync(epicMd)) continue;
       const fm = parseFrontmatter(readFileSync(epicMd, "utf8")).data;
-      epics.push({ id, title: fm.title || id, status: fm.status || "planned", refs: parseRefs(fm.code_refs) });
+      epics.push({ id, title: fm.title || id, status: fm.status || "planned", refs: listOf(fm, "code_refs") });
       // listEpicStories sees all three story shapes (flat, folder, and
       // standalone epics/<id>/story-*.md) — a manual stories/*.md glob
       // silently dropped the other two from the story-level refs section.
       for (const s of listEpicStories(join(root, id))) {
         const sfm = parseFrontmatter(readFileSync(s.abs, "utf8")).data;
-        const refs = parseRefs(sfm.code_refs);
+        const refs = listOf(sfm, "code_refs");
         if (refs.length) {
           storyRows.push({ epic: id, story: s.slug, title: sfm.title || s.slug, refs });
         }

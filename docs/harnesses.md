@@ -140,6 +140,14 @@ changed under you without waiting for a release.
 | `detect` | paths that mean "this project uses this harness" (directory or file) |
 | `instructions` | files the routing block is written into by `waypost agents register` |
 | `invoke` | one line telling a human (and the block) how to reach a role there |
+
+`instructions_shared_ok` (optional, default `true`) says whether the shared file
+in that list — `AGENTS.md` — is one the harness is documented to read. Set it to
+`false` when the vendor's docs do not establish that support: the routing block
+then goes into the harness's own path even in a project that already has
+`AGENTS.md`, instead of being considered delivered. Today it is `false` for
+windsurf, cline, trae, lingma and roo, each for the reason recorded in its `notes`.
+
 | `after_install` | printed after install — for a manual step the CLI cannot do |
 | `confidence` | `verified` / `documented` / `experimental` — see above |
 | `vendor` | who makes it, shown in the listing |

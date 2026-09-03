@@ -960,3 +960,47 @@ test("doctor: one block per instruction file is correct, two in one file is not"
   assert.ok(dup, "two blocks in one file is what register cannot produce, so it is a defect");
   assert.match(dup.message, /in AGENTS\.md/);
 });
+
+test("register: a harness documented not to read AGENTS.md still gets its own file", () => {
+  // windsurf/cline/trae/lingma/roo carry instructions_shared_ok: false because
+  // their own notes say AGENTS.md support is undocumented. A rule that stopped at
+  // "a shared file exists, so we are done" silently removed their integration.
+  for (const [dir, own] of [
+    [".windsurf", ".windsurf/rules/waypost-agents.md"],
+    [".clinerules", ".clinerules/waypost-agents.md"],
+    [".trae", ".trae/rules/project_rules.md"],
+  ]) {
+    const proj = mkdtempSync(join(tmpdir(), "wp-shared-"));
+    mkdirSync(join(proj, dir), { recursive: true });
+    writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
+    spawnSync(process.execPath, [Waypost, "agents", "register"], {
+      encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    });
+    assert.match(readFileSync(join(proj, own), "utf8"), /waypost:agents/,
+      `${own} must carry the block even though AGENTS.md exists`);
+  }
+});
+
+test("register: a harness that does read the shared file gets one target, not two", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-shared2-"));
+  mkdirSync(join(proj, ".codex"), { recursive: true });
+  mkdirSync(join(proj, ".claude"), { recursive: true });
+  writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
+  spawnSync(process.execPath, [Waypost, "agents", "register"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+  });
+  assert.match(readFileSync(join(proj, "AGENTS.md"), "utf8"), /waypost:agents/);
+  assert.ok(!existsSync(join(proj, ".codex", "AGENTS.md")), "codex reads AGENTS.md; a second copy is read twice");
+  assert.ok(!existsSync(join(proj, ".claude", "CLAUDE.md")), "so does Claude Code");
+});
+
+test("register: an existing .claude/CLAUDE.md is preferred over inventing one", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-shared3-"));
+  mkdirSync(join(proj, ".claude"), { recursive: true });
+  writeFileSync(join(proj, ".claude", "CLAUDE.md"), "# rules\n", "utf8");
+  spawnSync(process.execPath, [Waypost, "agents", "register"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+  });
+  assert.match(readFileSync(join(proj, ".claude", "CLAUDE.md"), "utf8"), /waypost:agents/);
+  assert.ok(!existsSync(join(proj, "CLAUDE.md")));
+});

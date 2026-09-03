@@ -5,16 +5,29 @@
   "home": "https://lingma.aliyun.com",
   "docs": "https://help.aliyun.com/zh/lingma/user-guide/rules",
   "confidence": "documented",
-  "detect": [".lingma"],
-  "env": ["LINGMA_IDE"],
-  "instructions": [".lingma/rules/waypost-agents.md", "AGENTS.md"],
+  "detect": [
+    ".lingma"
+  ],
+  "env": [
+    "LINGMA_IDE"
+  ],
+  "instructions": [
+    ".lingma/rules/waypost-agents.md",
+    "AGENTS.md"
+  ],
   "invoke": "reference the waypost-<role> rule, or paste `waypost agents show <role>` into a new session",
   "roles": {
     "shape": "prompt-md",
     "dir": ".lingma/rules",
     "file": "{prefix}{role}.md",
     "model": false,
-    "fields": [["description", "{description}"]]
+    "fields": [
+      [
+        "description",
+        "{description}"
+      ]
+    ]
   },
-  "notes": "Lingma has project rules, not sub-agents: .lingma/rules/ is documented as project-scoped and meant to be committed. Each role lands as its own rule file; there is no per-role tool restriction to express, so read-only stays prose."
+  "notes": "Lingma has project rules, not sub-agents: .lingma/rules/ is documented as project-scoped and meant to be committed. Each role lands as its own rule file; there is no per-role tool restriction to express, so read-only stays prose. the rules directory is the documented location; AGENTS.md support is not established.",
+  "instructions_shared_ok": false
 }
