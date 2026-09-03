@@ -391,8 +391,9 @@ export function checkSharedVaultState(cfg) {
   const out = [];
   let view, leases;
   try {
+    // A diagnostic leaves no trace: neither read records what it saw.
     view = peersOf(cfg.vault_path, { persist: false });
-    leases = readLeasesOf(cfg.vault_path, {});
+    leases = readLeasesOf(cfg.vault_path, { persist: false });
   } catch { return []; }
   if (view.conflicts.length) {
     out.push(finding("vault", "warn", "shared-state",

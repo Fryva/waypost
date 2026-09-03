@@ -62,8 +62,11 @@ export const CLAIM_WINDOW_MS = 30 * 60_000;
 // liveness window, not a lock: a harness that died holding one must not block
 // the vault. Liveness comes from presence.mjs, which measures it with ONE clock
 // (ours) — mtime and remote timestamps are not comparable across devices.
+// The read persists its observations: `waypost commit` reaches presence only
+// through here, and a reader that never records what it saw stays on first
+// sight forever, re-trusting the remote timestamp on every commit (D-3).
 export function claimsOf(vault, { windowMs = CLAIM_WINDOW_MS, now = Date.now() } = {}) {
-  return peers(vault, { persist: false, windowMs, now }).peers
+  return peers(vault, { windowMs, now }).peers
     .filter((p) => p.live && p.claim && p.claim.story)
     .map((p) => ({
       session: p.session,

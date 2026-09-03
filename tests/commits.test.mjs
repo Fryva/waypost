@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -179,6 +179,51 @@ test("a story claimed by another live session blocks the commit until it is forc
   waypost(proj, ["commit", "-m", "m", "--story", "PS-1/story-shared", "--force"],
     { harness: "claude", session: "claude-1" });
   assert.match(git(proj, ["log", "-1", "--format=%B"]).stdout, /Waypost-Story: PS-1\/story-shared/);
+});
+
+test("D-3: a claim from a device whose clock is hours behind blocks the commit once its counter has moved", () => {
+  const proj = repo();
+  waypost(proj, ["draft", "story", "PS-1", "Skewed", "--write"]);
+  // The other device wrote its record itself, on its own clock — six hours back.
+  const behind = () => new Date(Date.now() - 6 * 3600e3).toISOString();
+  const started = behind(); // minted once per presence file, kept across beats — as beat() does
+  const presence = join(proj, "vault", ".projectstore", "presence");
+  mkdirSync(presence, { recursive: true });
+  const record = (seq) => writeFileSync(join(presence, "codex-7.json"), JSON.stringify({
+    session: "codex-7", host: "otherbox", os: "win32-10", harness: "codex", seq, at: behind(), started_at: started,
+    project_root: "C:\\work\\proj", claim: { story: "PS-1/story-skewed", at: behind() },
+  }), "utf8");
+  record(1);
+
+  writeFileSync(join(proj, "a.txt"), "a", "utf8");
+  git(proj, ["add", "-A"]);
+  // First sight: a clock six hours behind is indistinguishable from a session
+  // gone six hours ago, so this commit goes through — the documented limit.
+  waypost(proj, ["commit", "-m", "first"], { harness: "claude", session: "claude-1" });
+
+  // The other device keeps working: its counter moves, its clock stays wrong.
+  record(2);
+  writeFileSync(join(proj, "b.txt"), "b", "utf8");
+  git(proj, ["add", "-A"]);
+  const blocked = waypost(proj, ["commit", "-m", "second", "--story", "PS-1/story-skewed"],
+    { harness: "claude", session: "claude-1", expectFail: true });
+  assert.notEqual(blocked.status, 0, "the commit path itself persisted the first sight, so the moved counter is seen");
+  assert.match(blocked.stderr, /claimed by codex-7 \(codex/);
+});
+
+test("`commit --all` never stages the machine-local .waypost/ — even in a project that never ran `doctor --fix`", () => {
+  const proj = repo();
+  // `bind` writes no .gitignore; only setup/doctor --fix do. Make sure nothing ignores it here.
+  if (existsSync(join(proj, ".gitignore"))) unlinkSync(join(proj, ".gitignore"));
+  waypost(proj, ["draft", "story", "PS-1", "Sweep", "--write"]);
+  writeFileSync(join(proj, "a.txt"), "a", "utf8");
+  // The commit path itself writes the presence cache (claimsOf, before staging).
+  waypost(proj, ["commit", "-m", "sweep", "--all", "--story", "PS-1/story-sweep"], { harness: "claude", session: "claude-1" });
+  const committed = git(proj, ["show", "--name-only", "--format=", "HEAD"]).stdout.split("\n").filter(Boolean);
+  assert.ok(committed.includes("a.txt"), committed.join("\n"));
+  assert.ok(!committed.some((f) => f.startsWith(".waypost/")),
+    `one machine's clock stamps and config must not travel to every clone: ${committed.join(", ")}`);
+  assert.ok(existsSync(join(proj, ".waypost", "state")), "the cache was written — the exclusion is what kept it out");
 });
 
 test("the story gate claims on plan and releases on close", () => {

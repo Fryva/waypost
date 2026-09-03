@@ -198,12 +198,16 @@ function main() {
   // `--all` means everything not ignored, not `git commit -a` semantics: this
   // flow CREATES files (a drafted ADR, a new story), and a "commit everything"
   // that silently skips exactly those is a trap. `--tracked` is the narrow one.
-  if (has("--all")) git(["add", "-A"]);
+  // `.waypost/` is machine-local by contract (ADR-0004) and is excluded here
+  // regardless of .gitignore: this very command writes the presence cache
+  // before staging, and a project that never ran `doctor --fix` would
+  // otherwise ship one machine's clock stamps to every clone.
+  if (has("--all")) git(["add", "-A", "--", ".", ":!.waypost"]);
   if (has("--tracked")) git(["add", "-u"]);
   if (pathspec.length) git(["add", "--", ...pathspec]);
   const staged = stagedFiles();
   if (!staged.length) {
-    die("nothing staged. Stage the change, or pass --all (everything not ignored) or -- <paths>.");
+    die("nothing staged. Stage the change, or pass --all (everything not ignored, minus .waypost/) or -- <paths>.");
   }
 
   // A lease says another session is editing that file RIGHT NOW, possibly on

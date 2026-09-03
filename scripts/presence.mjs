@@ -10,9 +10,12 @@
 //      TTL compared against a remote timestamp then reports a live session as
 //      dead (or a dead one as live). So liveness here NEVER compares a remote
 //      clock with the local one. Each session publishes a counter it increments
-//      itself; we record locally WHEN WE FIRST SAW each value. "Alive" means
+//      itself; we record locally WHEN WE SAW each value change. "Alive" means
 //      "its counter changed within the last N seconds *by our clock*" — a
-//      measurement made entirely with one clock, whoever wrote the file.
+//      measurement made with one clock, whoever wrote the file. The one remote
+//      timestamp ever read is the record's own, once, on first sight, to seed
+//      that observation (clamped to "no later than now"); after that the
+//      counter alone decides.
 //
 //   2. mtime means something. On SMB it is the server's clock, on FAT/exFAT it
 //      is rounded to two seconds, and a sync client rewrites it on download. It
@@ -96,7 +99,12 @@ function mountTypeOf(p) {
 
 export const presenceDir = (vault) => join(vault, ".projectstore", "presence");
 export const leaseDir = (vault) => join(vault, ".projectstore", "leases");
-const observationsPath = () => join(projectRoot(), ".waypost", "state", "peers.json");
+// One cache per observing HOST, not per project directory: "machine-local" has
+// to hold even when the project directory itself sits on a sync drive, or two
+// devices sharing it would read each other's clock stamps — the exact
+// comparison assumption 1 rules out — and flip every verdict on every command.
+const hostSlug = () => hostname().split(".")[0].replace(/[^\w.-]+/g, "_");
+const observationsPath = () => join(projectRoot(), ".waypost", "state", `peers.${hostSlug()}.json`);
 
 function ensure(dir) {
   mkdirSync(dir, { recursive: true });
@@ -124,7 +132,10 @@ export function selfDescriptor(sessionId, harness) {
 }
 
 // One write per beat. `seq` is ours and only ever increases; `at` is our local
-// clock and is published for humans, never used for liveness by anyone else.
+// clock — read by an observer exactly once, on first sight, to seed its own
+// observation, never compared against theirs after that. `started_at` is
+// minted once per presence file and kept across beats: it is what tells an
+// observer "same id, new session" apart from "same session, still here".
 export function beat(vault, sessionId, { harness = null, doing = null, claim = null } = {}) {
   ensure(presenceDir(vault));
   const p = join(presenceDir(vault), `${sessionId}.json`);
@@ -160,9 +171,22 @@ function writeObservations(obs) {
 }
 
 // Read every peer, and decide liveness from OUR OWN observations of their
-// counters. First sight of a peer has no history to judge by, so it is trusted
-// for one window — the single place a remote clock is consulted, and it is
-// bounded: after one window we have our own evidence either way.
+// counters. First sight of a peer has no history to judge by, so its own
+// timestamp SEEDS the observation — the single place a remote clock is read —
+// bounded to "no later than now": a clock set ahead reads as fresh, a clock far
+// behind reads as stale, and either way the verdict from then on comes from
+// watching the counter. A record first seen stale therefore stays stale until
+// its counter is seen to move; it is never resurrected for one window just
+// because we started watching (that was the old rule, and it made every
+// crashed session's leftover claim block the next commit for the whole claim
+// window once something had warmed the cache).
+//
+// The observation is written on every read by default, including the reads a
+// commit makes. A session that only ever commits used to stay on first sight
+// forever, re-trusting the remote timestamp every time — so a peer whose clock
+// was behind by more than the window was invisible to it no matter how long
+// it kept beating (D-3). Seeding from the timestamp is what makes persisting
+// safe from any reader: the seed is the same whichever window looks first.
 //
 // `windowMs` overrides LIVE_WINDOW_MS itself; the storage lag is always added
 // on top of whichever window is in force. A claim (ADR-0006) and a plain
@@ -174,6 +198,11 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
   const storage = storageOf(vault);
   const window = (windowMs == null ? LIVE_WINDOW_MS : windowMs) + storage.lag_ms;
   const obs = readObservations();
+  // Rebuilt from this read: an entry whose presence file is gone is dropped,
+  // so the cache neither grows without bound nor keeps history for a session
+  // that no longer exists (a file merely absent for one read on a sync drive
+  // is re-seeded next time, which is never worse than first sight).
+  const next = {};
   const out = [];
   let names = [];
   try { names = readdirSync(dir); } catch { return { peers: [], storage, conflicts: [] }; }
@@ -182,41 +211,57 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
   for (const name of names) {
     if (!name.endsWith(".json") || CONFLICT_COPY.test(name)) continue;
     let rec;
-    try { rec = JSON.parse(readFileSync(join(dir, name), "utf8")); } catch { continue; }
-    if (!rec || !rec.session) continue;
+    try { rec = JSON.parse(readFileSync(join(dir, name), "utf8")); } catch { rec = null; }
+    if (!rec || !rec.session) {
+      // A torn or half-synced file is not evidence the session is gone: keep
+      // what we knew, or the full file that lands next read would be first
+      // sight again — for a peer whose clock is behind, that is the D-3 blind
+      // spot reopened until its next beat.
+      const key = name.replace(/\.json$/, "");
+      if (obs[key]) next[key] = obs[key];
+      continue;
+    }
 
     const key = rec.session;
     const seen = obs[key];
-    if (!seen || seen.seq !== rec.seq) {
-      obs[key] = { seq: rec.seq, changed_at: now, host: rec.host };
+    // Keyed by session AND incarnation. `beat()` mints started_at once per
+    // presence file, so a different started_at under the same id is a new
+    // session that happens to reuse it (the same terminal tab after
+    // `sessions --end`, a wrapper exporting one constant WAYPOST_SESSION_ID).
+    // Its counter restarts at 1 and can equal the old entry's, and judging it
+    // by the old entry's history called a five-second-old session dead — at
+    // exactly the two gates that exist to prevent that.
+    const started = rec.started_at || null;
+    const firstSight = !seen || (seen.started_at || null) !== started;
+    let entry;
+    if (firstSight) {
+      // Their own timestamp, read once. A clock ahead of ours (assumption 1 at
+      // the top of this file: clocks do not agree) is clamped to now and reads
+      // as fresh — deliberately fail-safe, since a spurious "someone else is
+      // live" costs a commit refusal or a lease wait while a spurious "dead"
+      // costs a missed collision. An unparsable timestamp reads as fresh for
+      // the same reason.
+      const own = Date.parse(rec.at);
+      entry = { seq: rec.seq, started_at: started, changed_at: Number.isNaN(own) ? now : Math.min(now, own), host: rec.host };
+    } else if (seen.seq !== rec.seq) {
+      entry = { ...seen, seq: rec.seq, changed_at: now, host: rec.host };
+    } else {
+      entry = seen;
     }
-    const changedAt = obs[key].changed_at;
-    const sinceLocalChange = now - changedAt;
-    const firstSight = !seen;
-    // Their own claim about freshness, used ONLY on first sight and only to
-    // avoid calling a perfectly live peer dead the moment we start watching.
-    let claimedAge = null;
-    try { claimedAge = now - Date.parse(rec.at); } catch {}
-    // `claimedAge < 0` is a peer whose clock reads ahead of ours (assumption 1
-    // at the top of this file: clocks do not agree). Left as live rather than
-    // guarded against — a clock-ahead peer is judged the same as a fresh one,
-    // deliberately fail-safe: a spurious "someone else is live" costs a commit
-    // refusal or a lease wait, a spurious "dead" costs a missed collision, and
-    // the first is the cheaper mistake to make by default.
-    const live = firstSight
-      ? (claimedAge === null || claimedAge < window || claimedAge < 0)
-      : sinceLocalChange < window;
+    next[key] = entry;
+    const sinceLocalChange = now - entry.changed_at;
+    const live = sinceLocalChange < window;
 
     out.push({
       ...rec,
       self: self != null && rec.session === self,
       live,
-      basis: firstSight ? "first sight (their timestamp, bounded to one window)" : "observed locally",
+      basis: firstSight ? "first sight (their timestamp seeds the clock; the counter decides from here)" : "observed locally",
       quiet_ms: firstSight ? null : sinceLocalChange,
       file: join(dir, name),
     });
   }
-  if (persist) writeObservations(obs);
+  if (persist) writeObservations(next);
   return { peers: out.sort((a, b) => String(a.session).localeCompare(String(b.session))), storage, conflicts };
 }
 
@@ -274,9 +319,13 @@ export const vaultRel = (p, vault) => {
   return norm.startsWith(v + "/") ? norm.slice(v.length + 1) : norm;
 };
 
-export function readLeases(vault, { now = Date.now(), self = null } = {}) {
+export function readLeases(vault, { now = Date.now(), self = null, persist = true } = {}) {
   const dir = leaseDir(vault);
-  const { peers: ps } = peers(vault, { self, now, persist: false });
+  // Observations persist from here by default: `waypost commit` and `acquire`
+  // judge a lease holder's liveness through this read, and a reader that
+  // never records what it saw is stuck on first sight (see peers()). A
+  // diagnostic read (doctor) passes persist:false and leaves no trace.
+  const { peers: ps } = peers(vault, { self, now, persist });
   const liveSessions = new Set(ps.filter((p) => p.live).map((p) => p.session));
   const out = [];
   let names = [];

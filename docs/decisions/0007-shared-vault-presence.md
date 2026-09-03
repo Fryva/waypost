@@ -49,12 +49,29 @@ parallel edit.
 
 **Liveness without a shared clock.** Each session writes
 `<vault>/.projectstore/presence/<id>.json` with a counter it increments itself.
-An observer records **locally** when it first saw each value
-(`.waypost/state/peers.json`) and treats a session as live while its counter has
-changed within N seconds **by the local clock**. Every time comparison happens
-inside one clock. The single exception is the first sight of a peer: there is no
-history yet, so its own timestamp is trusted for one window, and the output says
-so (`basis`).
+An observer records **locally** when it saw each value change
+(`.waypost/state/peers.<host>.json` — one file per observing host, so the cache
+stays machine-local even when the project directory itself is on a sync drive)
+and treats a session as live while its counter has changed within N seconds
+**by the local clock**. Every time comparison happens inside one clock. The
+single exception is the first sight of a peer: there is no history yet, so its
+own timestamp seeds the observation — clamped to "no later than now", so a
+clock set ahead reads as fresh, a clock far behind reads as stale, and an
+unreadable timestamp reads as fresh, the fail-safe side — and the output says
+so (`basis`). From that moment only the counter decides: a record first seen
+stale stays stale until its counter is seen to move, and is never resurrected
+for one window merely because a device started watching. An observation is
+keyed by session **and incarnation** (`started_at`, minted once per presence
+file): the same id coming back with a fresh file is first sight again, not a
+continuation of the old entry's history. Entries whose file is gone are
+dropped on the next read. Every liveness gate persists what it saw — `commit`,
+`lease`, `sessions`, `brief`, `status`, `watch` — so a session that only ever
+commits still accumulates evidence instead of re-trusting the remote timestamp
+on every read; `doctor`'s checks and the storage probe record nothing (the
+commands themselves still beat). A file that cannot be parsed on one read keeps
+its previous observation rather than losing it. Per-host means per hostname:
+two machines with the same default name would share a file, the same assumption
+the presence record's own `host` field already makes.
 
 **The window depends on the storage.** `storageOf()` recognises
 iCloud/Dropbox/Google Drive/OneDrive/Yandex Disk, UNC shares and network
@@ -146,16 +163,14 @@ not generate, and never commit over a live foreign lease without `--force`.
   quiet. (Mitigated: every working command beats.)
 - `waypost watch` is polling — bounded below by the storage's own delay.
 - Session identity still leans on `WAYPOST_SESSION_ID` / the terminal (ADR-0006).
-- On first sight a peer is judged by ITS OWN timestamp (not persisted, so a
-  commit-only workflow never warms the cache): a peer whose clock is behind
-  ours by more than the liveness window is invisible until an observation of
-  it has actually been persisted. `waypost brief`/`status`/`sessions` seed
-  that cache — which is why AGENTS.md puts `waypost brief` first, before any
-  edit. A skew-immune first sight (persist the observation on first read, and
-  keep a record first seen stale judged not-live until its `seq` actually
-  moves) is the follow-up; it is not done here because it changes the
-  liveness rule the current tests pin down (see the presence.test.mjs cases
-  above) and deserves its own review.
+- On first sight a peer whose clock is behind ours by more than the window is
+  indistinguishable from one that stopped that long ago, so every check until
+  its counter is next *seen* to move does not see it — the observation was
+  persisted by whichever command looked first, a commit-only workflow
+  included, so the first beat that lands after that is enough. A peer that
+  claims and then edits for twenty minutes without running any command is
+  invisible for those twenty minutes. That is the residual cost of never
+  trusting a remote clock for longer than one read.
 
 ## Verification and follow-up
 

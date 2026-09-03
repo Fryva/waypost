@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir, hostname } from "node:os";
 import { spawnSync, spawn } from "node:child_process";
@@ -30,11 +30,17 @@ function project() {
   return { proj, vault: join(proj, "vault") };
 }
 
-// A peer on another device, written the way that device would write it.
-function peerFile(vault, { session, seq = 1, at = new Date().toISOString(), host = "otherbox", os = "win32-10", harness = "codex", claim = null }) {
+// A peer on another device, written the way that device would write it. Like
+// `beat()`, a rewrite of an existing record keeps its started_at (that is what
+// tells "same session, still here" from "same id, new session"); pass
+// `started_at` explicitly to write a fresh incarnation.
+function peerFile(vault, { session, seq = 1, at = new Date().toISOString(), host = "otherbox", os = "win32-10", harness = "codex", claim = null, started_at = null }) {
   mkdirSync(presenceDir(vault), { recursive: true });
-  writeFileSync(join(presenceDir(vault), `${session}.json`), JSON.stringify({
-    session, host, os, harness, seq, at, started_at: at, project_root: `C:\\work\\proj`, claim,
+  const file = join(presenceDir(vault), `${session}.json`);
+  let prev = null;
+  try { prev = JSON.parse(readFileSync(file, "utf8")); } catch {}
+  writeFileSync(file, JSON.stringify({
+    session, host, os, harness, seq, at, started_at: started_at || (prev && prev.started_at) || at, project_root: `C:\\work\\proj`, claim,
   }, null, 2), "utf8");
 }
 
@@ -243,7 +249,12 @@ test("two live sessions racing to acquire the same path converge on exactly one 
     process.stdout.write(JSON.stringify(out.results[0]));
   `;
   const worker = (sid) => new Promise((res, rej) => {
-    const child = spawn(process.execPath, ["--input-type=module", "-e", race(sid)], { stdio: ["ignore", "pipe", "inherit"] });
+    // The workers' project root is the temp vault, not this process's cwd:
+    // readLeases persists what it saw, and a run that wrote alpha/beta at seq 1
+    // into the repo's own cache made every later run judge them by that
+    // stale history (F2) — both "stale", both "won".
+    const child = spawn(process.execPath, ["--input-type=module", "-e", race(sid)],
+      { stdio: ["ignore", "pipe", "inherit"], env: { ...process.env, WAYPOST_PROJECT_DIR: vault } });
     let out = "";
     child.stdout.on("data", (d) => { out += d; });
     child.on("close", (code) => (code === 0 ? res(JSON.parse(out)) : rej(new Error(`race worker ${sid} exited ${code}`))));
@@ -265,9 +276,81 @@ test("two live sessions racing to acquire the same path converge on exactly one 
   assert.equal(rec.session, aOwns ? "alpha" : "beta", "the file left on disk belongs to whichever side believes it won");
 
   // The winner can re-acquire cleanly afterwards: no live rival left to contest.
-  const again = acquire(vault, ["race/file.ts"], { sessionId: rec.session, settleMs: 0 });
+  const again = withProject(vault, () => acquire(vault, ["race/file.ts"], { sessionId: rec.session, settleMs: 0 }));
   assert.equal(again.results[0].ok, true);
   assert.equal(again.results[0].contested, false);
+});
+
+// Observations are keyed by the session's incarnation, evicted with its file,
+// and kept per observing host.
+
+test("a reused session id with a fresh presence file is first sight again, not a continuation of the old entry's history (F1)", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    const t0 = Date.now();
+    const iso = (ms) => new Date(ms).toISOString();
+    // Incarnation 1: one command, then gone (`sessions --end` in the same terminal tab).
+    peerFile(vault, { session: "tab-7", seq: 1, at: iso(t0) });
+    assert.equal(peers(vault, { self: "me", now: t0 }).peers.find((p) => p.session === "tab-7").live, true);
+    const later = t0 + 40 * 60_000;
+    assert.equal(peers(vault, { self: "me", now: later }).peers.find((p) => p.session === "tab-7").live, false,
+      "forty minutes of silence: gone");
+    // Incarnation 2 reuses the id: a fresh file, counter back at 1, new started_at.
+    peerFile(vault, { session: "tab-7", seq: 1, at: iso(later), started_at: iso(later), claim: { story: "E1/story-z", at: iso(later) } });
+    const fresh = peers(vault, { self: "me", now: later + 5000 }).peers.find((p) => p.session === "tab-7");
+    assert.equal(fresh.live, true, "same id, same seq, but a new session — five seconds old, live");
+    assert.match(fresh.basis, /first sight/);
+    assert.ok(claimsOf(vault, { now: later + 5000 }).some((c) => c.session === "tab-7" && c.story === "E1/story-z"),
+      "and the gates see its claim");
+  });
+});
+
+test("an observation whose presence file is gone is dropped on the next read, and the cache is per observing host", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    peerFile(vault, { session: "ephemeral", seq: 1 });
+    peerFile(vault, { session: "staying", seq: 1 });
+    peers(vault, { self: "me" });
+    const stateDir = join(proj, ".waypost", "state");
+    const files = readdirSync(stateDir).filter((n) => /^peers\..+\.json$/.test(n));
+    assert.equal(files.length, 1, `one cache file, named for this host: ${JSON.stringify(readdirSync(stateDir))}`);
+    assert.ok(files[0].includes(hostname().split(".")[0].replace(/[^\w.-]+/g, "_")));
+    let cache = JSON.parse(readFileSync(join(stateDir, files[0]), "utf8"));
+    assert.ok("ephemeral" in cache && "staying" in cache);
+
+    unlinkSync(join(presenceDir(vault), "ephemeral.json"));
+    peers(vault, { self: "me" });
+    cache = JSON.parse(readFileSync(join(stateDir, files[0]), "utf8"));
+    assert.ok(!("ephemeral" in cache), "no file, no entry — the cache does not grow with every session that ever existed");
+    assert.ok("staying" in cache);
+  });
+});
+
+test("a presence file that is unreadable for one read keeps its observation — a torn sync write is not first sight again", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    const behind = new Date(Date.now() - 6 * 3600e3).toISOString(); // clock six hours back
+    peerFile(vault, { session: "torn", seq: 1, at: behind });
+    peers(vault, { self: "me" });                                    // first sight: stale, by its own timestamp
+    peerFile(vault, { session: "torn", seq: 2, at: behind });
+    assert.equal(peers(vault, { self: "me" }).peers.find((p) => p.session === "torn").live, true, "counter moved: live");
+    writeFileSync(join(presenceDir(vault), "torn.json"), "{\"session\": \"torn\", \"seq\": 3", "utf8"); // half a write
+    assert.ok(!peers(vault, { self: "me" }).peers.some((p) => p.session === "torn"), "unreadable this read");
+    peerFile(vault, { session: "torn", seq: 3, at: behind, started_at: behind });
+    const back = peers(vault, { self: "me" }).peers.find((p) => p.session === "torn");
+    assert.equal(back.live, true, "the full file lands: counter moved since what we last knew, not first sight from a six-hour-old stamp");
+    assert.equal(back.basis, "observed locally");
+  });
+});
+
+test("a record whose timestamp cannot be read is live on first sight — the fail-safe side — and dead once the window passes", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    peerFile(vault, { session: "garbled", seq: 1, at: "not-a-date" });
+    assert.equal(peers(vault, { self: "me" }).peers.find((p) => p.session === "garbled").live, true,
+      "a spurious \"someone is live\" costs a refusal; a spurious \"dead\" costs a collision");
+    assert.equal(peers(vault, { self: "me", now: Date.now() + LIVE_WINDOW_MS + 60_000 }).peers.find((p) => p.session === "garbled").live, false);
+  });
 });
 
 test("`waypost lease <path>` and `waypost lease --json` both work in the documented form (G-2)", () => {
@@ -303,6 +386,41 @@ test("a claim survives 10 minutes of silence — live in claimsOf's 30-minute wi
     const view = peers(vault, { self: "me", now: tenMinutesLater });
     assert.equal(view.peers.find((p) => p.session === "s1").live, false,
       "the SAME session is stale under plain presence's shorter window (ADR-0007) — one counter, two policies");
+    assert.equal(view.peers.find((p) => p.session === "s1").basis, "observed locally",
+      "claimsOf persisted what it saw, and the shorter window still reads it as stale: the seed is the timestamp, not \"now\"");
+  });
+});
+
+test("D-3: a peer whose clock is behind by more than the window becomes visible to claimsOf once its counter moves — with nothing but claimsOf ever reading", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    const behind = () => new Date(Date.now() - 6 * 3600e3).toISOString(); // its clock, six hours back
+    peerFile(vault, { session: "skewed", seq: 1, at: behind(), claim: { story: "E1/story-x", at: behind() } });
+    assert.equal(claimsOf(vault).length, 0,
+      "first sight: nothing distinguishes a clock six hours behind from a session gone six hours ago");
+    // Same reader, same verdict, no other command in between — the observation was persisted.
+    assert.equal(claimsOf(vault).length, 0);
+    // It beats: the counter moves while we are watching. Its timestamp is still six hours back.
+    peerFile(vault, { session: "skewed", seq: 2, at: behind(), claim: { story: "E1/story-x", at: behind() } });
+    const claims = claimsOf(vault);
+    assert.ok(claims.some((c) => c.session === "skewed" && c.story === "E1/story-x"),
+      "the counter moved — that is liveness, whatever its clock says");
+  });
+});
+
+test("a record first seen stale is not resurrected for one window by the act of looking", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 3600e3).toISOString();
+    peerFile(vault, { session: "ghost", seq: 7, at: threeDaysAgo, claim: { story: "E1/story-y", at: threeDaysAgo } });
+    assert.equal(peers(vault, { self: "me" }).peers.find((p) => p.session === "ghost").live, false);
+    // The old rule stamped "changed now" on first sight, so the very next look
+    // called it live for a whole window — and its leftover claim blocked commits
+    // for the full claim window. The seed is its own timestamp now.
+    const second = peers(vault, { self: "me", now: Date.now() + 1000 }).peers.find((p) => p.session === "ghost");
+    assert.equal(second.live, false, "still stale one second later");
+    assert.equal(second.basis, "observed locally");
+    assert.equal(claimsOf(vault, { now: Date.now() + 1000 }).length, 0, "and its claim blocks nobody");
   });
 });
 
@@ -335,7 +453,7 @@ test("`sessions --release` frees the story claim but leaves this session's lease
   const released = run(["sessions", "--release"]);
   assert.equal(released.status, 0, released.stderr);
 
-  assert.deepEqual(readLeases(vault, { self: "me" }).map((l) => l.path), ["unrelated.txt"],
+  assert.deepEqual(withProject(proj, () => readLeases(vault, { self: "me" })).map((l) => l.path), ["unrelated.txt"],
     "the lease is still listed — closing a story must not silently drop an unrelated collision warning");
   const after = JSON.parse(run(["sessions", "--json"]).stdout);
   assert.ok(!after.active.some((s) => s.id === "me" && s.claim), "the claim itself is gone");
