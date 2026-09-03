@@ -110,8 +110,10 @@ function main() {
     out.claimed = ref;
   }
   if (args.includes("--release")) {
+    // Releases the story CLAIM only. Leases are a separate resource, freed by
+    // `waypost lease release`; closing a story someone is not editing files
+    // for must not silently drop an unrelated file's collision warning (D-1).
     beat(vault, sid, { claim: false });
-    release(vault, { sessionId: sid });
     out.released = true;
   }
   if (args.includes("--end")) {

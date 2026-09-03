@@ -35,11 +35,13 @@ import {
   listVaultStoryFiles,
   isLegacyStory,
   listOf,
+  refsOf,
   loadLayout,
   stripCodeSpans,
   extractLinks,
   buildNodeIndex,
   resolveLinkTarget,
+  sessionId,
 } from "../scripts/lib.mjs";
 import {
   checkLayoutTemplates,
@@ -145,6 +147,51 @@ test("parseFrontmatter: BOM + CRLF together (Windows Notepad's default)", () => 
   const { data } = parseFrontmatter(md);
   assert.equal(data.type, "story");
   assert.equal(data.status, "done");
+});
+
+// O-2/A2-2/A2-3: `~` is YAML null, and the quote-handling must not treat a `#`
+// inside quotes as a comment, while still cutting a real trailing comment.
+test("parseFrontmatter: ~ is null, like the bare word null", () => {
+  const md = "---\ntype: adr\nsupersedes: ~\n---\n\n# Body\n";
+  const { data } = parseFrontmatter(md);
+  assert.equal(data.supersedes, null);
+});
+
+test('parseFrontmatter: a quoted "#" is content, not a comment (draft.mjs\'s _json form)', () => {
+  const md = '---\ntitle: "Fix #12"\n---\n\n# Body\n';
+  const { data } = parseFrontmatter(md);
+  assert.equal(data.title, "Fix #12");
+});
+
+test("parseFrontmatter: a trailing comment after a quoted scalar is dropped", () => {
+  const md = '---\ntitle: "Foo" # note\n---\n\n# Body\n';
+  const { data } = parseFrontmatter(md);
+  assert.equal(data.title, "Foo");
+});
+
+test("parseFrontmatter: single-quoted scalars, including the '' escape", () => {
+  const md = "---\ntitle: 'It''s'\nsupersedes: ''\n---\n\n# Body\n";
+  const { data } = parseFrontmatter(md);
+  assert.equal(data.title, "It's");
+  assert.equal(data.supersedes, "");
+  assert.deepEqual(refsOf(data, "supersedes"), []);
+});
+
+test("parseFrontmatter: a bare comment needs whitespace before #; C#/F# are untouched", () => {
+  const md = "---\nstatus: done # verified\ntitle: C# and F#\n---\n\n# Body\n";
+  const { data } = parseFrontmatter(md);
+  assert.equal(data.status, "done");
+  assert.equal(data.title, "C# and F#");
+});
+
+test("parseFrontmatter: a comment after several spaces leaves no trailing whitespace on the value", () => {
+  const { data } = parseFrontmatter("---\nstatus: done   # verified\n---\n");
+  assert.equal(data.status, "done", "a status with trailing spaces never equals \"done\" again");
+});
+
+test("parseFrontmatter: an unterminated double quote is kept as written, not shortened by a character", () => {
+  const { data } = parseFrontmatter("---\ntitle: \"unterminated\n---\n");
+  assert.equal(data.title, "\"unterminated");
 });
 
 // ─── epic directory listing (P1-2, B-1/B-2/B-3) ────────────────────────
@@ -424,6 +471,23 @@ test("listOf parses inline flow and rejects block-sequence remnants", () => {
   assert.deepEqual(listOf({ specs: "[]" }, "specs"), []);
   assert.deepEqual(listOf({ specs: "" }, "specs"), []);
   assert.deepEqual(listOf({}, "specs"), []);
+});
+
+// B-2(i)/O-1/A2-1: the unquoted flow spelling is the most natural one to hand-type
+// and used to silently read as [] — a false negative in doctor and a missing
+// graph edge/code-map row.
+test("listOf reads the unquoted (bare) flow-list spelling, mixed with quoted items", () => {
+  assert.deepEqual(listOf({ code_refs: "[a.mjs, b.mjs]" }, "code_refs"), ["a.mjs", "b.mjs"]);
+  assert.deepEqual(listOf({ code_refs: "['a.mjs']" }, "code_refs"), ["a.mjs"]);
+  assert.deepEqual(listOf({ code_refs: '["a.mjs", b.mjs]' }, "code_refs"), ["a.mjs", "b.mjs"]);
+  assert.deepEqual(listOf({ code_refs: "[]" }, "code_refs"), []);
+  assert.deepEqual(listOf({ supersedes: "[x]" }, "supersedes"), ["x"]);
+});
+
+test("listOf: a real frontmatter string with an unquoted flow list resolves through parseFrontmatter", () => {
+  const md = "---\ntype: adr\ncode_refs: [scripts/lib.mjs, bin/waypost]\n---\n\n# Body\n";
+  const { data } = parseFrontmatter(md);
+  assert.deepEqual(listOf(data, "code_refs"), ["scripts/lib.mjs", "bin/waypost"]);
 });
 
 // ─── layout-driven template check (story-001) ──────────────────────────
@@ -779,6 +843,13 @@ test("extractLinks: code excluded; alias/#section/escaped-pipe forms; only relat
     ["plain", "target", "sect", "epics/PS-A/epic"]);
   assert.deepEqual(links.filter((l) => l.type === "mdlink").map((l) => l.target),
     ["./sib.md", "../up.md"]);
+});
+
+// B-1 (root cause): a commented-out wikilink is not a link to Obsidian either.
+test("extractLinks: a wikilink inside an HTML comment is not extracted; one outside still is", () => {
+  const text = "<!-- see [[commented-out]] for context -->\n[[live-link]]\n";
+  const links = extractLinks(text);
+  assert.deepEqual(links.filter((l) => l.type === "wikilink").map((l) => l.target), ["live-link"]);
 });
 
 // A real temp vault for index + resolver tests — engineering layout shapes.
@@ -1170,7 +1241,7 @@ test("skeleton contract 10: the header carries policy, and absent config renders
   assert.ok(/spec_policy: required/.test(withPolicy) && /lifecycle_gates: off/.test(withPolicy));
   const bare = renderVaultSkeleton({ vaultPath: "/v", layoutName: "engineering", kanbanFile: "kanban.md" });
   assert.ok(/spec_policy: optional/.test(bare), "documented default, not a blank");
-  assert.ok(/lifecycle_gates: on/.test(bare), "documented default, not a blank");
+  assert.ok(/lifecycle_gates: off/.test(bare), "documented default (off), not a blank, and not the inverse");
 });
 
 test("skeleton contracts 1, 15: in-flight is capped, ordered as given, and never renders an empty list as a claim", () => {
@@ -1345,4 +1416,26 @@ test("writeSession preserves recent_activity and started_at across a re-registra
   assert.equal(after.started_at, "2026-08-01T00:00:00.000Z", "the original start time survives");
   assert.equal(after.recent_activity.length, 1, "and so does the activity log");
   assert.equal(after.project_root, "/new", "while the mutable field is refreshed");
+});
+
+// ─── session id sanitisation (A-1) ──────────────────────────────────────
+// A path-like `--id`/WAYPOST_SESSION_ID must not escape the presence
+// directory, and must not silently vanish (a path-shaped id used to write
+// nowhere, making the session invisible to every other one).
+
+test("sessionId: a traversal --id sanitises to a plain filename component", () => {
+  const id = sessionId(["node", "x", "sessions", "--touch", "--id", "../../evil"], {});
+  assert.equal(id.includes("/"), false);
+  assert.equal(id.startsWith("."), false, "a leading dot would make the presence record a hidden file");
+  assert.ok(id.length > 0);
+});
+
+test("sessionId: --id after a `--` terminator is not the flag; env wins instead", () => {
+  const id = sessionId(["node", "x", "search", "--", "--id", "somebody"], { WAYPOST_SESSION_ID: "me" });
+  assert.equal(id, "me");
+});
+
+test("sessionId: a path-shaped WAYPOST_SESSION_ID sanitises with no slash", () => {
+  const id = sessionId([], { WAYPOST_SESSION_ID: "2026-09-02/abc" });
+  assert.equal(id.includes("/"), false);
 });

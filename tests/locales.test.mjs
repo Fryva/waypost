@@ -51,7 +51,7 @@ const KINDS = ["adr", "concept", "epic", "folder-readme", "kanban", "meeting",
 
 const VARS = {
   id: "ADR-001", title: "T", date: "2026-01-01", author: "A", tags: "[]",
-  slug: "s", epic_id: "EPIC-1", alternative_a_name: "Alt",
+  slug: "s", epic_id: "EPIC-1",
   generated_at: "2026-01-01T00:00:00Z", folder_name: "adr", folder_description: "d",
   backlog_items: "", todo_items: "", in_progress_items: "", review_items: "",
   done_items: "",

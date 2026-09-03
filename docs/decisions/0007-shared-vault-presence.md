@@ -146,6 +146,16 @@ not generate, and never commit over a live foreign lease without `--force`.
   quiet. (Mitigated: every working command beats.)
 - `waypost watch` is polling — bounded below by the storage's own delay.
 - Session identity still leans on `WAYPOST_SESSION_ID` / the terminal (ADR-0006).
+- On first sight a peer is judged by ITS OWN timestamp (not persisted, so a
+  commit-only workflow never warms the cache): a peer whose clock is behind
+  ours by more than the liveness window is invisible until an observation of
+  it has actually been persisted. `waypost brief`/`status`/`sessions` seed
+  that cache — which is why AGENTS.md puts `waypost brief` first, before any
+  edit. A skew-immune first sight (persist the observation on first read, and
+  keep a record first seen stale judged not-live until its `seq` actually
+  moves) is the follow-up; it is not done here because it changes the
+  liveness rule the current tests pin down (see the presence.test.mjs cases
+  above) and deserves its own review.
 
 ## Verification and follow-up
 

@@ -74,6 +74,27 @@ test("a message that already ends in trailers gains ours without breaking the bl
   assert.deepEqual(parsed, ["Signed-off-by: X <x@example.com>", "Waypost-Harness: claude", "Waypost-Session: s2"]);
 });
 
+// D-2: git's own rule is "last paragraph, preceded by a blank line, entirely
+// trailer lines" — a message whose last line LOOKS like a trailer but has no
+// blank line before it (a Claude-style `Body\nCo-Authored-By: …`) is NOT a
+// trailer block by that rule, so ours must open a new paragraph rather than
+// merging into it, or git drops the whole lot.
+test("a multi-line body ending in a trailer-shaped line with no blank line before it still gets a clean trailer block", () => {
+  const msg = composeMessage("Fix the thing\nFixes: #123", { harness: "claude", session: "s3" });
+  const proj = mkdtempSync(join(tmpdir(), "waypost-t3-"));
+  const parsed = (git(proj, ["interpret-trailers", "--parse"], { input: msg }).stdout || "").trim().split("\n");
+  assert.deepEqual(parsed, ["Waypost-Harness: claude", "Waypost-Session: s3"],
+    "the fake trailer-shaped body line must not swallow ours into one broken paragraph");
+});
+
+test("a Claude-style body ending in Co-Authored-By with no blank line before it still gets a clean trailer block", () => {
+  const msg = composeMessage("Body\nCo-Authored-By: X <x@e.com>", { harness: "claude", session: "s4" });
+  const proj = mkdtempSync(join(tmpdir(), "waypost-t4-"));
+  const parsed = (git(proj, ["interpret-trailers", "--parse"], { input: msg }).stdout || "").trim().split("\n");
+  assert.deepEqual(parsed, ["Waypost-Harness: claude", "Waypost-Session: s4"],
+    "our trailers must land as their own recognised block, not merge into the un-blank-separated line above");
+});
+
 test("commit records harness, session and story; log reads them back", () => {
   const proj = repo();
   waypost(proj, ["draft", "story", "PS-1", "First", "--write"]);
@@ -276,7 +297,11 @@ test("doctor reports the merge driver, and repairs a stale one", () => {
   let findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   assert.ok(findings.some((f) => f.check === "merge-driver"), "an unwired repo is reported");
 
-  waypost(proj, ["doctor", "--fix"]);
+  const fixed = waypost(proj, ["doctor", "--fix"]);
+  // B-3/D-4/O-3: spawnSync(cmd, args, { shell: true }) is deprecated on this
+  // Node (25.6.1) and prints DEP0190 straight into `waypost setup`'s own
+  // output — the first command a new user runs.
+  assert.doesNotMatch(fixed.stderr, /DEP0190/, "the args-array-plus-shell deprecation warning must not surface");
   findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   assert.ok(!findings.some((f) => f.check === "merge-driver"), "…and wired once, it stays quiet");
 

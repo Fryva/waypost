@@ -319,6 +319,28 @@ test("releasing frees only this session's leases", () => {
   });
 });
 
+// D-1: closing a story releases the CLAIM, not this session's leases — a lease
+// on a file unrelated to the story must survive `sessions --release`.
+test("`sessions --release` frees the story claim but leaves this session's leases alone", () => {
+  const { proj, vault } = project();
+  const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd: proj,
+    env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
+  });
+  assert.equal(run(["lease", "unrelated.txt"]).status, 0);
+  assert.equal(run(["sessions", "--claim", "some/story"]).status, 0);
+  const claimedBefore = JSON.parse(run(["sessions", "--json"]).stdout);
+  assert.ok(claimedBefore.active.some((s) => s.id === "me" && s.claim === "some/story"));
+
+  const released = run(["sessions", "--release"]);
+  assert.equal(released.status, 0, released.stderr);
+
+  assert.deepEqual(readLeases(vault, { self: "me" }).map((l) => l.path), ["unrelated.txt"],
+    "the lease is still listed — closing a story must not silently drop an unrelated collision warning");
+  const after = JSON.parse(run(["sessions", "--json"]).stdout);
+  assert.ok(!after.active.some((s) => s.id === "me" && s.claim), "the claim itself is gone");
+});
+
 test("commit refuses to write over a file another live session is editing", () => {
   const { proj, vault } = project();
   const run = (args, env = {}) => spawnSync(process.execPath, [Waypost, ...args], {
@@ -364,6 +386,22 @@ test("`waypost sessions` says what the vault is stored on when it is not local",
   const out = JSON.parse(r.stdout);
   assert.ok(out.storage && out.storage.kind, "the storage judgement is part of the machine-readable answer");
   assert.ok(Array.isArray(out.leases));
+});
+
+// A-1: a traversal --id must not escape the vault-relative presence directory,
+// and must not silently write nowhere either (the harm a path-shaped id causes
+// in practice: the session becomes invisible to every other one).
+test("`waypost sessions --touch --id ../../evil` writes inside presence/, nothing at the vault root", () => {
+  const { proj, vault } = project();
+  const r = spawnSync(process.execPath, [Waypost, "sessions", "--touch", "--id", "../../evil", "--json"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const names = readdirSync(presenceDir(vault));
+  assert.equal(names.length, 1, `expected exactly one presence record, got: ${JSON.stringify(names)}`);
+  assert.equal(names[0].includes("/"), false);
+  assert.equal(existsSync(join(proj, "evil.json")), false);
+  assert.equal(existsSync(join(vault, "evil.json")), false);
 });
 
 // ─── cross-OS safety ───────────────────────────────────────────────────

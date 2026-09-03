@@ -11,7 +11,6 @@ import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync, s
 import { readFile as readFileAsync } from "node:fs/promises";
 import { join, dirname, basename, resolve } from "node:path";
 import { hostname, homedir } from "node:os";
-import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 // ─── Paths ─────────────────────────────────────────────────────────────
@@ -306,8 +305,11 @@ export function indexHeaderRe() {
 // ─── Frontmatter list fields (code_refs / specs / stories / adr) ───────
 //
 // Frontmatter lists must use inline flow form (`specs: ["SPEC-001"]`) —
-// parseFrontmatter is line-based and cannot see block sequences. Single
-// shared parser; doctor emits a dedicated finding for the block-form trap.
+// parseFrontmatter is line-based and cannot see block sequences. Both the
+// JSON-quoted spelling and the bare flow spelling (`specs: [SPEC-001, a-b]`,
+// with or without quotes on each item) are read here, in one place, so
+// doctor and the derived views agree by construction. Single shared parser;
+// doctor emits a dedicated finding for the block-form trap.
 export function listOf(fm, key) {
   const raw = fm[key];
   if (!raw || raw === "[]") return [];
@@ -317,7 +319,18 @@ export function listOf(fm, key) {
     const v = JSON.parse(raw);
     return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
   } catch {
-    return [];
+    const trimmed = raw.trim();
+    if (!/^\[.*\]$/.test(trimmed)) return [];
+    return trimmed
+      .slice(1, -1)
+      .split(",")
+      .map((item) => {
+        const t = item.trim();
+        return (t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))
+          ? t.slice(1, -1)
+          : t;
+      })
+      .filter((item) => item.length > 0);
   }
 }
 
@@ -709,7 +722,9 @@ export function storyPathOf(ref, vault) {
 // which carried two byte-identical copies (checkbox counting and
 // checkWikilinks); one definition, shared by doctor and the graph.
 export function stripCodeSpans(s) {
-  return s.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
+  // An HTML comment is not prose either: a commented-out wikilink is not a
+  // link to Obsidian, and a commented-out `- [ ]` is not an acceptance item.
+  return s.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "").replace(/<!--[\s\S]*?-->/g, "");
 }
 
 // Every link in one file's text: wikilinks and relative markdown links.
@@ -1173,7 +1188,7 @@ export function renderVaultSkeleton(facts) {
   L.push(
     `# Layout: ${cell(f.layoutName, "unknown")} · language: ${cell(f.language, "en")}` +
       ` · spec_policy: ${cell(f.specPolicy, "optional")}` +
-      ` · lifecycle_gates: ${cell(f.lifecycleGates, "on")}`,
+      ` · lifecycle_gates: ${cell(f.lifecycleGates, "off")}`,
   );
   L.push("");
 
@@ -1259,10 +1274,30 @@ export function renderVaultSkeleton(facts) {
 const TERMINAL_ENV = ["WAYPOST_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID",
   "TERM_SESSION_ID", "ITERM_SESSION_ID", "TMUX_PANE", "WT_SESSION", "KITTY_WINDOW_ID", "SSH_TTY"];
 
+// `--id` and WAYPOST_SESSION_ID are sanitised with the same allowlist
+// leaseName (presence.mjs) uses for filenames: a path-like value (`../../x`,
+// `2026-09-02/abc`) would otherwise escape the presence directory or,
+// worse, silently fail to write a record at all (its containing directory
+// does not exist), making the session invisible to every other one. An
+// empty sanitised result falls through to the next source. Leading dots go
+// too: `../../x` would otherwise become a dotfile that `ls` hides and some
+// sync clients skip. The `--id` scan stops at a `--` terminator so a literal
+// `--id` argument to a subcommand (e.g. `search -- --id somebody`) is not
+// mistaken for the flag.
+const sanitiseSessionId = (v) => String(v).replace(/[^\w.-]+/g, "_").replace(/^\.+/, "").slice(0, 64);
+
 export function sessionId(argv = process.argv, env = process.env) {
-  const i = argv.indexOf("--id");
-  if (i !== -1 && argv[i + 1]) return argv[i + 1];
-  if (env.WAYPOST_SESSION_ID) return env.WAYPOST_SESSION_ID;
+  const stop = argv.indexOf("--");
+  const scope = stop === -1 ? argv : argv.slice(0, stop);
+  const i = scope.indexOf("--id");
+  if (i !== -1 && scope[i + 1]) {
+    const id = sanitiseSessionId(scope[i + 1]);
+    if (id) return id;
+  }
+  if (env.WAYPOST_SESSION_ID) {
+    const id = sanitiseSessionId(env.WAYPOST_SESSION_ID);
+    if (id) return id;
+  }
   const harness = env.WAYPOST_HARNESS || null;
   for (const k of TERMINAL_ENV) {
     if (!env[k]) continue;
@@ -1538,11 +1573,27 @@ export function parseFrontmatter(md) {
     const kv = line.match(/^(\w+):\s*(.*)$/);
     if (!kv) continue;
     let v = kv[2].trim();
-    if (v === "null") v = null;
-    else if (v.startsWith('"') && v.endsWith('"')) {
+    if (v === "null" || v === "~") v = null;
+    else if (v.startsWith('"')) {
       // JSON.parse round-trips escaped scalars from renderTemplate's _json
-      // form (titles containing quotes); fall back to the bare strip.
-      try { v = JSON.parse(v); } catch { v = v.slice(1, -1); }
+      // form (titles containing quotes). Match only the quoted span so a
+      // trailing YAML comment is dropped (`"Foo" # note` -> `Foo`) without
+      // treating a `#` INSIDE the quotes as one (`"Fix #12"` stays whole).
+      // An unterminated quote is left as written — cutting a character off
+      // the end would turn one malformed value into a different one.
+      const q = v.match(/^"(?:[^"\\]|\\.)*"/);
+      if (q) {
+        try { v = JSON.parse(q[0]); } catch { v = q[0].slice(1, -1); }
+      }
+    } else if (v.startsWith("'") && v.endsWith("'")) {
+      // YAML single-quote form: '' inside the quotes is an escaped literal '.
+      v = v.slice(1, -1).replace(/''/g, "'");
+    } else {
+      // Bare scalar: a YAML comment needs whitespace before the `#`, so
+      // `status: done # verified` is cut at "done" but `title: C# and F#`
+      // is left untouched.
+      const hash = v.match(/\s#/);
+      if (hash) v = v.slice(0, hash.index).trimEnd();
     }
     data[kv[1]] = v;
   }

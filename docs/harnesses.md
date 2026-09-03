@@ -149,7 +149,7 @@ then goes into the harness's own path even in a project that already has
 windsurf, cline, trae, lingma and roo, each for the reason recorded in its `notes`.
 
 | `after_install` | printed after install — for a manual step the CLI cannot do |
-| `confidence` | `verified` / `documented` / `experimental` — see above |
+| `confidence` | `verified` / `documented` / `inferred` — see above |
 | `vendor` | who makes it, shown in the listing |
 | `kind` | `provider` for a model vendor: it is listed, detected and recorded, never installed into |
 | `runs_in` / `match` | provider entries only: which harnesses drive it, and the env that identifies it |

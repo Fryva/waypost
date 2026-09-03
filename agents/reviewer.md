@@ -89,8 +89,8 @@ say so plainly.
    result looks implausible (`fallback: true`, empty, or obviously
    over/under-attributed — shared branch, direct-to-main), say so and ask for
    an explicit `--range` instead of guessing. State whether the parent epic's
-   footprint needs widening — the write happens in the approval-gated
-   the artifact's `code_refs` frontmatter (then `waypost codemap`), never here.
+   footprint needs widening — the write happens through the approval-gated
+   flow — the artifact's `code_refs` frontmatter (then `waypost codemap`), never here.
 5. **Open Questions** — low-confidence findings, surfaced not blocking.
 6. **Good** — genuine strengths, one line each. Skip if none.
 

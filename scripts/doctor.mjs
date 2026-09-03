@@ -311,7 +311,7 @@ export function checkMergeDriver(cfg, proj) {
   if (!current) {
     out.push(finding("install", "warn", "merge-driver",
       "The waypost-derived merge driver is not configured in this clone (git config merge.waypost-derived.driver). It is machine-local, so every clone sets it once — `waypost doctor --fix` does."));
-  } else if (!mergeDriverAccepted().includes(current)) {
+  } else if (!mergeDriverAccepted().includes(current) && !FOREIGN_MACHINE_DRIVER_RE.test(current)) {
     // A driver configured by an older version is worse than none: git calls it,
     // it cannot identify the file from git's temp name, and the conflict comes
     // back anyway — with a confusing line of output in front of it.
@@ -414,6 +414,14 @@ export function checkSharedVaultState(cfg) {
 // the portable form exists for is exactly the one where two machines resolve
 // `waypost` differently, and a strict comparison would have them rewriting each
 // other's value on every `--fix`.
+// G-7: two machines sharing one .git without `waypost` on PATH each write
+// `node /<their own path>/merge-derived.mjs …` — a value that is genuinely
+// theirs, not a stale value to rewrite. mergeDriverAccepted() only knows THIS
+// machine's absolute paths (the two `node`/execPath forms above are built
+// from this pluginRoot()); this pattern recognises any machine's equivalent
+// invocation by its stable suffix, so `--fix` does not fight another clone.
+const FOREIGN_MACHINE_DRIVER_RE = /merge-derived(\.mjs)? %A %O %B %P$/;
+
 export function mergeDriverAccepted() {
   return [
     "waypost merge-derived %A %O %B %P",
@@ -428,7 +436,7 @@ export function mergeDriverCommand() {
   // absolute plugin path is wrong for anyone sharing one .git between machines.
   // Fall back to a plain `node` — still portable across interpreter upgrades —
   // when waypost is not installed on PATH.
-  const onPath = spawnSync("command", ["-v", "waypost"], { encoding: "utf8", shell: true });
+  const onPath = spawnSync("command -v waypost", { encoding: "utf8", shell: true });
   if (onPath.status === 0 && (onPath.stdout || "").trim()) return "waypost merge-derived %A %O %B %P";
   return `node ${join(pluginRoot(), "scripts", "merge-derived.mjs")} %A %O %B %P`;
 }
@@ -951,6 +959,19 @@ export function checkVaultPolicy(cfg, layout, artifacts, vaultCfg) {
     out.push(finding("vault", "warn", "spec-policy",
       "spec_policy is required but spec_policy_since is missing — the legacy exemption cannot be evaluated; stamp it with the enable date (ISO-8601)."));
   }
+  // G-2: both gates are read as `["on", "true"].includes(...)` — anything else,
+  // including a plausible-looking "yes", is silently off. Warn rather than let
+  // a typo disable a gate the project believes it turned on.
+  const GATE_VALUES = new Set(["on", "off", "true", "false"]);
+  for (const key of ["lifecycle_gates", "acceptance_gate"]) {
+    const raw = vaultCfg[key];
+    if (raw === undefined || raw === null) continue;
+    if (!GATE_VALUES.has(String(raw).toLowerCase())) {
+      out.push(finding("vault", "warn", "vault-policy",
+        `${key}: ${JSON.stringify(raw)} in <vault>/.projectstore.json is not on/off/true/false — it is read as off, silently.`,
+        ".projectstore.json"));
+    }
+  }
   return out;
 }
 
@@ -1284,8 +1305,15 @@ export function checkSupersedes(index, files) {
           const anywhere = resolveLinkTarget(entry, "ref", { ...ctx, sourceRel: null, kinds: null });
           if (anywhere.outcome === "node") {
             add("warn", node.path,
-              `${key} "${entry}" resolves to ${anywhere.node.path}, a ${anywhere.node.type} — `
+              `${key} "${entry}" resolves to ${anywhere.node.path} (kind: ${anywhere.node.type}) — `
               + `graph.mjs reads these fields for adr only, so the edge is not rendered.`);
+            continue;
+          }
+          if (anywhere.outcome === "ambiguous") {
+            // Ambiguous OUTSIDE this kind is not "not an artifact" either — it is
+            // "an artifact, just not uniquely which one", the same fact the
+            // in-kind branch above already reports correctly.
+            add("issue", node.path, `${key} "${entry}" is ambiguous — it matches ${anywhere.candidates.join(", ")}.`);
             continue;
           }
           add("issue", node.path, `${key} names "${entry}", which is not an artifact in this vault.`);

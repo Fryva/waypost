@@ -1068,3 +1068,96 @@ test("doctor: the ADR-0009 checks add no issue to a well-formed vault (ADR-0009)
     else process.env.WAYPOST_PROJECT_DIR = prev;
   }
 });
+
+// ─── G-4: cross-kind supersedes resolution ──────────────────────────────
+
+test("doctor supersedes: ambiguity OUTSIDE the target's kind is named, not reported as \"not an artifact\" (G-4)", async () => {
+  const { checkSupersedes } = await import("../scripts/doctor.mjs");
+  const { proj, vault } = vaultWithAdrs([
+    ["a.md", 'type: adr\nid: "a"\ntitle: "A"\nstatus: accepted\ndate: 2026-01-01\nsupersedes: "probe-concept"'],
+  ]);
+  mkdirSync(join(vault, "concepts"), { recursive: true });
+  mkdirSync(join(vault, "meetings"), { recursive: true });
+  writeFileSync(join(vault, "concepts", "probe-concept.md"),
+    '---\ntype: concept\nslug: "probe-concept"\ntitle: "C"\nstatus: draft\n---\n\n# C\n', "utf8");
+  writeFileSync(join(vault, "meetings", "probe-concept.md"),
+    '---\ntype: meeting\nslug: "probe-concept"\ntitle: "M"\nstatus: draft\n---\n\n# M\n', "utf8");
+  const out = await vaultFindings(proj, ({ index, files }) => checkSupersedes(index, files));
+  const ambiguous = out.find((f) => /is ambiguous/.test(f.message));
+  assert.ok(ambiguous, `expected an ambiguous finding, got: ${JSON.stringify(out)}`);
+  assert.doesNotMatch(ambiguous.message, /not an artifact/,
+    "an artifact that exists twice under that name is not the same fact as no artifact at all");
+});
+
+test("doctor supersedes: a single cross-kind match is named without an indefinite article (G-4)", async () => {
+  const { checkSupersedes } = await import("../scripts/doctor.mjs");
+  const { proj, vault } = vaultWithAdrs([
+    ["a.md", 'type: adr\nid: "a"\ntitle: "A"\nstatus: accepted\ndate: 2026-01-01\nsupersedes: "probe-note"'],
+  ]);
+  mkdirSync(join(vault, "research"), { recursive: true });
+  writeFileSync(join(vault, "research", "probe-note.md"),
+    '---\ntype: research\nslug: "probe-note"\ntitle: "N"\nstatus: draft\n---\n\n# N\n', "utf8");
+  const out = await vaultFindings(proj, ({ index, files }) => checkSupersedes(index, files));
+  const cross = out.find((f) => /resolves to/.test(f.message));
+  assert.ok(cross, `expected a cross-kind finding, got: ${JSON.stringify(out)}`);
+  assert.match(cross.message, /\(kind: research\)/);
+  assert.doesNotMatch(cross.message, /, a research/, "no dangling indefinite article");
+});
+
+// ─── G-2: vault-policy gate values ──────────────────────────────────────
+
+test("doctor: a gate value outside on/off/true/false is warned about, not silently read as off (G-2)", async () => {
+  const { checkVaultPolicy } = await import("../scripts/doctor.mjs");
+  const { proj, vault } = makeVaultProject();
+  const clean = checkVaultPolicy({ vault_path: vault }, null, [], { lifecycle_gates: "on", acceptance_gate: "off" });
+  assert.deepEqual(clean.filter((f) => f.check === "vault-policy"), [], "on/off are recognised, no warning");
+
+  const boolOk = checkVaultPolicy({ vault_path: vault }, null, [], { lifecycle_gates: true, acceptance_gate: false });
+  assert.deepEqual(boolOk.filter((f) => f.check === "vault-policy"), [], "JSON booleans are recognised too");
+
+  const typo = checkVaultPolicy({ vault_path: vault }, null, [], { lifecycle_gates: "yes" });
+  const warned = typo.filter((f) => f.check === "vault-policy");
+  assert.equal(warned.length, 1, `"yes" must be flagged, got: ${JSON.stringify(typo)}`);
+  assert.equal(warned[0].level, "warn");
+  assert.match(warned[0].message, /lifecycle_gates/);
+});
+
+// ─── G-7: merge driver — a foreign machine's own path ───────────────────
+
+test("doctor: another machine's own merge-derived.mjs path is accepted, not flagged as drift (G-7)", async () => {
+  const { checkMergeDriver } = await import("../scripts/doctor.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-mergedrv-"));
+  const vault = join(proj, "vault");
+  mkdirSync(vault, { recursive: true });
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  writeFileSync(join(proj, ".gitattributes"), "*.md merge=waypost-derived\n", "utf8");
+  spawnSync("git", ["config", "merge.waypost-derived.driver",
+    "node /Users/someoneelse/checkout/scripts/merge-derived.mjs %A %O %B %P"], { cwd: proj });
+  const out = checkMergeDriver({ vault_path: vault }, proj);
+  assert.ok(!out.some((f) => f.check === "merge-driver" && /different command/.test(f.message)),
+    `a foreign machine's own path must not read as drift: ${JSON.stringify(out)}`);
+});
+
+test("doctor: a driver that is not this fork's merge-derived shape is still flagged as drift (G-7)", async () => {
+  const { checkMergeDriver } = await import("../scripts/doctor.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-mergedrv2-"));
+  const vault = join(proj, "vault");
+  mkdirSync(vault, { recursive: true });
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  writeFileSync(join(proj, ".gitattributes"), "*.md merge=waypost-derived\n", "utf8");
+  spawnSync("git", ["config", "merge.waypost-derived.driver", "some-old-command %A"], { cwd: proj });
+  const out = checkMergeDriver({ vault_path: vault }, proj);
+  assert.ok(out.some((f) => f.check === "merge-driver" && /different command/.test(f.message)));
+});
+
+// ─── A2-4: draft filters kinds by layout.commands ───────────────────────
+
+test("draft: a command-less folder kind (diagram) dies cleanly, not with a raw stack trace (A2-4)", () => {
+  const { proj } = makeVaultProject();
+  const r = runInRaw(proj, "draft.mjs", ["diagram", "x"]);
+  assert.notEqual(r.status, 0);
+  assert.doesNotMatch(r.stderr, /at file:|Error:\s*$/m, `expected a clean die(), got:\n${r.stderr}`);
+  assert.match(r.stderr, /Unknown kind: diagram/);
+  const declared = r.stderr.split("declares:")[1] || "";
+  assert.doesNotMatch(declared, /\bdiagram\b/, "diagram must not be offered as a valid kind either");
+});

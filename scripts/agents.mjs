@@ -78,9 +78,25 @@ let _registry = null;
 export function registry() {
   if (_registry) return _registry;
   const out = new Map();
-  for (const dir of registryDirs()) {          // project entries override bundled ones
+  const dirs = registryDirs();
+  for (let i = 0; i < dirs.length; i++) {      // project entries override bundled ones
+    const dir = dirs[i];
     let names = [];
-    try { names = readdirSync(dir).filter((n) => n.endsWith(".json")).sort(); } catch { continue; }
+    try { names = readdirSync(dir).filter((n) => n.endsWith(".json")).sort(); }
+    catch {
+      // The bundled harnesses/ directory (index 0) is the tool's own data:
+      // unreadable means WAYPOST_HOME/CLAUDE_PLUGIN_ROOT points at a
+      // misconfigured or partial tool root, not "this project has no
+      // harnesses". Every `agents`/`harnesses` command should fail loudly
+      // instead of printing an empty table with exit 0. The project-local
+      // dirs (and the bundled providers/ subdir) are legitimately optional.
+      if (i === 0) {
+        throw new Error(
+          `Cannot read the bundled harness registry at ${dir} ` +
+          `(pluginRoot: ${pluginRoot()}). Check WAYPOST_HOME / CLAUDE_PLUGIN_ROOT.`);
+      }
+      continue;
+    }
     for (const n of names) {
       let h;
       try { h = JSON.parse(readFileSync(join(dir, n), "utf8")); }
@@ -120,10 +136,16 @@ export const confidenceOf = (h) =>
 
 // Ordered ids, most-trusted first: the list is printed to users, and "what is
 // known to work" is the useful order. Providers are not in it — nothing
-// installs into them.
+// installs into them. A confidence value CONFIDENCE does not know (a typo in a
+// project-local harness override) sorts LAST rather than throwing — a typo in
+// one entry must not break every `waypost` command that lists harnesses.
+const confidenceRank = (h) => {
+  const i = CONFIDENCE.indexOf(confidenceOf(h));
+  return i === -1 ? CONFIDENCE.length : i;
+};
 export const harnessIds = () => [...registry().values()]
   .filter((h) => !isProvider(h))
-  .sort((a, b) => (CONFIDENCE.indexOf(confidenceOf(a)) - CONFIDENCE.indexOf(confidenceOf(b)))
+  .sort((a, b) => (confidenceRank(a) - confidenceRank(b))
     || a.id.localeCompare(b.id))
   .map((h) => h.id);
 
@@ -161,11 +183,13 @@ export const HARNESSES = new Proxy([], {
 
 const roleSpec = (h) => h.roles || {};
 
-// Whether a harness's file format can carry a model at all. Codex prompt files
-// cannot: the model is the Codex session's, not the prompt's. This is a
-// different fact from an empty tier map (OpenCode has no published tier naming
-// but its agent frontmatter does take `model:`), and conflating the two let
-// `agents model harness:codex <id>` be accepted and then silently discarded.
+// Whether a harness's file format can carry a model at all. Cursor's `.mdc`
+// rule format cannot: there is no per-rule model field, so a role file has
+// nowhere to put one. This is a different fact from an empty tier map (Codex's
+// `.codex/agents/*.toml` publishes no tier naming, but its `model` field does
+// take an explicit id — `roles.model: { tiers: {} }`), and conflating the two
+// let `agents model harness:cursor <id>` be accepted and then silently
+// discarded.
 export function harnessTakesModel(id) {
   return roleSpec(harness(id)).model !== false && roleSpec(harness(id)).model !== undefined;
 }
@@ -239,13 +263,20 @@ export function rolesDir() {
 }
 
 export function roleNames() {
+  let dir;
   try {
-    return readdirSync(rolesDir())
+    dir = rolesDir();
+    return readdirSync(dir)
       .filter((n) => n.endsWith(".md"))
       .map((n) => n.replace(/\.md$/, ""))
       .sort();
   } catch {
-    return [];
+    // Same reasoning as registry(): the bundled agents/ directory is the
+    // tool's own data, so unreadable means a misconfigured WAYPOST_HOME /
+    // CLAUDE_PLUGIN_ROOT, not "no roles" — fail loudly instead of an empty list.
+    throw new Error(
+      `Cannot read the bundled role directory at ${dir} ` +
+      `(pluginRoot: ${pluginRoot()}). Check WAYPOST_HOME / CLAUDE_PLUGIN_ROOT.`);
   }
 }
 
@@ -762,6 +793,23 @@ export function renderBlock(cfg) {
 
 const BLOCK_RE = /<!--\s*waypost:agents v\d+[\s\S]*?<!--\s*\/waypost:agents\s*-->\n?/g;
 
+// Claude Code's `@AGENTS.md` / `@./AGENTS.md` import syntax: a line that is
+// nothing but an import of a shared instruction file. Captures the basename
+// (without extension) so the caller can check it names the SPECIFIC shared
+// file found, not just any AGENTS/CLAUDE mention.
+const IMPORT_RE = /^@\.?\/?(AGENTS|CLAUDE)\.md\s*$/m;
+
+// True when `ownFile`'s own text already @-imports `sharedFile` (its
+// basename, e.g. "AGENTS.md") — the shared file then reaches the harness
+// through that import, so writing the block into ownFile too would be a
+// second copy of standing context the harness reads on every turn (ADR-0008).
+function importsSharedFile(ownPath, sharedFile) {
+  let text;
+  try { text = readFileSync(ownPath, "utf8"); } catch { return false; }
+  const m = text.match(IMPORT_RE);
+  return !!m && `${m[1]}.md` === sharedFile;
+}
+
 // Where the routing block goes: every instruction file the project already has,
 // plus the file each DETECTED harness reads. AGENTS.md is the common one, but a
 // Cursor-only or Gemini-only project has never heard of it — the registry says
@@ -778,10 +826,20 @@ export function instructionTargets(proj = projectRoot()) {
     // shared file does.
     const own = declared.filter((f) => f.includes("/"));
     const ownPresent = own.filter((f) => existsSync(join(proj, f)));
-    if (ownPresent.length) { ownPresent.forEach((f) => out.add(f)); continue; }
-
     const sharedOk = harness(id).instructions_shared_ok !== false;
     const shared = declared.find((f) => !f.includes("/") && existsSync(join(proj, f)));
+    if (ownPresent.length) {
+      // An own file that itself @-imports the shared one already reaches the
+      // harness through that import (G-1: this repo's own .claude/CLAUDE.md
+      // is `@AGENTS.md`) — write the block into the shared file only. An own
+      // file with no such import keeps today's behaviour.
+      for (const f of ownPresent) {
+        if (sharedOk && shared && importsSharedFile(join(proj, f), shared)) out.add(shared);
+        else out.add(f);
+      }
+      continue;
+    }
+
     if (sharedOk && shared) { out.add(shared); continue; }
     if (own.length) { out.add(own[0]); continue; }
     out.add(shared || declared[0]);

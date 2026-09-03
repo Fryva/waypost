@@ -263,9 +263,16 @@ function main() {
   } else if (kind === "story") {
     result = buildStory(cfg, layout, rest);
   } else {
-    const folder = folderByKind(layout, kind);
+    // A2-4: `layout.folders` also holds command-less folders (diagrams/ takes
+    // non-frontmatter files by nature, and doctor's own checkLayoutTemplates
+    // exempts them) — those have no template to draft from, so a folder must
+    // also be one of `layout.commands` before it is offered here. Without
+    // this, `waypost draft diagram "x"` died with a raw stack trace instead of
+    // the same clean "unknown kind" every other typo gets.
+    const draftable = layout.commands ? layout.folders.filter((f) => layout.commands.includes(f.kind)) : layout.folders;
+    const folder = draftable.find((f) => f.kind === kind) || null;
     if (!folder) {
-      const known = layout.folders.map((f) => f.kind).filter((k) => k !== "epic");
+      const known = draftable.map((f) => f.kind).filter((k) => k !== "epic");
       die(`Unknown kind: ${kind}. This layout (${cfg.layout}) declares: epic, story, ${known.join(", ")}.`);
     }
     // `numbered` folders route through buildSimple too (upstream ADR-010): the key

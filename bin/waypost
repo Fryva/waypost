@@ -276,15 +276,23 @@ function repairFor(f) {
 
 // ─── bind ──────────────────────────────────────────────────────────────
 
+// A-2: shared by handleBind (a --layout flag) and handleScaffold (a layout
+// already sitting in .waypost/projectstore.json) — a bad value in either place
+// must get this same actionable message, not a raw ENOENT from whichever
+// readFileSync happens to hit it first.
+function checkLayoutExists(layout) {
+  if (!existsSync(join(ROOT, "scaffold", "layouts", `${layout}.json`))) {
+    fail(`unknown layout "${layout}" — available: ${readdirSync(join(ROOT, "scaffold", "layouts")).map((n) => n.replace(/\.json$/, "")).join(", ")}`);
+  }
+}
+
 function handleBind(args) {
   const [vault] = positionals(args);
   if (!vault) fail('bind <vault-path> [--layout engineering] [--lang en|ru|es|de|fr|zh]');
   const abs = resolve(expandHome(vault));
   const layout = opt(args, "--layout", "engineering");
   const lang = opt(args, "--lang", "en");
-  if (!existsSync(join(ROOT, "scaffold", "layouts", `${layout}.json`))) {
-    fail(`unknown layout "${layout}" — available: ${readdirSync(join(ROOT, "scaffold", "layouts")).map((n) => n.replace(/\.json$/, "")).join(", ")}`);
-  }
+  checkLayoutExists(layout);
   if (!existsSync(join(ROOT, "templates", lang))) {
     fail(`unknown language "${lang}" — available: ${readdirSync(join(ROOT, "templates")).filter((n) => !n.includes(".")).join(", ")}`);
   }
@@ -328,6 +336,7 @@ function gitUser() {
 function handleScaffold(args) {
   const cfg = readConfig();
   if (!cfg || !cfg.vault_path) fail("no bound vault — run `waypost bind <vault-path>` first");
+  checkLayoutExists(cfg.layout || "engineering");
   const layout = JSON.parse(readFileSync(join(ROOT, "scaffold", "layouts", `${cfg.layout || "engineering"}.json`), "utf8"));
   const lang = cfg.language || "en";
   const created = [];

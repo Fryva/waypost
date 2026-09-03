@@ -105,10 +105,19 @@ export function composeMessage(subject, { harness: h, session, story, provider, 
     ...(coauthor ? [`Co-Authored-By: ${coauthor}`] : []),
   ];
   const body = subject.replace(/\s*$/, "");
-  // A trailer block must be its own paragraph, and must not merge into an
-  // existing one — otherwise git stops recognising the whole block.
-  const alreadyHasTrailers = /\n[A-Z][\w-]+: .+\s*$/.test(body);
-  return `${body}\n${alreadyHasTrailers ? "" : "\n"}${trailers.join("\n")}\n`;
+  // git's actual rule (verified with `git interpret-trailers`): the trailer
+  // block is the LAST PARAGRAPH, preceded by a blank line, and — for tokens
+  // git does not itself recognise, like Waypost-* — consisting ENTIRELY of
+  // `Key: value` lines (continuation lines starting with whitespace allowed).
+  // The old "last line looks like a trailer" heuristic missed a bare `-m`
+  // whose last paragraph is multi-line (e.g. a Claude-style
+  // `Body\nCo-Authored-By: …` with no blank line before it), which merged our
+  // trailers into that paragraph and made git drop the lot.
+  const TRAILER = /^[A-Za-z0-9-]+: \S/;
+  const paras = body.split(/\n[ \t]*\n/);
+  const last = paras[paras.length - 1].split("\n");
+  const endsInTrailerBlock = paras.length > 1 && last.every((l) => TRAILER.test(l) || /^\s+\S/.test(l));
+  return `${body}\n${endsInTrailerBlock ? "" : "\n"}${trailers.join("\n")}\n`;
 }
 
 // Who else is live on this story right now. The session registry lives in the

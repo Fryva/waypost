@@ -10,7 +10,8 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
-  harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES } from "../scripts/agents.mjs";
+  harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
+  instructionTargets } from "../scripts/agents.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
@@ -155,6 +156,22 @@ test("a role naming a tool outside the neutral vocabulary is rejected at read ti
   assert.match(r.stdout, /unknown tool\(s\) telepathy/, "the error names the tool and the file");
 });
 
+// C-6: a tool root with no bundled harnesses/ at all is a misconfigured
+// WAYPOST_HOME, not "this project uses no harnesses" — every agents/harnesses
+// command must fail loudly instead of printing an empty table with exit 0.
+test("a tool root missing harnesses/ makes `agents list` exit non-zero, naming WAYPOST_HOME", () => {
+  const home = mkdtempSync(join(tmpdir(), "waypost-nohar-"));
+  mkdirSync(join(home, "agents"), { recursive: true });
+  writeFileSync(join(home, "agents", "critic.md"),
+    "---\nname: critic\ndescription: x\ntools: []\n---\nbody\n", "utf8");
+  const proj = mkdtempSync(join(tmpdir(), "waypost-nohar-proj-"));
+  const r = spawnSync(process.execPath, [Waypost, "agents", "list"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: home },
+  });
+  assert.notEqual(r.status, 0, "a missing bundled registry must not print an empty table with exit 0");
+  assert.match(r.stderr + r.stdout, /WAYPOST_HOME/, "the message names the env var that sets the tool root");
+});
+
 test("the harness registry is data, and every entry renders every role", () => {
   const ids = harnessIds();
   assert.ok(ids.length >= 8, `the registry ships a real spread of harnesses, got ${ids.length}`);
@@ -246,7 +263,7 @@ test("the provider is detected from the endpoint or the vendor key, and never gu
 test("every registry entry declares how confident we are in its file format", () => {
   for (const id of [...harnessIds()]) {
     const h = harnessOf(id);
-    const c = h.confidence || (h.verified ? "verified" : "experimental");
+    const c = h.confidence || (h.verified ? "verified" : "inferred");
     assert.ok(["verified", "documented", "inferred"].includes(c), `${id}: ${c}`);
     if (c === "documented") {
       assert.ok(h.docs, `${id} claims its format is documented — the entry must name the document`);
@@ -284,6 +301,23 @@ test("a project can add a harness without touching the code", () => {
   assert.ok(installedRoleOf(readFileSync(p, "utf8")), "with the same provenance contract");
   waypost(proj, ["agents", "uninstall", "--harness", "myagent"]);
   assert.ok(!existsSync(p));
+});
+
+// C-1: a typo'd confidence in a project-local override must not sort ahead of
+// every bundled, verified entry — nor break the command.
+test("a confidence value CONFIDENCE does not know sorts last, not first", () => {
+  const { proj } = bound();
+  mkdirSync(join(proj, ".waypost", "harnesses"), { recursive: true });
+  writeFileSync(join(proj, ".waypost", "harnesses", "zzztest.json"), JSON.stringify({
+    id: "zzztest", name: "ZZZ Test", confidence: "experimental", detect: [".zzztest"],
+    roles: { shape: "prompt-md", dir: ".zzztest/roles", file: "{prefix}{role}.md", model: false,
+             fields: [["description", "{description}"]] },
+  }), "utf8");
+  const rows = JSON.parse(waypost(proj, ["harnesses", "--json"]).stdout).harnesses;
+  const ids = rows.map((r) => r.id);
+  assert.ok(ids.includes("claude") && ids.indexOf("zzztest") > ids.indexOf("claude"),
+    `an unrecognised confidence must sort after a bundled verified entry, got: ${ids.join(", ")}`);
+  assert.equal(ids[ids.length - 1], "zzztest", "and after every other bundled entry too");
 });
 
 test("an aggregate harness merges into its shared file and leaves other entries alone", () => {
@@ -589,6 +623,21 @@ test("bind rejects an unknown layout or language before touching anything", () =
   assert.notEqual(bad.status, 0);
   assert.match(bad.stderr, /unknown layout/);
   assert.ok(!existsSync(join(proj, ".waypost")), "nothing was written");
+});
+
+// A-2: a layout typed correctly at `bind` time but later hand-edited (or
+// carried over from a machine with a project-local layout this one lacks)
+// used to surface as a raw ENOENT from handleScaffold's own readFileSync.
+test("scaffold: a hand-edited config with a bad layout gives the clean bind-time message (A-2)", () => {
+  const { proj } = bound();
+  const cfgPath = join(proj, ".waypost", "projectstore.json");
+  const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
+  cfg.layout = "nope";
+  writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), "utf8");
+  const r = waypost(proj, ["scaffold"], { expectFail: true });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /unknown layout "nope"/);
+  assert.doesNotMatch(r.stderr, /ENOENT/, "a bad layout must not surface as a raw filesystem error");
 });
 
 test("draft --write creates the artifact and reconciles the derived views", () => {
@@ -1003,4 +1052,27 @@ test("register: an existing .claude/CLAUDE.md is preferred over inventing one", 
   });
   assert.match(readFileSync(join(proj, ".claude", "CLAUDE.md"), "utf8"), /waypost:agents/);
   assert.ok(!existsSync(join(proj, "CLAUDE.md")));
+});
+
+// G-1: this repository's own layout — .claude/CLAUDE.md is the one line
+// `@AGENTS.md` — used to get the routing block written into BOTH files, so
+// Claude Code read it twice (once through the import, once directly).
+test("instructionTargets: an own file that @-imports AGENTS.md is not itself a target", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-shared4-"));
+  mkdirSync(join(proj, ".claude"), { recursive: true });
+  writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
+  writeFileSync(join(proj, ".claude", "CLAUDE.md"), "@AGENTS.md\n", "utf8");
+  assert.deepEqual(instructionTargets(proj), ["AGENTS.md"],
+    "the import already reaches Claude Code; a second copy is twice the standing context");
+});
+
+test("instructionTargets: an own file with no import keeps today's behaviour (both targets)", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-shared5-"));
+  mkdirSync(join(proj, ".claude"), { recursive: true });
+  writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
+  writeFileSync(join(proj, ".claude", "CLAUDE.md"), "# project-specific rules, no import\n", "utf8");
+  const targets = instructionTargets(proj);
+  assert.ok(targets.includes("AGENTS.md"));
+  assert.ok(targets.includes(".claude/CLAUDE.md"),
+    "with no import, .claude/CLAUDE.md must still get the block — Claude Code has no other way to see it");
 });

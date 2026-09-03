@@ -137,7 +137,10 @@ That way a project supplies its own vocabulary without this check knowing it.
   block-sequence `supersedes:` reads as empty and a `"[[wikilink]]"` value is
   skipped — doctor reports nothing and a clean run looks like confirmation the link
   was checked. `external_refs` has a dedicated finding for exactly this trap;
-  extending it to these fields is the first follow-up.
+  extending it to these fields is the first follow-up. (Since the 2026-09
+  frontmatter-parsing fixes, the unquoted flow-list spelling — `code_refs: [a.mjs,
+  b.mjs]` — and the bare YAML `~` for null are both read correctly; block-form
+  sequences and wikilink values are the forms that still pass silently.)
 - **The gate covers `adr`, `spec` and `research` only** — the kinds whose templates
   carry `review_status`. Demanding it from a runbook would be asking for a field the
   template never offered; an `epic` has the field but its acceptance is not a review
