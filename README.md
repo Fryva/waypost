@@ -172,6 +172,29 @@ The default `engineering` layout: `adr/`, `specs/`, `epics/<id>/stories/`,
 `research/`, `concepts/`, `meetings/`, `ops/`, `diagrams/`. Defined in
 `scaffold/layouts/engineering.json`.
 
+## How it compares
+
+Waypost sits where three kinds of tools overlap, and most tools cover just one of
+them. It is a young, single-maintainer project; the ones below are more
+established, and often the better pick if you only need the one thing they do.
+
+| You want to… | Established tools | Where Waypost differs |
+|---|---|---|
+| Sync one rules file into every tool's format | [rulesync](https://github.com/dyoshikawa/rulesync), ai-rules-sync, ruler | Waypost renders full *roles* (with model/effort/tools), not just rules text — and carries a project vault and coordination on top |
+| Drive a spec → plan → tasks → code workflow | [GitHub Spec Kit](https://github.com/github/spec-kit), [OpenSpec](https://www.jamasoftware.com/blog/openspec-guide/), Taskmaster, BMAD | Waypost adds a durable decision log (ADRs), a deterministic no-AI `doctor`, drift detection, and cross-tool / cross-machine coordination. Spec Kit is bigger and works with more agents |
+| Give agents a queryable memory service | [mem0](https://github.com/mem0ai/mem0), Zep, Letta | Those are hosted/queryable memory stores (usually paid). Waypost is plain files in git — no server, no database — with pointer-based `search`/`graph` instead of semantic retrieval |
+| Keep architecture decision records | [MADR](https://github.com/adr/madr), adr-tools | Waypost includes ADRs as one artifact type among specs, epics, stories and a board |
+
+**What's distinctive** is the combination: one role definition rendered into 21
+tools, a git-native vault checked by a deterministic doctor, and coordination
+across sessions, tools and machines (presence, leases, commit trailers,
+provenance) — including a vault synced over iCloud or Dropbox, with liveness that
+survives clocks being hours apart. No single tool above does all three.
+
+The closest relative is the upstream
+[ProjectStore](https://github.com/SmartAndPoint/ProjectStore); Waypost's main
+difference from it is being harness-agnostic instead of Claude-only.
+
 ## Learn more
 
 - [docs/how-it-works.md](docs/how-it-works.md) — the mechanics in depth.
