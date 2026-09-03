@@ -286,7 +286,13 @@ test("doctor reports the merge driver, and repairs a stale one", () => {
   assert.ok(drift, "a driver from another version is worse than none — git calls it and it fails");
   assert.match(drift.message, /expected:/);
   waypost(proj, ["doctor", "--fix"]);
-  assert.match(git(proj, ["config", "--get", "merge.waypost-derived.driver"]).stdout, /merge-derived\.mjs %A %O %B %P/);
+  const driver = git(proj, ["config", "--get", "merge.waypost-derived.driver"]).stdout.trim();
+  assert.match(driver, /(waypost merge-derived|merge-derived\.mjs) %A %O %B %P/);
+  // Never the running interpreter's own path: it pins a version
+  // (…/node/25.6.1/bin/node) that the next package upgrade removes, and .git/config
+  // outlives it. Same reason the plugin path is only a fallback.
+  assert.ok(!driver.includes(process.execPath),
+    `the driver must not hard-code this interpreter: ${driver}`);
 });
 
 test("the merge driver refuses rather than guessing when it cannot re-derive", () => {

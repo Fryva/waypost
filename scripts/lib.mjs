@@ -1139,7 +1139,9 @@ export async function gatherVaultFacts(cfg, opts = {}) {
     layoutName: layout.name || cfg.layout,
     language: cfg.language || "en",
     specPolicy: vcfg.spec_policy || "optional",
-    lifecycleGates: vcfg.lifecycle_gates || "on",
+    // Empty means off, which is how doctor reads it. Printing "on" for an
+    // unset key told sessions a gate was enforced when nothing enforced it.
+    lifecycleGates: vcfg.lifecycle_gates || "off",
     kanbanFile: (layout.kanban && layout.kanban.file) || "kanban.md",
     adrIndex: adrFolder ? `${adrFolder.path}/README.md` : "README.md",
     epicFile: epicFolder ? `${epicFolder.path}/<EPIC>/epic.md` : "epic.md",

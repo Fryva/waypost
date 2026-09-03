@@ -395,9 +395,32 @@ test("doctor wires one line-ending policy, so a Windows session cannot rewrite e
   const before = JSON.parse(run(["doctor", "--install", "--json"]).stdout);
   assert.ok(before.some((f) => f.check === "line-endings"));
   run(["doctor", "--fix"]);
-  assert.match(readFileSync(join(proj, ".gitattributes"), "utf8"), /^\* text=auto$/m);
+  // eol= is the load-bearing half: `* text=auto` alone normalises on check-in and
+  // leaves checkout to core.eol, which is CRLF on Windows — so a checkout there
+  // still rewrites the working tree, invisibly, with `git status` clean.
+  assert.match(readFileSync(join(proj, ".gitattributes"), "utf8"), /^\* text=auto eol=lf$/m);
   const after = JSON.parse(run(["doctor", "--install", "--json"]).stdout);
   assert.ok(!after.some((f) => f.check === "line-endings"));
+});
+
+test("doctor: `* text=auto` without eol= is reported and repaired in place", () => {
+  const { proj } = project();
+  const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+  });
+  writeFileSync(join(proj, ".gitattributes"), "# mine\n* text=auto\n*.png binary\n", "utf8");
+
+  const before = JSON.parse(run(["doctor", "--install", "--json"]).stdout);
+  const f = before.find((x) => x.check === "line-endings");
+  assert.ok(f, "half a policy is not a policy");
+  assert.match(f.message, /core\.eol/);
+
+  run(["doctor", "--fix"]);
+  const attrs = readFileSync(join(proj, ".gitattributes"), "utf8");
+  assert.match(attrs, /^\* text=auto eol=lf$/m, "the existing line is completed, not duplicated");
+  assert.equal((attrs.match(/text=auto/g) || []).length, 1);
+  assert.match(attrs, /^\*\.png binary$/m, "the rest of the file is left alone");
+  assert.ok(!JSON.parse(run(["doctor", "--install", "--json"]).stdout).some((x) => x.check === "line-endings"));
 });
 
 test("a temp file from another machine is never swept by this one", () => {

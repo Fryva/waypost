@@ -76,6 +76,7 @@ import {
   HARNESSES,
   PREFIX as AGENT_PREFIX,
   detectHarnesses,
+  instructionTargets,
   status as agentStatus,
 } from "./agents.mjs";
 
@@ -171,24 +172,31 @@ export function checkAgentsBlock(proj) {
   const out = [];
   let blocks = 0;
   let staleVersions = [];
-  for (const name of ["CLAUDE.md", "AGENTS.md"]) {
+  // The same files `register` writes to, not just the two at the root: a project
+  // that keeps its rules in .claude/CLAUDE.md carries the block there, and a
+  // check that cannot see a copy cannot see it stale either. Several files each
+  // holding one block is the normal shape — every harness reads its own — so
+  // duplication is counted PER FILE, which is the case register cannot produce.
+  for (const name of instructionTargets(proj)) {
     const p = join(proj, name);
     if (!existsSync(p)) continue;
     let text;
     try { text = readFileSync(p, "utf8"); } catch { continue; }
+    let here = 0;
     for (const m of text.matchAll(AGENT_BLOCK_MARKER)) {
+      here++;
       blocks++;
       const v = parseInt(m[1], 10);
       if (v !== AGENT_BLOCK_VERSION) staleVersions.push({ file: name, v });
+    }
+    if (here > 1) {
+      out.push(finding("install", "issue", "agents-block",
+        `Duplicated waypost:agents block (${here} markers in ${name}) — keep exactly one per file; register migrates, never duplicates.`, name));
     }
   }
   if (blocks === 0) {
     out.push(finding("install", "info", "agents-block",
       "Agent routing block not registered — the roles exist but no instruction file routes to them. `waypost agents register` writes it."));
-  }
-  if (blocks > 1) {
-    out.push(finding("install", "issue", "agents-block",
-      `Duplicated waypost:agents block (${blocks} markers across CLAUDE.md/AGENTS.md) — keep exactly one; register migrates, never duplicates.`));
   }
   for (const s of staleVersions) {
     out.push(finding("install", "issue", "agents-block",
@@ -364,9 +372,16 @@ export function checkLineEndings(cfg, proj) {
   if (!existsSync(join(proj, ".git"))) return [];
   let attrs = "";
   try { attrs = readFileSync(join(proj, ".gitattributes"), "utf8"); } catch {}
-  if (/^\*\s+text=auto/m.test(attrs)) return [];
-  return [finding("install", "warn", "line-endings",
-    "No `* text=auto` in .gitattributes — a session on Windows will commit CRLF and every file it touches becomes a whole-file diff that conflicts with everyone else's edits. `waypost doctor --fix` writes it.")];
+  const line = attrs.match(/^\*\s+text=auto.*$/m);
+  if (!line) {
+    return [finding("install", "warn", "line-endings",
+      "No `* text=auto eol=lf` in .gitattributes — a session on Windows will commit CRLF and every file it touches becomes a whole-file diff that conflicts with everyone else's edits. `waypost doctor --fix` writes it.")];
+  }
+  if (!/\beol=/.test(line[0])) {
+    return [finding("install", "warn", "line-endings",
+      `\`${line[0].trim()}\` in .gitattributes pins normalisation but not the checkout ending, so git falls back to core.eol=native and a checkout on Windows still writes CRLF into the working tree — invisibly, because check-in normalises back and \`git status\` stays clean. \`waypost doctor --fix\` appends \`eol=lf\`.`)];
+  }
+  return [];
 }
 
 // Presence and leases left behind by sessions that are no longer live, and the
@@ -396,7 +411,14 @@ export function checkSharedVaultState(cfg) {
 }
 
 export function mergeDriverCommand() {
-  return `${process.execPath} ${join(pluginRoot(), "scripts", "merge-derived.mjs")} %A %O %B %P`;
+  // Prefer the CLI on PATH: `process.execPath` pins a versioned interpreter
+  // (…/Cellar/node/25.6.1/bin/node) that a package upgrade removes, and an
+  // absolute plugin path is wrong for anyone sharing one .git between machines.
+  // Fall back to a plain `node` — still portable across interpreter upgrades —
+  // when waypost is not installed on PATH.
+  const onPath = spawnSync("command", ["-v", "waypost"], { encoding: "utf8", shell: true });
+  if (onPath.status === 0 && (onPath.stdout || "").trim()) return "waypost merge-derived %A %O %B %P";
+  return `node ${join(pluginRoot(), "scripts", "merge-derived.mjs")} %A %O %B %P`;
 }
 
 export function checkVaultGit(cfg, proj = projectRoot()) {
@@ -1551,12 +1573,21 @@ export function applyFixes(cfg, proj, findings) {
     const p = join(proj, ".gitattributes");
     let text = "";
     try { text = readFileSync(p, "utf8"); } catch {}
-    if (!/^\*\s+text=auto/m.test(text)) {
-      const block = "\n# waypost: one line-ending policy, or a Windows session's first commit\n"
-        + "# rewrites every file it touches and conflicts with every parallel edit.\n"
-        + "* text=auto\n*.md text eol=lf\n*.mjs text eol=lf\n";
-      writeFileSync(p, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${block}`, "utf8");
-      done.push(".gitattributes += text=auto (one line-ending policy for every OS)");
+    {
+      const existing = text.match(/^\*\s+text=auto.*$/m);
+      if (existing && !/\beol=/.test(existing[0])) {
+        // eol= is the load-bearing half: without it the rule normalises on
+        // check-in and leaves checkout to core.eol, which is CRLF on Windows.
+        writeFileSync(p, text.replace(existing[0], `${existing[0].trimEnd()} eol=lf`), "utf8");
+        done.push(".gitattributes: `* text=auto` += eol=lf (checkout ending was left to core.eol)");
+      } else if (!existing) {
+        const block = "\n# waypost: one line-ending policy, or a Windows session's first commit\n"
+          + "# rewrites every file it touches and conflicts with every parallel edit.\n"
+          + "# eol=lf is not decoration: without it checkout falls back to core.eol.\n"
+          + "* text=auto eol=lf\n*.md text eol=lf\n*.mjs text eol=lf\n";
+        writeFileSync(p, `${text.replace(/\s*$/, "")}${text.trim() ? "\n" : ""}${block}`, "utf8");
+        done.push(".gitattributes += text=auto eol=lf (one line-ending policy for every OS)");
+      }
     }
   }
 

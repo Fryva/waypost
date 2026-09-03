@@ -769,12 +769,15 @@ const BLOCK_RE = /<!--\s*waypost:agents v\d+[\s\S]*?<!--\s*\/waypost:agents\s*--
 export function instructionTargets(proj = projectRoot()) {
   const out = new Set(["AGENTS.md", "CLAUDE.md"].filter((f) => existsSync(join(proj, f))));
   for (const id of detectHarnesses(proj)) {
-    for (const f of harness(id).instructions || []) {
-      // An existing file is always a target; a declared-but-absent one is only
-      // created when it is that harness's own path, never as a second copy of
-      // AGENTS.md in a project that deliberately has none.
-      if (existsSync(join(proj, f)) || f.includes("/")) out.add(f);
-    }
+    const declared = harness(id).instructions || [];
+    const present = declared.filter((f) => existsSync(join(proj, f)));
+    // Every instruction file the harness already has is a target. A file is
+    // CREATED only when the harness has none at all — writing the block into a
+    // second file next to one that already carries it is how a harness ends up
+    // reading its own routing twice.
+    if (present.length) { present.forEach((f) => out.add(f)); continue; }
+    const own = declared.find((f) => f.includes("/"));
+    if (own) out.add(own);
   }
   return [...out];
 }

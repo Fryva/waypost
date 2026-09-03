@@ -902,3 +902,61 @@ test("a leading --project expands `~` the same way `bind` does", () => {
   assert.ok(existsSync(join(target, ".waypost", "projectstore.json")),
     "~ resolved against HOME (A-9), not as a literal two-character path segment");
 });
+
+// ── Instruction files found through real use ───────────────────────────
+//
+// Three defects a downstream project hit while running the contour for real:
+// the block never reached a project whose rules live in .claude/CLAUDE.md, it
+// was written twice for a harness that already had an instruction file, and the
+// duplicate check could not see either copy.
+
+test("register: the block reaches .claude/CLAUDE.md, the layout many projects use", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-instr-"));
+  mkdirSync(join(proj, ".claude"), { recursive: true });
+  writeFileSync(join(proj, ".claude", "CLAUDE.md"), "# rules\n\nproject rules live here\n", "utf8");
+
+  const r = spawnSync(process.execPath, [Waypost, "agents", "register"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const text = readFileSync(join(proj, ".claude", "CLAUDE.md"), "utf8");
+  assert.match(text, /waypost:agents/, "a project keeping rules there used to need a local adapter override");
+  assert.match(text, /^# rules$/m, "the existing content is kept");
+  assert.ok(!existsSync(join(proj, "CLAUDE.md")), "and no second instruction file is invented at the root");
+});
+
+test("register: a harness that already has an instruction file gets no second one", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-instr2-"));
+  mkdirSync(join(proj, ".codex"), { recursive: true });
+  writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
+
+  spawnSync(process.execPath, [Waypost, "agents", "register"], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+  });
+  assert.match(readFileSync(join(proj, "AGENTS.md"), "utf8"), /waypost:agents/);
+  assert.ok(!existsSync(join(proj, ".codex", "AGENTS.md")),
+    "codex declares AGENTS.md and .codex/AGENTS.md; writing both made it read its own routing twice");
+});
+
+test("doctor: one block per instruction file is correct, two in one file is not", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-instr3-"));
+  mkdirSync(join(proj, ".claude"), { recursive: true });
+  writeFileSync(join(proj, ".claude", "CLAUDE.md"), "# rules\n", "utf8");
+  writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
+  const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+  });
+  run(["bind", join(proj, "vault")]); // install checks need a bound vault to run
+  run(["agents", "register"]);
+
+  const clean = JSON.parse(run(["doctor", "--install", "--json"]).stdout);
+  assert.ok(!clean.some((f) => f.check === "agents-block"),
+    "two files each holding one block is the normal shape — every harness reads its own");
+
+  const p = join(proj, "AGENTS.md");
+  writeFileSync(p, readFileSync(p, "utf8") + readFileSync(p, "utf8"), "utf8");
+  const dirty = JSON.parse(run(["doctor", "--install", "--json"]).stdout);
+  const dup = dirty.find((f) => f.check === "agents-block");
+  assert.ok(dup, "two blocks in one file is what register cannot produce, so it is a defect");
+  assert.match(dup.message, /in AGENTS\.md/);
+});
