@@ -1,0 +1,59 @@
+# Changelog
+
+All notable changes to this project are documented here.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- This changelog.
+
+## [0.11.2] — 2026-09-03
+
+### Changed
+- Rewrote the README landing page for a first-time reader: a plain-language
+  intro, the problem it solves, `npm install`, and a simpler quick start.
+- Added a "How it compares" section positioning Waypost against rule syncers,
+  spec-driven toolkits and agent-memory services.
+
+No code changes from 0.11.1.
+
+## [0.11.1] — 2026-09-03
+
+### Added
+- A tag-triggered Release workflow that runs the tests and publishes to npm with
+  build provenance, gated on the tag matching `package.json`'s version.
+
+Maintenance release; no functional changes from 0.11.0.
+
+## [0.11.0] — 2026-09-03
+
+Initial public release.
+
+### Added
+- **Harness-agnostic core**: one `waypost` CLI (alias `wyp`) that owns every
+  write — no hooks, status line or slash commands required. Pure Node, no
+  dependencies.
+- **A project vault** of markdown-in-git artifacts: ADRs, specs, epics, stories
+  and a kanban board, in the `engineering` layout.
+- **Agent roles in 21 tools**: five roles (critic, planner, reviewer, librarian,
+  archaeologist) defined once and rendered into each tool's format — Claude
+  Code, Codex, OpenCode, Cursor, Windsurf, Gemini CLI, Copilot, Cline, Roo, and
+  more — plus six model-provider records.
+- **A deterministic `doctor`** that checks vault and install consistency with no
+  AI, and `--fix` for the mechanical repairs.
+- **Derived views** (`kanban`, `graph`, `codemap`) and `reconcile`, with scoped
+  reads (`graph --for`, `search`) that keep context spend flat as the vault grows.
+- **Multi-session / multi-device coordination**: commit trailers, advisory file
+  leases, and skew-immune presence for vaults shared over cloud or network
+  drives — `commit`, `merge`, `log`, `sessions`, `lease`, `watch`, `storage`.
+- Nine accepted architecture decision records (0001–0009).
+
+Hardened before release by a multi-agent audit and independent critic passes.
+
+[Unreleased]: https://github.com/Fryva/waypost/compare/v0.11.2...HEAD
+[0.11.2]: https://github.com/Fryva/waypost/compare/v0.11.1...v0.11.2
+[0.11.1]: https://github.com/Fryva/waypost/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/Fryva/waypost/releases/tag/v0.11.0

@@ -200,6 +200,7 @@ difference from it is being harness-agnostic instead of Claude-only.
 - [docs/how-it-works.md](docs/how-it-works.md) — the mechanics in depth.
 - [docs/harnesses.md](docs/harnesses.md) — every supported tool and how to add one.
 - [docs/decisions/](docs/decisions/) — the architecture decision records.
+- [CHANGELOG.md](./CHANGELOG.md) — what changed in each release.
 - [AGENTS.md](./AGENTS.md) — the rules every tool and contributor follows.
 
 ## Contributing
