@@ -1,288 +1,202 @@
 # Waypost
 
+[![npm](https://img.shields.io/npm/v/waypost.svg)](https://www.npmjs.com/package/waypost)
 [![CI](https://github.com/Fryva/waypost/actions/workflows/ci.yml/badge.svg)](https://github.com/Fryva/waypost/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-> A waypost is a signpost for travellers — a marker left where the path forks,
-> for whoever comes next. One vault, one CLI, and the same agent roles in every
-> harness. Decisions, specs, epics, stories and a kanban board as plain markdown
-> in git — so the next agent, or the next model in a year, knows exactly **why**
-> everything is the way it is.
->
-> Harness-agnostic fork of [ProjectStore](https://github.com/SmartAndPoint/ProjectStore).
+**Waypost gives your AI coding agents a shared memory of your project — the
+decisions, plans and open work — kept as plain markdown in git, and it works the
+same in 20+ agent tools.**
 
-## Why a fork
+A waypost is a signpost left where the path forks, for whoever comes next. That
+is the idea: every decision, spec, epic, story and a kanban board live as
+readable files in your repo, so the next agent — or the next model a year from
+now — can see *why* the project is the way it is, instead of guessing.
 
-ProjectStore is a Claude Code plugin: slash commands, hooks, a status line and
-subagent spawning are wired to one CLI. Waypost keeps the proven core (vault,
-layouts, templates, doctor/graph/codemap/reconcile/draft/kanban — pure node,
-markdown in git) and replaces the Claude-only wiring with:
+Harness-agnostic fork of [ProjectStore](https://github.com/SmartAndPoint/ProjectStore).
 
-- **one neutral CLI**, `waypost`, that owns every write;
-- **one definition per agent role**, rendered into whatever each harness
-  understands — Claude Code subagents, OpenCode agents, Codex prompts, or a raw
-  prompt on stdout for anything else;
-- **rules instead of hooks**: `waypost brief` is the session-start packet, run
-  because a rule says so rather than because one harness fires an event.
+## The problem it solves
 
-## The loop
+- **Agents forget.** Each new session starts blank and re-derives context that
+  was already settled. Waypost writes that context down once, in the repo.
+- **Every tool stores things differently.** Claude Code, Codex, Cursor, Gemini
+  and the rest each have their own format for agent instructions. Waypost keeps
+  **one** source of truth and renders it into whatever tool you use.
+- **No lock-in.** Everything is plain markdown in git — no server, no database,
+  no proprietary format. Open it in any editor, or in Obsidian for the graph and
+  board views.
 
-task → artifact (ADR / spec / epic / story) → critic → backlog → planner →
-reviewer → done. Every *verify* step is a separate fresh-context pass, and the
-deterministic `waypost doctor` checks mechanical consistency with zero AI.
+## Install
+
+```bash
+npm install -g waypost      # needs Node 20+, no other dependencies
+```
+
+This gives you two commands, `waypost` and the short alias `wyp`.
 
 ## Quick start
 
+From inside your project:
+
 ```bash
-# Pure node, no dependencies. Put bin/waypost on PATH, or call it directly.
-waypost setup     # binds a vault, scaffolds it, installs the roles for whichever
-              # harnesses this project uses, registers them, and repairs the
-              # mechanical findings. Idempotent; --dry-run to look first.
+waypost setup
 ```
 
-That is the whole installation. Afterwards:
+That one command does the whole install: it creates (or adopts) a `vault/`
+folder for your project's notes, sets up the folder layout, installs the agent
+roles for whatever tools your project uses, and fixes anything mechanical. It is
+safe to re-run; add `--dry-run` to see what it would do first.
+
+Then, day to day:
 
 ```bash
-waypost           # is this set up, and what does it need right now
-waypost next      # the same, ranked, with the command for each
-waypost brief     # orientation at the start of a session, in any harness
+waypost                 # is this set up, and what does it need right now?
+waypost next            # the same, ranked, with the exact command for each
+waypost brief           # a short orientation to read at the start of a session
 waypost draft adr "Use Postgres for primary storage" --write
 ```
 
-`setup` adopts a vault the project already has (`vault/`, `docs/vault/`,
-`knowledge/`) instead of creating a second one, detects the harnesses from the
-directories they own, and leaves `waypost doctor` clean.
+The last command creates a decision record and wires it into the board and the
+link graph. Every file it makes is plain markdown you can read and edit by hand.
 
-Every artifact is plain markdown in git. Open the vault in Obsidian for the
-graph and board views; GitHub and any editor render it otherwise.
+## What you get
 
-## CLI
+- A **decision log and backlog** that lives in the repo, not in someone's head.
+- The **same agent roles in every tool** — define a reviewer or a planner once,
+  use it in Claude Code, Codex, Cursor, and 18 more.
+- A **deterministic health check**, `waypost doctor`, that verifies the vault is
+  consistent with zero AI and zero guesswork.
+- **Coordination for teams and multiple machines** — who is working on what,
+  across tools, sessions and even a vault synced over iCloud or Dropbox.
 
-| Command | Purpose |
-|---------|---------|
-| `waypost setup` | the whole install in one idempotent command (`--dry-run`) |
-| `waypost next` | what the project needs right now, ranked, with the command for each |
-| `waypost bind <vault>` | bind a vault and scaffold the layout (`--layout`, `--lang`, `--force`) |
-| `waypost scaffold` | (re)create the layout's folders and index READMEs |
-| `waypost brief` | session-start orientation packet (no hook required) |
-| `waypost draft <kind> "<title>" [--write]` | render an artifact; `--write` creates it and reconciles |
-| `waypost story plan\|close <path> [--write]` | story lifecycle gates |
-| `waypost kanban` / `graph` / `codemap` | regenerate one derived view (`--json` previews) |
-| `waypost graph --for <path>` | one artifact's typed neighbourhood, instead of the whole graph |
-| `waypost search "<text>"` | vault-wide search returning pointers, not documents |
-| `waypost reconcile [--write]` | re-derive every view and index |
-| `waypost doctor [--install\|--vault] [--fix]` | deterministic diagnostics |
-| `waypost diff-refs` | changed-file evidence for `code_refs` |
-| `waypost agents …` | `list` / `show` / `install` / `uninstall` / `register` / `model` |
-| `waypost prompt [name]` / `waypost skill [name]` | the loop's procedures and skills |
-| `waypost sessions [--touch]` | active-session registry |
-| `waypost tokens` | what the loop cost — Claude Code transcripts only |
-| `waypost status` | bind summary + per-harness role state |
+## The everyday loop
 
-The project root resolves via `WAYPOST_PROJECT_DIR` (falling back to
-`CLAUDE_PROJECT_DIR`, then cwd). The tool root is the tree `bin/waypost` belongs
-to; `WAYPOST_HOME` (fallback `CLAUDE_PLUGIN_ROOT`) matters only for a script run
-directly.
+task → write it down (a decision, spec, epic or story) → an independent critic
+checks it → it lands in the backlog → a planner turns it into steps → a reviewer
+checks the result → done. Each *check* is a fresh, separate pass so nothing
+rubber-stamps its own work, and `waypost doctor` keeps the mechanical parts
+honest.
 
-## Agent roles, everywhere
+## Commands
 
-Five roles — `critic`, `planner`, `reviewer`, `librarian`, `archaeologist` —
-defined once in `agents/*.md` with neutral frontmatter
-(`model: reasoning|balanced|fast`, `effort`, `access`, `tools`). They are
-read-only *by contract*: where the harness has a tool map (OpenCode) edits are
-denied outright, and everywhere the shell stays available — these roles need
-`git diff` — so "never write" is stated in the role prompt, not enforced by it.
+| Command | What it does |
+|---------|--------------|
+| `waypost setup` | the whole install in one command (`--dry-run` to preview) |
+| `waypost next` | what the project needs now, ranked, with the command for each |
+| `waypost brief` | a short orientation packet for the start of a session |
+| `waypost draft <kind> "<title>" [--write]` | create an artifact (`epic`/`story` take a leading id) |
+| `waypost story plan\|close <path> [--write]` | move a story through its lifecycle |
+| `waypost kanban` / `graph` / `codemap` | rebuild one view |
+| `waypost graph --for <path>` | just one artifact's neighbourhood, not the whole graph |
+| `waypost search "<text>"` | search the vault, returning pointers rather than whole files |
+| `waypost reconcile [--write]` | rebuild every view and index |
+| `waypost doctor [--fix]` | consistency check (and mechanical repairs) |
+| `waypost agents …` | manage roles: `list` / `install` / `uninstall` / `model` |
+| `waypost harnesses` | which agent tools are supported |
+| `waypost commit -m "…" [--story <id>]` | commit with harness/session/story trailers |
+| `waypost sessions` / `lease` / `watch` | see and coordinate who is working |
+| `waypost status` | a summary of the setup and role state |
+
+Run `waypost help` for the full list.
+
+## Works with your agent tool
+
+Define a role once in `agents/*.md`; Waypost renders it into the format each tool
+expects. Adding support for another tool is a JSON file, not code.
 
 ```bash
-waypost agents list                       # roster + install state per harness
-waypost harnesses                         # every harness it can render into
-waypost agents install --harness cursor   # or a list, or `all`
-waypost agents show critic adr/foo.md     # the raw prompt, for a harness with neither
-waypost agents model default sonnet       # pin a model, then re-install
-waypost agents model harness:opencode anthropic/claude-sonnet-4-5
+waypost harnesses                         # every tool it can render into
+waypost agents install --harness cursor   # install roles for one tool (or `all`)
+waypost agents list                       # roles + where they're installed
 ```
 
-`default` and per-role pins are harness-blind, so they only apply to harnesses
-with a published tier naming (today: Claude Code). For the others, name the
-model per harness — a bare `sonnet` is not an id OpenCode can resolve.
+Supported today (21 tools): **Claude Code, Codex, OpenCode, Cursor, Windsurf,
+Gemini CLI, GitHub Copilot, Cline, Roo Code**, and Kimi, Qwen, ZCode, CodeBuddy,
+Grok, Antigravity, DeepSeek, QM, Pi, Trae, iFlow, Tongyi Lingma. The full table,
+with exactly where each tool's files land, is in
+[docs/harnesses.md](docs/harnesses.md).
 
-A harness is **data**, not code — `harnesses/<id>.json` says where its role
-files go and what shape they are, so supporting one more agent CLI is a JSON
-file, and a project can add or override an entry in `.waypost/harnesses/`:
+Five roles ship: `critic`, `planner`, `reviewer`, `librarian`, `archaeologist`.
+They are read-only by contract — they propose; writes go through the
+approval-gated `waypost` flow.
 
-| id | Harness | Roles land in | Confidence |
-|----|---------|---------------|------------|
-| `claude` | Claude Code | `.claude/agents/waypost-<role>.md` | verified |
-| `codex` | Codex CLI | `.codex/agents/waypost-<role>.toml` (`sandbox_mode: read-only`) | documented |
-| `opencode` | OpenCode | `.opencode/agents/waypost-<role>.md` | documented |
-| `gemini` | Gemini CLI | `.gemini/agents/waypost-<role>.md` | documented |
-| `grok` | Grok Build (xAI) | `.grok/agents/waypost-<role>.md` | documented |
-| `antigravity` | Google Antigravity | `.agents/agents/waypost-<role>/agent.md` | documented |
-| `copilot` | GitHub Copilot | `.github/agents/waypost-<role>.agent.md` | documented |
-| `kimi` | Kimi Code CLI (Moonshot) | `.kimi-code/agents/waypost-<role>.md` | documented |
-| `qwen` | Qwen Code (Alibaba) | `.qwen/agents/waypost-<role>.md` | documented |
-| `zcode` | ZCode (Z.ai / Zhipu) | `.zcode/agents/waypost-<role>.md` | documented |
-| `codebuddy` | CodeBuddy Code (Tencent) | `.codebuddy/agents/waypost-<role>.md` | documented |
-| `dsh` | DeepSeek Harness | — (subagents live in code; routing block only) | documented |
-| `qm` | QM (Y Combinator) | — (drives another harness; routing block only) | documented |
-| `pi` | Pi (Earendil) | — (no sub-agents by design; routing block only) | documented |
-| `cursor` · `windsurf` · `cline` · `lingma` | rules / workflows | per-tool rule files | documented |
-| `roo` | Roo Code | `.roomodes` (merged, your own modes untouched) | documented |
-| `trae` · `iflow` | Trae (ByteDance), iFlow | rules / agents | inferred |
-| anything else | — | `<your-cli> "$(waypost agents show critic) <target>"` |
+## Working across tools, machines and people
 
-**A vendor's CLI and a vendor's models are different things.** Moonshot, Zhipu,
-Alibaba, Tencent, DeepSeek and xAI ship both — those are the `kimi`, `zcode`,
-`qwen`, `codebuddy`, `dsh` and `grok` rows above. MiniMax ships models only (its MMX-CLI
-generates media rather than driving a codebase), so it is a *provider* entry:
-nothing installs for it, but `waypost commit` records
-which model produced the work (`Waypost-Provider: deepseek`) and `waypost log --provider
-deepseek` reads it back. The same harness behaves very differently behind a
-different model, and nothing else in a repository remembers which one wrote a
-commit.
-
-`waypost harnesses` prints the list with what this project actually uses marked, and
-`docs/harnesses.md` has the full table and the schema for adding your own. The
-confidence column is about evidence: *verified* = documented and exercised here,
-*documented* = taken from the vendor's own docs (the entry records the URL),
-*inferred* = guessed from a convention, with the assumption written down.
-
-Generated files carry a provenance line with a hash of the render, so
-`waypost doctor` sees any drift — an edited file, a changed role, a changed model,
-a changed adapter. A file under the `waypost-` prefix *without* that line is
-someone's own: install skips it, `--fix` skips it, uninstall never deletes it.
-With no harness detected and none named, `install` refuses rather than
-scattering all three directories into the project.
-
-## Several harnesses at once
-
-Two agents in two harnesses on one repository is the case this fork exists for,
-and it has three failure modes: history that cannot say who did what, generated
-files that conflict on every merge, and two sessions opening the same story.
+Two agents in two different tools on one repo is the case this fork is built for.
+Waypost keeps the history attributable and the shared files conflict-free:
 
 ```bash
 waypost commit -m "Add the codex adapter" --story PS-1/story-codex-adapter --all
-waypost log --story PS-1/story-codex-adapter     # …or --harness codex
-waypost merge feature-branch                     # merge, re-derive, then commit
+waypost log --story PS-1/story-codex-adapter     # or --harness codex
 ```
 
-Every commit carries git trailers — `Waypost-Harness`, `Waypost-Session`, `Waypost-Story` —
-which git itself parses (`git interpret-trailers`, `--format=%(trailers)`), so
-the record survives without this tool. Derived views are marked
-`merge=waypost-derived` in `.gitattributes`: on conflict they are regenerated from
-the artifacts rather than merged line by line (`waypost doctor --fix` wires it).
-Opening a story claims it in the session registry inside the vault — which every
-harness bound to that vault can read — and `waypost commit` refuses to close a story
-another live session still holds. See
-[ADR-0006](docs/decisions/0006-commit-protocol.md).
+Every commit carries git trailers (`Waypost-Harness`, `Waypost-Session`,
+`Waypost-Story`) that git itself can read, so the record survives without this
+tool. Generated views regenerate on merge instead of conflicting line by line.
+See [ADR-0006](docs/decisions/0006-commit-protocol.md).
 
-## Several devices and operating systems at once
-
-A vault on iCloud, Dropbox or an SMB share, with sessions on macOS, Windows and
-Linux — that arrangement breaks three assumptions a single machine can make:
-clocks agree, `mtime` means something, and a write is atomic and unique. None of
-them hold, so Waypost does not pretend to lock anything. It coordinates instead:
+For a vault synced across machines (iCloud, Dropbox, a network share) Waypost
+does not pretend to lock anything — it coordinates:
 
 ```bash
-waypost watch                     # stay live; report who joins, leaves, or takes a story
-waypost lease src/auth.ts         # "I am editing this right now"
-waypost sessions                  # who is live, on which OS, holding what
-waypost storage                   # what the vault is on, and how far behind presence can be
+waypost lease src/auth.ts    # "I'm editing this right now"
+waypost sessions             # who is live, on which OS, holding what
+waypost watch                # stay live and see others join, leave, take a story
 ```
 
-Liveness never compares your clock with someone else's: each session publishes a
-counter it increments, and every peer decides "alive" from *its own* observation
-of that counter changing. A device whose clock is six hours off is still judged
-correctly. The liveness window and the settle wait widen automatically on cloud
-and network storage, and every answer says how stale it might be.
+Liveness never compares one machine's clock with another's, so a device whose
+clock is hours off is still judged correctly, and every answer says how stale it
+might be. See [ADR-0007](docs/decisions/0007-shared-vault-presence.md).
 
-Leases are advisory by construction — on a sync drive nothing else is honest.
-Acquisition is write → settle → re-read → deterministic tie-break, so two
-devices converge on one owner instead of both believing they hold it; a lease
-dies with its session, and a takeover is recorded rather than silent.
-`waypost commit` refuses to write over a file another live session holds.
+## What it costs to run
 
-Cross-OS hygiene is checked rather than hoped for: `waypost doctor` reports names
-that cannot be checked out on Windows, artifacts that differ only in case, and a
-missing line-ending policy (`--fix` writes `* text=auto`). Atomic-write temp
-files carry the host that made them, so one machine can never sweep a write
-another machine has in flight. See
-[ADR-0007](docs/decisions/0007-shared-vault-presence.md).
-
-## Layout (`engineering`)
-
-`adr/`, `specs/`, `epics/<id>/stories/`, `research/`, `concepts/`, `meetings/`,
-`ops/`, `diagrams/` — see `scaffold/layouts/engineering.json`.
-
-## Docs
-
-- `docs/decisions/` — ADRs for this fork (harness-agnostic core, vault layout,
-  roles across harnesses, path split).
-- `docs/how-it-works.md` — the mechanics, and what changed relative to upstream.
-
-## Tests
-
-```bash
-npm test        # node --test tests/*.test.mjs — no dependencies
-```
-
-## The cost, honestly
-
-Two different costs, and only one of them is large.
-
-**The standing overhead is small and does not grow with the vault.** Measured on
-a 32-artifact project (o200k tokenizer): the routing block 197 tokens, the five
-role descriptions a harness injects 92, and `waypost brief` 409 — **698 tokens**
-carried into a session, flat whether the vault holds 3 artifacts or 300. In a
-100-turn Opus session that is about $0.04. Routine commands are in the same
-range: `status` 175, `agents list` 147, `harnesses` 51, `doctor` ~320, a `draft`
-preview 156.
-
-**On a large vault the trap is reading derived views whole**, because those do
-grow — roughly 66 tokens per artifact in `graph.md`, 51 in a folder index. So
-don't read them:
+The overhead carried into every session is small and **does not grow with the
+vault**: on a 32-artifact project, about 700 tokens total (roughly $0.04 across a
+100-turn Opus session). The one thing to avoid on a big vault is reading a whole
+generated view; use the scoped commands instead:
 
 ```bash
 waypost graph --for adr/use-postgres.md    # 44 tokens, vs 1119 for the whole graph
 waypost search "retry budget" --limit 5    # 91 tokens, vs 1516 for one index file
 ```
 
-Both gaps widen linearly with the vault. Budgets for all of this are enforced by
-tests, not by good intentions — see
-[ADR-0008](docs/decisions/0008-token-budget.md).
+The agent roles are where real money goes, and that's the point — a critic pass
+on Opus measured about $1.62, mostly the reading it does. Use `waypost agents
+model default sonnet` to cut that by ~60%, and reserve the roles for decisions,
+specs and story reviews rather than every edit. Budgets for all of this are
+enforced by tests. See [ADR-0008](docs/decisions/0008-token-budget.md).
 
-**The roles are where the money is**, and that is the point of them: a measured
-critic pass on Opus cost $1.62 (16 requests, 25 tool calls), of which the role's
-prompt was 0.08% — the rest is the reading it does. `waypost agents model default
-sonnet` cuts that by ~60%. Reserve the roles for ADRs, specs and story reviews
-rather than every edit.
+## Layout
 
-What you get for it: a project manager / systems analyst that never forgets to
-file, artifacts that are the working backlog and decision log, and an exit hatch
-— plain markdown, no server, no proprietary format. Move to any model or any
-harness; the orientation is already on disk.
+The default `engineering` layout: `adr/`, `specs/`, `epics/<id>/stories/`,
+`research/`, `concepts/`, `meetings/`, `ops/`, `diagrams/`. Defined in
+`scaffold/layouts/engineering.json`.
+
+## Learn more
+
+- [docs/how-it-works.md](docs/how-it-works.md) — the mechanics in depth.
+- [docs/harnesses.md](docs/harnesses.md) — every supported tool and how to add one.
+- [docs/decisions/](docs/decisions/) — the architecture decision records.
+- [AGENTS.md](./AGENTS.md) — the rules every tool and contributor follows.
 
 ## Contributing
 
-Issues and pull requests are welcome. Two files are worth reading first:
+Issues and pull requests are welcome. Read [AGENTS.md](./AGENTS.md) (the single
+source of the project's rules) and [docs/decisions/](docs/decisions/) (the ADR
+log — architectural changes get an ADR before they get code) first.
 
-- [AGENTS.md](./AGENTS.md) — the rules every harness and every contributor
-  follows. It is the single source: `.claude/CLAUDE.md` and `opencode.json`
-  only point at it, they do not restate it.
-- [docs/decisions/](./docs/decisions/) — the ADR log. Anything that moves an
-  architectural boundary, the vault format, the CLI surface or a dependency
-  gets an ADR before it gets code.
+```bash
+npm test        # the whole suite — pure node, no dependencies, no network
+```
 
-`npm test` runs the whole suite — pure node, no dependencies, no network. CI
-runs it on Node 20, 22 and 24; keep it green.
+CI runs the tests on Node 20, 22 and 24.
 
 ### Releasing
 
 Bump `version` in `package.json`, tag the commit `vX.Y.Z` (matching that
-version), and push the tag. The `Release` workflow runs the tests and
-`npm publish` on any `v*` tag, using the repository secret `NPM_TOKEN` (an npm
-Automation access token). The tag must equal `package.json`'s version, or the
-workflow refuses to publish.
+version), and push the tag. The `Release` workflow runs the tests and publishes
+to npm, using the repository secret `NPM_TOKEN`. The tag must equal
+`package.json`'s version, or the workflow refuses to publish.
 
 ## License
 
