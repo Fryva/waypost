@@ -1,0 +1,43 @@
+name: Release
+
+# Publish to npm when a version tag is pushed. Create the tag with
+# `git tag -a vX.Y.Z -m ...` (X.Y.Z must equal package.json's version) and
+# `git push origin vX.Y.Z`. Requires a repository secret NPM_TOKEN — an npm
+# Automation access token (npmjs.com → Access Tokens → Generate New Token →
+# Classic → Automation). Automation tokens publish without a 2FA one-time code.
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write   # lets npm attach build provenance to the release
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      # The tag and package.json must name the same version, or a mistagged
+      # push would publish something the tag does not describe.
+      - name: Tag matches package.json version
+        run: |
+          pkg="v$(node -p "require('./package.json').version")"
+          if [ "$pkg" != "${GITHUB_REF_NAME}" ]; then
+            echo "tag ${GITHUB_REF_NAME} != package.json ${pkg}" >&2
+            exit 1
+          fi
+
+      # No dependencies, so nothing to install — just the invariant tests.
+      - run: npm test
+
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

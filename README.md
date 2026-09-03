@@ -276,6 +276,14 @@ Issues and pull requests are welcome. Two files are worth reading first:
 `npm test` runs the whole suite — pure node, no dependencies, no network. CI
 runs it on Node 20, 22 and 24; keep it green.
 
+### Releasing
+
+Bump `version` in `package.json`, tag the commit `vX.Y.Z` (matching that
+version), and push the tag. The `Release` workflow runs the tests and
+`npm publish` on any `v*` tag, using the repository secret `NPM_TOKEN` (an npm
+Automation access token). The tag must equal `package.json`'s version, or the
+workflow refuses to publish.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE). Upstream ProjectStore is MIT-licensed by
