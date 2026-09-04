@@ -32,7 +32,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   beat, clearPresence, peers, storageOf, readLeases, acquire, release, vaultRel, prunePresence,
-  sharedTree, sharedWith, SHARED_TREE_ADVICE,
+  sharedTree, sharedWith, SHARED_TREE_ADVICE, coordinationDirs,
 } from "./presence.mjs";
 import {
   readConfig,
@@ -173,7 +173,8 @@ function main() {
     .map((l) => ({ path: l.path, session: l.session, host: l.host, harness: l.harness, mine: l.mine }));
   if (view.conflicts.length) out.sync_conflicts = view.conflicts;
   const shared = sharedTree(vault, { self: sid, view });
-  out.shared_tree = { shared: shared.shared, with: shared.with };
+  out.shared_tree = { shared: shared.shared, with: shared.with, siblings: shared.siblings };
+  out.coordination_dir = coordinationDirs(vault).primary;
 
   if (json) {
     process.stdout.write(JSON.stringify(out, null, 2) + "\n");
@@ -216,6 +217,10 @@ function main() {
   }
   if (out.shared_tree.shared) {
     process.stdout.write(`\n⚠️  shared checkout: ${sharedWith(shared)} — ${SHARED_TREE_ADVICE}\n`);
+  }
+  if (shared.siblings.length) {
+    process.stdout.write(`\nsibling worktrees of this repository: ${shared.siblings.map((p) => `${p.session} in ${p.project_root}${p.harness ? ` (${p.harness})` : ""}`).join("; ")}\n`
+      + "    their leases on paths you edit are a merge conflict on its way — `waypost lease list` shows them.\n");
   }
   if (out.sync_conflicts && out.sync_conflicts.length) {
     process.stdout.write(`\n⚠️  the sync client left ${out.sync_conflicts.length} conflicted copy(ies) in the presence directory:\n`

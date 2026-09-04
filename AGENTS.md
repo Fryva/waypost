@@ -166,6 +166,14 @@ One project may be driven by several sessions at the same time (ADR-0006):
   Windows, case collisions and a missing line-ending policy; `--fix` writes
   `* text=auto`. Do not create vault names with `<>:"|?*`, with a trailing space
   or dot, or differing only in case.
+- **Coordination follows the repository (ADR-0010).** Inside a git repository
+  presence and leases live in the git common dir, `.git/waypost/<vault>/`,
+  shared by every worktree and untouched by `git clean`; outside one, in
+  `<vault>/.projectstore/` as before; `coordination_dir` in the binding
+  overrides both. A linked worktree inherits the main worktree's binding, so
+  `git worktree add` needs no setup; `brief` and `sessions` name sibling
+  worktrees and their leases, which are a merge conflict on its way. For one
+  minor version both places are written and read.
 - **A shared checkout is the sharper case.** When a session on another host is
   live and reports this same project root, or a vault inside its checkout at
   the same offset as ours, or the project root sits on a cloud/network drive,

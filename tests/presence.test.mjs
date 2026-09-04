@@ -13,9 +13,10 @@ import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   beat, peers, acquire, release, readLeases, winnerOf, storageOf, presenceDir, leaseDir, vaultRel,
-  prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset, processGone,
+  prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset, processGone, coordinationDirs,
 } from "../scripts/presence.mjs";
 import { claimsOf, parseDuration } from "../scripts/sessions.mjs";
+import { gitCommonDir } from "../scripts/lib.mjs";
 import { checkPortableNames } from "../scripts/doctor.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -34,13 +35,13 @@ function project() {
 // `beat()`, a rewrite of an existing record keeps its started_at (that is what
 // tells "same session, still here" from "same id, new session"); pass
 // `started_at` explicitly to write a fresh incarnation.
-function peerFile(vault, { session, seq = 1, at = new Date().toISOString(), host = "otherbox", os = "win32-10", harness = "codex", claim = null, started_at = null, project_root = "C:\\work\\proj", vault_rel = null, proc = null }) {
-  mkdirSync(presenceDir(vault), { recursive: true });
-  const file = join(presenceDir(vault), `${session}.json`);
+function peerFile(vault, { session, seq = 1, at = new Date().toISOString(), host = "otherbox", os = "win32-10", harness = "codex", claim = null, started_at = null, project_root = "C:\\work\\proj", vault_rel = null, proc = null, common_dir = null }) {
+  mkdirSync(pdir(vault), { recursive: true });
+  const file = join(pdir(vault), `${session}.json`);
   let prev = null;
   try { prev = JSON.parse(readFileSync(file, "utf8")); } catch {}
   writeFileSync(file, JSON.stringify({
-    session, host, os, harness, seq, at, started_at: started_at || (prev && prev.started_at) || at, project_root, vault_rel, proc, claim,
+    session, host, os, harness, seq, at, started_at: started_at || (prev && prev.started_at) || at, project_root, vault_rel, proc, common_dir, claim,
   }, null, 2), "utf8");
 }
 
@@ -54,10 +55,16 @@ function peerFile(vault, { session, seq = 1, at = new Date().toISOString(), host
 // the same path (two different sessions) do not collide with each other on
 // disk either.
 function leaseFile(vault, { path, session, host = "otherbox", os = "win32", harness = "cursor", acquired_at = new Date().toISOString() }) {
-  mkdirSync(leaseDir(vault), { recursive: true });
+  mkdirSync(ldir(vault), { recursive: true });
   const slug = `${path.replace(/[^\w.-]+/g, "_").slice(0, 80)}.remote.${String(session).replace(/[^\w.-]+/g, "_")}.json`;
-  writeFileSync(join(leaseDir(vault), slug), JSON.stringify({ path, session, host, os, harness, acquired_at }, null, 2), "utf8");
+  writeFileSync(join(ldir(vault), slug), JSON.stringify({ path, session, host, os, harness, acquired_at }, null, 2), "utf8");
 }
+
+// Coordination directories resolve against the PROJECT root (ADR-0010): a test
+// that asks for them outside withProject would get the vault-shape fallback.
+// Every fixture vault is <proj>/vault, so the project is the vault's parent.
+const pdir = (vault) => withProject(dirname(vault), () => presenceDir(vault));
+const ldir = (vault) => withProject(dirname(vault), () => leaseDir(vault));
 
 function withProject(proj, fn) {
   const prev = process.env.WAYPOST_PROJECT_DIR;
@@ -112,9 +119,9 @@ test("a sync client's conflicted copies are reported, never read as peers", () =
   const { proj, vault } = project();
   withProject(proj, () => {
     beat(vault, "s1", {});
-    mkdirSync(presenceDir(vault), { recursive: true });
-    writeFileSync(join(presenceDir(vault), "s1 2.json"), "{}", "utf8");                        // iCloud
-    writeFileSync(join(presenceDir(vault), "s1 (conflicted copy 2026-09-01).json"), "{}", "utf8"); // Dropbox
+    mkdirSync(pdir(vault), { recursive: true });
+    writeFileSync(join(pdir(vault), "s1 2.json"), "{}", "utf8");                        // iCloud
+    writeFileSync(join(pdir(vault), "s1 (conflicted copy 2026-09-01).json"), "{}", "utf8"); // Dropbox
     const view = peers(vault, { self: "s1" });
     // `waypost bind` in the fixture beats too, so count only what came from s1:
     // the point is that its duplicates did not become extra sessions.
@@ -132,14 +139,14 @@ test("prunePresence removes only records that are gone, ours excepted, and quiet
     peers(vault, { self: "me" }); // seed the observations cache for these two
     peerFile(vault, { session: "gone-recent", seq: 1, at: new Date(Date.now() - 3600e3).toISOString() });
     peerFile(vault, { session: "gone-stale", seq: 1, at: new Date(Date.now() - 25 * 3600e3).toISOString() });
-    mkdirSync(presenceDir(vault), { recursive: true });
-    writeFileSync(join(presenceDir(vault), "gone-stale 2.json"), "{}", "utf8"); // a conflicted copy
+    mkdirSync(pdir(vault), { recursive: true });
+    writeFileSync(join(pdir(vault), "gone-stale 2.json"), "{}", "utf8"); // a conflicted copy
 
     const now = Date.now() + LIVE_WINDOW_MS + 60_000; // past the plain liveness window for everyone but "me"
     const removed = prunePresence(vault, { self: "me", now });
     assert.equal(removed, 1, "only the one record quiet for more than 24h is reaped");
 
-    const remaining = readdirSync(presenceDir(vault));
+    const remaining = readdirSync(pdir(vault));
     assert.ok(remaining.includes("me.json"), "our own record is never pruned, no matter how quiet");
     assert.ok(remaining.includes("live-remote.json"), "a merely-quiet-for-a-while peer is not stale yet");
     assert.ok(remaining.includes("gone-recent.json"), "quiet less than 24h — not old enough to reap");
@@ -153,8 +160,8 @@ test("`waypost sessions --prune` also prunes stale presence, and the text mode h
   const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
   });
-  mkdirSync(presenceDir(vault), { recursive: true });
-  writeFileSync(join(presenceDir(vault), "long-gone.json"), JSON.stringify({
+  mkdirSync(pdir(vault), { recursive: true });
+  writeFileSync(join(pdir(vault), "long-gone.json"), JSON.stringify({
     session: "long-gone", host: "otherbox", os: "linux-6", harness: "codex", seq: 1,
     at: new Date(Date.now() - 48 * 3600e3).toISOString(),
     started_at: new Date(Date.now() - 48 * 3600e3).toISOString(), project_root: "/elsewhere",
@@ -162,7 +169,7 @@ test("`waypost sessions --prune` also prunes stale presence, and the text mode h
 
   const pruned = JSON.parse(run(["sessions", "--prune", "--json"]).stdout);
   assert.equal(pruned.pruned_presence, 1, "a 48h-quiet, first-sight peer is reaped by --prune");
-  assert.ok(!readdirSync(presenceDir(vault)).includes("long-gone.json"));
+  assert.ok(!readdirSync(pdir(vault)).includes("long-gone.json"));
 });
 
 test("`--older-than` lowers the reaping threshold explicitly, and never reaps a session still running here", () => {
@@ -200,7 +207,7 @@ test("`--older-than` lowers the reaping threshold explicitly, and never reaps a 
   const pruned = JSON.parse(run(["sessions", "--prune", "--older-than", "6h", "--json"]).stdout);
   assert.equal(pruned.older_than_ms, 6 * 3600e3);
   assert.equal(pruned.pruned_presence, 1, "seven hours is past six; five is not");
-  const left = readdirSync(presenceDir(vault));
+  const left = readdirSync(pdir(vault));
   assert.ok(left.includes("five-h.json"));
   assert.ok(!left.includes("seven-h.json"));
   if (platform() !== "win32") assert.ok(left.includes("idle-here.json"), "a session whose harness still runs here is idle, not gone");
@@ -311,9 +318,9 @@ test("two live sessions racing to acquire the same path converge on exactly one 
   const aOwns = a.ok === true;
   const bOwns = b.ok === true;
   assert.notEqual(aOwns, bOwns, "exactly one side keeps the lease once the race settles — never both, never neither");
-  const files = readdirSync(leaseDir(vault)).filter((n) => n.endsWith(".json"));
+  const files = readdirSync(ldir(vault)).filter((n) => n.endsWith(".json"));
   assert.equal(files.length, 1, "the loser removes only its own file, never the winner's");
-  const rec = JSON.parse(readFileSync(join(leaseDir(vault), files[0]), "utf8"));
+  const rec = JSON.parse(readFileSync(join(ldir(vault), files[0]), "utf8"));
   assert.equal(rec.session, aOwns ? "alpha" : "beta", "the file left on disk belongs to whichever side believes it won");
 
   // The winner can re-acquire cleanly afterwards: no live rival left to contest.
@@ -359,7 +366,7 @@ test("an observation whose presence file is gone is dropped on the next read, an
     let cache = JSON.parse(readFileSync(join(stateDir, files[0]), "utf8"));
     assert.ok("ephemeral" in cache && "staying" in cache);
 
-    unlinkSync(join(presenceDir(vault), "ephemeral.json"));
+    unlinkSync(join(pdir(vault), "ephemeral.json"));
     peers(vault, { self: "me" });
     cache = JSON.parse(readFileSync(join(stateDir, files[0]), "utf8"));
     assert.ok(!("ephemeral" in cache), "no file, no entry — the cache does not grow with every session that ever existed");
@@ -375,7 +382,7 @@ test("a presence file that is unreadable for one read keeps its observation — 
     peers(vault, { self: "me" });                                    // first sight: stale, by its own timestamp
     peerFile(vault, { session: "torn", seq: 2, at: behind });
     assert.equal(peers(vault, { self: "me" }).peers.find((p) => p.session === "torn").live, true, "counter moved: live");
-    writeFileSync(join(presenceDir(vault), "torn.json"), "{\"session\": \"torn\", \"seq\": 3", "utf8"); // half a write
+    writeFileSync(join(pdir(vault), "torn.json"), "{\"session\": \"torn\", \"seq\": 3", "utf8"); // half a write
     assert.ok(!peers(vault, { self: "me" }).peers.some((p) => p.session === "torn"), "unreadable this read");
     peerFile(vault, { session: "torn", seq: 3, at: behind, started_at: behind });
     const back = peers(vault, { self: "me" }).peers.find((p) => p.session === "torn");
@@ -525,6 +532,93 @@ test("commit refuses to write over a file another live session is editing", () =
   assert.equal(forced.status, 0, forced.stderr);
 });
 
+// ─── coordination follows the repository (ADR-0010) ────────────────────
+
+test("inside a repository presence and leases live in the git common dir, and both places are written for one version", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    const c = coordinationDirs(vault);
+    assert.ok(c.primary.endsWith("/.git/waypost/vault"), c.primary);
+    assert.ok(c.legacy.endsWith("/vault/.projectstore"), c.legacy);
+    beat(vault, "me", {});
+    assert.ok(existsSync(join(c.primary, "presence", "me.json")));
+    assert.ok(existsSync(join(c.legacy, "presence", "me.json")), "dual write: a peer on the previous version still sees us");
+    const old = new Date(Date.now() - 48 * 3600e3).toISOString();
+    writeFileSync(join(c.legacy, "presence", "old-timer.json"), JSON.stringify({
+      session: "old-timer", host: "otherbox", os: "linux", harness: "codex", seq: 1, at: old, started_at: old, project_root: "/x",
+    }), "utf8");
+    assert.ok(peers(vault, { self: "me" }).peers.some((p) => p.session === "old-timer"), "a record only in the old place is still read");
+    assert.equal(prunePresence(vault, { self: "me" }), 1);
+    assert.ok(!existsSync(join(c.legacy, "presence", "old-timer.json")), "and reaped from there");
+    acquire(vault, ["src/a.ts"], { sessionId: "me", settleMs: 0 });
+    assert.equal(readdirSync(join(c.primary, "leases")).filter((n) => n.endsWith(".json")).length, 1);
+    assert.equal(readdirSync(join(c.legacy, "leases")).filter((n) => n.endsWith(".json")).length, 1, "leases are dual-written too");
+    assert.deepEqual(release(vault, { sessionId: "me" }), ["src/a.ts"]);
+    assert.equal(readdirSync(join(c.legacy, "leases")).filter((n) => n.endsWith(".json")).length, 0, "and released from both");
+  });
+});
+
+test("a vault outside any repository, or a project without git, keeps the ADR-0007 place", () => {
+  const away = mkdtempSync(join(tmpdir(), "waypost-away-"));
+  const proj = join(away, "proj"); mkdirSync(proj);
+  const vault = join(away, "vault"); mkdirSync(vault);
+  withProject(proj, () => {
+    const c = coordinationDirs(vault);
+    assert.ok(c.primary.endsWith("/vault/.projectstore"), c.primary);
+    assert.equal(c.legacy, null, "one place only, nothing to migrate");
+    assert.equal(c.common, null);
+  });
+});
+
+test("a linked worktree inherits the binding, shares the records, is named a sibling, and keeps its own identity", () => {
+  const { proj, vault } = project();
+  const g = (args, cwd = proj) => spawnSync("git", args, { cwd, encoding: "utf8" });
+  g(["config", "user.email", "t@e.com"]); g(["config", "user.name", "T"]);
+  writeFileSync(join(proj, ".gitignore"), ".waypost/\n", "utf8"); // as `waypost setup` leaves it: the binding is machine-local
+  g(["add", "-A"]); g(["commit", "-qm", "vault"]);
+  const wt = proj + "-wt";
+  g(["worktree", "add", "-q", wt, "-b", "wt"]);
+  const run = (cwd, args, env = {}) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd, env: { ...process.env, WAYPOST_PROJECT_DIR: cwd, WAYPOST_HOME: REPO, ...env },
+  });
+  // Bound without any setup: the main worktree's binding, resolved against this worktree.
+  const st = run(wt, ["status"], { WAYPOST_SESSION_ID: "wt-session" });
+  assert.equal(st.status, 0, st.stderr);
+  assert.match(st.stdout, /inherited from the main worktree/);
+  assert.match(st.stdout, new RegExp(`vault   ${join(wt, "vault").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), "the relative vault_path resolves against the linked worktree");
+  assert.ok(!existsSync(join(wt, ".waypost", "projectstore.json")), "nothing was written into the worktree to bind it");
+
+  // One set of records for both: a lease taken in the worktree is seen from the main copy, and vice versa.
+  assert.equal(run(wt, ["lease", "src/shared.ts"], { WAYPOST_SESSION_ID: "wt-session" }).status, 0);
+  const fromMain = JSON.parse(run(proj, ["sessions", "--json"], { WAYPOST_SESSION_ID: "main-session" }).stdout);
+  const wtId = fromMain.active.map((s) => s.id).find((id) => id.startsWith("wt-session"));
+  assert.ok(wtId, `the worktree session is live from the main copy: ${JSON.stringify(fromMain.active.map((s) => s.id))}`);
+  assert.ok(fromMain.leases.some((l) => l.path === "src/shared.ts" && l.session === wtId), "its lease too");
+  assert.equal(fromMain.shared_tree.shared, false, "a sibling worktree is not a shared checkout");
+  assert.ok(fromMain.shared_tree.siblings.some((p) => p.session === wtId), "it is named a sibling");
+  const fromWt = JSON.parse(run(wt, ["sessions", "--json"], { WAYPOST_SESSION_ID: "wt-session" }).stdout);
+  assert.ok(fromWt.active.some((s) => s.id === "main-session"), "and the main copy's session is live from the worktree");
+  assert.match(run(proj, ["brief", "--no-install"], { WAYPOST_SESSION_ID: "main-session" }).stdout, /Sibling worktrees of this repository/);
+
+  // A constant id from the environment is qualified per linked worktree, so two live worktrees never share one record.
+  run(proj, ["sessions"], { WAYPOST_SESSION_ID: "fixed" });
+  run(wt, ["sessions"], { WAYPOST_SESSION_ID: "fixed" });
+  const ids = JSON.parse(run(proj, ["sessions", "--json"], { WAYPOST_SESSION_ID: "fixed" }).stdout).active.map((s) => s.id);
+  assert.ok(ids.includes("fixed") && ids.some((id) => /^fixed-wt[0-9a-f]{6}$/.test(id)), JSON.stringify(ids));
+
+  // Siblings do not trip the shared-checkout gate on commit --all.
+  writeFileSync(join(wt, "note.txt"), "from the worktree\n", "utf8");
+  const c = run(wt, ["commit", "-m", "from the worktree", "--all"], { WAYPOST_SESSION_ID: "wt-session" });
+  assert.equal(c.status, 0, c.stderr);
+
+  // coordination_dir in the main binding wins, and the worktree inherits it.
+  const cfgPath = join(proj, ".waypost", "projectstore.json");
+  const cfg = JSON.parse(readFileSync(cfgPath, "utf8")); cfg.coordination_dir = "coord"; writeFileSync(cfgPath, JSON.stringify(cfg), "utf8");
+  const a = JSON.parse(run(proj, ["storage"]).stdout); const b = JSON.parse(run(wt, ["storage"]).stdout);
+  assert.equal(a.coordination.dir, join(realpathSync(proj), "coord"), "relative to the main worktree, as git names it");
+  assert.equal(b.coordination.dir, a.coordination.dir, "one repository, one coordination directory");
+});
+
 // ─── the git common dir, as ADR-0010 assumes it ────────────────────────
 
 test("the git common dir answers what ADR-0010 assumes, from the root, a subdirectory, a linked worktree and a bare repo", () => {
@@ -572,25 +666,26 @@ test("a lease path is spelled the way a staged path is spelled, wherever it came
   });
 });
 
-test("a live peer on another host in this very checkout means it is shared — by path, or by the vault inside it", () => {
+test("a live peer on another host in this very checkout is shared; a sibling worktree is named, never shared (ADR-0010)", () => {
   const { proj, vault } = project();
   const me = hostname().split(".")[0];
   withProject(proj, () => {
-    assert.equal(vaultOffset(vault), "vault");
-    assert.equal(vaultOffset("/somewhere/outside"), null);
-    peerFile(vault, { session: "second-terminal", host: me, project_root: proj });
-    peerFile(vault, { session: "same-path", host: "otherbox", project_root: proj });
-    peerFile(vault, { session: "other-clone", host: "otherbox", project_root: "/home/x/other-clone" });
-    peerFile(vault, { session: "gone", host: "otherbox", at: new Date(Date.now() - 3600e3).toISOString(), project_root: proj });
+    const common = gitCommonDir(proj);
+    assert.ok(common && common.endsWith("/.git"), common);
+    peerFile(vault, { session: "second-terminal", host: me, project_root: proj, common_dir: common });
+    peerFile(vault, { session: "same-path", host: "otherbox", project_root: proj, common_dir: common });
+    peerFile(vault, { session: "other-clone", host: "otherbox", project_root: "/home/x/other-clone", common_dir: "/home/x/other-clone/.git" });
+    peerFile(vault, { session: "gone", host: "otherbox", at: new Date(Date.now() - 3600e3).toISOString(), project_root: proj, common_dir: common });
+    peerFile(vault, { session: "worktree-here", host: me, project_root: proj + "-wt", common_dir: common });
+    peerFile(vault, { session: "worktree-there", host: "linuxbox", project_root: "/mnt/share/proj-wt", common_dir: common });
     peerFile(vault, { session: "via-vault", host: "linuxbox", project_root: "/mnt/share/proj", vault_rel: "vault" });
-    peerFile(vault, { session: "clone-on-shared-vault", host: "linuxbox", project_root: "/home/y/clone", vault_rel: null });
     const st = sharedTree(vault, { self: "me" });
     assert.equal(st.shared, true);
-    assert.deepEqual(st.with.map((p) => [p.session, p.basis]).sort(), [
-      ["same-path", "same project root"],
-      ["via-vault", "same vault inside the checkout (vault/)"],
-    ], "a second terminal on this machine is ADR-0006's case; a separate clone, a stale record and a clone bound to a shared vault are not this checkout");
-    assert.equal(st.storage.kind, "local", "a temp dir is local storage: nothing here came from the storage signal");
+    assert.deepEqual(st.with.map((p) => [p.session, p.basis]).sort(), [["same-path", "same project root"]],
+      "same root on another host is shared; a second terminal here, a separate clone, a stale record, and the retired vault-offset signal are not");
+    assert.deepEqual(st.siblings.map((p) => p.session).sort(), ["worktree-here", "worktree-there"],
+      "same common dir with a different root is a sibling worktree, on this host or another");
+    assert.equal(st.storage.kind, "local");
   });
 });
 
@@ -632,7 +727,7 @@ test("brief and sessions name a shared checkout, and commit --all refuses to swe
   // Before any --touch: a live peer must not hide behind the legacy-registry hint.
   assert.match(run(["sessions"]).stdout, /shared checkout: remote on otherbox \(cursor\), same project root/);
   assert.equal(run(["sessions", "--touch"]).status, 0);
-  assert.equal(JSON.parse(readFileSync(join(presenceDir(vault), "me.json"), "utf8")).vault_rel, "vault",
+  assert.equal(JSON.parse(readFileSync(join(pdir(vault), "me.json"), "utf8")).vault_rel, "vault",
     "our own record says where the vault sits inside this checkout, for the other OS to compare");
   assert.equal(JSON.parse(run(["sessions", "--json"]).stdout).shared_tree.with[0].session, "remote");
 
@@ -679,7 +774,7 @@ test("a beat records the harness process; on this host a gone process ends the s
     assert.equal(by("me").live, true);
     assert.equal(prunePresence(vault, { self: "me", dryRun: true }), 2, "the ended ones are reaped now, not in 24h");
     assert.equal(prunePresence(vault, { self: "me" }), 2);
-    assert.deepEqual(readdirSync(presenceDir(vault)).sort(), ["legacy.json", "me.json", "remote.json"]);
+    assert.deepEqual(readdirSync(pdir(vault)).sort(), ["legacy.json", "me.json", "remote.json"]);
   });
 });
 
@@ -702,7 +797,7 @@ test("one session gets one id whether or not the harness was pinned before the i
   const exported = me(run(["sessions", "--json"], { WAYPOST_HARNESS: "claude" }));
   assert.equal(detected, "claude-e-4efe-b94e-ef6c665ce008", "the harness prefix is there even when nothing exported it");
   assert.equal(exported, detected, "and the same when something did");
-  assert.deepEqual(readdirSync(presenceDir(vault)), [`${detected}.json`], "two invocations, one presence record");
+  assert.deepEqual(readdirSync(pdir(vault)), [`${detected}.json`], "two invocations, one presence record");
 
   writeFileSync(join(proj, "a.txt"), "a", "utf8");
   const c = run(["commit", "-m", "one id", "--", "a.txt"]);
@@ -742,7 +837,7 @@ test("`waypost sessions --touch --id ../../evil` writes inside presence/, nothin
     encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   assert.equal(r.status, 0, r.stderr);
-  const names = readdirSync(presenceDir(vault));
+  const names = readdirSync(pdir(vault));
   assert.equal(names.length, 1, `expected exactly one presence record, got: ${JSON.stringify(names)}`);
   assert.equal(names[0].includes("/"), false);
   assert.equal(existsSync(join(proj, "evil.json")), false);

@@ -5,6 +5,23 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Coordination follows the repository (ADR-0010): inside a git repository,
+  presence and leases now live in the git common dir (`.git/waypost/<vault>/`),
+  which every worktree shares and `git clean` never touches, so two agents in
+  two worktrees see each other's claims, leases and presence. A linked worktree
+  inherits the main worktree's binding (`git worktree add` needs no setup), a
+  session id that arrives from the environment is qualified per linked
+  worktree, and `brief`/`sessions` name sibling worktrees instead of
+  mistaking them for a shared checkout (the vault-offset signal is retired).
+  Outside a repository the records stay in `<vault>/.projectstore/`;
+  `coordination_dir` in the binding overrides both; `waypost storage` names
+  the directory in use. For one minor version both places are written and
+  read, so a peer on 0.14 keeps its protection. The legacy session registry
+  stays in the vault (ADR-0004).
+
 ## [0.14.0] — 2026-09-04
 
 ### Added

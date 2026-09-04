@@ -73,6 +73,9 @@ function others(cfg, opts = {}) {
     if (shared.shared) {
       L.push("", `⚠️ **This checkout is shared** with ${sharedWith(shared)} — ${SHARED_TREE_ADVICE}`);
     }
+    if (shared.siblings.length) {
+      L.push("", `Sibling worktrees of this repository: ${shared.siblings.map((p) => `**${p.session}** in \`${p.project_root}\`${p.harness ? ` (${p.harness})` : ""}`).join("; ")} — a lease of theirs on a path you edit is a merge conflict on its way.`);
+    }
     if (view.conflicts.length) {
       L.push("", `⚠️ the sync client left conflicted copies in the presence directory (${view.conflicts.join(", ")}) — two devices wrote at once.`);
     }

@@ -150,6 +150,11 @@ when they are missing, as it does roles; `waypost skill <name>` prints one.
   observation), so clock skew between machines affects nothing.
 - doctor: non-portable names, case collisions, `* text=auto`, sync conflicted
   copies, stale foreign leases.
+- Coordination follows the repository (ADR-0010): inside a git repository the
+  presence and lease records live in `.git/waypost/<vault>/`, shared by every
+  worktree; a linked worktree inherits the main worktree's binding and needs no
+  setup; sibling worktrees are named as such. Outside a repository the records
+  stay in `<vault>/.projectstore/`. `waypost storage` names the directory in use.
 - A shared *checkout* (a session on another host, live, in this very project
   root, or with its vault at the same offset inside its checkout, or with the
   project root on a cloud/network drive) is named by `brief`, `sessions` and

@@ -12,6 +12,8 @@ import { readFile as readFileAsync } from "node:fs/promises";
 import { join, dirname, basename, resolve, relative, isAbsolute, sep } from "node:path";
 import { hostname, homedir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 // ─── Paths ─────────────────────────────────────────────────────────────
 
@@ -91,8 +93,80 @@ export function resolveVaultPath(p) {
   return typeof p === "string" && p && !isAbsolute(p) ? resolve(projectRoot(), p) : p;
 }
 
+// ─── The repository behind the project (ADR-0010) ──────────────────────
+//
+// `git rev-parse --path-format=absolute --git-common-dir` names the one .git
+// directory every worktree of a repository shares (measured 2026-09-04: the
+// same answer from the root, from a subdirectory and from a linked worktree; a
+// bare repository answers its own path, which is why --is-bare-repository is
+// asked in the same breath). Spawned with cwd = the project root, never the
+// caller's directory. null means "no repository here": no git, a bare one, or
+// a directory outside any checkout — and every caller falls back to the
+// ADR-0007 shape.
+const _common = new Map();
+export function gitCommonDir(root = projectRoot()) {
+  if (_common.has(root)) return _common.get(root);
+  let out = null;
+  try {
+    const r = spawnSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir", "--is-bare-repository"],
+      { cwd: root, encoding: "utf8", timeout: 5000 });
+    if (r.status === 0) {
+      const [dir, bare] = String(r.stdout).trim().split(/\r?\n/);
+      if (dir && bare !== "true") out = dir.replace(/\\/g, "/").replace(/\/+$/, "");
+    }
+  } catch { /* no git: no repository */ }
+  _common.set(root, out);
+  return out;
+}
+
+export function mainWorktree(root = projectRoot()) {
+  const c = gitCommonDir(root);
+  return c ? dirname(c) : null;
+}
+
+// Compared as real paths: git answers /private/var/… where macOS's mkdtemp
+// says /var/…, and a symlinked checkout must not read as a foreign worktree.
+const samePath = (a, b) => {
+  const real = (p) => { try { return realpathSync(p); } catch { return String(p); } };
+  const norm = (p) => real(p).replace(/\\/g, "/").replace(/\/+$/, "");
+  return norm(a) === norm(b);
+};
+
+// A linked worktree: the project root is a worktree of a repository whose
+// main working copy is elsewhere.
+export function isLinkedWorktree(root = projectRoot()) {
+  const m = mainWorktree(root);
+  return Boolean(m) && !samePath(m, root);
+}
+
+// Six characters that name this worktree and nothing else on this machine:
+// what qualifies a session id that arrived from the environment, so two live
+// worktrees never share one presence record (ADR-0010).
+export function worktreeTag(root = projectRoot()) {
+  let real = root;
+  try { real = realpathSync(root); } catch {}
+  return createHash("sha256").update(String(real)).digest("hex").slice(0, 6);
+}
+
+// Where the binding comes from: this project's own .waypost/, or, in a linked
+// worktree that has none, the main worktree's — its relative vault_path then
+// resolves against THIS worktree, so each worktree works on its own files
+// while sharing coordination. `waypost setup` in a linked worktree is
+// unnecessary by design.
+export function bindingInfo() {
+  const own = configPath();
+  if (existsSync(own)) return { path: own, inherited_from: null };
+  if (isLinkedWorktree()) {
+    const main = mainWorktree();
+    for (const c of [join(main, ".waypost", "projectstore.json"), join(main, ".claude", "projectstore.json")]) {
+      if (existsSync(c)) return { path: c, inherited_from: main };
+    }
+  }
+  return { path: own, inherited_from: null };
+}
+
 export function readConfig() {
-  const p = configPath();
+  const p = bindingInfo().path;
   if (!existsSync(p)) return null;
   try {
     const cfg = JSON.parse(readFileSync(p, "utf8"));
@@ -105,7 +179,9 @@ export function readConfig() {
 }
 
 export function writeConfig(cfg) {
-  const p = configPath();
+  // A linked worktree that inherits its binding writes back to the binding
+  // it inherited: one repository, one binding.
+  const p = bindingInfo().path;
   mkdirSync(dirname(p), { recursive: true });
   const out = cfg && typeof cfg.vault_path === "string" && cfg.vault_path
     ? { ...cfg, vault_path: storedVaultPath(cfg.vault_path) } : cfg;

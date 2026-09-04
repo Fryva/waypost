@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, storyRefOf, expandHome,
-  storedVaultPath, resolveVaultPath,
+  storedVaultPath, resolveVaultPath, bindingInfo, readConfig as readConfigLib, isLinkedWorktree, worktreeTag,
 } from "../scripts/lib.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -62,12 +62,10 @@ function projectRoot() {
   return process.env.WAYPOST_PROJECT_DIR || process.env.CLAUDE_PROJECT_DIR || process.cwd();
 }
 
+// The binding, wherever it comes from: this project's own .waypost/, or, in a
+// linked worktree without one, the main worktree's (ADR-0010).
 function configPath() {
-  const r = projectRoot();
-  const waypost = join(r, ".waypost", "projectstore.json");
-  if (existsSync(waypost)) return waypost;
-  const legacy = join(r, ".claude", "projectstore.json");
-  return existsSync(legacy) ? legacy : waypost;
+  return bindingInfo().path;
 }
 
 // null means "not bound" — the right next step is `waypost bind`/`waypost setup`. A
@@ -75,16 +73,8 @@ function configPath() {
 // indistinguishable from "not bound", `waypost setup` would silently rebind over
 // it and discard whatever settings the file still held.
 function readConfig() {
-  const p = configPath();
-  if (!existsSync(p)) return null;
-  try {
-    const cfg = JSON.parse(readFileSync(p, "utf8"));
-    // A relative vault_path is relative to THIS machine's project root
-    // (lib.mjs: storedVaultPath / resolveVaultPath).
-    if (cfg && typeof cfg === "object") cfg.vault_path = resolveVaultPath(cfg.vault_path);
-    return cfg;
-  }
-  catch (e) { fail(`config exists but is unreadable: ${p}: ${e.message}`); }
+  try { return readConfigLib(); }
+  catch (e) { fail(`config exists but is unreadable: ${configPath()}: ${e.message}`); }
 }
 
 // Options that take a value. Everything else starting with `--` is a boolean,
@@ -693,7 +683,7 @@ function handleStatus() {
     process.stdout.write(`config  (none — run \`waypost bind <vault-path>\`)\n        expected at ${p}\n`);
     return;
   }
-  process.stdout.write(`config  ${p}\n`);
+  process.stdout.write(`config  ${p}${bindingInfo().inherited_from ? `  (inherited from the main worktree ${bindingInfo().inherited_from})` : ""}\n`);
   process.stdout.write(`vault   ${cfg.vault_path || "(unset)"}${cfg.vault_path && !existsSync(cfg.vault_path) ? "  ⚠️ missing" : ""}\n`);
   process.stdout.write(`layout  ${cfg.layout || "engineering"}\n`);
   process.stdout.write(`lang    ${cfg.language || "en"}\n`);
@@ -954,6 +944,15 @@ async function main() {
     } catch { /* detection is best-effort; a null harness is still valid */ }
   }
   if (!process.env.WAYPOST_SESSION_ID) process.env.WAYPOST_SESSION_ID = sessionId(process.argv);
+  // In a linked worktree an id that came from the environment (a wrapper's
+  // constant WAYPOST_SESSION_ID, a Claude session driving two worktrees)
+  // would make two live worktrees write one presence record and one lease
+  // name; qualify it by the worktree, once, deterministically (ADR-0010).
+  // An explicit --id means what it says.
+  if (!args.includes("--id") && isLinkedWorktree()) {
+    const tag = `-wt${worktreeTag()}`;
+    if (!process.env.WAYPOST_SESSION_ID.endsWith(tag)) process.env.WAYPOST_SESSION_ID += tag;
+  }
   await heartbeat(cmd);
 
   switch (cmd) {

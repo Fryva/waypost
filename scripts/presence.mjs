@@ -35,11 +35,11 @@
 import {
   existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync, statSync,
 } from "node:fs";
-import { join, basename, resolve } from "node:path";
+import { join, basename, resolve, dirname } from "node:path";
 import { hostname, platform, release as osRelease, userInfo } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { readConfig, projectRoot, ignoreEpipe, writeFileAtomic, sessionId } from "./lib.mjs";
+import { readConfig, projectRoot, ignoreEpipe, writeFileAtomic, sessionId, gitCommonDir, mainWorktree } from "./lib.mjs";
 
 // A session is considered live while its counter has moved recently, measured
 // locally. The window has to cover the storage's propagation delay, or a peer
@@ -97,8 +97,46 @@ function mountTypeOf(p) {
 
 // ─── Paths ─────────────────────────────────────────────────────────────
 
-export const presenceDir = (vault) => join(vault, ".projectstore", "presence");
-export const leaseDir = (vault) => join(vault, ".projectstore", "leases");
+// ─── Where coordination lives (ADR-0010) ───────────────────────────────
+//
+// Inside a repository, presence and leases live in the git common dir —
+// `<.git>/waypost/<vault key>/` — which every worktree of that repository
+// shares and `git clean` never touches; the key is the vault's path relative
+// to the project root, so two bound subprojects of one monorepo stay apart
+// while two worktrees of one project (same relative path) meet. Outside a
+// repository, or in a bare one, the ADR-0007 place stays: `<vault>/.projectstore/`,
+// the synchronised directory itself. `coordination_dir` in the binding
+// overrides both. The legacy session registry is not here — it stays in the
+// vault for upstream ProjectStore (ADR-0004).
+//
+// Migration: for one minor version writers write both places and readers
+// merge both, so a peer on the previous version keeps seeing claims and
+// leases (`legacy` is null once the two coincide).
+const _coord = new Map();
+export function coordinationDirs(vault) {
+  const root = projectRoot();
+  const key = `${root}\u0000${vault}`;
+  if (_coord.has(key)) return _coord.get(key);
+  const norm = (s) => String(s).replace(/\\/g, "/").replace(/\/+$/, "");
+  const legacy = join(vault, ".projectstore");
+  let primary = legacy;
+  let cfg = null;
+  try { cfg = readConfig(); } catch { cfg = null; }
+  if (cfg && cfg.coordination_dir) {
+    primary = resolve(mainWorktree(root) || root, String(cfg.coordination_dir));
+  } else {
+    const common = gitCommonDir(root);
+    const rel = norm(vault) === norm(root) ? "" : norm(vault).startsWith(norm(root) + "/") ? norm(vault).slice(norm(root).length + 1) : null;
+    if (common && rel !== null) primary = join(common, "waypost", rel === "" ? "vault" : rel.replace(/\//g, "-"));
+  }
+  const out = { primary, legacy: norm(primary) === norm(legacy) ? null : legacy, common: gitCommonDir(root) };
+  _coord.set(key, out);
+  return out;
+}
+export const presenceDir = (vault) => join(coordinationDirs(vault).primary, "presence");
+export const leaseDir = (vault) => join(coordinationDirs(vault).primary, "leases");
+const legacyPresenceDir = (vault) => { const l = coordinationDirs(vault).legacy; return l ? join(l, "presence") : null; };
+const legacyLeaseDir = (vault) => { const l = coordinationDirs(vault).legacy; return l ? join(l, "leases") : null; };
 // One cache per observing HOST, not per project directory: "machine-local" has
 // to hold even when the project directory itself sits on a sync drive, or two
 // devices sharing it would read each other's clock stamps — the exact
@@ -108,8 +146,11 @@ const observationsPath = () => join(projectRoot(), ".waypost", "state", `peers.$
 
 function ensure(dir) {
   mkdirSync(dir, { recursive: true });
+  // Inside .git nothing is tracked, so the guard file is only for the vault shape.
   const gi = join(dir, "..", ".gitignore");
-  if (!existsSync(gi)) { try { writeFileSync(gi, "# waypost — runtime data, do not commit\n*\n", "utf8"); } catch {} }
+  if (!existsSync(gi) && !/\/\.git\//.test(String(dir).replace(/\\/g, "/"))) {
+    try { writeFileSync(gi, "# waypost — runtime data, do not commit\n*\n", "utf8"); } catch {}
+  }
   return dir;
 }
 
@@ -186,6 +227,7 @@ export function selfDescriptor(sessionId, harness) {
     user: (() => { try { return userInfo().username; } catch { return null; } })(),
     harness: harness || process.env.WAYPOST_HARNESS || null,
     project_root: projectRoot(),
+    common_dir: gitCommonDir(),
   };
 }
 
@@ -197,8 +239,10 @@ export function selfDescriptor(sessionId, harness) {
 export function beat(vault, sessionId, { harness = null, doing = null, claim = null } = {}) {
   ensure(presenceDir(vault));
   const p = join(presenceDir(vault), `${sessionId}.json`);
+  const legacyDir = legacyPresenceDir(vault);
   let prev = null;
   try { prev = JSON.parse(readFileSync(p, "utf8")); } catch {}
+  if (!prev && legacyDir) { try { prev = JSON.parse(readFileSync(join(legacyDir, `${sessionId}.json`), "utf8")); } catch {} }
   const rec = {
     ...selfDescriptor(sessionId, harness || (prev && prev.harness)),
     vault_rel: vaultOffset(vault),
@@ -210,11 +254,21 @@ export function beat(vault, sessionId, { harness = null, doing = null, claim = n
     claim: claim !== null ? claim : (prev ? prev.claim : null),
   };
   writeFileAtomic(p, JSON.stringify(rec, null, 2) + "\n");
+  if (legacyDir) {
+    // Dual write for one minor version: a peer on the previous version reads
+    // only here (ADR-0010).
+    try { ensure(legacyDir); writeFileAtomic(join(legacyDir, `${sessionId}.json`), JSON.stringify(rec, null, 2) + "\n"); } catch {}
+  }
   return rec;
 }
 
 export function clearPresence(vault, sessionId) {
-  try { unlinkSync(join(presenceDir(vault), `${sessionId}.json`)); return true; } catch { return false; }
+  let any = false;
+  for (const d of [presenceDir(vault), legacyPresenceDir(vault)]) {
+    if (!d) continue;
+    try { unlinkSync(join(d, `${sessionId}.json`)); any = true; } catch {}
+  }
+  return any;
 }
 
 // ─── Skew-immune liveness ──────────────────────────────────────────────
@@ -255,7 +309,7 @@ function writeObservations(obs) {
 // the window is the caller's policy.
 export function peers(vault, { self = null, now = Date.now(), persist = true, windowMs = null } = {}) {
   const dir = presenceDir(vault);
-  const storage = storageOf(vault);
+  const storage = storageOf(coordinationDirs(vault).primary);
   const window = (windowMs == null ? LIVE_WINDOW_MS : windowMs) + storage.lag_ms;
   const obs = readObservations();
   // Rebuilt from this read: an entry whose presence file is gone is dropped,
@@ -267,14 +321,30 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
   const here = hostname().split(".")[0];
   let table;
   const tableOnce = () => (table === undefined ? (table = processTable()) : table);
-  let names = [];
-  try { names = readdirSync(dir); } catch { return { peers: [], storage, conflicts: [] }; }
+  // Both locations for one minor version (ADR-0010): the new one first, so a
+  // session present in both is read once, from the new one; its other copy is
+  // remembered so a reap removes both.
+  const legacyDir = legacyPresenceDir(vault);
+  const entries = [];
+  const seenNames = new Map();
+  for (const [d, primaryLoc] of [[dir, true], [legacyDir, false]]) {
+    if (!d) continue;
+    let names = [];
+    try { names = readdirSync(d); } catch { continue; }
+    for (const name of names) {
+      if (!name.endsWith(".json")) continue;
+      if (seenNames.has(name)) { seenNames.get(name).files.push(join(d, name)); continue; }
+      const e = { name, dir: d, files: [join(d, name)], primaryLoc };
+      seenNames.set(name, e); entries.push(e);
+    }
+  }
+  if (!entries.length && !existsSync(dir) && !(legacyDir && existsSync(legacyDir))) return { peers: [], storage, conflicts: [] };
 
-  const conflicts = names.filter((n) => n.endsWith(".json") && CONFLICT_COPY.test(n));
-  for (const name of names) {
-    if (!name.endsWith(".json") || CONFLICT_COPY.test(name)) continue;
+  const conflicts = entries.map((e) => e.name).filter((n) => CONFLICT_COPY.test(n));
+  for (const { name, dir: d, files } of entries) {
+    if (CONFLICT_COPY.test(name)) continue;
     let rec;
-    try { rec = JSON.parse(readFileSync(join(dir, name), "utf8")); } catch { rec = null; }
+    try { rec = JSON.parse(readFileSync(join(d, name), "utf8")); } catch { rec = null; }
     if (!rec || !rec.session) {
       // A torn or half-synced file is not evidence the session is gone: keep
       // what we knew, or the full file that lands next read would be first
@@ -329,7 +399,8 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
       basis: gone ? "harness process gone on this host"
         : firstSight ? "first sight (their timestamp seeds the clock; the counter decides from here)" : "observed locally",
       quiet_ms: firstSight ? null : sinceLocalChange,
-      file: join(dir, name),
+      file: join(d, name),
+      files,
     });
   }
   if (persist) writeObservations(next);
@@ -350,7 +421,7 @@ export function prunePresence(vault, { self = null, maxAgeMs = 24 * 60 * 60 * 10
   for (const p of ps) {
     if (p.self) continue;
     // Its harness process is gone from this host: nothing to wait 24h for.
-    if (p.ended) { if (!dryRun) { try { unlinkSync(p.file); } catch {} } removed++; continue; }
+    if (p.ended) { if (!dryRun) { for (const f of p.files || [p.file]) { try { unlinkSync(f); } catch {} } } removed++; continue; }
     if (p.live) continue;
     // Its harness is still running on this host: idle, not gone. No age
     // threshold — a lowered `--older-than` included — reaps a record whose
@@ -363,7 +434,7 @@ export function prunePresence(vault, { self = null, maxAgeMs = 24 * 60 * 60 * 10
     const own = Date.parse(p.at);
     const age = Math.max(p.quiet_ms != null ? p.quiet_ms : -1, Number.isNaN(own) ? -1 : now - own);
     if (age <= maxAgeMs) continue;
-    if (!dryRun) { try { unlinkSync(p.file); } catch {} }
+    if (!dryRun) { for (const f of p.files || [p.file]) { try { unlinkSync(f); } catch {} } }
     removed++;
   }
   return removed;
@@ -427,20 +498,27 @@ export function readLeases(vault, { now = Date.now(), self = null, persist = tru
   const { peers: ps } = peers(vault, { self, now, persist });
   const liveSessions = new Set(ps.filter((p) => p.live).map((p) => p.session));
   const out = [];
-  let names = [];
-  try { names = readdirSync(dir); } catch { return out; }
-  for (const n of names) {
-    if (!n.endsWith(".json")) continue;
-    let rec;
-    try { rec = JSON.parse(readFileSync(join(dir, n), "utf8")); } catch { continue; }
-    if (!rec || !rec.path || !rec.session) continue;
-    out.push({
-      ...rec,
-      file: join(dir, n),
-      conflicted_copy: CONFLICT_COPY.test(n),
-      live: liveSessions.has(rec.session),
-      mine: self != null && rec.session === self,
-    });
+  const seen = new Map();
+  for (const d of [dir, legacyLeaseDir(vault)]) {
+    if (!d) continue;
+    let names = [];
+    try { names = readdirSync(d); } catch { continue; }
+    for (const n of names) {
+      if (!n.endsWith(".json")) continue;
+      if (seen.has(n)) { seen.get(n).files.push(join(d, n)); continue; }
+      let rec;
+      try { rec = JSON.parse(readFileSync(join(d, n), "utf8")); } catch { continue; }
+      if (!rec || !rec.path || !rec.session) continue;
+      const row = {
+        ...rec,
+        file: join(d, n),
+        files: [join(d, n)],
+        conflicted_copy: CONFLICT_COPY.test(n),
+        live: liveSessions.has(rec.session),
+        mine: self != null && rec.session === self,
+      };
+      seen.set(n, row); out.push(row);
+    }
   }
   return out;
 }
@@ -491,10 +569,12 @@ export function acquire(vault, paths, { sessionId, harness = null, now = Date.no
     const staleRivals = rivals.filter((l) => !l.live);
     if (staleRivals.length) {
       rec.taken_over_from = { session: staleRivals[0].session, host: staleRivals[0].host };
-      for (const l of staleRivals) { try { unlinkSync(l.file); } catch {} }
+      for (const l of staleRivals) for (const f of l.files || [l.file]) { try { unlinkSync(f); } catch {} }
     }
     try { writeFileSync(file, JSON.stringify(rec, null, 2) + "\n", "utf8"); }
     catch (e) { results.push({ path: rel, ok: false, reason: "write failed", error: e.message }); continue; }
+    const legacy = legacyLeaseDir(vault);
+    if (legacy) { try { ensure(legacy); writeFileSync(join(legacy, leaseName(rel, sessionId)), JSON.stringify(rec, null, 2) + "\n", "utf8"); } catch {} }
     held.push({ rel, file, rec, forcedOver });
   }
 
@@ -540,7 +620,9 @@ export function release(vault, { sessionId, paths = null }) {
   for (const l of readLeases(vault, { self: sessionId })) {
     if (l.session !== sessionId) continue;
     if (paths && !paths.map((p) => vaultRel(p, vault)).includes(l.path)) continue;
-    try { unlinkSync(l.file); out.push(l.path); } catch {}
+    let any = false;
+    for (const f of l.files || [l.file]) { try { unlinkSync(f); any = true; } catch {} }
+    if (any) out.push(l.path);
   }
   return out;
 }
@@ -558,35 +640,40 @@ function sleep(ms) {
 // a shared CHECKOUT: two machines on one working copy, and a `git checkout --
 // <file>` on one of them reverted an edit the other had verified but not yet
 // committed. Git runs no hook before checkout/restore/stash/reset/clean, so
-// this cannot be prevented — only named while it still matters. Three signals,
-// every one about a live peer on ANOTHER host (two sessions on one machine in
-// one checkout are ADR-0006's case, covered by leases, and their `--all` stays
-// their own call), all advisory like everything else here:
-//   1. it reports OUR project root — the same directory under the same path;
-//   2. its vault sits inside its checkout at the same offset as ours — the
-//      presence file we are reading arrived through a directory inside this
-//      checkout, so the checkout is the same one whatever each OS calls it
-//      (a separate clone bound to a shared vault reports no offset);
-//   3. our project root is on cloud/network storage — the path may differ per
-//      OS, the directory cannot.
+// this cannot be prevented — only named while it still matters. Signals, all
+// about a live peer and all advisory like everything else here:
+//   - same git common dir and a different project root: a SIBLING WORKTREE
+//     of this repository (ADR-0010) — named as such, never "shared checkout",
+//     never a --all refusal; its leases on paths edited here are a merge
+//     conflict on its way;
+//   - another host reporting OUR project root: the same directory, shared;
+//   - a peer with no repository at all, on another host, while our project
+//     root sits on cloud/network storage: probably the same directory.
+// Two sessions on one machine in one checkout are ADR-0006's case (leases).
+// The vault-offset signal of the first version is retired: once records
+// travel through .git, "same offset" no longer means "same checkout".
 export function sharedTree(vault, { self = null, now = Date.now(), persist = true, view = null } = {}) {
   const v = view || peers(vault, { self, now, persist });
   const root = normPath(projectRoot());
   const here = hostname().split(".")[0];
   const storage = storageOf(projectRoot());
-  const offset = vaultOffset(vault);
+  const common = gitCommonDir();
   const describe = (p, basis) => ({
     session: p.session, host: p.host, harness: p.harness || null, os: p.os || null,
     project_root: p.project_root || null, basis,
   });
   const found = [];
+  const siblings = [];
   for (const p of v.peers) {
-    if (!p.live || p.self || !p.host || p.host === here) continue;
-    if (p.project_root && normPath(p.project_root) === root) found.push(describe(p, "same project root"));
-    else if (offset != null && p.vault_rel != null && normPath(p.vault_rel) === offset) found.push(describe(p, `same vault inside the checkout (${offset}/)`));
-    else if (storage.kind !== "local") found.push(describe(p, `project root on ${storage.provider}`));
+    if (!p.live || p.self) continue;
+    const sameRoot = p.project_root && normPath(p.project_root) === root;
+    const sameCommon = common && p.common_dir && normPath(p.common_dir) === normPath(common);
+    if (sameCommon && !sameRoot) { siblings.push(describe(p, "sibling worktree of this repository")); continue; }
+    if (!p.host || p.host === here) continue;
+    if (sameRoot) found.push(describe(p, "same project root"));
+    else if (!sameCommon && !p.common_dir && storage.kind !== "local") found.push(describe(p, `project root on ${storage.provider}`));
   }
-  return { shared: found.length > 0, with: found, storage };
+  return { shared: found.length > 0, with: found, siblings, storage };
 }
 
 // One sentence every gate repeats, so brief, sessions and commit agree on what
@@ -620,7 +707,8 @@ function main() {
   switch (sub) {
     case "storage": {
       const { storage } = peers(vault, { persist: false });
-      process.stdout.write(JSON.stringify({ vault, storage }, null, 2) + "\n");
+      const c = coordinationDirs(vault);
+      process.stdout.write(JSON.stringify({ vault, storage, coordination: { dir: c.primary, legacy: c.legacy, git_common_dir: c.common } }, null, 2) + "\n");
       return;
     }
     case "lease": case "acquire": {
