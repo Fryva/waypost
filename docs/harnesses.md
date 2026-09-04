@@ -150,6 +150,7 @@ windsurf, cline, trae, lingma and roo, each for the reason recorded in its `note
 
 | `after_install` | printed after install — for a manual step the CLI cannot do |
 | `confidence` | `verified` / `documented` / `inferred` — see above |
+| `skills` | where the harness discovers project-level Agent Skills (`SKILL.md`): `dir` is the install target (`.agents/skills` whenever the harness reads it, so tools sharing that directory share one copy), `reads` every directory it discovers, plus `confidence`, `docs` and `notes` under the same evidence rules as the entry itself; `null` with a `skills_note` when the harness has no project-level discovery |
 | `vendor` | who makes it, shown in the listing |
 | `kind` | `provider` for a model vendor: it is listed, detected and recorded, never installed into |
 | `runs_in` / `match` | provider entries only: which harnesses drive it, and the env that identifies it |

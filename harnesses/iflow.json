@@ -19,5 +19,14 @@
       ["description", "{description}"]
     ]
   },
+  "skills": {
+    "dir": ".iflow/skills",
+    "reads": [
+      ".iflow/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://platform.iflow.cn/en/cli/examples/skill",
+    "notes": "`license` is a required frontmatter field there, so every waypost skill carries one."
+  },
   "notes": "iFlow's .iflow/ directory is documented as holding agents and commands folders alongside IFLOW.md, and iFlow CLI is from the Gemini/Qwen CLI family — so .iflow/agents/*.md is a well-founded guess, but the frontmatter fields are NOT documented anywhere I could reach. Only name and description are emitted; check them once against your version and override this entry if it wants more."
 }

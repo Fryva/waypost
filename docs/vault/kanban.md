@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-04T15:58:52.114Z
+generated_at: 2026-09-04T16:09:15.334Z
 
 ---
 
@@ -12,7 +12,6 @@ generated_at: 2026-09-04T15:58:52.114Z
 - [ ] [[epics/WP-14/stories/story-doctor-agentsmd-hygiene-size-duplicate-block-claude-bridge|WP-14: doctor: AGENTS.md hygiene (size, duplicate block, Claude bridge)]] #p2
 - [ ] [[epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop|WP-14: Live verification: Codex and OpenCode run the whole loop]] #p1
 - [ ] [[epics/WP-14/stories/story-skill-descriptions-inside-the-standing-context-budget|WP-14: Skill descriptions inside the standing-context budget]] #p2
-- [ ] [[epics/WP-14/stories/story-skills-registry-a-skillsdir-per-harness-with-evidence|WP-14: Skills registry: a skills.dir per harness, with evidence]] #p1
 - [ ] [[epics/WP-14/stories/story-waypost-skills-install-list-and-uninstall-doctor-staleness-brief-self-install|WP-14: waypost skills install, list and uninstall; doctor staleness; brief self-install]] #p2
 - [ ] [[epics/WP-15/stories/story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir|WP-15: ADR-0010 accepted: presence, leases and claims in the git common dir]] #p1
 - [ ] [[epics/WP-15/stories/story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked|WP-15: blocked_by in stories, waypost ready, and a board that shows blocked]] #p1
@@ -38,7 +37,7 @@ generated_at: 2026-09-04T15:58:52.114Z
 
 ## Done
 
-
+- [x] [[epics/WP-14/stories/story-skills-registry-a-skillsdir-per-harness-with-evidence|WP-14: Skills registry: a skills.dir per harness, with evidence]] #p1 #done
 
 
 

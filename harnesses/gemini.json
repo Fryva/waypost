@@ -18,5 +18,15 @@
       ["description", "{description}"]
     ]
   },
+  "skills": {
+    "dir": ".agents/skills",
+    "reads": [
+      ".gemini/skills",
+      ".agents/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://geminicli.com/docs/cli/skills/",
+    "notes": "Within the workspace tier `.agents/skills` takes precedence over `.gemini/skills`."
+  },
   "notes": "Gemini CLI gained subagents: Markdown + YAML frontmatter in .gemini/agents/ (user level ~/.gemini/agents/), body = system prompt. Roles use that rather than the TOML custom commands in .gemini/commands/, which remain TOML but are a worse fit — a command runs in the current context, a subagent gets its own. `tools` is omitted deliberately: Gemini's tool names (read_file, run_shell_command, …) are not the Claude vocabulary, and naming them wrongly would strip the role's tools."
 }

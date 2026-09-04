@@ -62,5 +62,14 @@
       ]
     ]
   },
+  "skills": {
+    "dir": ".claude/skills",
+    "reads": [
+      ".claude/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://code.claude.com/docs/en/skills",
+    "notes": "Nested `.claude/skills/` below the working directory are read too (a monorepo package's own skills); `/skill-name` invokes one directly."
+  },
   "notes": "Frontmatter verified against the current docs: name, description, tools, disallowedTools, model (sonnet/opus/haiku/fable/full id/inherit), effort (low…max), and more. Project agents live in .claude/agents/ and are meant to be committed. `instructions` lists .claude/CLAUDE.md first: a project that keeps its rules there (a common layout) would otherwise never receive the routing block, since the block only goes into instruction files that exist."
 }

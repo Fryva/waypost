@@ -347,6 +347,31 @@ export function listRoles() {
   return roleNames().map(readRole);
 }
 
+// Where a harness discovers project-level Agent Skills (WP-14, the open
+// SKILL.md standard). `dir` is the one directory waypost installs into for
+// that harness — `.agents/skills` whenever the harness reads it, so tools that
+// share the directory share one copy; `reads` is every directory it discovers,
+// so a doctor can tell ours from theirs. The evidence discipline is the roles':
+// `documented` names the vendor page, `inferred` says what was assumed. `null`
+// means the harness has no project-level skills discovery; `skills_note` says
+// why. The standard itself defines no discovery path — every entry here comes
+// from that harness's own documentation, never from a convention.
+export function skillsOf(id) {
+  const h = harness(id);
+  const s = h.skills;
+  if (s === null || s === undefined) return null;
+  const bad = (m) => { throw new Error(`${id}: skills.${m}`); };
+  if (typeof s !== "object" || Array.isArray(s)) bad("must be an object or null");
+  if (typeof s.dir !== "string" || !s.dir) bad("dir must name a directory");
+  const reads = Array.isArray(s.reads) && s.reads.length ? s.reads : [s.dir];
+  if (!reads.includes(s.dir)) bad("reads must include dir");
+  const confidence = s.confidence || "inferred";
+  if (!CONFIDENCE.includes(confidence)) bad(`confidence ${JSON.stringify(s.confidence)} is not one of ${CONFIDENCE.join(", ")}`);
+  if (confidence !== "inferred" && !/^https?:\/\//.test(String(s.docs || ""))) bad(`${confidence} needs docs (a URL)`);
+  if (confidence === "inferred" && !String(s.notes || "").trim()) bad("inferred needs notes saying what was assumed");
+  return { dir: s.dir, reads, confidence, docs: s.docs || null, notes: s.notes || null };
+}
+
 // Roster the bound layout declares, intersected with what actually ships —
 // a layout naming a role we do not have is a layout bug, not an install one.
 export function rosterFor(cfg) {
@@ -1043,6 +1068,7 @@ function main() {
           id, name: h.name || id, vendor: h.vendor || null, confidence: confidenceOf(h), docs: h.docs || null,
           shape: spec.shape || "none",
           target: spec.shape === "aggregate-json" ? spec.file : (spec.dir || null),
+          skills: skillsOf(id), skills_note: h.skills_note || null,
           takes_model: harnessTakesModel(id), detect: h.detect || [], invoke: h.invoke || null,
           source: h.source, notes: h.notes || null,
         };
@@ -1062,7 +1088,7 @@ function main() {
       const visible = all ? rows : rows.filter((r) => used.has(r.id));
       for (const r of visible) {
         process.stdout.write(
-          `${(used.has(r.id) ? "* " : "  ")}${r.id.padEnd(11)} ${r.confidence.padEnd(12)} ${String(r.target || "— no role files").padEnd(24)} ${r.name}\n`);
+          `${(used.has(r.id) ? "* " : "  ")}${r.id.padEnd(11)} ${r.confidence.padEnd(12)} ${String(r.target || "— no role files").padEnd(24)} ${String(r.skills ? r.skills.dir : "— no skills").padEnd(18)} ${r.name}\n`);
         if (r.invoke && (all || used.has(r.id))) process.stdout.write(`              invoke: ${r.invoke}\n`);
       }
       if (!all) {

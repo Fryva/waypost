@@ -22,5 +22,13 @@
       ["disallowedTools", "{denied_tools}"]
     ]
   },
+  "skills": {
+    "dir": ".qwen/skills",
+    "reads": [
+      ".qwen/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/skills.md"
+  },
   "notes": "Subagents are Markdown + YAML frontmatter in .qwen/agents/ (user level ~/.qwen/agents/). Only the deny-list is emitted: Qwen inherits every tool when `tools` is omitted, and its allowlist uses Gemini-CLI tool names (read_file, run_shell_command…) that are NOT the Claude vocabulary — naming them wrongly would silently strip the role's tools. Custom commands moved from TOML to Markdown in recent versions; roles use the subagent format instead."
 }

@@ -11,5 +11,15 @@
   "invoke": "run the role via a spawned Claude Code/Codex subagent, or `dsh` with `waypost agents show <role>` as the prompt",
   "roles": { "shape": "none" },
   "roles_note": "dsh registers subagents in code (SubagentProvider), not as markdown files — there is no directory to install roles into.",
+  "skills": {
+    "dir": ".agents/skills",
+    "reads": [
+      ".dsh/skills",
+      ".agents/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/subsystems/skills.md",
+    "notes": "Ranked roots: `.dsh/skills` (100) before `.agents/skills` (200); one directory level, no recursive discovery. A harness with no role files still gets the procedures this way."
+  },
   "notes": "Official DeepSeek harness (developer preview, everything-is-a-plugin on Cordis). It reads AGENTS.md and CLAUDE.md, so `waypost agents register` reaches it — that is where the roles are routed from. Its subagent seam is a code-level provider registry with shipped providers that spawn Claude Code and Codex, so the practical route is: install the roles for `claude`/`codex` and let dsh spawn them; or run a role directly with `waypost agents show <role>`. If a file-based agent format appears, this entry becomes a normal one — a JSON change, not a code change."
 }

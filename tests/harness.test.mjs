@@ -13,7 +13,7 @@ import { detectHarnesses, detectHarness } from "../scripts/agents.mjs";
 import { storedVaultPath, resolveVaultPath } from "../scripts/lib.mjs";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
-  instructionTargets } from "../scripts/agents.mjs";
+  instructionTargets, skillsOf, CONFIDENCE } from "../scripts/agents.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
@@ -648,6 +648,47 @@ test("agents show prints the prompt alone — a harness with no subagents can pi
   assert.match(out, /^Target: adr\/foo\.md$/m, "the target is passed through");
   assert.ok(!out.includes("---\nname:"), "no frontmatter — this is a prompt, not a file");
   assert.ok(out.includes(readRole("critic").body.split("\n")[0]));
+});
+
+// ─── skills discovery (WP-14) ───────────────────────────────────────────
+
+test("every bundled harness says where it discovers Agent Skills, with evidence", () => {
+  let withSkills = 0, shared = 0;
+  for (const id of harnessIds()) {
+    const s = skillsOf(id);
+    if (s === null) {
+      assert.ok(String(harnessOf(id).skills_note || "").trim(), `${id}: a harness without skills says why (skills_note)`);
+      continue;
+    }
+    withSkills++;
+    assert.match(s.dir, /^\.[\w.-]+\/skills$/, `${id}: dir is a project-level skills directory`);
+    assert.ok(s.reads.includes(s.dir), `${id}: reads includes dir`);
+    assert.ok(CONFIDENCE.includes(s.confidence), `${id}: confidence`);
+    if (s.confidence !== "inferred") assert.match(String(s.docs), /^https?:\/\//, `${id}: ${s.confidence} needs the vendor page`);
+    if (s.confidence === "inferred") assert.ok(s.notes, `${id}: inferred says what was assumed`);
+    // One copy for every tool that reads the shared directory.
+    if (s.reads.includes(".agents/skills")) { shared++; assert.equal(s.dir, ".agents/skills", `${id}: installs into the shared directory it reads`); }
+  }
+  assert.ok(withSkills >= 20, `${withSkills} harnesses read skills`);
+  assert.ok(shared >= 10, `${shared} of them read .agents/skills`);
+  // A bad entry is refused loudly, never silently defaulted.
+  assert.throws(() => {
+    const h = harnessOf("codex");
+    const saved = h.skills; h.skills = { dir: ".x/skills", confidence: "documented" };
+    try { skillsOf("codex"); } finally { h.skills = saved; }
+  }, /documented needs docs/);
+});
+
+test("`waypost harnesses` shows the skills directory and --json carries the object", () => {
+  const proj = project();
+  const out = JSON.parse(waypost(proj, ["harnesses", "--json"]).stdout);
+  assert.equal(out.harnesses.find((h) => h.id === "codex").skills.dir, ".agents/skills");
+  assert.equal(out.harnesses.find((h) => h.id === "claude").skills.dir, ".claude/skills");
+  assert.equal(out.harnesses.find((h) => h.id === "qm").skills, null);
+  assert.match(out.harnesses.find((h) => h.id === "qm").skills_note, /deployment directory/);
+  const text = waypost(proj, ["harnesses", "--all"]).stdout;
+  assert.match(text, /codex\s+documented\s+\.codex\/agents\s+\.agents\/skills/);
+  assert.match(text, /qm\s+documented\s+— no role files\s+— no skills/);
 });
 
 // ─── the shared CLI ────────────────────────────────────────────────────

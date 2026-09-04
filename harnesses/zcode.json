@@ -23,5 +23,14 @@
       ["disallowedTools", "{denied_tools}"]
     ]
   },
+  "skills": {
+    "dir": ".zcode/skills",
+    "reads": [
+      ".zcode/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://zcode.z.ai/en/docs/skill",
+    "notes": "Workspace skills at `<workspace>/.zcode/skills/<name>/SKILL.md` per the FAQ; plugin skills use a flat `skills/<name>/SKILL.md` layout."
+  },
   "notes": "Sub-agents are Markdown + frontmatter (name, description, model, thoughtLevel, tools/disallowedTools, maxTurns, injectAgentsMd). As of the current beta ZCode reads them from ~/.zcode/agents/ only — project-level is announced but not shipped — so waypost writes them in the project (where they can be committed) and prints the copy step. injectAgentsMd defaults true, so the routing block in AGENTS.md reaches it."
 }

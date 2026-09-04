@@ -5,6 +5,16 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- The harness registry records where each tool discovers project-level Agent
+  Skills (`skills.dir`, `skills.reads`, with the evidence discipline of the
+  entry itself); `waypost harnesses` shows the directory and `--json` carries
+  the object. Twenty of twenty-one harnesses read skills; eleven of them read
+  the shared `.agents/skills/`, which is the install target wherever a harness
+  reads it. First story of WP-14.
+
 ## [0.13.1] — 2026-09-04
 
 ### Added

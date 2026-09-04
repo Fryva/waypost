@@ -19,5 +19,15 @@
       ["model", "{model}"]
     ]
   },
+  "skills": {
+    "dir": ".agents/skills",
+    "reads": [
+      ".github/skills",
+      ".claude/skills",
+      ".agents/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://docs.github.com/en/copilot/concepts/agents/about-agent-skills"
+  },
   "notes": "Custom agents are .github/agents/*.agent.md; the older .chatmode.md form is deprecated. VS Code also reads .claude/agents, so a project that installed the claude entry already has these roles there. `tools` is omitted on purpose: Copilot's tool names are its own vocabulary ('search/codebase', 'web/fetch'), an allowlist with a wrong name silently narrows the agent, and omitting the field inherits everything."
 }

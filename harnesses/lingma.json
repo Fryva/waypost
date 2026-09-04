@@ -28,6 +28,15 @@
       ]
     ]
   },
+  "skills": {
+    "dir": ".qoder/skills",
+    "reads": [
+      ".qoder/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://help.aliyun.com/en/lingma/skills-3040062",
+    "notes": "The product line is now Qoder CN; the vendor page names `.qoder/skills` for project skills shared with the team."
+  },
   "notes": "Lingma has project rules, not sub-agents: .lingma/rules/ is documented as project-scoped and meant to be committed. Each role lands as its own rule file; there is no per-role tool restriction to express, so read-only stays prose. the rules directory is the documented location; AGENTS.md support is not established.",
   "instructions_shared_ok": false
 }

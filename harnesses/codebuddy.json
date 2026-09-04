@@ -24,5 +24,13 @@
       ["disallowedTools", "{denied_tools}"]
     ]
   },
+  "skills": {
+    "dir": ".codebuddy/skills",
+    "reads": [
+      ".codebuddy/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://www.codebuddy.ai/docs/cli/skills"
+  },
   "notes": "Sub-agents are Markdown + YAML frontmatter in .codebuddy/agents/ (user level ~/.codebuddy/agents/); tools are comma-separated and the frontmatter is close to Claude Code's, including `effort`."
 }

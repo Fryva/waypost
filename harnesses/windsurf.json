@@ -30,6 +30,17 @@
       ]
     ]
   },
+  "skills": {
+    "dir": ".agents/skills",
+    "reads": [
+      ".windsurf/skills",
+      ".agents/skills",
+      ".claude/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://docs.windsurf.com/windsurf/cascade/skills",
+    "notes": "The page now lives under docs.devin.ai (Cognition); `.claude/skills` only when Claude Code config reading is enabled."
+  },
   "notes": "Workspace workflows are .windsurf/workflows/*.md, invoked manually as /<name> — never automatically. Documented limit: 12000 characters per workflow file, which every bundled role fits with room to spare. The frontmatter fields are NOT documented; `description` is emitted because the surrounding tooling uses it, and it is inert if Windsurf ignores it. AGENTS.md support is not documented, so the routing block also goes to .windsurf/rules/. AGENTS.md support is not documented (see notes), so the block must reach .windsurf/rules/ even when a shared file exists.",
   "instructions_shared_ok": false
 }

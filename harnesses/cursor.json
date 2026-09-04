@@ -34,5 +34,16 @@
       ]
     ]
   },
+  "skills": {
+    "dir": ".agents/skills",
+    "reads": [
+      ".agents/skills",
+      ".cursor/skills",
+      ".claude/skills",
+      ".codex/skills"
+    ],
+    "confidence": "documented",
+    "docs": "https://cursor.com/docs/context/skills"
+  },
   "notes": "Project rules are .cursor/rules/*.mdc with description / globs / alwaysApply; a plain .md there is ignored, which is why the extension matters. alwaysApply: false keeps a role out of every session until it is called by @name. Cursor also reads AGENTS.md, so the routing block reaches it. Cursor has no project-level subagent format — a rule is the closest thing, and the fresh-context contract is on the caller."
 }
