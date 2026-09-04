@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - This changelog.
+- A harness that opens the project for the first time installs itself:
+  `waypost brief` renders the roles of the harness it runs in when they are
+  missing or stale, puts the routing block into that harness's own instruction
+  file, and says what it wrote so it gets committed (`--no-install` or
+  `WAYPOST_NO_INSTALL=1` reads only). `waypost doctor` and `next` count the
+  harness running them as in use, so a fresh session is told to install its
+  roles even before its first brief.
 - A shared *checkout* is named while it matters: when a session on another
   host is live and reports this project root, or a vault at the same offset
   inside its checkout (presence records now carry `vault_rel`), or the project

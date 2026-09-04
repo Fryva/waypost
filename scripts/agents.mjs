@@ -855,36 +855,37 @@ function importsSharedFile(ownPath, sharedFile) {
 // plus the file each DETECTED harness reads. AGENTS.md is the common one, but a
 // Cursor-only or Gemini-only project has never heard of it — the registry says
 // what that harness reads instead, and the block is written there too.
+// Where one harness reads its instructions in this project: its own file when
+// present (or the shared file that own file @-imports), else the shared file
+// when present, else the first own path it declares, else the first declared.
+export function instructionTargetFor(id, proj = projectRoot()) {
+  const declared = harness(id).instructions || [];
+  if (!declared.length) return [];
+  // One target per harness, and never a second copy of the same block beside a
+  // file the harness already reads. Which file counts is registry data, not a
+  // guess: `instructions_shared_ok: false` marks a harness whose own notes say
+  // AGENTS.md support is undocumented, so its own path must exist even when a
+  // shared file does.
+  const own = declared.filter((f) => f.includes("/"));
+  const ownPresent = own.filter((f) => existsSync(join(proj, f)));
+  const sharedOk = harness(id).instructions_shared_ok !== false;
+  const shared = declared.find((f) => !f.includes("/") && existsSync(join(proj, f)));
+  if (ownPresent.length) {
+    // An own file that itself @-imports the shared one already reaches the
+    // harness through that import (G-1: this repo's own .claude/CLAUDE.md
+    // is `@AGENTS.md`) — write the block into the shared file only. An own
+    // file with no such import keeps today's behaviour.
+    return [...new Set(ownPresent.map((f) =>
+      (sharedOk && shared && importsSharedFile(join(proj, f), shared)) ? shared : f))];
+  }
+  if (sharedOk && shared) return [shared];
+  if (own.length) return [own[0]];
+  return [shared || declared[0]];
+}
+
 export function instructionTargets(proj = projectRoot()) {
   const out = new Set(["AGENTS.md", "CLAUDE.md"].filter((f) => existsSync(join(proj, f))));
-  for (const id of detectHarnesses(proj)) {
-    const declared = harness(id).instructions || [];
-    if (!declared.length) continue;
-    // One target per harness, and never a second copy of the same block beside a
-    // file the harness already reads. Which file counts is registry data, not a
-    // guess: `instructions_shared_ok: false` marks a harness whose own notes say
-    // AGENTS.md support is undocumented, so its own path must exist even when a
-    // shared file does.
-    const own = declared.filter((f) => f.includes("/"));
-    const ownPresent = own.filter((f) => existsSync(join(proj, f)));
-    const sharedOk = harness(id).instructions_shared_ok !== false;
-    const shared = declared.find((f) => !f.includes("/") && existsSync(join(proj, f)));
-    if (ownPresent.length) {
-      // An own file that itself @-imports the shared one already reaches the
-      // harness through that import (G-1: this repo's own .claude/CLAUDE.md
-      // is `@AGENTS.md`) — write the block into the shared file only. An own
-      // file with no such import keeps today's behaviour.
-      for (const f of ownPresent) {
-        if (sharedOk && shared && importsSharedFile(join(proj, f), shared)) out.add(shared);
-        else out.add(f);
-      }
-      continue;
-    }
-
-    if (sharedOk && shared) { out.add(shared); continue; }
-    if (own.length) { out.add(own[0]); continue; }
-    out.add(shared || declared[0]);
-  }
+  for (const id of detectHarnesses(proj)) for (const f of instructionTargetFor(id, proj)) out.add(f);
   return [...out];
 }
 

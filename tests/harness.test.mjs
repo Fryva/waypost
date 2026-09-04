@@ -24,11 +24,11 @@ function project() {
   return proj;
 }
 
-function waypost(proj, args, { expectFail = false, session = null } = {}) {
+function waypost(proj, args, { expectFail = false, session = null, env = {} } = {}) {
   const r = spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd: proj, timeout: 30000,
     env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO,
-      ...(session ? { WAYPOST_SESSION_ID: session } : {}) },
+      ...(session ? { WAYPOST_SESSION_ID: session } : {}), ...env },
   });
   if (!expectFail) assert.equal(r.status, 0, `${args.join(" ")}\n${r.stderr}${r.stdout}`);
   return r;
@@ -775,6 +775,43 @@ test("brief is the session-start packet, on demand and without a hook", () => {
   assert.match(out, /## Where things live/);
   assert.match(out, /\| `adr\/` \| adr \|/, "folders come from the layout");
   assert.ok(!out.includes("Use Postgres"), "a skeleton carries no artifact content");
+});
+
+test("a harness that opens the project for the first time gets its roles from its own first brief", () => {
+  const { proj } = bound();
+  writeFileSync(join(proj, "CLAUDE.md"), "# house rules\n", "utf8"); // a Claude-only project so far
+  const codex = (args) => waypost(proj, args, { env: { WAYPOST_HARNESS: "codex" } });
+
+  const first = codex(["brief"]).stdout;
+  assert.match(first, /This session runs in codex/);
+  assert.match(first, /installed \d+ role file\(s\) into \.codex\/agents\//);
+  assert.match(first, /created the routing block in \.codex\/AGENTS\.md/,
+    "no shared AGENTS.md exists, so the block goes to codex's own file rather than creating one on its behalf");
+  assert.ok(existsSync(join(proj, ".codex", "agents", `${PREFIX}critic.toml`)));
+  assert.match(readFileSync(join(proj, ".codex", "AGENTS.md"), "utf8"), /<!-- waypost:agents/);
+  assert.ok(!existsSync(join(proj, "AGENTS.md")), "the project's shared files are left as the user had them");
+  assert.equal(readFileSync(join(proj, "CLAUDE.md"), "utf8"), "# house rules\n",
+    "only the running harness's own instruction file is touched");
+  assert.match(first, /## Where things live/, "and the brief itself still follows");
+
+  const second = codex(["brief"]).stdout;
+  assert.doesNotMatch(second, /This session runs in codex/, "nothing to do the second time");
+
+  rmSync(join(proj, ".codex"), { recursive: true });
+  const off = codex(["brief", "--no-install"]).stdout;
+  assert.ok(!existsSync(join(proj, ".codex")), "--no-install reads only");
+  assert.doesNotMatch(off, /This session runs in codex/);
+
+  // Without a brief, the running harness still counts as in use: `next` and
+  // `doctor` name its missing roles even though the project shows no codex marker.
+  const findings = JSON.parse(codex(["doctor", "--json"]).stdout);
+  const f = findings.find((x) => x.check === "agent-roles" && /codex/.test(x.message));
+  assert.ok(f, JSON.stringify(findings.filter((x) => x.check === "agent-roles")));
+  assert.match(f.message, /waypost agents install --harness codex/);
+  assert.match(codex(["next"]).stdout, /agents install/);
+
+  const unknown = waypost(proj, ["brief"], { env: { WAYPOST_HARNESS: "unknown" } });
+  assert.doesNotMatch(unknown.stdout, /This session runs in/, "no harness, nothing to install");
 });
 
 test("sessions: the registry is reachable by command from any harness", () => {

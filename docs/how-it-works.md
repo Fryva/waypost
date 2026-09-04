@@ -63,7 +63,7 @@ a generator and compare the result with what is on disk.
 | `waypost next` | what the project needs now, ranked |
 | `waypost bind <vault>` | bind a vault and scaffold the layout (`--layout`, `--lang`, `--force`) |
 | `waypost scaffold` | create any missing layout folders and index READMEs |
-| `waypost brief` | session-start orientation packet (`--full` for the descent tutorial) |
+| `waypost brief` | session-start orientation packet (`--full` for the descent tutorial); installs the running harness's roles when they are missing (`--no-install` to only read) |
 | `waypost draft <kind> "<title>" [--write]` | draft an artifact; `--write` creates and reconciles |
 | `waypost story plan\|close <path> [--write]` | story lifecycle gates |
 | `waypost kanban` / `graph` / `codemap` | regenerate one derived view |

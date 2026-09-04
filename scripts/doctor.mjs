@@ -76,6 +76,8 @@ import {
   HARNESSES,
   PREFIX as AGENT_PREFIX,
   detectHarnesses,
+  detectHarness,
+  harnessIds,
   instructionTargets,
   harnessOwnedPaths,
   status as agentStatus,
@@ -253,7 +255,12 @@ export function checkAgentRoles(proj, cfg) {
   try { state = agentStatus({ proj, cfg }); } catch (e) {
     return [finding("install", "warn", "agent-roles", `Agent roles not readable: ${e.message}`)];
   }
-  const used = detectHarnesses(proj);
+  // The harness running this check is in use too, whether or not the project
+  // shows evidence of it yet: a first session from a new harness leaves none,
+  // and `waypost next` from that session must still say "install my roles".
+  const running = detectHarness();
+  const used = [...new Set([...detectHarnesses(proj),
+    ...(running !== "unknown" && harnessIds().includes(running) ? [running] : [])])];
   const anyInstalled = state.some((h) => h.roles.some((r) => r.state !== "absent"));
   for (const h of state) {
     // A harness with no per-role file format has nothing to install, so there is

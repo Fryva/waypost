@@ -834,6 +834,43 @@ function leaseArgs(rest) {
 const QUIET_COMMANDS = new Set(["help", "--help", "-h", "version", "--version", "-v",
   "harnesses", "prompt", "skill", "agents", "log", "storage", "merge-derived"]);
 
+// ─── brief: the session start also installs its own harness ───────────
+//
+// `waypost setup` installs roles for the harnesses the PROJECT shows evidence
+// of (a .codex/ directory, a CLAUDE.md with the user's own content). A harness
+// that simply opens the project for the first time has left no such evidence
+// yet — but the session running this command knows what it is (the registry's
+// env markers, or WAYPOST_HARNESS, pinned by heartbeat()). So the session-start
+// command renders the roles of the harness it runs in when they are absent or
+// stale, makes sure that harness's own instruction file carries the routing
+// block, and says what it wrote — those files are committed by convention, and
+// git carries them to every other machine and harness. Nothing is written when
+// nothing is missing; `--no-install` (or WAYPOST_NO_INSTALL=1) reads only.
+async function selfInstall(rest) {
+  if (rest.includes("--no-install") || process.env.WAYPOST_NO_INSTALL) return;
+  const cfg = readConfig();
+  if (!cfg || !cfg.vault_path || !existsSync(cfg.vault_path)) return;
+  try {
+    const A = await import(`file://${SCRIPT("agents")}`);
+    const h = process.env.WAYPOST_HARNESS || A.detectHarness();
+    if (!h || h === "unknown" || !A.harnessIds().includes(h)) return;
+    const proj = projectRoot();
+    const did = [];
+    const st = A.status({ proj, cfg }).find((x) => x.harness === h);
+    if (st && st.roles.some((r) => r.state === "absent" || r.state === "stale")) {
+      const wrote = A.install([h], { proj, cfg }).filter((r) => r.action === "created" || r.action === "updated");
+      if (wrote.length) did.push(`installed ${wrote.length} role file(s) into ${(A.harness(h).roles || {}).dir || "its agents directory"}/`);
+    }
+    const targets = A.instructionTargetFor(h, proj);
+    const reg = targets.length ? A.register({ proj, cfg, files: targets }).filter((r) => r.action !== "unchanged") : [];
+    if (reg.length) did.push(`${reg[0].action} the routing block in ${reg.map((r) => r.file).join(", ")}`);
+    if (!did.length) return;
+    const note = `This session runs in ${h}, which this project was not set up for yet — ${did.join("; ")}. `
+      + "Commit them, so every machine and harness gets the same roles (`waypost brief --no-install` reads only).\n\n";
+    (rest.includes("--json") ? process.stderr : process.stdout).write(note);
+  } catch { /* orientation must never fail because the install could not be repaired */ }
+}
+
 async function heartbeat(cmd) {
   if (QUIET_COMMANDS.has(cmd) || process.env.WAYPOST_NO_BEAT) return;
   try {
@@ -903,7 +940,7 @@ async function main() {
     case "agents": run("agents", rest); break;
     case "harnesses": run("agents", ["harnesses", ...rest]); break;
     case "sessions": run("sessions", rest); break;
-    case "brief": run("brief", rest); break;
+    case "brief": await selfInstall(rest); run("brief", rest.filter((a) => a !== "--no-install")); break;
     case "commit": run("commit", rest); break;
     case "merge": run("commit", ["--merge", ...rest]); break;
     case "log": run("commit", ["--log", ...rest]); break;

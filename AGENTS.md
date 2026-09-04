@@ -22,7 +22,10 @@ Before analysing a task, planning, editing or running checks:
 1. Read this file in full.
 2. Run `waypost brief` — the orientation packet for the bound vault (where things
    live, what is in flight, in what order to read). It replaces upstream's
-   SessionStart hook.
+   SessionStart hook. It also installs the roles of the harness it runs in
+   when they are missing or stale, puts the routing block into that harness's
+   own instruction file, and says what it wrote so you commit it
+   (`--no-install` to only read).
 3. Read `docs/decisions/README.md` and the related ADRs when the task touches the
    fork's architecture, CLI, roles, layouts, templates or working mechanics.
 4. `waypost next` — what this project needs right now, ranked, with the command for
@@ -80,6 +83,11 @@ in `harnesses/`, and your own goes in `.waypost/harnesses/` (see
 `docs/harnesses.md`). Where a harness has no role concept, `waypost agents show
 <role>` prints the prompt for a separate run.
 
+- **A harness that joins later needs no install step.** Its first
+  `waypost brief` renders its roles and registers its instruction file, and
+  `waypost doctor`/`next` count the harness running them as in use, so a
+  session from a new harness is told to install its roles even before that.
+  `waypost setup` still installs for every harness the project shows evidence of.
 - **Every role runs in a fresh context, separate from the author.** Reviewing
   your own work in your own context removes the entire point of the role.
 - `waypost-critic` — after writing or revising an artifact or a design proposal,

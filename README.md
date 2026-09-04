@@ -52,7 +52,7 @@ Then, day to day:
 ```bash
 waypost                 # is this set up, and what does it need right now?
 waypost next            # the same, ranked, with the exact command for each
-waypost brief           # a short orientation to read at the start of a session
+waypost brief           # orientation for the session; installs this tool's roles if missing
 waypost draft adr "Use Postgres for primary storage" --write
 ```
 
