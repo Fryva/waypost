@@ -37,8 +37,8 @@ code_refs prove that files exist, not that they still follow the decision. The m
 | Story | Status | Description |
 |-------|--------|-------------|
 | `story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter` | planned | critic pass, owner decision, status accepted, template and docs updated |
-| `story-doctor-evaluates-regex-guards-of-accepted-adrs` | planned | `forbid`/`require` over globs, `adr-guard` findings, proposed ADRs at info level |
-| `story-command-guards-opt-in-behind-vault-config-never-run-by-fix` | planned | `run` guards behind `guards_run: on`, never under --fix, `why` mandatory |
+| `story-doctor-evaluates-regex-guards-of-accepted-adrs` | planned | flow-form `guards`, `forbid`/`require`/`not_in` over globs, whole-file matching, bounds, `adr-guard` findings |
+| `story-command-guards-opt-in-behind-vault-config-never-run-by-fix` | planned | `check` names the project's fitness command; printed, never executed |
 | `story-live-verification-cursor-gemini-cli-and-copilot` | planned | three more `verified` entries; matrix updated |
 
 ## Expected Results

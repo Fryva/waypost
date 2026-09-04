@@ -37,7 +37,8 @@ Orchestrators isolate agents by git worktree; Waypost's presence, leases and cla
 | Story | Status | Description |
 |-------|--------|-------------|
 | `story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir` | planned | critic pass, owner decision, status accepted, index and docs updated |
-| `story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version` | planned | coordination dir resolution, dual-read migration, `waypost storage` names the dir |
+| `story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive` | planned | measured table for the layouts the critic pass did not cover, before the move |
+| `story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version` | planned | binding inherited by linked worktrees, coordination dir resolution, dual-write/dual-read migration, `waypost storage` names the dir |
 | `story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository` | planned | sharedTree gains the same-repository signal; leases from other worktrees reported |
 | `story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked` | planned | `blocked_by` frontmatter, `waypost ready`, kanban blocked state, `next` ranks ready stories |
 | `story-doctor-dangling-and-cyclic-dependencies-duplicate-adr-numbers` | planned | doctor findings for bad dependency links and colliding ADR numbers |

@@ -2,7 +2,7 @@
 type: story
 id: "story-command-guards-opt-in-behind-vault-config-never-run-by-fix"
 epic: "WP-16"
-title: "Command guards opt-in behind vault config, never run by --fix"
+title: "check guards name the project's own fitness command; doctor prints it and never runs it"
 status: planned
 priority: p2
 assignee: "Ivan Morozov"
@@ -17,7 +17,7 @@ closed_at: null
 plan_updated_at: null
 ---
 
-# Command guards opt-in behind vault config, never run by --fix
+# check guards name the project's own fitness command; doctor prints it and never runs it
 
 | Field | Value |
 |---|---|
@@ -30,12 +30,18 @@ plan_updated_at: null
 
 ## Description
 
-`run` guards execute only when `<vault>/.projectstore.json` sets `guards_run: on`, never under `doctor --fix`, with a timeout, and the finding shows the command's last lines.
+The first draft of ADR-0011 had `run` guards executed by doctor behind a
+vault-level opt-in. The critic pass showed the opt-in would travel with the
+vault and `waypost next` runs doctor in full on every session start, so a clone
+would execute a stranger's command before anyone read the ADR. The revised
+decision keeps the link and drops the execution: `check` names the project's
+own fitness command, doctor prints it beside the ADR, and nothing runs.
 
 ## Decomposition
 
-- [ ] Config read, execution path, timeout
-- [ ] Tests: refused without opt-in; never executed under --fix
+- [ ] `check` field parsed with the other guard kinds; printed in the `adr-guard` context line
+- [ ] A sentinel test proves doctor never executes it, through `waypost doctor`, `doctor --fix` and `waypost next`
+- [ ] Docs: how to pair `check` with the project's test suite (option 2 of ADR-0011)
 
 ## Implementation Plan
 
@@ -45,8 +51,8 @@ plan_updated_at: null
 
 ## Acceptance Criteria
 
-- [ ] Without the opt-in a run guard is reported as skipped, not executed (test)
-- [ ] `--fix` never executes a run guard (test)
+- [ ] A `check` guard is shown with its ADR and `why` (test)
+- [ ] The named command is never executed on any doctor path (sentinel test)
 
 ## Final Summary
 
@@ -55,7 +61,7 @@ plan_updated_at: null
 
 ## Technical Notes
 
-Markdown must not become a way to run commands on someone else's machine; the opt-in is per vault.
+Markdown must not become a way to run commands on someone else's machine; there is no opt-in because there is no execution.
 
 ## Dependencies
 

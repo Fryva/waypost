@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-04T16:09:15.520Z
+generated_at: 2026-09-04T16:11:56.200Z
 
 ---
 
@@ -28,11 +28,12 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/stories/story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir.md | ADR-0010 accepted: presence, leases and claims in the git common dir | story | planned |
 | epics/WP-15/stories/story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked.md | blocked_by in stories, waypost ready, and a board that shows blocked | story | planned |
 | epics/WP-15/stories/story-doctor-dangling-and-cyclic-dependencies-duplicate-adr-numbers.md | doctor: dangling and cyclic dependencies, duplicate ADR numbers | story | planned |
+| epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive.md | Measure the git common dir and worktree binding on macOS, Windows and a cloud drive | story | planned |
 | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md | Runtime coordination moves to the git common dir; old records read for one version | story | planned |
 | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md | Shared-checkout detection covers sibling worktrees of one repository | story | planned |
 | epics/WP-16/epic.md | Decisions that check themselves | epic | planned |
 | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md | ADR-0011 accepted: guards and drafted_by in ADR frontmatter | story | planned |
-| epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md | Command guards opt-in behind vault config, never run by --fix | story | planned |
+| epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md | check guards name the project's own fitness command; doctor prints it and never runs it | story | planned |
 | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md | doctor evaluates regex guards of accepted ADRs | story | planned |
 | epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot.md | Live verification: Cursor, Gemini CLI and Copilot | story | planned |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
@@ -61,12 +62,14 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir.md |
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked.md |
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-doctor-dangling-and-cyclic-dependencies-duplicate-adr-numbers.md |
+| epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive.md |
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md |
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md |
 | epics/WP-15/epic.md | mdlink | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md |
 | epics/WP-15/stories/story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-15/stories/story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-15/stories/story-doctor-dangling-and-cyclic-dependencies-duplicate-adr-numbers.md | mdlink | epics/WP-15/epic.md |
+| epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md |
