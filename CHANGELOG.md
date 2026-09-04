@@ -5,7 +5,7 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.12.2] — 2026-09-04
 
 ### Fixed
 - One session, one id: the harness is detected before the session id is
@@ -103,7 +103,8 @@ Initial public release.
 
 Hardened before release by a multi-agent audit and independent critic passes.
 
-[Unreleased]: https://github.com/Fryva/waypost/compare/v0.12.1...HEAD
+[Unreleased]: https://github.com/Fryva/waypost/compare/v0.12.2...HEAD
+[0.12.2]: https://github.com/Fryva/waypost/compare/v0.12.1...v0.12.2
 [0.12.1]: https://github.com/Fryva/waypost/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/Fryva/waypost/compare/v0.11.2...v0.12.0
 [0.11.2]: https://github.com/Fryva/waypost/compare/v0.11.1...v0.11.2
