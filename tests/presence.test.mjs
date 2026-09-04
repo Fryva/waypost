@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, unlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, unlinkSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir, hostname, platform } from "node:os";
 import { spawnSync, spawn } from "node:child_process";
@@ -523,6 +523,37 @@ test("commit refuses to write over a file another live session is editing", () =
 
   const forced = run(["commit", "-m", "touch it", "--force"], { WAYPOST_SESSION_ID: "me" });
   assert.equal(forced.status, 0, forced.stderr);
+});
+
+// ─── the git common dir, as ADR-0010 assumes it ────────────────────────
+
+test("the git common dir answers what ADR-0010 assumes, from the root, a subdirectory, a linked worktree and a bare repo", () => {
+  // realpath: git answers /private/var/… where macOS mkdtemp says /var/…
+  const base = realpathSync(mkdtempSync(join(tmpdir(), "waypost-cd-")));
+  const main = join(base, "main");
+  const g = (args, cwd) => spawnSync("git", args, { cwd, encoding: "utf8" });
+  g(["init", "-q", main], base);
+  g(["commit", "-q", "--allow-empty", "-m", "base"], main);
+  mkdirSync(join(main, "sub", "deep"), { recursive: true });
+  const common = (cwd) => g(["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd).stdout.trim();
+  const mainGit = common(main);
+  assert.ok(mainGit.endsWith("/main/.git"), mainGit);
+  assert.equal(common(join(main, "sub", "deep")), mainGit, "absolute from a subdirectory too");
+  assert.equal(g(["rev-parse", "--git-common-dir"], join(main, "sub", "deep")).stdout.trim(), "../../.git",
+    "the default form is relative to the caller, which is why the absolute form is the one to use");
+  const wt = join(base, "wt");
+  g(["worktree", "add", "-q", wt, "-b", "wt"], main);
+  assert.equal(common(wt), mainGit, "a linked worktree names the main repository's .git");
+  assert.match(readFileSync(join(wt, ".git"), "utf8"), /^gitdir: \//, "a linked worktree's .git is a file holding an absolute gitdir");
+  assert.equal(dirname(common(wt)), main, "so the main worktree, and its .waypost/ binding, is dirname(common dir)");
+  const bare = join(base, "bare.git");
+  g(["init", "-q", "--bare", bare], base);
+  assert.equal(common(bare), bare, "a bare repository answers its own path, not '.'");
+  assert.equal(g(["rev-parse", "--is-bare-repository"], bare).stdout.trim(), "true");
+  const outer = join(base, "outer"); const inner = join(outer, "inner");
+  g(["init", "-q", outer], base); g(["init", "-q", inner], outer);
+  assert.ok(common(inner).endsWith("/outer/inner/.git"), "a nested repository resolves to the inner .git");
+  assert.notEqual(g(["rev-parse", "--path-format=absolute", "--git-common-dir"], base).status, 0, "outside a repository git fails, and the ADR-0007 location stays");
 });
 
 // ─── a shared checkout ─────────────────────────────────────────────────

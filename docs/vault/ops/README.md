@@ -8,6 +8,7 @@
 
 | File | Title | Status | Date |
 |------|-------|--------|------|
+| [measure-the-git-common-dir-across-checkout-layouts](./measure-the-git-common-dir-across-checkout-layouts.md) | Measure the git common dir across checkout layouts | active | 2026-09-04 |
 
 ---
 

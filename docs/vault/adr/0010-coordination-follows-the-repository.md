@@ -103,8 +103,10 @@ vault service files). Claims live in presence records, not there, so nothing
 this decision needs is lost by leaving it.
 
 **Where the rule does not apply.** Vault outside any repository, project not a
-repository, `git` absent or failing, a bare repository (`--git-common-dir`
-answers `.`): the ADR-0007 location `<vault>/.projectstore/` stays, since there
+repository, `git` absent or failing, a bare repository (`git rev-parse
+--is-bare-repository` says so; with `--path-format=absolute` the common dir of a
+bare repository is its own path, not `.`): the ADR-0007 location
+`<vault>/.projectstore/` stays, since there
 the vault directory is the channel and often the synchronised one.
 `coordination_dir` in the **main worktree's** `.waypost/projectstore.json`
 overrides both rules for the rare arrangement neither fits (a vault inside a
@@ -224,3 +226,17 @@ classifies *it*, not the vault, for the presence lag estimate.
   registry stays where upstream reads it.
 - Live: two sessions in two worktrees, `waypost sessions` from each; a
   measurement of Windows worktrees and a cloud-drive `.git` before the move.
+- Measured 2026-09-04 on macOS 26 (Darwin 25.6.0), git 2.50.1 (Apple Git-155), with the
+  runbook "Measure the git common dir across checkout layouts" (`docs/vault/ops/`):
+
+| Layout | `--path-format=absolute --git-common-dir` from the project root | Note |
+|---|---|---|
+| main working copy, at root | `<main>/.git` | |
+| main working copy, from a subdirectory | `<main>/.git` | the relative form answers `../../.git` relative to the caller's directory, hence `--path-format=absolute` and `cwd: projectRoot()` |
+| linked worktree | `<main>/.git` | its own `.git` is a file: `gitdir: <main>/.git/worktrees/<name>` — an absolute path |
+| main worktree of a linked one | `dirname(common dir)` | the main worktree's `.waypost/projectstore.json` is reachable from there: yes |
+| bare repository | `<bare>` itself | not `.`: the fallback keys on `git rev-parse --is-bare-repository`, never on the answer's shape |
+| nested repository, from the inner one | `<inner>/.git` | the inner repository wins; a vendored repo coordinates alone |
+| not a repository | `fatal: not a git repository` (exit 128) | the ADR-0007 location stays |
+
+  Windows and a cloud-drive `.git`: not measured yet (the runbook says how).

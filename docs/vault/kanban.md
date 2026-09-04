@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-04T16:48:05.070Z
+generated_at: 2026-09-04T16:48:24.839Z
 
 ---
 
@@ -11,7 +11,6 @@ generated_at: 2026-09-04T16:48:05.070Z
 - [ ] [[epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop|WP-14: Live verification: Codex and OpenCode run the whole loop]] #p1
 - [ ] [[epics/WP-15/stories/story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked|WP-15: blocked_by in stories, waypost ready, and a board that shows blocked]] #p1
 - [ ] [[epics/WP-15/stories/story-doctor-dangling-and-cyclic-dependencies-duplicate-adr-numbers|WP-15: doctor: dangling and cyclic dependencies, duplicate ADR numbers]] #p2
-- [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
 - [ ] [[epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version|WP-15: Runtime coordination moves to the git common dir; old records read for one version]] #p1
 - [ ] [[epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository|WP-15: Shared-checkout detection covers sibling worktrees of one repository]] #p2
 - [ ] [[epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix|WP-16: check guards name the project's own fitness command; doctor prints it and never runs it]] #p2
@@ -24,7 +23,7 @@ generated_at: 2026-09-04T16:48:05.070Z
 
 ## In Progress
 
-
+- [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
 
 ## Review
 

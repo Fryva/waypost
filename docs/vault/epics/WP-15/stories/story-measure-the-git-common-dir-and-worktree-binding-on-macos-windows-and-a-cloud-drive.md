@@ -3,7 +3,7 @@ type: story
 id: "story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive"
 epic: "WP-15"
 title: "Measure the git common dir and worktree binding on macOS, Windows and a cloud drive"
-status: planned
+status: in-progress
 priority: p1
 assignee: "Ivan Morozov"
 created: 2026-09-04
@@ -12,9 +12,9 @@ external_refs: {}
 tags: []
 code_refs: []
 specs: []
-started_at: null
+started_at: "2026-09-04T16:48:24.407Z"
 closed_at: null
-plan_updated_at: null
+plan_updated_at: "2026-09-04T16:48:24.407Z"
 ---
 
 # Measure the git common dir and worktree binding on macOS, Windows and a cloud drive
@@ -22,7 +22,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-15](../epic.md) |
-| **Status** | planned |
+| **Status** | in-progress |
 | **Priority** | p1 |
 | **Assignee** | Ivan Morozov |
 
@@ -39,20 +39,20 @@ owner's machines before anything moves.
 
 ## Decomposition
 
-- [ ] A script that prints, for each layout, what `--git-common-dir` answers and whether the main worktree's `.waypost/projectstore.json` is reachable
-- [ ] Run it on macOS, on Windows (native git and Git for Windows paths), and with a repository on iCloud or Dropbox
-- [ ] Record the table in ADR-0010 and pin the macOS/Linux rows in tests
+- [x] Script that prints, per layout, the common dir and whether the main binding is reachable — evidence: runbook "Measure the git common dir across checkout layouts"
+- [x] macOS run — evidence: table in ADR-0010, 2026-09-04, git 2.50.1
+- [ ] Windows (native git and Git for Windows) — owner's machine
+- [ ] Repository on iCloud or Dropbox — owner's machine
+- [x] Rows CI can reproduce pinned in tests — evidence: tests/presence.test.mjs "the git common dir answers what ADR-0010 assumes"
 
 ## Implementation Plan
 
-<!-- Written at the work-start gate (waypost story plan), AFTER studying the
-     codebase. When a spec covers this story, this is a thin route through the
-     spec's contracts: which contracts, in what order, which files. -->
+Runbook in `ops/` with the script; rows measured on macOS today, pinned by a test in tests/presence.test.mjs for the layouts CI (Linux) can reproduce; Windows and a cloud-drive `.git` are the owner's to run with the same script.
 
 ## Acceptance Criteria
 
-- [ ] ADR-0010 carries the measured table with dates and git versions
-- [ ] Tests pin every row that CI can reproduce
+- [x] ADR-0010 carries the measured table with dates and git versions — evidence: ADR-0010 "Verification and follow-up" (macOS rows; Windows and cloud rows marked open)
+- [x] Tests pin every row that CI can reproduce — evidence: tests/presence.test.mjs
 
 ## Final Summary
 
