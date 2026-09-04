@@ -810,6 +810,61 @@ test("doctor: instruction-file hygiene — length is a warning, and Claude gets 
     JSON.stringify(here.filter((f) => /claude-bridge|instructions-size/.test(f.check))));
 });
 
+// ─── ready work (WP-15) ─────────────────────────────────────────────────
+
+test("blocked_by, waypost ready, a board that shows blocked, next ranking, and doctor on bad dependencies", () => {
+  const { proj, vault } = bound();
+  waypost(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
+  for (const t of ["First", "Second", "Third", "Fourth"]) waypost(proj, ["draft", "story", "PS-1", t, "--write"]);
+  const story = (n) => join(vault, "epics", "PS-1", "stories", `story-${n}.md`);
+  const setBlocked = (n, refs) => {
+    const p = story(n);
+    const t = readFileSync(p, "utf8").replace(/^blocked_by: .*\n/m, "").replace(/^specs: \[\]$/m, `specs: []\nblocked_by: ${JSON.stringify(refs)}`);
+    writeFileSync(p, t, "utf8");
+  };
+  setBlocked("second", ["PS-1/story-first"]);
+  setBlocked("third", ["PS-1/story-nope"]);
+  const readyJson = (session = "me") => JSON.parse(waypost(proj, ["ready", "--json"], { session }).stdout);
+  let r = readyJson();
+  assert.deepEqual(r.ready.map((x) => x.ref).sort(), ["PS-1/story-first", "PS-1/story-fourth"], "unblocked, unclaimed, planned");
+  assert.ok(r.blocked.some((x) => x.ref === "PS-1/story-second" && x.blockers_open.includes("PS-1/story-first")));
+  assert.ok(r.blocked.some((x) => x.ref === "PS-1/story-third" && x.blockers_unknown.includes("PS-1/story-nope")));
+  assert.match(waypost(proj, ["ready"]).stdout, /waypost story plan .*story-first\.md --write/, "each ready story comes with its claim command");
+  assert.match(waypost(proj, ["ready", "--all"]).stdout, /story-second\s+blocked: waiting on PS-1\/story-first/);
+
+  waypost(proj, ["kanban"]);
+  const board = readFileSync(join(vault, "kanban.md"), "utf8");
+  assert.match(board, /story-second\|[^\n]*#blocked/, "the board marks a blocked story");
+  assert.doesNotMatch(board, /story-first\|[^\n]*#blocked/);
+
+  assert.match(waypost(proj, ["next"]).stdout, /- ready: First \(PS-1, p2\)\n\s+waypost story plan /, "next ranks ready work with its command");
+
+  waypost(proj, ["story", "plan", story("first"), "--write"]);
+  waypost(proj, ["story", "close", story("first"), "--write"]);
+  assert.ok(readyJson().ready.some((x) => x.ref === "PS-1/story-second"), "closing the blocker frees the story");
+
+  waypost(proj, ["sessions", "--touch", "--claim", "PS-1/story-fourth"], { session: "other" });
+  r = readyJson("me");
+  assert.ok(!r.ready.some((x) => x.ref === "PS-1/story-fourth") && r.claimed.some((x) => x.ref === "PS-1/story-fourth"), "a story a live session claims is not ready");
+
+  setBlocked("second", ["PS-1/story-first", "PS-1/story-fourth"]);
+  setBlocked("fourth", ["PS-1/story-second"]);
+  const findings = JSON.parse(waypost(proj, ["doctor", "--json"], { expectFail: true }).stdout);
+  const deps = findings.filter((f) => f.check === "story-deps");
+  assert.ok(deps.some((f) => /names no story: "PS-1\/story-nope"/.test(f.message)), JSON.stringify(deps));
+  assert.ok(deps.some((f) => /dependency cycle: /.test(f.message) && /story-second/.test(f.message) && /story-fourth/.test(f.message)), JSON.stringify(deps));
+
+  const p = story("third");
+  writeFileSync(p, readFileSync(p, "utf8").replace(/^blocked_by: .*$/m, "blocked_by:\n  - PS-1/story-first"), "utf8");
+  const block = JSON.parse(waypost(proj, ["doctor", "--json"], { expectFail: true }).stdout).find((f) => f.check === "story-deps" && /block form/.test(f.message));
+  assert.ok(block, "block-form blocked_by is named, since the line-based reader sees it as empty");
+
+  const adr = (n, t) => writeFileSync(join(vault, "adr", `${n}-${t}.md`), `---\ntype: adr\nid: "ADR-${n}"\ntitle: ${t}\nstatus: proposed\ndate: 2026-09-04\n---\n# ${t}\n`, "utf8");
+  adr("0007", "one"); adr("0007", "other");
+  const dup = JSON.parse(waypost(proj, ["doctor", "--json"], { expectFail: true }).stdout).find((f) => f.check === "adr-number");
+  assert.ok(dup && /share number 0007/.test(dup.message) && /0008/.test(dup.message), JSON.stringify(dup));
+});
+
 // ─── the shared CLI ────────────────────────────────────────────────────
 
 test("bind scaffolds the layout and refuses a silent rebind", () => {

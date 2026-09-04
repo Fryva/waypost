@@ -12,6 +12,7 @@ external_refs: {}
 tags: []
 code_refs: []
 specs: []
+blocked_by: ["WP-15/story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked"]
 started_at: null
 closed_at: null
 plan_updated_at: null

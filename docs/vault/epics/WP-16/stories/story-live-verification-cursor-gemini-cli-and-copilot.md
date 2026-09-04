@@ -12,6 +12,7 @@ external_refs: {}
 tags: []
 code_refs: []
 specs: []
+blocked_by: ["WP-14/story-live-verification-codex-and-opencode-run-the-whole-loop"]
 started_at: null
 closed_at: null
 plan_updated_at: null

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Ready work: a story may declare `blocked_by: ["<epic>/<stem>", …]`;
+  `waypost ready` lists stories that are planned, unblocked and unclaimed
+  with the command that claims each, `--all` says why the rest are not;
+  `waypost next` ranks the first three ready stories above warnings; the
+  board tags blocked stories `#blocked`; `doctor` reports a `blocked_by`
+  that names no story, a dependency cycle, block-form `blocked_by`, and two
+  ADRs sharing one number.
+
 ### Changed
 - Coordination follows the repository (ADR-0010): inside a git repository,
   presence and leases now live in the git common dir (`.git/waypost/<vault>/`),

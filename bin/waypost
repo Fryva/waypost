@@ -244,6 +244,14 @@ function handleNext(args) {
     items.push([2, `${c.story} is being worked on by ${c.session} (${c.harness || "?"}, ${c.host})`,
       "coordinate before touching it"]);
   }
+  // Ready work outranks warnings: an unblocked, unclaimed story is what a
+  // session came for (WP-15). Three at most; `waypost ready` has the rest.
+  const ready = (() => {
+    try { return JSON.parse(run("ready", ["--json"], { capture: true })).ready || []; } catch { return []; }
+  })();
+  for (const s of ready.slice(0, 3)) {
+    items.push([2, `ready: ${s.title} (${s.epic}, ${s.priority})`, `waypost story plan ${s.rel} --write`]);
+  }
   for (const f of by("work-without-story", "warn")) {
     items.push([3, "source changes with no story open", 'waypost draft story <EPIC> "<title>" --write']);
   }
@@ -276,6 +284,7 @@ function repairFor(f) {
     gitignore: "waypost doctor --fix", "vault-git": "waypost doctor --fix", "merge-driver": "waypost doctor --fix",
     "line-endings": "waypost doctor --fix", config: "waypost setup",
     "claude-bridge": "waypost doctor --fix", "instructions-size": "waypost doctor",
+    "story-deps": "waypost ready --all", "adr-number": "waypost doctor",
     "agent-skills": "waypost skills install",
   };
   return map[f.check] || null;
@@ -799,6 +808,7 @@ PROCEDURES
   prompt [name]            print a workflow procedure (the verified loop's steps)
   skill [name]             print a bundled skill (waypost-<name> or <name>)
   skills …                 Agent Skills in this project: install [--harness <id,…>|all], list, uninstall, validate
+  ready [--all] [--json]   stories that are planned, unblocked (blocked_by) and unclaimed, with the claim command
   sessions [--touch]       active-session registry (--claim/--release/--prune [--older-than 6h])
   tokens [flags]           what the loop cost, from Claude Code transcripts
                            (Claude-only: no other harness writes them)
@@ -976,6 +986,7 @@ async function main() {
     case "agents": run("agents", rest); break;
     case "harnesses": run("agents", ["harnesses", ...rest]); break;
     case "sessions": run("sessions", rest); break;
+    case "ready": run("ready", rest); break;
     case "brief": await selfInstall(rest); run("brief", rest.filter((a) => a !== "--no-install")); break;
     case "commit": run("commit", rest); break;
     case "merge": run("commit", ["--merge", ...rest]); break;

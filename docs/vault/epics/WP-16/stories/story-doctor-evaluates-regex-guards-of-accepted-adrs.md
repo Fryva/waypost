@@ -12,6 +12,7 @@ external_refs: {}
 tags: []
 code_refs: []
 specs: []
+blocked_by: ["WP-16/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter"]
 started_at: null
 closed_at: null
 plan_updated_at: null

@@ -12,6 +12,7 @@ external_refs: {}
 tags: []
 code_refs: []
 specs: []
+blocked_by: ["WP-16/story-doctor-evaluates-regex-guards-of-accepted-adrs"]
 started_at: null
 closed_at: null
 plan_updated_at: null

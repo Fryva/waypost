@@ -24,6 +24,7 @@ import {
   displayNumberOf,
   compareArtifactOrder,
 } from "./lib.mjs";
+import { readiness } from "./ready.mjs";
 
 function die(msg) {
   process.stderr.write(`waypost kanban: ${msg}\n`);
@@ -105,10 +106,11 @@ function statusToColumn(status) {
   return m[status] || "Backlog";
 }
 
-function renderItem(story) {
+function renderItem(story, blocked = false) {
   const tags = [`#${story.priority}`];
   if (story.status === "done") tags.push("#done");
   if (story.status === "review") tags.push("#review");
+  if (blocked) tags.push("#blocked");
   const wikilink = `[[${story.relPath.replace(/\.md$/, "")}|${story.epicId}: ${story.title}]]`;
   const check = story.status === "done" ? "[x]" : "[ ]";
   return `- ${check} ${wikilink} ${tags.join(" ")}`;
@@ -125,12 +127,17 @@ function main() {
 
   const { stories, skipped } = findStories(cfg.vault_path, epicsFolder.path);
 
+  // Blocked is derived from the blockers' own status (ready.mjs), never stored;
+  // claims are left out here — the board is a file, presence is the moment.
+  let blocked = new Set();
+  try { blocked = new Set(readiness(cfg.vault_path, { claims: [] }).filter((r) => r.blocked && r.status === "planned").map((r) => r.path)); }
+  catch { /* a broken dependency list is doctor's finding, not the board's failure */ }
   const columns = {};
   for (const col of layout.kanban.columns) columns[col] = [];
   for (const s of stories) {
     const col = statusToColumn(s.status);
     if (!columns[col]) columns[col] = [];
-    columns[col].push(renderItem(s));
+    columns[col].push(renderItem(s, blocked.has(s.path)));
   }
 
   const tpl = loadTemplate(cfg.language || "en", "kanban");

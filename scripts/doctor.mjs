@@ -84,6 +84,7 @@ import {
   status as agentStatus,
 } from "./agents.mjs";
 import { status as skillsStatus, skillNames } from "./skills.mjs";
+import { stories as vaultStories } from "./ready.mjs";
 
 function finding(group, level, check, message, file) {
   const f = { group, level, check, message };
@@ -1442,6 +1443,75 @@ export function checkAcceptanceGate(artifacts, vaultCfg) {
   return out;
 }
 
+// `blocked_by` (WP-15): every reference must name a story, and the graph must
+// have no cycle — a cycle is two stories each waiting for the other forever.
+export function checkDependencies(vault) {
+  const out = [];
+  let all;
+  try { all = vaultStories(vault); } catch (e) {
+    return [finding("vault", "warn", "story-deps", `Stories not readable for dependency checks: ${e.message}`)];
+  }
+  const byRef = new Map(all.map((s) => [s.ref, s]));
+  for (const s of all) {
+    if (s.blocked_by_block_form) {
+      out.push(finding("vault", "issue", "story-deps",
+        `${s.ref}: blocked_by is written in block form, which the line-based frontmatter reader reads as empty — write it as a JSON list: blocked_by: ["<epic>/<stem>"].`, s.rel));
+    }
+    for (const b of s.blocked_by) {
+      if (!byRef.has(b)) out.push(finding("vault", "issue", "story-deps",
+        `${s.ref}: blocked_by names no story: ${JSON.stringify(b)} — use <epic>/<story-stem>, as \`waypost story\` prints it.`, s.rel));
+    }
+  }
+  // Cycles: depth-first over the declared edges, reporting each cycle once.
+  const state = new Map();
+  const reported = new Set();
+  const walk = (ref, trail) => {
+    state.set(ref, "visiting");
+    for (const b of (byRef.get(ref) || { blocked_by: [] }).blocked_by) {
+      if (!byRef.has(b)) continue;
+      const st = state.get(b);
+      if (st === "visiting") {
+        const cycle = trail.slice(trail.indexOf(b)).concat(b);
+        const key = [...cycle].sort().join(" ");
+        if (!reported.has(key)) {
+          reported.add(key);
+          out.push(finding("vault", "issue", "story-deps",
+            `dependency cycle: ${cycle.join(" → ")} — each waits for the other; drop one blocked_by.`, byRef.get(ref).rel));
+        }
+      } else if (!st) walk(b, trail.concat(b));
+    }
+    state.set(ref, "done");
+  };
+  for (const s of all) if (!state.has(s.ref)) walk(s.ref, [s.ref]);
+  return out;
+}
+
+// Two decisions with one number: what two sessions drafting in parallel
+// produce (WP-15). Numbering is for humans, so the fix is a rename, not a hash.
+export function checkAdrNumbers(vault, adrFolder = "adr") {
+  const dir = join(vault, adrFolder);
+  let names = [];
+  try { names = readdirSync(dir).filter((n) => n.endsWith(".md")); } catch { return []; }
+  const byNumber = new Map();
+  for (const n of names) {
+    const m = n.match(/^(\d{3,4})-/);
+    if (!m) continue;
+    const key = String(parseInt(m[1], 10));
+    if (!byNumber.has(key)) byNumber.set(key, []);
+    byNumber.get(key).push(n);
+  }
+  const out = [];
+  const taken = [...byNumber.keys()].map(Number);
+  const next = (taken.length ? Math.max(...taken) : 0) + 1;
+  for (const files of byNumber.values()) {
+    if (files.length < 2) continue;
+    const shown = files[0].match(/^\d+/)[0];
+    out.push(finding("vault", "issue", "adr-number",
+      `two decisions share number ${shown}: ${files.join(", ")} — rename one to the next free number (${String(next).padStart(shown.length, "0")}) and fix the links to it.`, `${adrFolder}/${files[1]}`));
+  }
+  return out;
+}
+
 export function checkCodeRefs(artifacts, proj, epicFolderPath = "epics") {
   const out = [];
   const epicRefs = new Map();
@@ -1638,6 +1708,8 @@ export function runVaultChecks(cfg) {
     ...checkSharedVaultState(cfg),
     ...checkExternalRefsForm(artifacts),
     ...checkCodeRefs(artifacts, projectRoot(), folderByKind(layout, "epic")?.path),
+    ...checkDependencies(cfg.vault_path),
+    ...checkAdrNumbers(cfg.vault_path, folderByKind(layout, "adr")?.path || "adr"),
     ...checkSupersedes(nodeIndex, vaultFiles),
     ...checkAcceptanceGate(artifacts, vaultCfg),
     ...checkWorkWithoutStory(cfg, projectRoot()),

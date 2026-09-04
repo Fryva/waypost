@@ -3,7 +3,7 @@ type: story
 id: "story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked"
 epic: "WP-15"
 title: "blocked_by in stories, waypost ready, and a board that shows blocked"
-status: planned
+status: done
 priority: p1
 assignee: "Ivan Morozov"
 created: 2026-09-04
@@ -12,9 +12,9 @@ external_refs: {}
 tags: []
 code_refs: []
 specs: []
-started_at: null
-closed_at: null
-plan_updated_at: null
+started_at: "2026-09-04T18:17:19.636Z"
+closed_at: "2026-09-04T18:23:10.017Z"
+plan_updated_at: "2026-09-04T18:17:19.636Z"
 ---
 
 # blocked_by in stories, waypost ready, and a board that shows blocked
@@ -22,7 +22,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-15](../epic.md) |
-| **Status** | planned |
+| **Status** | done |
 | **Priority** | p1 |
 | **Assignee** | Ivan Morozov |
 
@@ -34,26 +34,23 @@ Stories may declare `blocked_by: [<epic>/<stem>, …]`. `waypost ready` lists st
 
 ## Decomposition
 
-- [ ] Frontmatter field, parsed by the same story reader as `code_refs`
-- [ ] `ready` command in bin/waypost + sessions/kanban integration
-- [ ] Tests: ready/blocked/claimed matrix
+- [x] Frontmatter field, parsed by the same reader as `code_refs` — evidence: scripts/ready.mjs `stories()` via `listOf`
+- [x] `ready` command in bin/waypost + kanban and next integration — evidence: bin/waypost `case "ready"`, `handleNext`; scripts/kanban.mjs `#blocked`
+- [x] Tests: ready/blocked/claimed matrix — evidence: tests/harness.test.mjs "blocked_by, waypost ready, a board that shows blocked, next ranking, and doctor on bad dependencies"
 
 ## Implementation Plan
 
-<!-- Written at the work-start gate (waypost story plan), AFTER studying the
-     codebase. When a spec covers this story, this is a thin route through the
-     spec's contracts: which contracts, in what order, which files. -->
+`scripts/ready.mjs`: `stories(vault)` reads every story's frontmatter (`blocked_by` as a JSON list through `listOf`; block form detected from the raw text), `readiness(vault)` marks each story ready when planned, every blocker settled (done/closed/superseded/archived/cancelled) and no live claim (`claimsOf`). `waypost ready [--all] [--json]` prints ready stories with `waypost story plan <rel> --write`; `next` ranks the first three at rank 2; the board tags `#blocked` (computed from the blockers' status, never stored, claims left out because the board is a file). Waypost's own stories now declare their blockers.
 
 ## Acceptance Criteria
 
-- [ ] `waypost ready --json` matches a fixture matrix
-- [ ] kanban.md marks blocked stories
-- [ ] `waypost next` shows a ready story above install findings
+- [x] `waypost ready --json` matches a fixture matrix — evidence: the test above (unblocked, blocked by open, blocked by unknown, freed by close, claimed by a live session)
+- [x] kanban.md marks blocked stories — evidence: `#blocked` asserted on the board in the test
+- [x] `waypost next` shows a ready story above install findings — evidence: `- ready: First (PS-1, p2)` with its command, asserted in the test
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Landed with the doctor checks of the next story in one change (they share the reader). On this vault `waypost ready` now shows one ready story and three blocked, which is the truth: the dependencies that used to live only in prose are frontmatter.
 
 ## Technical Notes
 
