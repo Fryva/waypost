@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `waypost bind <the same vault>` reset `language` and `layout` to their
+  defaults unless both flags were repeated; a re-bind now keeps what the
+  project already chose, and an explicit flag still changes it.
+
 ## [0.12.0] — 2026-09-04
 
 ### Added

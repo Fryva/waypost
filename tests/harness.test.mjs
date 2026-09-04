@@ -975,6 +975,17 @@ test("one command leaves a project ready, and says what it did", () => {
   assert.match(again, /already bound/, "running it twice is safe and says so");
 });
 
+test("re-binding the same vault keeps the language and layout the project chose", () => {
+  const proj = project();
+  const read = () => JSON.parse(readFileSync(join(proj, ".waypost", "projectstore.json"), "utf8"));
+  waypost(proj, ["bind", join(proj, "vault"), "--lang", "ru"]);
+  waypost(proj, ["bind", join(proj, "vault")]);
+  assert.equal(read().language, "ru", "a flag not repeated is not a request to reset");
+  assert.equal(read().layout, "engineering");
+  waypost(proj, ["bind", join(proj, "vault"), "--lang", "en"]);
+  assert.equal(read().language, "en", "an explicit flag still changes it");
+});
+
 test("the binding follows the checkout: stored relative inside the project, resolved where the tree is mounted", () => {
   const { proj } = bound();
   const stored = () => JSON.parse(readFileSync(join(proj + "-elsewhere", ".waypost", "projectstore.json"), "utf8")).vault_path;

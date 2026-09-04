@@ -303,13 +303,16 @@ function handleBind(args) {
   const [vault] = positionals(args);
   if (!vault) fail('bind <vault-path> [--layout engineering] [--lang en|ru|es|de|fr|zh]');
   const abs = resolve(expandHome(vault));
-  const layout = opt(args, "--layout", "engineering");
-  const lang = opt(args, "--lang", "en");
+  // A re-bind keeps what the project already chose: `waypost bind <same vault>`
+  // used to reset language and layout to their defaults unless both flags were
+  // repeated, which is how a Russian vault came back English.
+  const existing = readConfig();
+  const layout = opt(args, "--layout", (existing && existing.layout) || "engineering");
+  const lang = opt(args, "--lang", (existing && existing.language) || "en");
   checkLayoutExists(layout);
   if (!existsSync(join(ROOT, "templates", lang))) {
     fail(`unknown language "${lang}" — available: ${readdirSync(join(ROOT, "templates")).filter((n) => !n.includes(".")).join(", ")}`);
   }
-  const existing = readConfig();
   if (existing && existing.vault_path && resolve(existing.vault_path) !== abs && !flag(args, "--force")) {
     fail(`already bound to ${existing.vault_path} — re-run with --force to rebind to ${abs}`);
   }
