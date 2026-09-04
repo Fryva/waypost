@@ -890,7 +890,7 @@ const IMPORT_RE = /^@\.?\/?(AGENTS|CLAUDE)\.md\s*$/m;
 // basename, e.g. "AGENTS.md") — the shared file then reaches the harness
 // through that import, so writing the block into ownFile too would be a
 // second copy of standing context the harness reads on every turn (ADR-0008).
-function importsSharedFile(ownPath, sharedFile) {
+export function importsSharedFile(ownPath, sharedFile) {
   let text;
   try { text = readFileSync(ownPath, "utf8"); } catch { return false; }
   const m = text.match(IMPORT_RE);
@@ -915,7 +915,11 @@ export function instructionTargetFor(id, proj = projectRoot()) {
   const own = declared.filter((f) => f.includes("/"));
   const ownPresent = own.filter((f) => existsSync(join(proj, f)));
   const sharedOk = harness(id).instructions_shared_ok !== false;
-  const shared = declared.find((f) => !f.includes("/") && existsSync(join(proj, f)));
+  // A shared candidate that @-imports another existing shared candidate
+  // (CLAUDE.md → AGENTS.md, the bridge Anthropic documents) defers to it:
+  // the block reaches the harness through the import, once.
+  const sharedCandidates = declared.filter((f) => !f.includes("/") && existsSync(join(proj, f)));
+  const shared = sharedCandidates.find((f) => !sharedCandidates.some((g) => g !== f && importsSharedFile(join(proj, f), g)));
   if (ownPresent.length) {
     // An own file that itself @-imports the shared one already reaches the
     // harness through that import (G-1: this repo's own .claude/CLAUDE.md
@@ -930,7 +934,11 @@ export function instructionTargetFor(id, proj = projectRoot()) {
 }
 
 export function instructionTargets(proj = projectRoot()) {
-  const out = new Set(["AGENTS.md", "CLAUDE.md"].filter((f) => existsSync(join(proj, f))));
+  // A root CLAUDE.md that @-imports AGENTS.md already carries the block through
+  // that import (the G-1 rule, which used to cover only .claude/CLAUDE.md):
+  // writing it there too would put it in Claude's context twice.
+  const out = new Set(["AGENTS.md", "CLAUDE.md"].filter((f) => existsSync(join(proj, f))
+    && !(f === "CLAUDE.md" && existsSync(join(proj, "AGENTS.md")) && importsSharedFile(join(proj, f), "AGENTS.md"))));
   for (const id of detectHarnesses(proj)) for (const f of instructionTargetFor(id, proj)) out.add(f);
   return [...out];
 }

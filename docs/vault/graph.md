@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-04T16:24:48.073Z
+generated_at: 2026-09-04T16:29:57.958Z
 
 ---
 
@@ -19,7 +19,7 @@ full typed neighborhood, both directions, in one call.
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
 | epics/WP-14/epic.md | Skills as the portable layer, and the first verified harnesses | epic | planned |
 | epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills.md | Bundled skills and loop procedures rendered as Agent Skills | story | done |
-| epics/WP-14/stories/story-doctor-agentsmd-hygiene-size-duplicate-block-claude-bridge.md | doctor: AGENTS.md hygiene (size, duplicate block, Claude bridge) | story | planned |
+| epics/WP-14/stories/story-doctor-agentsmd-hygiene-size-duplicate-block-claude-bridge.md | doctor: AGENTS.md hygiene (size, duplicate block, Claude bridge) | story | done |
 | epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop.md | Live verification: Codex and OpenCode run the whole loop | story | planned |
 | epics/WP-14/stories/story-skill-descriptions-inside-the-standing-context-budget.md | Skill descriptions inside the standing-context budget | story | done |
 | epics/WP-14/stories/story-skills-registry-a-skillsdir-per-harness-with-evidence.md | Skills registry: a skills.dir per harness, with evidence | story | done |

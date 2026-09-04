@@ -775,6 +775,31 @@ test("`waypost skill` prints a bundled skill by short or full name; setup instal
   assert.ok(existsSync(join(proj, ".agents", "skills", "waypost-draft", "SKILL.md")), "opencode reads .agents/skills");
 });
 
+test("doctor: instruction-file hygiene — length is a warning, and Claude gets its bridge to AGENTS.md", () => {
+  const { proj } = bound();
+  writeFileSync(join(proj, "AGENTS.md"), "# rules\n", "utf8");   // codex's marker, the user's own content
+  mkdirSync(join(proj, ".claude"), { recursive: true });         // claude's marker
+  waypost(proj, ["agents", "register"]);
+  const doctor = () => JSON.parse(waypost(proj, ["doctor", "--install", "--json"], { expectFail: true }).stdout);
+  const bridge = doctor().find((f) => f.check === "claude-bridge");
+  assert.ok(bridge && bridge.level === "warn", "the block sits in AGENTS.md, which Claude Code does not read");
+  waypost(proj, ["doctor", "--install", "--fix"], { expectFail: true });
+  assert.match(readFileSync(join(proj, "CLAUDE.md"), "utf8"), /^@AGENTS\.md$/m, "--fix writes the documented bridge");
+  assert.ok(!doctor().some((f) => f.check === "claude-bridge"));
+  waypost(proj, ["agents", "register"]);
+  assert.doesNotMatch(readFileSync(join(proj, "CLAUDE.md"), "utf8"), /waypost:agents/,
+    "a CLAUDE.md that imports AGENTS.md is not a second target for the block");
+
+  writeFileSync(join(proj, "AGENTS.md"), readFileSync(join(proj, "AGENTS.md"), "utf8") + "- rule\n".repeat(320), "utf8");
+  const size = doctor().find((f) => f.check === "instructions-size");
+  assert.ok(size && size.level === "warn" && /AGENTS\.md is \d+ lines/.test(size.message), JSON.stringify(size));
+
+  // No false positive on this repository: .claude/CLAUDE.md is `@AGENTS.md`.
+  const here = JSON.parse(waypost(REPO, ["doctor", "--install", "--json"], { expectFail: true }).stdout);
+  assert.ok(!here.some((f) => f.check === "claude-bridge" || f.check === "instructions-size"),
+    JSON.stringify(here.filter((f) => /claude-bridge|instructions-size/.test(f.check))));
+});
+
 // ─── the shared CLI ────────────────────────────────────────────────────
 
 test("bind scaffolds the layout and refuses a silent rebind", () => {

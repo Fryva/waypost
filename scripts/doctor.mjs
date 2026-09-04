@@ -79,6 +79,7 @@ import {
   detectHarness,
   harnessIds,
   instructionTargets,
+  importsSharedFile,
   harnessOwnedPaths,
   status as agentStatus,
 } from "./agents.mjs";
@@ -205,6 +206,49 @@ export function checkAgentsBlock(proj) {
   for (const s of staleVersions) {
     out.push(finding("install", "issue", "agents-block",
       `Agents block in ${s.file} is v${s.v}, expected v${AGENT_BLOCK_VERSION} — re-run \`waypost agents register\`.`, s.file));
+  }
+  return out;
+}
+
+// Instruction files against 2026 field practice (the AGENTS.md field guide;
+// Anthropic's own "under 200 lines" for CLAUDE.md): a long file costs context
+// on every turn and is adhered to less, so length is a warning with a generous
+// threshold; and Claude Code reads CLAUDE.md, not AGENTS.md — a project that
+// uses Claude and carries the routing block only in AGENTS.md has a block
+// Claude never sees. The bridge Anthropic documents is a CLAUDE.md that
+// @-imports AGENTS.md, which is what --fix writes.
+export const INSTRUCTIONS_MAX_LINES = 300;
+
+export function checkInstructionsHygiene(proj) {
+  const out = [];
+  for (const name of ["AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md"]) {
+    const p = join(proj, name);
+    if (!existsSync(p)) continue;
+    let lines;
+    try { lines = readFileSync(p, "utf8").split("\n").length; } catch { continue; }
+    if (lines > INSTRUCTIONS_MAX_LINES) {
+      out.push(finding("install", "warn", "instructions-size",
+        `${name} is ${lines} lines — it is read on every turn, and agents adhere less to long instruction files (field practice: 150–200 at the root). Move long material into linked docs or nested files.`, name));
+    }
+  }
+  const running = detectHarness();
+  const claudeUsed = detectHarnesses(proj).includes("claude") || running === "claude";
+  if (claudeUsed) {
+    const agents = join(proj, "AGENTS.md");
+    let agentsHasBlock = false;
+    try { agentsHasBlock = AGENT_BLOCK_MARKER.test(readFileSync(agents, "utf8")); AGENT_BLOCK_MARKER.lastIndex = 0; } catch {}
+    if (agentsHasBlock) {
+      const reaches = ["CLAUDE.md", ".claude/CLAUDE.md"].some((f) => {
+        const p = join(proj, f);
+        if (!existsSync(p)) return false;
+        if (importsSharedFile(p, "AGENTS.md")) return true;
+        try { const has = AGENT_BLOCK_MARKER.test(readFileSync(p, "utf8")); AGENT_BLOCK_MARKER.lastIndex = 0; return has; } catch { return false; }
+      });
+      if (!reaches) {
+        out.push(finding("install", "warn", "claude-bridge",
+          "Claude Code reads CLAUDE.md, not AGENTS.md: the routing block in AGENTS.md never reaches it. `waypost doctor --fix` writes a CLAUDE.md that imports it (`@AGENTS.md`)."));
+      }
+    }
   }
   return out;
 }
@@ -1546,6 +1590,7 @@ export function runInstallChecks(cfg, proj) {
     ...checkAgentRoles(proj, cfg),
     ...checkAgentSkills(proj, cfg),
     ...checkAgentsBlock(proj),
+    ...checkInstructionsHygiene(proj),
     ...checkEnvModel(),
     ...checkEnvEffort(),
     ...checkGitignore(proj),
@@ -1749,6 +1794,13 @@ export function applyFixes(cfg, proj, findings) {
         ? `skills install --harness ${harnesses.join(",")}`
         : `skills install failed: ${(r.stderr || "").trim()}`);
     }
+  }
+
+  if (has("claude-bridge")) {
+    const p = join(proj, "CLAUDE.md");
+    const before = existsSync(p) ? readFileSync(p, "utf8") : "";
+    writeFileSync(p, before.trim() ? `@AGENTS.md\n\n${before}` : "@AGENTS.md\n", "utf8");
+    done.push(before.trim() ? "CLAUDE.md: `@AGENTS.md` import added at the top" : "CLAUDE.md created with `@AGENTS.md` (Claude Code reads it, not AGENTS.md)");
   }
 
   if (has("agents-block", "issue")) {

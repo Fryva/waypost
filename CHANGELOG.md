@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   foreign), repaired by `--fix`, installed by `setup` and by the running
   harness's first `brief`. Descriptions are pinned to a standing-context
   budget by a test. `waypost skill <name>` accepts the short name.
+- `doctor` checks instruction-file hygiene: an `AGENTS.md`/`CLAUDE.md` over
+  300 lines is a warning, and a project that uses Claude Code with the routing
+  block only in `AGENTS.md` gets a `claude-bridge` warning that `--fix`
+  answers with a `CLAUDE.md` importing it (`@AGENTS.md`). `agents register`
+  no longer writes the block into a root `CLAUDE.md` that already imports
+  `AGENTS.md`.
 - The harness registry records where each tool discovers project-level Agent
   Skills (`skills.dir`, `skills.reads`, with the evidence discipline of the
   entry itself); `waypost harnesses` shows the directory and `--json` carries

@@ -285,6 +285,8 @@ function repairFor(f) {
     graph: "waypost graph", "agent-roles": "waypost agents install", "agents-block": "waypost agents register",
     gitignore: "waypost doctor --fix", "vault-git": "waypost doctor --fix", "merge-driver": "waypost doctor --fix",
     "line-endings": "waypost doctor --fix", config: "waypost setup",
+    "claude-bridge": "waypost doctor --fix", "instructions-size": "waypost doctor",
+    "agent-skills": "waypost skills install",
   };
   return map[f.check] || null;
 }
