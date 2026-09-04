@@ -2,14 +2,12 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-04T18:23:31.316Z
+generated_at: 2026-09-04T18:29:12.927Z
 
 ---
 
 ## Backlog
 
-- [ ] [[epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix|WP-16: check guards name the project's own fitness command; doctor prints it and never runs it]] #p2 #blocked
-- [ ] [[epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs|WP-16: doctor evaluates regex guards of accepted ADRs]] #p1
 - [ ] [[epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot|WP-16: Live verification: Cursor, Gemini CLI and Copilot]] #p2 #blocked
 
 ## ToDo
@@ -38,6 +36,8 @@ generated_at: 2026-09-04T18:23:31.316Z
 - [x] [[epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version|WP-15: Runtime coordination moves to the git common dir; old records read for one version]] #p1 #done
 - [x] [[epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository|WP-15: Shared-checkout detection covers sibling worktrees of one repository]] #p2 #done
 - [x] [[epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter|WP-16: ADR-0011 accepted: guards and drafted_by in ADR frontmatter]] #p1 #done
+- [x] [[epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix|WP-16: check guards name the project's own fitness command; doctor prints it and never runs it]] #p2 #done
+- [x] [[epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs|WP-16: doctor evaluates regex guards of accepted ADRs]] #p1 #done
 
 
 

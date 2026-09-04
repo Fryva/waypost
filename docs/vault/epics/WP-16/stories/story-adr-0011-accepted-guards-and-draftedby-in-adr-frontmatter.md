@@ -36,7 +36,7 @@ Take ADR-0011 from proposed to accepted: a fresh-context critic pass, the owner'
 
 - [x] Critic pass, findings folded into the ADR — evidence: ADR-0011 "Verification and follow-up", commit 2744366
 - [x] Owner decision — evidence: delegated 2026-09-04; `deciders` in the ADR frontmatter
-- [ ] Template and how-it-works gain `guards`/`drafted_by` — lands with the doctor story that reads them
+- [x] Template and how-it-works gain `guards`/`drafted_by` — evidence: templates/*/adr.md.tmpl (six languages), docs/how-it-works.md "Guards"
 
 ## Implementation Plan
 
@@ -45,7 +45,7 @@ Critic pass (Opus, fresh context) on 2026-09-04: verdict revise; `run` guards cu
 ## Acceptance Criteria
 
 - [x] The ADR index shows 0011 accepted — evidence: docs/vault/adr/README.md
-- [ ] templates/*/adr.md.tmpl carries the optional fields — deferred to the guards story, so the template and the reader land together
+- [x] templates/*/adr.md.tmpl carries the optional fields — evidence: `drafted_by: {{drafted_by}}` and `guards: []` in all six templates; `draft adr` renders them (harness test)
 
 ## Final Summary
 

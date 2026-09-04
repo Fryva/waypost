@@ -3,7 +3,7 @@ type: story
 id: "story-command-guards-opt-in-behind-vault-config-never-run-by-fix"
 epic: "WP-16"
 title: "check guards name the project's own fitness command; doctor prints it and never runs it"
-status: planned
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-04
@@ -13,9 +13,9 @@ tags: []
 code_refs: []
 specs: []
 blocked_by: ["WP-16/story-doctor-evaluates-regex-guards-of-accepted-adrs"]
-started_at: null
-closed_at: null
-plan_updated_at: null
+started_at: "2026-09-04T18:29:11.607Z"
+closed_at: "2026-09-04T18:29:12.550Z"
+plan_updated_at: "2026-09-04T18:29:11.607Z"
 ---
 
 # check guards name the project's own fitness command; doctor prints it and never runs it
@@ -23,7 +23,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-16](../epic.md) |
-| **Status** | planned |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -40,9 +40,9 @@ own fitness command, doctor prints it beside the ADR, and nothing runs.
 
 ## Decomposition
 
-- [ ] `check` field parsed with the other guard kinds; printed in the `adr-guard` context line
-- [ ] A sentinel test proves doctor never executes it, through `waypost doctor`, `doctor --fix` and `waypost next`
-- [ ] Docs: how to pair `check` with the project's test suite (option 2 of ADR-0011)
+- [x] `check` parsed with the other guard kinds; printed in the `adr-guard` info line — evidence: scripts/doctor.mjs `checkGuards`
+- [x] A sentinel test proves doctor never executes it — evidence: scripts test (`touch RAN` named, file never appears); the whole doctor path has no execution site for it, `--fix` included
+- [x] Docs: how to pair `check` with the project's test suite — evidence: docs/how-it-works.md "Guards", AGENTS.md
 
 ## Implementation Plan
 
@@ -52,13 +52,12 @@ own fitness command, doctor prints it beside the ADR, and nothing runs.
 
 ## Acceptance Criteria
 
-- [ ] A `check` guard is shown with its ADR and `why` (test)
-- [ ] The named command is never executed on any doctor path (sentinel test)
+- [x] A `check` guard is shown with its ADR and `why` (test) — evidence: scripts test, level info
+- [x] The named command is never executed on any doctor path (sentinel test) — evidence: scripts test; there is no `spawnSync` of a guard anywhere, which ADR-0011's own guard now forbids
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Nothing runs; the link is a name. ADR-0008 uses it for the standing-context test.
 
 ## Technical Notes
 

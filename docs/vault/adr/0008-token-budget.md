@@ -14,6 +14,7 @@ review_status: reviewed
 reviewed_at: 2026-09-01
 deciders: "Ivan Morozov (project owner); approved 2026-09-03"
 related: "ADR-0003 (roles), `agents/*.md`, `templates/agents-block.md.tmpl`, `scripts/brief.mjs`, `bin/waypost`"
+guards: [{"check": "npm test -- --test-name-pattern=\"standing context\"", "why": "the routing block and the role and skill descriptions are re-read every turn; the test pins their size"}]
 ---
 # ADR-0008: Context spend as a design constraint, not an outcome
 

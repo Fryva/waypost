@@ -810,6 +810,26 @@ test("doctor: instruction-file hygiene — length is a warning, and Claude gets 
     JSON.stringify(here.filter((f) => /claude-bridge|instructions-size/.test(f.check))));
 });
 
+// ─── guards and provenance (ADR-0011) ──────────────────────────────────
+
+test("draft adr records who drafted it; a guard in an accepted ADR reaches doctor and next", () => {
+  const { proj, vault } = bound();
+  waypost(proj, ["draft", "adr", "Use the shared client", "--write"], { env: { WAYPOST_HARNESS: "codex", WAYPOST_PROVIDER: "openai" } });
+  const p = join(vault, "adr", "use-the-shared-client.md");
+  let t = readFileSync(p, "utf8");
+  assert.match(t, /^drafted_by: \{"harness":"codex","provider":"openai","date":"\d{4}-\d{2}-\d{2}"\}$/m, "flow form, no session id");
+  assert.match(t, /^guards: \[\]$/m);
+  mkdirSync(join(proj, "src"), { recursive: true });
+  writeFileSync(join(proj, "src", "api.ts"), "import axios from 'axios';\n", "utf8");
+  t = t.replace(/^status: proposed$/m, "status: accepted").replace(/^guards: \[\]$/m, 'guards: [{"forbid": "from \'axios\'", "in": "src/**/*.ts", "why": "HTTP goes through the shared client"}]');
+  writeFileSync(p, t, "utf8");
+  const f = JSON.parse(waypost(proj, ["doctor", "--json"], { expectFail: true }).stdout).find((x) => x.check === "adr-guard");
+  assert.ok(f && f.level === "issue" && /src\/api\.ts:1/.test(f.message), JSON.stringify(f));
+  assert.match(waypost(proj, ["next"]).stdout, /forbid .* matched[\s\S]*waypost doctor/, "next names the guard with its command");
+  writeFileSync(join(vault, "adr", "hand-made.md"), "---\ntype: adr\nid: \"ADR-0099\"\ntitle: hand made\nstatus: proposed\ndate: 2026-09-04\n---\n# hand made\n", "utf8");
+  assert.doesNotMatch(readFileSync(join(vault, "adr", "hand-made.md"), "utf8"), /drafted_by/, "a hand-made file asserts nothing");
+});
+
 // ─── ready work (WP-15) ─────────────────────────────────────────────────
 
 test("blocked_by, waypost ready, a board that shows blocked, next ranking, and doctor on bad dependencies", () => {

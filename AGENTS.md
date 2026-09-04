@@ -221,6 +221,14 @@ One project may be driven by several sessions at the same time (ADR-0006):
   by hand it is `waypost reconcile --write` (or `waypost graph` if the graph does not
   exist yet).
 - **Before finishing** — `waypost doctor`, and `waypost next` if anything is unclear.
+- **A decision can check itself** (ADR-0011): an ADR may carry
+  `guards: [{"forbid": "<regex>", "in": "<glob>", "not_in": "<glob>", "why": "…"},
+  {"require": "<regex>", "in": "<glob>", "why": "…"}, {"check": "<command>", "why": "…"}]`
+  on one line. `doctor` evaluates `forbid`/`require` over the files the glob
+  selects (issue for `accepted`, "would fail" for `proposed`, nothing for
+  `superseded`); `check` names the project's own fitness command and is never
+  executed. `draft adr --write` records `drafted_by` (harness, provider, date)
+  as the environment asserts it.
 - **Frontmatter is checked, not just stored** (ADR-0009): a `code_refs` path must
   resolve at any status unless annotated `(waiting)`/`(planned)`/`(deleted)`;
   `supersedes`/`superseded_by` must be mutual and land on a real artifact, and the

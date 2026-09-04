@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Decisions that check themselves (ADR-0011): an ADR may carry `guards`
+  (`forbid`/`require` regexes over `in`/`not_in` globs, with a mandatory
+  `why`); `doctor` evaluates them over the project's files — issue for an
+  accepted decision, "would fail" for a proposed one — and names the file and
+  line; a `check` guard names the project's fitness command and is never
+  executed. `draft adr --write` records `drafted_by`; the ADR templates carry
+  both fields.
 - Ready work: a story may declare `blocked_by: ["<epic>/<stem>", …]`;
   `waypost ready` lists stories that are planned, unblocked and unclaimed
   with the command that claims each, `--all` says why the rest are not;

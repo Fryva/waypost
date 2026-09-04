@@ -9,11 +9,12 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["scripts/doctor.mjs (planned)", "scripts/draft.mjs (planned)", "scripts/lib.mjs (planned)", "templates/en/adr.md.tmpl (planned)", "bin/waypost (planned)", "tests/scripts.test.mjs (planned)"]
+code_refs: ["scripts/doctor.mjs", "scripts/draft.mjs", "templates/en/adr.md.tmpl", "bin/waypost", "tests/scripts.test.mjs", "tests/harness.test.mjs"]
 review_status: reviewed
 reviewed_at: 2026-09-04
 deciders: "Ivan Morozov (project owner); approved 2026-09-04 by delegation after the fresh-context critic pass"
 related: "ADR-0009 (artifact integrity checks), ADR-0008 (token budget), `scripts/doctor.mjs`, `scripts/lib.mjs` (`parseFrontmatter`), `agents/critic.md`, `agents/reviewer.md`"
+guards: [{"forbid": "spawnSync\\([^\\n]*g\\.check", "in": "scripts/doctor.mjs", "why": "a check guard names a command; doctor must never execute it"}, {"require": "checkGuards\\(", "in": "scripts/doctor.mjs", "why": "the guard reader exists and is registered"}]
 ---
 # ADR-0011: Decisions that check themselves: guards and provenance in ADRs
 

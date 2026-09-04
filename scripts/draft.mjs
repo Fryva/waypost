@@ -70,6 +70,10 @@ function commonVars(cfg) {
     date: today(),
     author: cfg.default_author || process.env.USER || "anonymous",
     tags: JSON.stringify(cfg.tags || []),
+    // Provenance, as the environment asserts it (ADR-0011): the harness and
+    // provider bin/waypost pinned, and the date. No session id — it embeds a
+    // hostname and a pid, which belong in commit trailers, not in a tracked file.
+    drafted_by: JSON.stringify({ harness: process.env.WAYPOST_HARNESS || null, provider: process.env.WAYPOST_PROVIDER || null, date: today() }),
   };
 }
 

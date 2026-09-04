@@ -163,6 +163,20 @@ when they are missing, as it does roles; `waypost skill <name>` prints one.
   `--force`: git has no hook before `checkout`/`restore`/`stash`/`reset`/`clean`,
   so an uncommitted edit there is protected only by committing it at once.
 
+## Guards: decisions that check themselves (ADR-0011)
+
+An accepted ADR may carry `guards` in its frontmatter — flow form, one line,
+since the frontmatter reader is line-based: `forbid` fails on any match in a
+file the `in` glob selects (`not_in` excludes), `require` on every selected
+file without a match; patterns run over the whole file, and the finding names
+the ADR, the file, the line and the guard's `why`. A glob that selects nothing
+is a finding of its own; a pattern that does not compile is one finding, and
+the next guard still runs; files over 1 MB and selections over 5000 files are
+skipped and said so. `check` names the project's own fitness command and is
+never executed — `doctor` runs unattended on every clone through `waypost next`,
+so nothing in an artifact may run a command. `draft adr --write` records
+`drafted_by` (harness, provider, date) as the environment asserts it.
+
 ## Context spend (ADR-0008)
 
 Standing in the context: the routing block (197 tokens), the role descriptions a

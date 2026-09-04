@@ -1004,6 +1004,50 @@ async function vaultFindings(proj, check) {
   }
 }
 
+test("doctor guards: forbid, require, not_in, levels by status, bounds and a check that is never run (ADR-0011)", async () => {
+  const { checkGuards } = await import("../scripts/doctor.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-guards-"));
+  mkdirSync(join(proj, "src", "a"), { recursive: true }); mkdirSync(join(proj, "services", "x"), { recursive: true });
+  writeFileSync(join(proj, "src", "a", "http.ts"), "import x from\n  'axios';\nexport const y = 1;\n", "utf8");
+  writeFileSync(join(proj, "src", "a", "http.test.ts"), "import axios from 'axios';\n", "utf8");
+  writeFileSync(join(proj, "services", "x", "index.ts"), "export function f() { return bus.publish(1); }\n", "utf8");
+  writeFileSync(join(proj, "services", "x", "other.ts"), "export const nothing = 1;\n", "utf8");
+  const files = ["src/a/http.ts", "src/a/http.test.ts", "services/x/index.ts", "services/x/other.ts"];
+  const adr = (status, guards) => ({ rel: "adr/0001-x.md", kind: "adr", fm: { status, guards: JSON.stringify(guards) }, body: "---\nstatus: x\n---\n" });
+  const run = (status, guards) => checkGuards([adr(status, guards)], proj, { files });
+
+  const forbid = { forbid: "from\\s+'axios'", in: "src/**/*.ts", not_in: "src/**/*.test.ts", why: "HTTP goes through the shared client" };
+  let f = run("accepted", [forbid]);
+  assert.equal(f.length, 1); assert.equal(f[0].level, "issue");
+  assert.match(f[0].message, /forbid .* matched in src\/a\/http\.ts:1 — HTTP goes through the shared client/, "whole-file matching finds the wrapped import and names the line");
+  assert.doesNotMatch(f[0].message, /http\.test\.ts/, "not_in excludes the test file");
+  f = run("proposed", [forbid]);
+  assert.equal(f[0].level, "info"); assert.match(f[0].message, /^would fail: /);
+  assert.deepEqual(run("superseded", [forbid]), [], "a superseded decision guards nothing");
+
+  f = run("accepted", [{ require: "bus\\.publish\\(", in: "services/**/*.ts", why: "services talk through the bus" }]);
+  assert.equal(f.length, 1); assert.match(f[0].message, /require .* missing in services\/x\/other\.ts — services talk through the bus/, "require means every selected file");
+
+  f = run("accepted", [{ forbid: "x", in: "nowhere/**", why: "w" }]);
+  assert.match(f[0].message, /selects no file — a guard that cannot fail is worse than none/);
+
+  f = run("accepted", [{ forbid: "(", in: "src/**", why: "w" }, forbid]);
+  assert.equal(f.length, 2, "a bad pattern is its own finding and the next guard still runs");
+  assert.match(f[0].message, /does not compile/);
+  assert.match(f[1].message, /matched in/);
+
+  f = run("accepted", [{ forbid: "x", in: "src/**" }]);
+  assert.match(f[0].message, /no why/);
+
+  const sentinel = join(proj, "RAN");
+  f = run("accepted", [{ check: `touch ${sentinel}`, why: "the project's own arch test" }]);
+  assert.equal(f[0].level, "info"); assert.match(f[0].message, /never executes it/);
+  assert.ok(!existsSync(sentinel), "a check is named, not run");
+
+  const block = { rel: "adr/0002-y.md", kind: "adr", fm: { status: "accepted", guards: "" }, body: "---\nguards:\n  - forbid: x\n---\n" };
+  assert.match(checkGuards([block], proj, { files })[0].message, /block form/);
+});
+
 test("doctor code_refs: unresolved is a warning at proposed, an issue at done (ADR-0009)", async () => {
   const { checkCodeRefs } = await import("../scripts/doctor.mjs");
   const proj = mkdtempSync(join(tmpdir(), "wp-refs-"));
