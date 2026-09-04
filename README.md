@@ -107,6 +107,7 @@ honest.
 | `waypost harnesses` | which agent tools are supported |
 | `waypost commit -m "…" [--story <id>]` | commit with harness/session/story trailers |
 | `waypost skills install` | the bundled procedures as Agent Skills, in the directory your tool reads |
+| `waypost ready` | stories that are planned, unblocked and unclaimed, with the command that claims each |
 | `waypost sessions` / `lease` / `watch` | see and coordinate who is working |
 | `waypost status` | a summary of the setup and role state |
 
