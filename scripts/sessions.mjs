@@ -145,7 +145,7 @@ function main() {
     claim: (p.claim && p.claim.story) || null,
     self: p.self,
   }));
-  out.stale = view.peers.filter((p) => !p.live).map((p) => ({ id: p.session, host: p.host, at: p.at }));
+  out.stale = view.peers.filter((p) => !p.live).map((p) => ({ id: p.session, host: p.host, at: p.at, ended: !!p.ended }));
   out.claims = claimsOf(vault);
   out.leases = readLeases(vault, { self: sid })
     .filter((l) => l.live)

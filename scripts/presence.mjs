@@ -118,6 +118,64 @@ function ensure(dir) {
 // so is more useful than silently reading one of them.
 const CONFLICT_COPY = /( \d+\.json$|conflicted copy|\(конфликт|\.sync-conflict-)/i;
 
+// ─── The harness process, on this host ─────────────────────────────────
+//
+// ADR-0007 rules pid liveness out ACROSS hosts: another machine's pid means
+// nothing here. On the same host it is exact, and it answers the one question
+// the counter cannot: idle, or gone? A session's record used to wait 24h for
+// --prune after its harness had exited. So a beat records the harness
+// process — the nearest ancestor of the CLI that is not a shell or a sandbox
+// wrapper (the per-command shell a harness spawns dies with the command; the
+// harness itself lives as long as the session) — with its start time, so a
+// reused pid is not mistaken for the original. A reader on the same host looks
+// the pid up in the process table: absent, or present with another start
+// time, means the session is gone whatever its counter says. No table (Windows,
+// no `ps`) and no record mean no opinion: the counter rules stay.
+const SHELLS = /(^|\/)-?(sh|bash|zsh|fish|dash|ksh|tcsh|csh|nu|pwsh|powershell|sandbox-exec|bwrap|sudo|env|script|login)$/;
+
+export function processTable() {
+  if (platform() === "win32") return null;
+  let r;
+  try { r = spawnSync("ps", ["axo", "pid=,ppid=,lstart=,comm="], { encoding: "utf8", timeout: 5000 }); } catch { return null; }
+  if (!r || r.status !== 0 || !r.stdout) return null;
+  const table = new Map();
+  for (const line of r.stdout.split("\n")) {
+    const m = line.match(/^\s*(\d+)\s+(\d+)\s+(\w{3}\s+\w{3}\s+\d+\s+[\d:]+\s+\d{4})\s+(.*)$/);
+    if (m) table.set(Number(m[1]), { pid: Number(m[1]), ppid: Number(m[2]), started: m[3].replace(/\s+/g, " "), comm: m[4].trim() });
+  }
+  return table.size ? table : null;
+}
+
+export function harnessProcess(table) {
+  // Resolved once by bin/waypost's main(), where process.ppid is the shell or
+  // harness, and pinned in WAYPOST_PROC for the scripts it spawns — whose own
+  // parent is bin/waypost itself, gone the moment the command ends (G-1).
+  if (process.env.WAYPOST_PROC) {
+    try { const p = JSON.parse(process.env.WAYPOST_PROC); if (p && p.pid) return p; } catch { /* fall through */ }
+  }
+  if (table === undefined) table = processTable();
+  if (!table) return null;
+  let pid = process.ppid;
+  for (let depth = 0; depth < 32 && pid > 1; depth++) {
+    const p = table.get(pid);
+    if (!p) return null;
+    if (!SHELLS.test(p.comm)) return { pid: p.pid, started: p.started, comm: basename(p.comm) };
+    pid = p.ppid;
+  }
+  return null;
+}
+
+// true: gone; false: alive; null: not decidable here (another host, no
+// process recorded, no process table).
+export function processGone(rec, table) {
+  const proc = rec && rec.proc;
+  if (!proc || !proc.pid || rec.host !== hostname().split(".")[0]) return null;
+  if (table === undefined) table = processTable();
+  if (!table) return null;
+  const p = table.get(Number(proc.pid));
+  return !p || Boolean(proc.started && p.started !== proc.started);
+}
+
 // ─── Heartbeat ─────────────────────────────────────────────────────────
 
 export function selfDescriptor(sessionId, harness) {
@@ -144,6 +202,7 @@ export function beat(vault, sessionId, { harness = null, doing = null, claim = n
   const rec = {
     ...selfDescriptor(sessionId, harness || (prev && prev.harness)),
     vault_rel: vaultOffset(vault),
+    proc: harnessProcess(),
     seq: ((prev && Number(prev.seq)) || 0) + 1,
     at: new Date().toISOString(),
     started_at: (prev && prev.started_at) || new Date().toISOString(),
@@ -205,6 +264,9 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
   // is re-seeded next time, which is never worse than first sight).
   const next = {};
   const out = [];
+  const here = hostname().split(".")[0];
+  let table;
+  const tableOnce = () => (table === undefined ? (table = processTable()) : table);
   let names = [];
   try { names = readdirSync(dir); } catch { return { peers: [], storage, conflicts: [] }; }
 
@@ -251,13 +313,19 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
     }
     next[key] = entry;
     const sinceLocalChange = now - entry.changed_at;
-    const live = sinceLocalChange < window;
+    const isSelf = self != null && rec.session === self;
+    // On this host the process table settles "idle or gone" exactly; nothing
+    // else about liveness changes (see harnessProcess()).
+    const gone = !isSelf && rec.proc && rec.host === here ? processGone(rec, tableOnce()) === true : false;
+    const live = !gone && sinceLocalChange < window;
 
     out.push({
       ...rec,
-      self: self != null && rec.session === self,
+      self: isSelf,
       live,
-      basis: firstSight ? "first sight (their timestamp seeds the clock; the counter decides from here)" : "observed locally",
+      ended: gone,
+      basis: gone ? "harness process gone on this host"
+        : firstSight ? "first sight (their timestamp seeds the clock; the counter decides from here)" : "observed locally",
       quiet_ms: firstSight ? null : sinceLocalChange,
       file: join(dir, name),
     });
@@ -278,7 +346,10 @@ export function prunePresence(vault, { self = null, maxAgeMs = 24 * 60 * 60 * 10
   const { peers: ps } = peers(vault, { self, now, persist: false });
   let removed = 0;
   for (const p of ps) {
-    if (p.self || p.live) continue;
+    if (p.self) continue;
+    // Its harness process is gone from this host: nothing to wait 24h for.
+    if (p.ended) { if (!dryRun) { try { unlinkSync(p.file); } catch {} } removed++; continue; }
+    if (p.live) continue;
     // Either evidence is enough once the record is not live: our own
     // observation of it standing still, or its own timestamp — a remote clock,
     // but the 24h threshold dwarfs any real skew, and without it a device that

@@ -107,6 +107,24 @@ not an exception to "never delete what is not yours" — it is the same rule
 reap of data whose own owner will simply recreate it next time it beats, as
 opposed to a human guessing which record is safe to delete by hand.
 
+**Amendment 2026-09-04: the harness process, on this host.** Pid liveness is
+ruled out *across* hosts above, and stays so. On the same host it is exact,
+and it answers the one question the counter cannot: idle, or gone? A beat now
+records the harness process — the nearest ancestor of the CLI that is not a
+shell or a sandbox wrapper, since the per-command shell a harness spawns dies
+with the command while the harness lives as long as the session — with its
+start time, so a reused pid is not mistaken for the original. It is resolved
+once, in `bin/waypost`'s `main()`, and pinned in `WAYPOST_PROC` for the
+scripts that command spawns, whose own parent is `bin/waypost` itself (the
+same reasoning as the session id, ADR-0006). A reader on the same host looks
+that pid up in the process table (`ps`, so not on Windows, where the counter
+rules stay): absent, or present with another start time, is `ended` — not
+live whatever the counter says, and reaped by `--prune` at once instead of
+after 24h. Records from other hosts, and records without process information,
+are judged exactly as before. Residual risk: two pid namespaces under one
+hostname (containers) can read a live neighbour as gone; the reap is
+mechanical and the neighbour's next beat recreates its record.
+
 **Cross-OS.** doctor reports non-portable names (`<>:"|?*`, segments ending in a
 space or dot, reserved `CON/NUL/COM1…`, long paths) and case collisions;
 `--fix` writes `* text=auto` into `.gitattributes`. Atomic-write temp files now

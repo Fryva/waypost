@@ -150,6 +150,9 @@ One project may be driven by several sessions at the same time (ADR-0006):
   presence or lease records, files without waypost provenance. A stale lease is
   taken over through the normal path, never by hand; a presence record quiet
   for 24h+ is reaped the same way, by `waypost sessions --prune`, never by hand.
+  On this host a record whose harness process is gone is reaped by `--prune` at
+  once: a beat records that process, and a pid means something only on the
+  machine that issued it.
 - **Cross-OS hygiene**: `waypost doctor` catches names that cannot be checked out on
   Windows, case collisions and a missing line-ending policy; `--fix` writes
   `* text=auto`. Do not create vault names with `<>:"|?*`, with a trailing space

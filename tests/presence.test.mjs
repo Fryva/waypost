@@ -8,12 +8,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { tmpdir, hostname } from "node:os";
+import { tmpdir, hostname, platform } from "node:os";
 import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   beat, peers, acquire, release, readLeases, winnerOf, storageOf, presenceDir, leaseDir, vaultRel,
-  prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset,
+  prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset, processGone,
 } from "../scripts/presence.mjs";
 import { claimsOf } from "../scripts/sessions.mjs";
 import { checkPortableNames } from "../scripts/doctor.mjs";
@@ -34,13 +34,13 @@ function project() {
 // `beat()`, a rewrite of an existing record keeps its started_at (that is what
 // tells "same session, still here" from "same id, new session"); pass
 // `started_at` explicitly to write a fresh incarnation.
-function peerFile(vault, { session, seq = 1, at = new Date().toISOString(), host = "otherbox", os = "win32-10", harness = "codex", claim = null, started_at = null, project_root = "C:\\work\\proj", vault_rel = null }) {
+function peerFile(vault, { session, seq = 1, at = new Date().toISOString(), host = "otherbox", os = "win32-10", harness = "codex", claim = null, started_at = null, project_root = "C:\\work\\proj", vault_rel = null, proc = null }) {
   mkdirSync(presenceDir(vault), { recursive: true });
   const file = join(presenceDir(vault), `${session}.json`);
   let prev = null;
   try { prev = JSON.parse(readFileSync(file, "utf8")); } catch {}
   writeFileSync(file, JSON.stringify({
-    session, host, os, harness, seq, at, started_at: started_at || (prev && prev.started_at) || at, project_root, vault_rel, claim,
+    session, host, os, harness, seq, at, started_at: started_at || (prev && prev.started_at) || at, project_root, vault_rel, proc, claim,
   }, null, 2), "utf8");
 }
 
@@ -579,6 +579,36 @@ test("brief and sessions name a shared checkout, and commit --all refuses to swe
 
   const forced = run(["commit", "-m", "all of it", "--all", "--force"]);
   assert.equal(forced.status, 0, forced.stderr);
+});
+
+// ─── the harness process, on this host ─────────────────────────────────
+
+test("a beat records the harness process; on this host a gone process ends the session at once", () => {
+  const { proj, vault } = project();
+  const me = hostname().split(".")[0];
+  withProject(proj, () => {
+    const mine = beat(vault, "me", { harness: "claude" });
+    if (platform() === "win32") { assert.equal(mine.proc, null, "no process table on Windows: the counter rules stay"); return; }
+    assert.ok(mine.proc && mine.proc.pid > 0 && mine.proc.started, "our own ancestor, alive right now");
+    assert.equal(processGone(mine), false);
+    const past = "Thu Sep 3 00:00:00 2026";
+    peerFile(vault, { session: "ended", host: me, proc: { pid: 4194000, started: past, comm: "claude" } });
+    peerFile(vault, { session: "reused", host: me, proc: { pid: mine.proc.pid, started: past, comm: "claude" } });
+    peerFile(vault, { session: "remote", host: "otherbox", proc: { pid: 4194000, started: past, comm: "codex" } });
+    peerFile(vault, { session: "legacy", host: me });
+    const view = peers(vault, { self: "me" });
+    const by = (id) => view.peers.find((p) => p.session === id);
+    assert.equal(by("ended").live, false);
+    assert.equal(by("ended").ended, true);
+    assert.match(by("ended").basis, /process gone on this host/);
+    assert.equal(by("reused").live, false, "a live pid with another start time is not the original process");
+    assert.equal(by("remote").live, true, "another host's pid is judged by the counter, never by our process table");
+    assert.equal(by("legacy").live, true, "a record without process information keeps the counter rules");
+    assert.equal(by("me").live, true);
+    assert.equal(prunePresence(vault, { self: "me", dryRun: true }), 2, "the ended ones are reaped now, not in 24h");
+    assert.equal(prunePresence(vault, { self: "me" }), 2);
+    assert.deepEqual(readdirSync(presenceDir(vault)).sort(), ["legacy.json", "me.json", "remote.json"]);
+  });
 });
 
 // ─── one session, one id ───────────────────────────────────────────────
