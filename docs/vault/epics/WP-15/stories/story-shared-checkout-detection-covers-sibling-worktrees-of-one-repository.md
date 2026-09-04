@@ -3,7 +3,7 @@ type: story
 id: "story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository"
 epic: "WP-15"
 title: "Shared-checkout detection covers sibling worktrees of one repository"
-status: planned
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-04
@@ -12,9 +12,9 @@ external_refs: {}
 tags: []
 code_refs: []
 specs: []
-started_at: null
-closed_at: null
-plan_updated_at: null
+started_at: "2026-09-04T18:14:29.428Z"
+closed_at: "2026-09-04T18:14:30.249Z"
+plan_updated_at: "2026-09-04T18:14:29.428Z"
 ---
 
 # Shared-checkout detection covers sibling worktrees of one repository
@@ -22,7 +22,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-15](../epic.md) |
-| **Status** | planned |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -34,25 +34,22 @@ plan_updated_at: null
 
 ## Decomposition
 
-- [ ] Record the common dir in presence records
-- [ ] Signal and wording in sharedTree, brief, sessions
-- [ ] Tests
+- [x] `common_dir` in presence records — evidence: scripts/presence.mjs `selfDescriptor`
+- [x] Signal and wording in sharedTree, brief, sessions — evidence: `sharedTree().siblings`, brief "Sibling worktrees of this repository", sessions "sibling worktrees of this repository: …"
+- [x] Tests — evidence: "a live peer on another host in this very checkout is shared; a sibling worktree is named, never shared (ADR-0010)" and the worktree test in tests/presence.test.mjs
 
 ## Implementation Plan
 
-<!-- Written at the work-start gate (waypost story plan), AFTER studying the
-     codebase. When a spec covers this story, this is a thin route through the
-     spec's contracts: which contracts, in what order, which files. -->
+Landed in the same change as the move (7392907), as ADR-0010 requires: every presence record carries `common_dir`; `sharedTree` reads same common dir + different project root as a sibling worktree and returns `siblings` beside `with`; the vault-offset signal is retired. brief and sessions print siblings with their project root; the shared-checkout gate on `commit --all` ignores them; their leases surface through the existing lease list and commit gate.
 
 ## Acceptance Criteria
 
-- [ ] A sibling-worktree peer is named as such in brief and sessions (test)
-- [ ] A foreign lease from a sibling worktree is shown with the worktree path
+- [x] A sibling-worktree peer is named as such in brief and sessions (test) — evidence: worktree test asserts `shared_tree.siblings` and the brief line
+- [x] A foreign lease from a sibling worktree is shown — evidence: the worktree test sees the sibling's lease in `sessions --json` `leases`; sessions/brief already print foreign leases with their session
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Closed with the move; the only design change from the plan is the one ADR-0010's critic forced: the vault-offset signal is gone rather than kept beside the new one.
 
 ## Technical Notes
 

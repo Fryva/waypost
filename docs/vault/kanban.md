@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-04T18:14:00.225Z
+generated_at: 2026-09-04T18:14:30.545Z
 
 ---
 
@@ -10,7 +10,6 @@ generated_at: 2026-09-04T18:14:00.225Z
 
 - [ ] [[epics/WP-15/stories/story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked|WP-15: blocked_by in stories, waypost ready, and a board that shows blocked]] #p1
 - [ ] [[epics/WP-15/stories/story-doctor-dangling-and-cyclic-dependencies-duplicate-adr-numbers|WP-15: doctor: dangling and cyclic dependencies, duplicate ADR numbers]] #p2
-- [ ] [[epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository|WP-15: Shared-checkout detection covers sibling worktrees of one repository]] #p2
 - [ ] [[epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix|WP-16: check guards name the project's own fitness command; doctor prints it and never runs it]] #p2
 - [ ] [[epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs|WP-16: doctor evaluates regex guards of accepted ADRs]] #p1
 - [ ] [[epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot|WP-16: Live verification: Cursor, Gemini CLI and Copilot]] #p2
@@ -37,6 +36,7 @@ generated_at: 2026-09-04T18:14:00.225Z
 - [x] [[epics/WP-14/stories/story-waypost-skills-install-list-and-uninstall-doctor-staleness-brief-self-install|WP-14: waypost skills install, list and uninstall; doctor staleness; brief self-install]] #p2 #done
 - [x] [[epics/WP-15/stories/story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir|WP-15: ADR-0010 accepted: presence, leases and claims in the git common dir]] #p1 #done
 - [x] [[epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version|WP-15: Runtime coordination moves to the git common dir; old records read for one version]] #p1 #done
+- [x] [[epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository|WP-15: Shared-checkout detection covers sibling worktrees of one repository]] #p2 #done
 - [x] [[epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter|WP-16: ADR-0011 accepted: guards and drafted_by in ADR frontmatter]] #p1 #done
 
 
