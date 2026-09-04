@@ -131,7 +131,9 @@ One project may be driven by several sessions at the same time (ADR-0006):
   correct board in the merge commit itself.
 - **Session identity**: a harness should export `WAYPOST_SESSION_ID` (and
   `WAYPOST_HARNESS` when it cannot be detected from the environment), otherwise the
-  id is derived from the terminal or the parent pid and may fragment.
+  id is derived from the terminal or the parent pid and may fragment. The harness
+  is detected before the id is derived, so one session never splits into
+  `<tail>` and `<harness>-<tail>`.
 
 ## Several devices and operating systems (ADR-0007)
 

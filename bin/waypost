@@ -877,21 +877,9 @@ async function selfInstall(rest) {
 async function heartbeat(cmd) {
   if (QUIET_COMMANDS.has(cmd) || process.env.WAYPOST_NO_BEAT) return;
   try {
-    // Session id is already resolved and pinned in WAYPOST_SESSION_ID by main()
-    // before this runs (G-1) — no need to import sessions.mjs or lib.mjs just
-    // to derive it again here.
-    // Resolve the harness once, here, and pin it in the environment so the
-    // child this command spawns (sessions, lease, watch, status, brief) labels
-    // the session the way commits already do — presence used to show "?" for a
-    // session commit stamped "claude" (E-3). Detection reads the registry, so
-    // do it only when a beat is actually going to happen.
-    if (!process.env.WAYPOST_HARNESS) {
-      try {
-        const { detectHarness } = await import(`file://${SCRIPT("agents")}`);
-        const h = detectHarness();
-        if (h && h !== "unknown") process.env.WAYPOST_HARNESS = h;
-      } catch { /* detection is best-effort; a null harness is still valid */ }
-    }
+    // Harness and session id are already resolved and pinned in the environment
+    // by main() (G-1, E-3): the child this command spawns (sessions, lease,
+    // watch, status, brief) labels the session the way commits do.
     const { beat } = await import(`file://${SCRIPT("presence")}`);
     const cfg = readConfig();
     if (cfg && cfg.vault_path && existsSync(cfg.vault_path)) {
@@ -901,12 +889,6 @@ async function heartbeat(cmd) {
 }
 
 async function main() {
-  // Resolved ONCE, here, where process.ppid genuinely is the shell or harness
-  // that invoked the CLI — not inside a script bin/waypost spawns, whose parent
-  // pid is bin/waypost itself and is different on every single invocation (G-1).
-  // Every child this process spawns inherits it via `env: { ...process.env }`.
-  if (!process.env.WAYPOST_SESSION_ID) process.env.WAYPOST_SESSION_ID = sessionId(process.argv);
-
   const argv = process.argv.slice(2);
   // --project is recognised ONLY in the leading position, before the command
   // name — not anywhere in argv, or a positional argument that happens to
@@ -919,6 +901,26 @@ async function main() {
     } else break;
   }
   const args = argv.slice(i);
+
+  // Harness first, then the session id — in that order, once, here (G-1). The
+  // id carries the harness as a prefix, and deriving it before the harness was
+  // known used to split one session in two: `8-48df-…` from a command that ran
+  // before anything pinned WAYPOST_HARNESS, `claude-8-48df-…` from one that ran
+  // after — two presence records, two trailer values, one session. Detection
+  // reads the registry, which may hold project overrides, so it runs after
+  // --project is known. process.ppid genuinely is the shell or harness that
+  // invoked the CLI here — not inside a script bin/waypost spawns, whose parent
+  // pid is bin/waypost itself and differs on every invocation. Every child this
+  // process spawns inherits both via `env: { ...process.env }`.
+  if (!process.env.WAYPOST_HARNESS) {
+    try {
+      const { detectHarness } = await import(`file://${SCRIPT("agents")}`);
+      const h = detectHarness();
+      if (h && h !== "unknown") process.env.WAYPOST_HARNESS = h;
+    } catch { /* detection is best-effort; a null harness is still valid */ }
+  }
+  if (!process.env.WAYPOST_SESSION_ID) process.env.WAYPOST_SESSION_ID = sessionId(process.argv);
+
   const [cmd = "", ...rest] = args;
   await heartbeat(cmd);
 

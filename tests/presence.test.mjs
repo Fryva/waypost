@@ -581,6 +581,34 @@ test("brief and sessions name a shared checkout, and commit --all refuses to swe
   assert.equal(forced.status, 0, forced.stderr);
 });
 
+// ─── one session, one id ───────────────────────────────────────────────
+
+test("one session gets one id whether or not the harness was pinned before the id was derived", () => {
+  const { proj, vault } = project();
+  spawnSync("git", ["config", "user.email", "t@e.com"], { cwd: proj });
+  spawnSync("git", ["config", "user.name", "T"], { cwd: proj });
+  // Nothing inherited may pre-decide the answer: the harness comes from a
+  // registry marker set here, the id from the harness's own session variable.
+  const base = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^WAYPOST_(HARNESS|SESSION_ID)$/.test(k)));
+  const run = (args, env = {}) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd: proj,
+    env: { ...base, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, CLAUDECODE: "1",
+      CLAUDE_CODE_SESSION_ID: "3e3378c8-d5be-4efe-b94e-ef6c665ce008", ...env },
+  });
+  const me = (r) => JSON.parse(r.stdout).active.find((s) => s.self).id;
+  const detected = me(run(["sessions", "--json"]));
+  const exported = me(run(["sessions", "--json"], { WAYPOST_HARNESS: "claude" }));
+  assert.equal(detected, "claude-e-4efe-b94e-ef6c665ce008", "the harness prefix is there even when nothing exported it");
+  assert.equal(exported, detected, "and the same when something did");
+  assert.deepEqual(readdirSync(presenceDir(vault)), [`${detected}.json`], "two invocations, one presence record");
+
+  writeFileSync(join(proj, "a.txt"), "a", "utf8");
+  const c = run(["commit", "-m", "one id", "--", "a.txt"]);
+  assert.equal(c.status, 0, c.stderr);
+  const trailer = spawnSync("git", ["log", "-1", "--format=%(trailers:key=Waypost-Session,valueonly)"], { cwd: proj, encoding: "utf8" }).stdout.trim();
+  assert.equal(trailer, detected, "the commit is stamped with the same id presence shows");
+});
+
 // ─── storage awareness ─────────────────────────────────────────────────
 
 test("storage kind decides how stale presence may be, and it is stated", () => {

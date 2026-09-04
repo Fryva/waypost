@@ -5,6 +5,15 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- One session, one id: the harness is detected before the session id is
+  derived, so the id's harness prefix no longer depends on whether
+  `WAYPOST_HARNESS` happened to be pinned already. One Claude Code session used
+  to leave two presence records (`8-48df-…` and `claude-8-48df-…`) and stamp
+  commits with either (ADR-0006 amendment).
+
 ## [0.12.1] — 2026-09-04
 
 ### Fixed

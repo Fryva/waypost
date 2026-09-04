@@ -113,6 +113,13 @@ for one process tree driven by one shell, but two separate `waypost` invocations
 from two different shells (no harness or terminal env var in either) still
 derive two different ids, since neither shell's pid is known to the other.
 
+Amendment 2026-09-04: the harness is detected (registry env markers, or
+`WAYPOST_HARNESS`) *before* the id is derived, and both are pinned together in
+`main()`. The derived id carries the harness as a prefix, and deriving it first
+split one session in two — `8-48df-…` from a command that ran before anything
+pinned the harness, `claude-8-48df-…` from one that ran after — with two
+presence records and two `Waypost-Session` values for one session.
+
 ## Consequences
 
 ### Positive
