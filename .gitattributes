@@ -1,0 +1,14 @@
+
+# waypost: one line-ending policy, or a Windows session's first commit
+# rewrites every file it touches and conflicts with every parallel edit.
+# eol=lf is not decoration: without it checkout falls back to core.eol.
+* text=auto eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+
+# waypost: derived views are regenerated from the artifacts, never merged.
+# `waypost merge-derived` re-derives them; see docs/decisions/0006-*.md.
+docs/vault/kanban.md merge=waypost-derived
+docs/vault/graph.md merge=waypost-derived
+docs/vault/code-map.md merge=waypost-derived
+docs/vault/**/README.md merge=waypost-derived

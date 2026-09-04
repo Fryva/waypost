@@ -29,6 +29,8 @@ harness-agnostic fork.
 | [0007](0007-shared-vault-presence.md) | accepted | 2026-09-01 | Working from several devices and operating systems: presence, leases, network drives |
 | [0008](0008-token-budget.md) | accepted | 2026-09-01 | Context spend as a design constraint, not an outcome |
 | [0009](0009-artifact-integrity-checks.md) | accepted | 2026-09-02 | doctor verifies artifact integrity, not just story mechanics |
+| [0010](0010-coordination-follows-the-repository.md) | proposed | 2026-09-04 | Coordination follows the repository: runtime state in the git common dir |
+| [0011](0011-decisions-that-check-themselves.md) | proposed | 2026-09-04 | Decisions that check themselves: guards and provenance in ADRs |
 
 ## Checklist before finishing
 
