@@ -34,22 +34,22 @@ Run the whole loop for real in Codex CLI and OpenCode against a throwaway projec
 
 ## Decomposition
 
-- [ ] OpenCode is installed here (1.18.25); Codex needs installing
-- [ ] Script the scenario so it is repeatable; note each harness's quirks in the registry `notes`
-- [ ] Fix defects found; set confidence `verified`
-- [ ] README: a compatibility matrix with dates
+- [x] Runbook written and used — evidence: docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md
+- [x] OpenCode, partial: `waypost brief` and `waypost next` ran through its bash tool headless (session ses_f92a9951…, 2026-09-04); the full nine-step loop stalled twice after OpenCode's `init` without a session — evidence: registry note, ~/.local/share/opencode/log
+- [x] Defect found and fixed: nested-harness detection by process (f2dfe91) — evidence: test "a harness started from inside another is detected by its process…"
+- [ ] OpenCode, the full loop in an interactive session — owner's machine, runbook in hand
+- [ ] Codex: install, sign in, run the runbook — owner's machine
+- [x] README matrix with dates — evidence: README "Verified live"
 
 ## Implementation Plan
 
-<!-- Written at the work-start gate (waypost story plan), AFTER studying the
-     codebase. When a spec covers this story, this is a thin route through the
-     spec's contracts: which contracts, in what order, which files. -->
+Runbook "Verify a harness live" in `ops/`; OpenCode driven headless with `opencode run --pure` from a throwaway project prepared by `waypost setup`; Codex needs installing and signing in first.
 
 ## Acceptance Criteria
 
-- [ ] harnesses/codex.json and harnesses/opencode.json read `verified` with a 2026-09 date and a note of what was exercised
-- [ ] README has the matrix
-- [ ] Any defect found has a test
+- [ ] harnesses/codex.json and harnesses/opencode.json read `verified` with a 2026-09 date — not yet: both stay `documented`, with dated notes of what was exercised
+- [x] README has the matrix — evidence: README "Verified live"
+- [x] Any defect found has a test — evidence: f2dfe91
 
 ## Final Summary
 
@@ -58,7 +58,7 @@ Run the whole loop for real in Codex CLI and OpenCode against a throwaway projec
 
 ## Technical Notes
 
-The heaviest defects so far were found by running the CLI as a harness would; expect more.
+A headless run is evidence only for what it executed. The heaviest defect so far (nested-harness detection) surfaced within the first two commands of the first run, which is the argument for running the rest interactively rather than paper over it.
 
 ## Dependencies
 

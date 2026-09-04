@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-04T16:55:06.617Z
+generated_at: 2026-09-04T17:11:10.798Z
 
 ---
 
@@ -48,6 +48,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md | doctor evaluates regex guards of accepted ADRs | story | planned |
 | epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot.md | Live verification: Cursor, Gemini CLI and Copilot | story | planned |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
+| ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
 
 ## Edges

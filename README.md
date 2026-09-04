@@ -133,6 +133,21 @@ Five roles ship: `critic`, `planner`, `reviewer`, `librarian`, `archaeologist`.
 They are read-only by contract — they propose; writes go through the
 approval-gated `waypost` flow.
 
+## Verified live
+
+`waypost harnesses` marks every entry `verified`, `documented` or `inferred`
+(see [docs/harnesses.md](docs/harnesses.md)). Verified means the whole loop —
+setup, brief, a story, a commit, sessions, leases, doctor — was run inside that
+tool, from its own session, on the date given. The runbook is in the vault
+(`ops/`: "Verify a harness live").
+
+| Tool | Status | Date | What was exercised |
+|---|---|---|---|
+| Claude Code | verified | 2026-09-04 | the whole loop, daily, on this repository and a second project |
+| OpenCode | documented, run partially | 2026-09-04 | headless `opencode run --pure` executed `waypost brief` and `waypost next` with permissions auto-allowed; the full loop still needs an interactive session |
+| Codex CLI | documented | — | not installed on the verifying machine yet |
+| the other 18 | documented / inferred | — | formats from vendor docs; see the registry `notes` |
+
 ## Working across tools, machines and people
 
 Two agents in two different tools on one repo is the case this fork is built for.

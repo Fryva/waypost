@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   foreign), repaired by `--fix`, installed by `setup` and by the running
   harness's first `brief`. Descriptions are pinned to a standing-context
   budget by a test. `waypost skill <name>` accepts the short name.
+- A harness started from inside another (OpenCode from a Claude Code session)
+  is detected by its own process, not by the inherited env markers, so it no
+  longer records itself as the outer harness or installs the outer harness's
+  roles. Found by the first live OpenCode run; the README now carries a
+  verified-live matrix and the vault a runbook for running one.
 - `doctor` checks instruction-file hygiene: an `AGENTS.md`/`CLAUDE.md` over
   300 lines is a warning, and a project that uses Claude Code with the routing
   block only in `AGENTS.md` gets a `claude-bridge` warning that `--fix`
