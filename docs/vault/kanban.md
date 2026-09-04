@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-04T16:47:45.473Z
+generated_at: 2026-09-04T16:48:05.070Z
 
 ---
 
@@ -14,7 +14,6 @@ generated_at: 2026-09-04T16:47:45.473Z
 - [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
 - [ ] [[epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version|WP-15: Runtime coordination moves to the git common dir; old records read for one version]] #p1
 - [ ] [[epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository|WP-15: Shared-checkout detection covers sibling worktrees of one repository]] #p2
-- [ ] [[epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter|WP-16: ADR-0011 accepted: guards and drafted_by in ADR frontmatter]] #p1
 - [ ] [[epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix|WP-16: check guards name the project's own fitness command; doctor prints it and never runs it]] #p2
 - [ ] [[epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs|WP-16: doctor evaluates regex guards of accepted ADRs]] #p1
 - [ ] [[epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot|WP-16: Live verification: Cursor, Gemini CLI and Copilot]] #p2
@@ -39,6 +38,7 @@ generated_at: 2026-09-04T16:47:45.473Z
 - [x] [[epics/WP-14/stories/story-skills-registry-a-skillsdir-per-harness-with-evidence|WP-14: Skills registry: a skills.dir per harness, with evidence]] #p1 #done
 - [x] [[epics/WP-14/stories/story-waypost-skills-install-list-and-uninstall-doctor-staleness-brief-self-install|WP-14: waypost skills install, list and uninstall; doctor staleness; brief self-install]] #p2 #done
 - [x] [[epics/WP-15/stories/story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir|WP-15: ADR-0010 accepted: presence, leases and claims in the git common dir]] #p1 #done
+- [x] [[epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter|WP-16: ADR-0011 accepted: guards and drafted_by in ADR frontmatter]] #p1 #done
 
 
 
