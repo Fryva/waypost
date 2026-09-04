@@ -13,7 +13,7 @@ import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   beat, peers, acquire, release, readLeases, winnerOf, storageOf, presenceDir, leaseDir, vaultRel,
-  prunePresence, LIVE_WINDOW_MS,
+  prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset,
 } from "../scripts/presence.mjs";
 import { claimsOf } from "../scripts/sessions.mjs";
 import { checkPortableNames } from "../scripts/doctor.mjs";
@@ -34,13 +34,13 @@ function project() {
 // `beat()`, a rewrite of an existing record keeps its started_at (that is what
 // tells "same session, still here" from "same id, new session"); pass
 // `started_at` explicitly to write a fresh incarnation.
-function peerFile(vault, { session, seq = 1, at = new Date().toISOString(), host = "otherbox", os = "win32-10", harness = "codex", claim = null, started_at = null }) {
+function peerFile(vault, { session, seq = 1, at = new Date().toISOString(), host = "otherbox", os = "win32-10", harness = "codex", claim = null, started_at = null, project_root = "C:\\work\\proj", vault_rel = null }) {
   mkdirSync(presenceDir(vault), { recursive: true });
   const file = join(presenceDir(vault), `${session}.json`);
   let prev = null;
   try { prev = JSON.parse(readFileSync(file, "utf8")); } catch {}
   writeFileSync(file, JSON.stringify({
-    session, host, os, harness, seq, at, started_at: started_at || (prev && prev.started_at) || at, project_root: `C:\\work\\proj`, claim,
+    session, host, os, harness, seq, at, started_at: started_at || (prev && prev.started_at) || at, project_root, vault_rel, claim,
   }, null, 2), "utf8");
 }
 
@@ -481,6 +481,103 @@ test("commit refuses to write over a file another live session is editing", () =
   assert.match(blocked.stderr, /app\.ts — remote on otherbox \(cursor\)/);
 
   const forced = run(["commit", "-m", "touch it", "--force"], { WAYPOST_SESSION_ID: "me" });
+  assert.equal(forced.status, 0, forced.stderr);
+});
+
+// ─── a shared checkout ─────────────────────────────────────────────────
+
+test("a lease path is spelled the way a staged path is spelled, wherever it came from", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    assert.equal(vaultRel(join(proj, "src", "x.rs"), vault), "src/x.rs", "absolute, outside the vault: project-relative");
+    assert.equal(vaultRel("src/x.rs", vault), "src/x.rs", "relative: taken from the project root");
+    assert.equal(vaultRel(join(vault, "adr", "0001.md"), vault), "adr/0001.md", "absolute, inside the vault: vault-relative");
+    assert.equal(vaultRel("vault/adr/0001.md", vault), "adr/0001.md", "the vault's own prefix is stripped");
+    assert.ok(vaultRel("/elsewhere/y.rs", vault).endsWith("/elsewhere/y.rs"), "under neither: absolute, honestly");
+    acquire(vault, [join(proj, "src", "x.rs")], { sessionId: "me", settleMs: 0 });
+    assert.deepEqual(readLeases(vault, { self: "me" }).map((l) => l.path), ["src/x.rs"],
+      "what `waypost commit` compares against `git diff --cached --name-only`");
+  });
+});
+
+test("a live peer on another host in this very checkout means it is shared — by path, or by the vault inside it", () => {
+  const { proj, vault } = project();
+  const me = hostname().split(".")[0];
+  withProject(proj, () => {
+    assert.equal(vaultOffset(vault), "vault");
+    assert.equal(vaultOffset("/somewhere/outside"), null);
+    peerFile(vault, { session: "second-terminal", host: me, project_root: proj });
+    peerFile(vault, { session: "same-path", host: "otherbox", project_root: proj });
+    peerFile(vault, { session: "other-clone", host: "otherbox", project_root: "/home/x/other-clone" });
+    peerFile(vault, { session: "gone", host: "otherbox", at: new Date(Date.now() - 3600e3).toISOString(), project_root: proj });
+    peerFile(vault, { session: "via-vault", host: "linuxbox", project_root: "/mnt/share/proj", vault_rel: "vault" });
+    peerFile(vault, { session: "clone-on-shared-vault", host: "linuxbox", project_root: "/home/y/clone", vault_rel: null });
+    const st = sharedTree(vault, { self: "me" });
+    assert.equal(st.shared, true);
+    assert.deepEqual(st.with.map((p) => [p.session, p.basis]).sort(), [
+      ["same-path", "same project root"],
+      ["via-vault", "same vault inside the checkout (vault/)"],
+    ], "a second terminal on this machine is ADR-0006's case; a separate clone, a stale record and a clone bound to a shared vault are not this checkout");
+    assert.equal(st.storage.kind, "local", "a temp dir is local storage: nothing here came from the storage signal");
+  });
+});
+
+test("on cloud storage a live peer on another host shares the checkout even when its path is spelled differently", () => {
+  const proj = join(mkdtempSync(join(tmpdir(), "waypost-d-")), "Dropbox", "proj");
+  mkdirSync(proj, { recursive: true });
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  spawnSync(process.execPath, [Waypost, "bind", join(proj, "vault")], {
+    encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+  });
+  const vault = join(proj, "vault");
+  withProject(proj, () => {
+    peerFile(vault, { session: "winbox", seq: 1, host: "otherbox", project_root: "C:\\Users\\x\\Dropbox\\proj" });
+    peerFile(vault, { session: "my-other-clone", seq: 1, host: hostname().split(".")[0], project_root: "/somewhere/else" });
+    const st = sharedTree(vault, { self: "me" });
+    assert.equal(st.storage.provider, "Dropbox");
+    assert.deepEqual(st.with.map((p) => [p.session, p.basis]), [["winbox", "project root on Dropbox"]],
+      "another host on the same synced directory counts; another clone on this host does not");
+  });
+});
+
+test("brief and sessions name a shared checkout, and commit --all refuses to sweep it", () => {
+  const { proj, vault } = project();
+  const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd: proj,
+    env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
+  });
+  spawnSync("git", ["config", "user.email", "t@e.com"], { cwd: proj });
+  spawnSync("git", ["config", "user.name", "T"], { cwd: proj });
+  writeFileSync(join(proj, "app.ts"), "// mine\n", "utf8");
+  writeFileSync(join(proj, "theirs.ts"), "// half-done, not mine\n", "utf8");
+  withProject(proj, () => peerFile(vault, { session: "remote", seq: 1, harness: "cursor", project_root: proj }));
+
+  const brief = run(["brief"]);
+  assert.equal(brief.status, 0, brief.stderr);
+  assert.match(brief.stdout, /This checkout is shared\*\* with remote on otherbox \(cursor\), same project root/);
+  assert.match(brief.stdout, /Commit verified work at once/);
+
+  // Before any --touch: a live peer must not hide behind the legacy-registry hint.
+  assert.match(run(["sessions"]).stdout, /shared checkout: remote on otherbox \(cursor\), same project root/);
+  assert.equal(run(["sessions", "--touch"]).status, 0);
+  assert.equal(JSON.parse(readFileSync(join(presenceDir(vault), "me.json"), "utf8")).vault_rel, "vault",
+    "our own record says where the vault sits inside this checkout, for the other OS to compare");
+  assert.equal(JSON.parse(run(["sessions", "--json"]).stdout).shared_tree.with[0].session, "remote");
+
+  const swept = run(["commit", "-m", "everything", "--all"]);
+  assert.notEqual(swept.status, 0);
+  assert.match(swept.stderr, /checkout is shared with remote on otherbox \(cursor\)/);
+  assert.match(swept.stderr, /--all would stage their uncommitted edits/);
+  assert.equal(spawnSync("git", ["diff", "--cached", "--name-only"], { cwd: proj, encoding: "utf8" }).stdout.trim(), "",
+    "refused before staging anything");
+
+  const mine = run(["commit", "-m", "just mine", "--", "app.ts"]);
+  assert.equal(mine.status, 0, mine.stderr);
+  const files = spawnSync("git", ["show", "--name-only", "--format=", "HEAD"], { cwd: proj, encoding: "utf8" }).stdout;
+  assert.match(files, /app\.ts/);
+  assert.doesNotMatch(files, /theirs\.ts/, "explicit paths never touch the other session's file");
+
+  const forced = run(["commit", "-m", "all of it", "--all", "--force"]);
   assert.equal(forced.status, 0, forced.stderr);
 });
 

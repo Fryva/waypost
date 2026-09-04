@@ -47,7 +47,7 @@ import {
 } from "./lib.mjs";
 import { detectProvider } from "./agents.mjs";
 import { sessionId, claimsOf, CLAIM_WINDOW_MS } from "./sessions.mjs";
-import { readLeases, vaultRel } from "./presence.mjs";
+import { readLeases, vaultRel, sharedTree, sharedWith } from "./presence.mjs";
 import { runReconcile } from "./reconcile.mjs";
 
 function die(msg) {
@@ -197,6 +197,19 @@ function main() {
   // regardless of .gitignore: this very command writes the presence cache
   // before staging, and a project that never ran `doctor --fix` would
   // otherwise ship one machine's clock stamps to every clone.
+  // A shared checkout (ADR-0007 addendum): another live session works in this
+  // very working copy, so "everything modified" includes their half-finished
+  // edits — which --all/--tracked would stage under OUR trailers. Explicit
+  // paths say what is ours; --force says we know.
+  const sweep = has("--all") ? "--all" : has("--tracked") ? "--tracked" : null;
+  if (sweep && cfg && cfg.vault_path && !has("--force")) {
+    const shared = sharedTree(cfg.vault_path, { self });
+    if (shared.shared) {
+      die(`this checkout is shared with ${sharedWith(shared)}:\n`
+        + `       ${sweep} would stage their uncommitted edits under your trailers.\n`
+        + '       Stage explicit paths (waypost commit -m "…" -- <paths>), or re-run with --force.');
+    }
+  }
   if (has("--all")) git(["add", "-A", "--", ".", ":!.waypost"]);
   if (has("--tracked")) git(["add", "-u"]);
   if (pathspec.length) git(["add", "--", ...pathspec]);

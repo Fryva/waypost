@@ -147,6 +147,9 @@ waypost watch                # stay live and see others join, leave, take a stor
 Liveness never compares one machine's clock with another's, so a device whose
 clock is hours off is still judged correctly, and every answer says how stale it
 might be. See [ADR-0007](docs/decisions/0007-shared-vault-presence.md).
+When two sessions share one *checkout*, not just one vault, `waypost brief` says
+so, and `waypost commit --all` refuses to sweep the other session's uncommitted
+edits into your commit.
 
 ## What it costs to run
 

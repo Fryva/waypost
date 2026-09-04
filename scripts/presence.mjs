@@ -35,7 +35,7 @@
 import {
   existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync, statSync,
 } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, resolve } from "node:path";
 import { hostname, platform, release as osRelease, userInfo } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -143,6 +143,7 @@ export function beat(vault, sessionId, { harness = null, doing = null, claim = n
   try { prev = JSON.parse(readFileSync(p, "utf8")); } catch {}
   const rec = {
     ...selfDescriptor(sessionId, harness || (prev && prev.harness)),
+    vault_rel: vaultOffset(vault),
     seq: ((prev && Number(prev.seq)) || 0) + 1,
     at: new Date().toISOString(),
     started_at: (prev && prev.started_at) || new Date().toISOString(),
@@ -313,11 +314,32 @@ function hash(s) {
   return h.toString(36);
 }
 
+// A lease is keyed by a path every session spells the same way: vault-relative
+// inside the vault, project-relative outside it (`waypost commit` compares leases
+// against `git diff --cached --name-only`, which is project-relative), and
+// absolute only when the path is under neither. A relative argument is taken
+// from the project root, as `waypost commit -- <paths>` takes it. The raw string
+// used to go in as typed, so `waypost lease /abs/proj/src/x.rs` recorded a lease
+// no staged path could ever match.
+const normPath = (s) => String(s || "").replace(/\\/g, "/").replace(/\/+$/, "");
+const underPath = (a, base) => (a === base ? "" : a.startsWith(base + "/") ? a.slice(base.length + 1) : null);
 export const vaultRel = (p, vault) => {
-  const norm = String(p).replace(/\\/g, "/");
-  const v = String(vault).replace(/\\/g, "/").replace(/\/$/, "");
-  return norm.startsWith(v + "/") ? norm.slice(v.length + 1) : norm;
+  const abs = normPath(resolve(projectRoot(), String(p)));
+  const inVault = underPath(abs, normPath(vault));
+  if (inVault !== null) return inVault;
+  const inProject = underPath(abs, normPath(projectRoot()));
+  return inProject !== null ? inProject : abs;
 };
+
+// Where the vault sits inside the checkout ("vault", "docs/vault", "." when
+// the vault is the checkout), or null when it lives outside. Every presence
+// record carries it: it is what lets a session on another OS tell "the same
+// checkout" from "the same vault" — see sharedTree().
+export function vaultOffset(vault) {
+  if (!vault) return null;
+  const rel = underPath(normPath(vault), normPath(projectRoot()));
+  return rel === null ? null : rel === "" ? "." : rel;
+}
 
 export function readLeases(vault, { now = Date.now(), self = null, persist = true } = {}) {
   const dir = leaseDir(vault);
@@ -452,6 +474,52 @@ function sleep(ms) {
 }
 
 // ─── CLI ───────────────────────────────────────────────────────────────
+
+// ─── A shared checkout ─────────────────────────────────────────────────
+//
+// ADR-0007 modelled a shared VAULT. What happened in the field (2026-09-03) was
+// a shared CHECKOUT: two machines on one working copy, and a `git checkout --
+// <file>` on one of them reverted an edit the other had verified but not yet
+// committed. Git runs no hook before checkout/restore/stash/reset/clean, so
+// this cannot be prevented — only named while it still matters. Three signals,
+// every one about a live peer on ANOTHER host (two sessions on one machine in
+// one checkout are ADR-0006's case, covered by leases, and their `--all` stays
+// their own call), all advisory like everything else here:
+//   1. it reports OUR project root — the same directory under the same path;
+//   2. its vault sits inside its checkout at the same offset as ours — the
+//      presence file we are reading arrived through a directory inside this
+//      checkout, so the checkout is the same one whatever each OS calls it
+//      (a separate clone bound to a shared vault reports no offset);
+//   3. our project root is on cloud/network storage — the path may differ per
+//      OS, the directory cannot.
+export function sharedTree(vault, { self = null, now = Date.now(), persist = true, view = null } = {}) {
+  const v = view || peers(vault, { self, now, persist });
+  const root = normPath(projectRoot());
+  const here = hostname().split(".")[0];
+  const storage = storageOf(projectRoot());
+  const offset = vaultOffset(vault);
+  const describe = (p, basis) => ({
+    session: p.session, host: p.host, harness: p.harness || null, os: p.os || null,
+    project_root: p.project_root || null, basis,
+  });
+  const found = [];
+  for (const p of v.peers) {
+    if (!p.live || p.self || !p.host || p.host === here) continue;
+    if (p.project_root && normPath(p.project_root) === root) found.push(describe(p, "same project root"));
+    else if (offset != null && p.vault_rel != null && normPath(p.vault_rel) === offset) found.push(describe(p, `same vault inside the checkout (${offset}/)`));
+    else if (storage.kind !== "local") found.push(describe(p, `project root on ${storage.provider}`));
+  }
+  return { shared: found.length > 0, with: found, storage };
+}
+
+// One sentence every gate repeats, so brief, sessions and commit agree on what
+// a shared checkout means and on the one rule that helps.
+export const SHARED_TREE_ADVICE = "an uncommitted edit here is uncommitted on their side too: "
+  + "`git checkout --`, `restore`, `stash`, `reset --hard` or `clean` from either side erases the other's unsaved work, "
+  + "and git has no hook to stop it. Commit verified work at once (`waypost commit -- <paths>`); "
+  + "before any revert, check `waypost sessions` and `waypost lease list`.";
+export const sharedWith = (st) => st.with
+  .map((p) => `${p.session} on ${p.host}${p.harness ? ` (${p.harness})` : ""}, ${p.basis}`).join("; ");
 
 // CLI: node presence.mjs storage | lease <path…> | release [path…] | list
 function main() {

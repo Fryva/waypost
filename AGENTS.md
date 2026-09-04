@@ -144,6 +144,20 @@ One project may be driven by several sessions at the same time (ADR-0006):
   Windows, case collisions and a missing line-ending policy; `--fix` writes
   `* text=auto`. Do not create vault names with `<>:"|?*`, with a trailing space
   or dot, or differing only in case.
+- **A shared checkout is the sharper case.** When a session on another host is
+  live and reports this same project root, or a vault inside its checkout at
+  the same offset as ours, or the project root sits on a cloud/network drive,
+  both sessions edit one working copy:
+  `git checkout -- <path>`, `git restore`, `git stash`, `git reset --hard` and
+  `git clean` on either side erase the other's uncommitted work, and git runs
+  no hook that could stop them. `waypost brief`, `sessions` and `status` say when
+  this is the case. Then: commit verified work at once
+  (`waypost commit -m "…" -- <paths>`); never revert a path you did not edit
+  yourself without checking `waypost sessions` and `waypost lease list`; and
+  `waypost commit --all`/`--tracked` refuses there without `--force`, because it
+  would stage the other session's half-finished edits under your trailers. Two
+  sessions on one machine in one checkout carry the same exposure; there the
+  leases above are the protection, and `--all` stays your own call.
 
 ## Context spend (ADR-0008)
 

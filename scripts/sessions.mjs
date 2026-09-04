@@ -32,6 +32,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   beat, clearPresence, peers, storageOf, readLeases, acquire, release, vaultRel, prunePresence,
+  sharedTree, sharedWith, SHARED_TREE_ADVICE,
 } from "./presence.mjs";
 import {
   readConfig,
@@ -150,6 +151,8 @@ function main() {
     .filter((l) => l.live)
     .map((l) => ({ path: l.path, session: l.session, host: l.host, harness: l.harness, mine: l.mine }));
   if (view.conflicts.length) out.sync_conflicts = view.conflicts;
+  const shared = sharedTree(vault, { self: sid, view });
+  out.shared_tree = { shared: shared.shared, with: shared.with };
 
   if (json) {
     process.stdout.write(JSON.stringify(out, null, 2) + "\n");
@@ -170,7 +173,9 @@ function main() {
       process.stdout.write(`${staleCount} stale session record(s) — waypost sessions --prune\n`);
     }
   }
-  if (!existsSync(sessionsDir(vault))) {
+  // The legacy registry is optional since presence beats by itself; its hint
+  // must not hide a peer that is live right now (a shared checkout, for one).
+  if (!existsSync(sessionsDir(vault)) && !out.active.some((s) => !s.self)) {
     process.stdout.write("no session registry yet — run `waypost sessions --touch` at the start of a session\n");
     return;
   }
@@ -187,6 +192,9 @@ function main() {
   }
   for (const l of out.leases.filter((x) => !x.mine)) {
     process.stdout.write(`  editing: ${l.path}  (${l.session} on ${l.host})\n`);
+  }
+  if (out.shared_tree.shared) {
+    process.stdout.write(`\n⚠️  shared checkout: ${sharedWith(shared)} — ${SHARED_TREE_ADVICE}\n`);
   }
   if (out.sync_conflicts && out.sync_conflicts.length) {
     process.stdout.write(`\n⚠️  the sync client left ${out.sync_conflicts.length} conflicted copy(ies) in the presence directory:\n`

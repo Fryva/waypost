@@ -172,6 +172,28 @@ not generate, and never commit over a live foreign lease without `--force`.
   invisible for those twenty minutes. That is the residual cost of never
   trusting a remote clock for longer than one read.
 
+### Addendum 2026-09-04: a shared checkout
+
+The decision above modelled a shared *vault*. The first field incident was a
+shared *checkout*: two machines on one working copy of the repository, and a
+`git checkout -- <file>` from one session reverted a change the other had
+verified but not yet committed. Nothing here prevents that, and nothing can:
+git runs no hook before `checkout`, `restore`, `stash`, `reset --hard` or
+`clean`, and a lease is consulted only by `waypost commit`. What the core does
+now is name the situation while it still matters — `sharedTree()` in
+`scripts/presence.mjs`: a peer on another host, live, that reports this
+project root, or a vault at the same offset inside its checkout (every
+presence record now carries `vault_rel` for that comparison), or the project
+root on cloud/network storage — print it from `brief`, `sessions` and `status`
+with the one rule that helps (commit verified work at once, check leases
+before any revert), and refuse `waypost commit --all`/`--tracked` there without
+`--force`, since a sweep would stage the other session's half-finished edits
+under this session's trailers.
+Two sessions on one machine in one checkout are ADR-0006's case and stay with
+its leases: refusing `--all` there would break the documented flow of the
+ordinary multi-harness setup. The same decision with one more consequence:
+detection, not prevention.
+
 ## Verification and follow-up
 
 - `tests/presence.test.mjs`: a peer whose clock is ±6 hours off is judged by our
@@ -188,3 +210,10 @@ not generate, and never commit over a live foreign lease without `--force`.
   reproduced logically (conflicted copies, delays), not between two machines on
   a shared drive; the delay estimates (0/3/60 s) are conservative assumptions,
   not measurements.
+- Addendum 2026-09-04, `tests/presence.test.mjs`: a shared checkout is detected
+  for a peer on another host by project root, by the vault's offset inside the
+  checkout, and on cloud storage by storage alone, while a second session on
+  this host is not it; `brief` and `sessions` name it, `sessions` even before
+  the legacy registry exists; `commit --all` refuses before staging and
+  `-- <paths>` still works; a lease path outside the vault is spelled the way
+  `git diff --cached --name-only` spells it.

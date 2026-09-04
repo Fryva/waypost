@@ -133,6 +133,12 @@ for which role. Re-running replaces the block in place rather than duplicating i
   observation), so clock skew between machines affects nothing.
 - doctor: non-portable names, case collisions, `* text=auto`, sync conflicted
   copies, stale foreign leases.
+- A shared *checkout* (a session on another host, live, in this very project
+  root, or with its vault at the same offset inside its checkout, or with the
+  project root on a cloud/network drive) is named by `brief`, `sessions` and
+  `status`, and `waypost commit --all`/`--tracked` refuses to sweep it without
+  `--force`: git has no hook before `checkout`/`restore`/`stash`/`reset`/`clean`,
+  so an uncommitted edit there is protected only by committing it at once.
 
 ## Context spend (ADR-0008)
 

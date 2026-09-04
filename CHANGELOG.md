@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - This changelog.
+- A shared *checkout* is named while it matters: when a session on another
+  host is live and reports this project root, or a vault at the same offset
+  inside its checkout (presence records now carry `vault_rel`), or the project
+  root is on a cloud/network drive, `waypost brief`, `sessions` and
+  `status` say so and repeat the one rule that helps — commit verified work at
+  once, check leases before any revert — because git runs no hook before
+  `checkout`/`restore`/`stash`/`reset`/`clean` (ADR-0007 addendum).
+- `waypost commit --all`/`--tracked` refuses in a shared checkout without
+  `--force`: a sweep would stage the other session's half-finished edits under
+  this session's trailers. Explicit paths still work.
+
+### Fixed
+- `waypost sessions` and `waypost status` no longer hide live peers behind the
+  "no session registry yet" hint: presence beats by itself, and a session on
+  another device was invisible there until someone ran `--touch`.
+- `waypost lease <path>` outside the vault stored the path as typed, so an
+  absolute path, or one carrying the vault's own prefix, never matched a staged
+  path in `waypost commit`. Lease paths are now vault-relative inside the vault
+  and project-relative outside it.
 
 ## [0.11.2] — 2026-09-03
 

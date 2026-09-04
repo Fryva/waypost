@@ -15,7 +15,7 @@
 
 import { fileURLToPath } from "node:url";
 import { readConfig, gatherVaultFacts, renderVaultSkeleton, ignoreEpipe } from "./lib.mjs";
-import { peers, readLeases } from "./presence.mjs";
+import { peers, readLeases, sharedTree, sharedWith, SHARED_TREE_ADVICE } from "./presence.mjs";
 import { sessionId } from "./sessions.mjs";
 
 export async function brief(cfg, opts = {}) {
@@ -66,6 +66,12 @@ function others(cfg, opts = {}) {
     if (leases.length) {
       L.push("", "Files another session is editing right now — do not touch them without asking:");
       for (const l of leases) L.push(`- \`${l.path}\` (${l.session} on ${l.host})`);
+    }
+    // A shared checkout, not just a shared vault: the one case where "commit
+    // it now" is the whole advice, because git cannot be asked to wait.
+    const shared = sharedTree(cfg.vault_path, { self, view });
+    if (shared.shared) {
+      L.push("", `⚠️ **This checkout is shared** with ${sharedWith(shared)} — ${SHARED_TREE_ADVICE}`);
     }
     if (view.conflicts.length) {
       L.push("", `⚠️ the sync client left conflicted copies in the presence directory (${view.conflicts.join(", ")}) — two devices wrote at once.`);
