@@ -3,7 +3,7 @@ type: story
 id: "story-skill-descriptions-inside-the-standing-context-budget"
 epic: "WP-14"
 title: "Skill descriptions inside the standing-context budget"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-04
@@ -13,7 +13,7 @@ tags: []
 code_refs: []
 specs: []
 started_at: "2026-09-04T16:24:44.218Z"
-closed_at: null
+closed_at: "2026-09-04T16:24:47.634Z"
 plan_updated_at: "2026-09-04T16:24:44.218Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-09-04T16:24:44.218Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-14](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
