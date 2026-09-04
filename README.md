@@ -34,6 +34,18 @@ npm install -g waypost      # needs Node 20+, no other dependencies
 
 This gives you two commands, `waypost` and the short alias `wyp`.
 
+If that fails with `EACCES` on `/usr/local/lib/node_modules` — the default on
+Debian/Ubuntu, where npm's global prefix is not writable by your user — point
+the prefix at your home directory instead of reaching for `sudo`:
+
+```bash
+npm config set prefix ~/.local
+npm install -g waypost
+```
+
+Make sure `~/.local/bin` is on your `PATH` (on Ubuntu it is, from `~/.profile`,
+after the next login). Or skip the install altogether: `npx waypost@latest …`.
+
 ## Quick start
 
 From inside your project:
