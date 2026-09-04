@@ -33,6 +33,7 @@ import {
   loadLayout,
   ignoreEpipe,
 } from "./lib.mjs";
+import { harnessProcess } from "./presence.mjs";
 
 // ─── Harness registry ──────────────────────────────────────────────────
 //
@@ -666,12 +667,40 @@ function directoryCounts(abs) {
 // env markers each registry entry declares — the same detection commit.mjs used
 // for its trailers, lifted here so presence, sessions, leases and watch label a
 // session the same way commits do (E-3) instead of showing "?".
+// Env markers are inherited: a harness spawned from inside another (OpenCode
+// started from a Claude Code session, a Codex run from Cursor's terminal)
+// carries the outer harness's variables too, and the first registry entry
+// whose markers matched used to win — the live OpenCode run of 2026-09-04
+// recorded itself as `claude` and installed Claude's roles. The process that
+// actually runs the session is better evidence: when the nearest non-shell
+// ancestor (harnessProcess) is a harness this registry knows, that harness
+// wins; env decides only when the process says nothing.
 export function detectHarness(env = process.env) {
   if (env.WAYPOST_HARNESS) return env.WAYPOST_HARNESS;
+  const byProcess = harnessOfProcess(env);
+  if (byProcess) return byProcess;
   for (const [id, h] of registry()) {
     if ((h.env || []).some((k) => env[k])) return id;
   }
   return "unknown";
+}
+
+function harnessOfProcess(env) {
+  let proc = null;
+  try {
+    if (env.WAYPOST_PROC) proc = JSON.parse(env.WAYPOST_PROC);
+    else if (env === process.env) proc = harnessProcess();
+  } catch { proc = null; }
+  const comm = proc && proc.comm ? String(proc.comm).toLowerCase() : "";
+  if (!comm) return null;
+  // The binary's first word, so `claude`, `codex`, `opencode`, `gemini`,
+  // `cursor-agent` all resolve; an Electron helper resolves to nothing.
+  const word = comm.split(/[^a-z0-9]+/)[0];
+  for (const [id, h] of registry()) {
+    if (h.kind === "provider") continue;
+    if (word === id || (h.process || []).includes(word)) return id;
+  }
+  return null;
 }
 
 // ─── Install / uninstall / status ──────────────────────────────────────

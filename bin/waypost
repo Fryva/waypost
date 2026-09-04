@@ -933,6 +933,19 @@ async function main() {
   // invoked the CLI here — not inside a script bin/waypost spawns, whose parent
   // pid is bin/waypost itself and differs on every invocation. Every child this
   // process spawns inherits both via `env: { ...process.env }`.
+  const [cmd = "", ...rest] = args;
+  // The harness process first (ADR-0007 amendment): the scripts this command
+  // spawns beat as well, and from inside them the nearest ancestor is this very
+  // process, gone the moment the command ends — and harness detection reads it
+  // too, since env markers are inherited across nested harnesses while the
+  // process is not. One `ps` per working command.
+  if (!process.env.WAYPOST_PROC && !QUIET_COMMANDS.has(cmd)) {
+    try {
+      const { harnessProcess } = await import(`file://${SCRIPT("presence")}`);
+      const p = harnessProcess();
+      if (p) process.env.WAYPOST_PROC = JSON.stringify(p);
+    } catch { /* no process table: the counter rules stay */ }
+  }
   if (!process.env.WAYPOST_HARNESS) {
     try {
       const { detectHarness } = await import(`file://${SCRIPT("agents")}`);
@@ -941,18 +954,6 @@ async function main() {
     } catch { /* detection is best-effort; a null harness is still valid */ }
   }
   if (!process.env.WAYPOST_SESSION_ID) process.env.WAYPOST_SESSION_ID = sessionId(process.argv);
-
-  const [cmd = "", ...rest] = args;
-  // The harness process too (ADR-0007 amendment): the scripts this command
-  // spawns beat as well, and from inside them the nearest ancestor is this very
-  // process, gone the moment the command ends. One `ps` per working command.
-  if (!process.env.WAYPOST_PROC && !QUIET_COMMANDS.has(cmd)) {
-    try {
-      const { harnessProcess } = await import(`file://${SCRIPT("presence")}`);
-      const p = harnessProcess();
-      if (p) process.env.WAYPOST_PROC = JSON.stringify(p);
-    } catch { /* no process table: the counter rules stay */ }
-  }
   await heartbeat(cmd);
 
   switch (cmd) {

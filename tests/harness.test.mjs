@@ -692,6 +692,16 @@ test("`waypost harnesses` shows the skills directory and --json carries the obje
   assert.match(text, /qm\s+documented\s+— no role files\s+— no skills/);
 });
 
+test("a harness started from inside another is detected by its process, not by the inherited env markers", () => {
+  const both = { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", OPENCODE: "1" };
+  const withProc = (comm) => ({ ...both, WAYPOST_PROC: JSON.stringify({ pid: 1, started: "x", comm }) });
+  assert.equal(detectHarness(withProc("opencode")), "opencode", "OpenCode spawned from Claude Code is OpenCode");
+  assert.equal(detectHarness(withProc("claude")), "claude");
+  assert.equal(detectHarness(withProc("codex")), "codex", "the process alone is enough when env says nothing about it");
+  assert.equal(detectHarness(withProc("Electron")), "claude", "an IDE helper says nothing, so env order decides as before");
+  assert.equal(detectHarness({ ...withProc("opencode"), WAYPOST_HARNESS: "pi" }), "pi", "an explicit WAYPOST_HARNESS still wins");
+});
+
 // ─── Agent Skills (WP-14) ───────────────────────────────────────────────
 
 test("every bundled skill is a valid Agent Skill, and their descriptions fit the standing-context budget", () => {

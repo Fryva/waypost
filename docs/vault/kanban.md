@@ -2,13 +2,12 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-04T16:48:24.839Z
+generated_at: 2026-09-04T16:55:06.462Z
 
 ---
 
 ## Backlog
 
-- [ ] [[epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop|WP-14: Live verification: Codex and OpenCode run the whole loop]] #p1
 - [ ] [[epics/WP-15/stories/story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked|WP-15: blocked_by in stories, waypost ready, and a board that shows blocked]] #p1
 - [ ] [[epics/WP-15/stories/story-doctor-dangling-and-cyclic-dependencies-duplicate-adr-numbers|WP-15: doctor: dangling and cyclic dependencies, duplicate ADR numbers]] #p2
 - [ ] [[epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version|WP-15: Runtime coordination moves to the git common dir; old records read for one version]] #p1
@@ -23,6 +22,7 @@ generated_at: 2026-09-04T16:48:24.839Z
 
 ## In Progress
 
+- [ ] [[epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop|WP-14: Live verification: Codex and OpenCode run the whole loop]] #p1
 - [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
 
 ## Review

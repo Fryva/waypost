@@ -3,7 +3,7 @@ type: story
 id: "story-live-verification-codex-and-opencode-run-the-whole-loop"
 epic: "WP-14"
 title: "Live verification: Codex and OpenCode run the whole loop"
-status: planned
+status: in-progress
 priority: p1
 assignee: "Ivan Morozov"
 created: 2026-09-04
@@ -12,9 +12,9 @@ external_refs: {}
 tags: []
 code_refs: []
 specs: []
-started_at: null
+started_at: "2026-09-04T16:55:06.081Z"
 closed_at: null
-plan_updated_at: null
+plan_updated_at: "2026-09-04T16:55:06.081Z"
 ---
 
 # Live verification: Codex and OpenCode run the whole loop
@@ -22,7 +22,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-14](../epic.md) |
-| **Status** | planned |
+| **Status** | in-progress |
 | **Priority** | p1 |
 | **Assignee** | Ivan Morozov |
 

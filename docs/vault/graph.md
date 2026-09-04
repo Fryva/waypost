@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-04T16:52:13.432Z
+generated_at: 2026-09-04T16:55:06.617Z
 
 ---
 
@@ -31,7 +31,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-14/epic.md | Skills as the portable layer, and the first verified harnesses | epic | planned |
 | epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills.md | Bundled skills and loop procedures rendered as Agent Skills | story | done |
 | epics/WP-14/stories/story-doctor-agentsmd-hygiene-size-duplicate-block-claude-bridge.md | doctor: AGENTS.md hygiene (size, duplicate block, Claude bridge) | story | done |
-| epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop.md | Live verification: Codex and OpenCode run the whole loop | story | planned |
+| epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop.md | Live verification: Codex and OpenCode run the whole loop | story | in-progress |
 | epics/WP-14/stories/story-skill-descriptions-inside-the-standing-context-budget.md | Skill descriptions inside the standing-context budget | story | done |
 | epics/WP-14/stories/story-skills-registry-a-skillsdir-per-harness-with-evidence.md | Skills registry: a skills.dir per harness, with evidence | story | done |
 | epics/WP-14/stories/story-waypost-skills-install-list-and-uninstall-doctor-staleness-brief-self-install.md | waypost skills install, list and uninstall; doctor staleness; brief self-install | story | done |
