@@ -9,7 +9,7 @@
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync, statSync, mkdirSync, utimesSync, unlinkSync, renameSync, rmSync, realpathSync } from "node:fs";
 import { readFile as readFileAsync } from "node:fs/promises";
-import { join, dirname, basename, resolve } from "node:path";
+import { join, dirname, basename, resolve, relative, isAbsolute, sep } from "node:path";
 import { hostname, homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
@@ -72,11 +72,32 @@ export function ignoreEpipe() {
 // needs a loud failure instead: silently treating a broken config as unbound
 // invites `waypost setup` to rebind over it, discarding whatever settings the
 // file still held (upstream ADR-007 gap).
+// The vault path as the config stores it: relative to the project root when
+// the vault lives inside the project, absolute otherwise. The config file is
+// machine-local by contract, but on a checkout shared between machines it is
+// physically one file for all of them (ADR-0007 addendum), and one machine's
+// absolute path is another machine's "vault missing". `readConfig` resolves
+// the relative form against THIS machine's project root; `writeConfig`
+// re-relativises on every save, so a config written absolute by an earlier
+// version migrates the first time the tool touches it.
+export function storedVaultPath(abs) {
+  const rel = relative(projectRoot(), abs);
+  if (rel === "") return ".";
+  if (rel.startsWith("..") || isAbsolute(rel)) return abs;
+  return rel.split(sep).join("/");
+}
+
+export function resolveVaultPath(p) {
+  return typeof p === "string" && p && !isAbsolute(p) ? resolve(projectRoot(), p) : p;
+}
+
 export function readConfig() {
   const p = configPath();
   if (!existsSync(p)) return null;
   try {
-    return JSON.parse(readFileSync(p, "utf8"));
+    const cfg = JSON.parse(readFileSync(p, "utf8"));
+    if (cfg && typeof cfg === "object") cfg.vault_path = resolveVaultPath(cfg.vault_path);
+    return cfg;
   } catch (e) {
     process.stderr.write(`waypost: config exists but is unreadable: ${p}: ${e.message}\n`);
     process.exit(1);
@@ -86,7 +107,9 @@ export function readConfig() {
 export function writeConfig(cfg) {
   const p = configPath();
   mkdirSync(dirname(p), { recursive: true });
-  writeFileSync(p, JSON.stringify(cfg, null, 2) + "\n", "utf8");
+  const out = cfg && typeof cfg.vault_path === "string" && cfg.vault_path
+    ? { ...cfg, vault_path: storedVaultPath(cfg.vault_path) } : cfg;
+  writeFileSync(p, JSON.stringify(out, null, 2) + "\n", "utf8");
 }
 
 // ─── Atomic file writes (spec: atomic-regeneration-of-derived-views) ──

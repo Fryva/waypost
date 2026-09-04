@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--force`: a sweep would stage the other session's half-finished edits under
   this session's trailers. Explicit paths still work.
 
+### Changed
+- The binding stores `vault_path` relative to the project root when the vault
+  lives inside the project, and resolves a relative path against the project
+  root of the machine reading it. One checkout mounted under different paths
+  on two machines now keeps one binding instead of each `bind --force`
+  breaking the other's. An absolute path written by an earlier version still
+  works and is rewritten the next time the tool saves the config.
+
 ### Fixed
 - `waypost sessions` and `waypost status` no longer hide live peers behind the
   "no session registry yet" hint: presence beats by itself, and a session on

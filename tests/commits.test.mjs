@@ -118,6 +118,7 @@ test("a story reference is resolved against the vault, so a typo cannot enter th
   const proj = repo();
   waypost(proj, ["draft", "story", "PS-1", "Second", "--write"]);
   const cfg = JSON.parse(readFileSync(join(proj, ".waypost", "projectstore.json"), "utf8"));
+  cfg.vault_path = join(proj, cfg.vault_path); // stored relative to the project; readConfig resolves it the same way
   assert.equal(storyRef(join(cfg.vault_path, "epics/PS-1/stories/story-second.md"), cfg), "PS-1/story-second");
   assert.equal(storyRef("story-second", cfg), "PS-1/story-second");
 

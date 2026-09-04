@@ -184,7 +184,8 @@ decisions get accepted.
   the tree it belongs to and sets this for its own children.
 - `WAYPOST_SESSION_ID`, `WAYPOST_HARNESS`, `WAYPOST_PROVIDER` — session identity and labels.
 - `WAYPOST_NO_BEAT=1` — disable the automatic presence heartbeat.
-- Bind config: `.waypost/projectstore.json` (legacy `.claude/projectstore.json`).
+- Bind config: `.waypost/projectstore.json` (legacy `.claude/projectstore.json`);
+  `vault_path` is relative to the project root when the vault is inside it.
 
 ## What changed relative to ProjectStore
 

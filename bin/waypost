@@ -13,6 +13,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, storyRefOf, expandHome,
+  storedVaultPath, resolveVaultPath,
 } from "../scripts/lib.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -76,7 +77,13 @@ function configPath() {
 function readConfig() {
   const p = configPath();
   if (!existsSync(p)) return null;
-  try { return JSON.parse(readFileSync(p, "utf8")); }
+  try {
+    const cfg = JSON.parse(readFileSync(p, "utf8"));
+    // A relative vault_path is relative to THIS machine's project root
+    // (lib.mjs: storedVaultPath / resolveVaultPath).
+    if (cfg && typeof cfg === "object") cfg.vault_path = resolveVaultPath(cfg.vault_path);
+    return cfg;
+  }
   catch (e) { fail(`config exists but is unreadable: ${p}: ${e.message}`); }
 }
 
@@ -309,16 +316,17 @@ function handleBind(args) {
   mkdirSync(abs, { recursive: true });
   const cfgPath = join(projectRoot(), ".waypost", "projectstore.json");
   mkdirSync(dirname(cfgPath), { recursive: true });
+  const stored = storedVaultPath(abs);
   const cfg = {
     ...(existing || {}),
-    vault_path: abs,
+    vault_path: stored,
     layout,
     language: lang,
     default_author: (existing && existing.default_author) || gitUser(),
     waypost: { version: VERSION },
   };
   writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + "\n", "utf8");
-  process.stdout.write(`bound  ${abs}\nconfig ${cfgPath}\n`);
+  process.stdout.write(`bound  ${abs}${stored !== abs ? `  (stored as ${stored}, relative to the project)` : ""}\nconfig ${cfgPath}\n`);
   process.env.WAYPOST_PROJECT_DIR = projectRoot();
   handleScaffold([]);
   process.stdout.write(

@@ -195,7 +195,9 @@ One project may be driven by several sessions at the same time (ADR-0006):
 ## Configuration
 
 - Project: `.waypost/projectstore.json` (legacy `.claude/projectstore.json`);
-  machine-local, belongs in `.gitignore`.
+  machine-local, belongs in `.gitignore`. `vault_path` is stored relative to
+  the project root when the vault lives inside it, so a checkout mounted under
+  a different path on another machine keeps the same binding.
 - Vault: `<vault>/.projectstore.json` — policy (`spec_policy`, `lifecycle_gates`,
   `acceptance_gate`), travels with the vault.
 - Generated role files are the opposite: commit them, so the whole team gets the

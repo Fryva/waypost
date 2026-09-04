@@ -4,12 +4,13 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { detectHarnesses, detectHarness } from "../scripts/agents.mjs";
+import { storedVaultPath, resolveVaultPath } from "../scripts/lib.mjs";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
   instructionTargets } from "../scripts/agents.mjs";
@@ -657,7 +658,7 @@ test("bind scaffolds the layout and refuses a silent rebind", () => {
     assert.ok(existsSync(join(vault, d, "README.md")), `${d}/README.md`);
   }
   const cfg = JSON.parse(readFileSync(join(proj, ".waypost", "projectstore.json"), "utf8"));
-  assert.equal(cfg.vault_path, vault);
+  assert.equal(cfg.vault_path, "vault", "a vault inside the project is stored relative to it");
   assert.equal(cfg.layout, "engineering");
 
   const r = waypost(proj, ["bind", join(proj, "other")], { expectFail: true });
@@ -935,6 +936,41 @@ test("one command leaves a project ready, and says what it did", () => {
 
   const again = waypost(proj, ["setup"]).stdout;
   assert.match(again, /already bound/, "running it twice is safe and says so");
+});
+
+test("the binding follows the checkout: stored relative inside the project, resolved where the tree is mounted", () => {
+  const { proj } = bound();
+  const stored = () => JSON.parse(readFileSync(join(proj + "-elsewhere", ".waypost", "projectstore.json"), "utf8")).vault_path;
+  // The same tree under another path — what a second machine, or another OS,
+  // sees of a checkout shared between them (ADR-0007 addendum).
+  const moved = proj + "-elsewhere";
+  renameSync(proj, moved);
+  const st = waypost(moved, ["status"]).stdout;
+  assert.ok(st.includes(`vault   ${join(moved, "vault")}`), st);
+  assert.doesNotMatch(st, /missing/, "the binding must not point at the old mount");
+  assert.equal(waypost(moved, ["doctor", "--install"], { expectFail: true }).stdout.includes("vault_path"), false);
+  // Saving the config through the tool keeps the relative form.
+  waypost(moved, ["agents", "model", "default", "sonnet"]);
+  assert.equal(stored(), "vault", "writeConfig re-relativises what readConfig resolved");
+  // A vault outside the project has nothing to be relative to.
+  const other = project();
+  const away = mkdtempSync(join(tmpdir(), "waypost-away-"));
+  waypost(other, ["bind", away]);
+  assert.equal(JSON.parse(readFileSync(join(other, ".waypost", "projectstore.json"), "utf8")).vault_path, away);
+  // The pure rules, including the vault that IS the project.
+  const prev = process.env.WAYPOST_PROJECT_DIR;
+  process.env.WAYPOST_PROJECT_DIR = moved;
+  try {
+    assert.equal(storedVaultPath(moved), ".");
+    assert.equal(storedVaultPath(join(moved, "docs", "vault")), "docs/vault");
+    assert.equal(storedVaultPath(away), away);
+    assert.equal(resolveVaultPath("."), moved);
+    assert.equal(resolveVaultPath("docs/vault"), join(moved, "docs", "vault"));
+    assert.equal(resolveVaultPath(away), away);
+    assert.equal(resolveVaultPath(undefined), undefined, "an unbound config stays unbound");
+  } finally {
+    if (prev === undefined) delete process.env.WAYPOST_PROJECT_DIR; else process.env.WAYPOST_PROJECT_DIR = prev;
+  }
 });
 
 test("setup adopts a vault the project already has instead of making a second one", () => {
