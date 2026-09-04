@@ -14,6 +14,7 @@ import { storedVaultPath, resolveVaultPath } from "../scripts/lib.mjs";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
   instructionTargets, skillsOf, CONFIDENCE } from "../scripts/agents.mjs";
+import { skillNames, readSkill, validateSkill, DESCRIPTION_MAX, DESCRIPTIONS_TOTAL_MAX } from "../scripts/skills.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
@@ -689,6 +690,89 @@ test("`waypost harnesses` shows the skills directory and --json carries the obje
   const text = waypost(proj, ["harnesses", "--all"]).stdout;
   assert.match(text, /codex\s+documented\s+\.codex\/agents\s+\.agents\/skills/);
   assert.match(text, /qm\s+documented\s+— no role files\s+— no skills/);
+});
+
+// ─── Agent Skills (WP-14) ───────────────────────────────────────────────
+
+test("every bundled skill is a valid Agent Skill, and their descriptions fit the standing-context budget", () => {
+  const names = skillNames();
+  assert.ok(names.length >= 10, `the bundled set: ${names.join(", ")}`);
+  for (const n of names) assert.deepEqual(validateSkill(n), [], n);
+  const descs = names.map((n) => readSkill(n).description);
+  for (const d of descs) assert.ok(d.length <= DESCRIPTION_MAX, `${d.length} chars: ${d.slice(0, 50)}…`);
+  const total = descs.join("").length;
+  // Loaded at startup by every harness that reads skills, so paid for on every
+  // turn (ADR-0008). Characters stand in for tokens, as in the routing-block test.
+  assert.ok(total <= DESCRIPTIONS_TOTAL_MAX, `${total} chars of skill descriptions in the standing context`);
+});
+
+test("skills install once per shared directory, notice hand edits, and leave foreign files alone", () => {
+  const { proj } = bound();
+  const out = waypost(proj, ["skills", "install", "--harness", "claude,codex,opencode"]).stdout;
+  assert.ok(existsSync(join(proj, ".claude", "skills", "waypost-draft", "SKILL.md")), "claude reads its brand directory");
+  assert.ok(existsSync(join(proj, ".agents", "skills", "waypost-draft", "SKILL.md")), "codex and opencode share .agents/skills");
+  assert.ok(!existsSync(join(proj, ".codex", "skills")) && !existsSync(join(proj, ".opencode", "skills")), "no brand copy where the shared directory is read");
+  assert.equal((out.match(/^created/gm) || []).length, 2 * skillNames().length, "one copy per directory, not per harness");
+  assert.ok(!detectHarnesses(proj).includes("antigravity"), "our own skills in .agents/ are not evidence that Antigravity is used");
+  mkdirSync(join(proj, ".agents", "agents"), { recursive: true });
+  assert.ok(detectHarnesses(proj).includes("antigravity"), "anything else in .agents/ is");
+  rmSync(join(proj, ".agents", "agents"), { recursive: true });
+  const installed = readFileSync(join(proj, ".agents", "skills", "waypost-draft", "SKILL.md"), "utf8");
+  assert.match(installed, /^name: waypost-draft$/m);
+  assert.match(installed, /^  waypost-hash: [0-9a-f]{12}$/m, "provenance lives in the standard's metadata map");
+  const current = JSON.parse(waypost(proj, ["skills", "list", "--harness", "codex", "--json"]).stdout).targets[0].skills;
+  assert.ok(current.every((s) => s.state === "current"), JSON.stringify(current));
+
+  writeFileSync(join(proj, ".agents", "skills", "waypost-draft", "SKILL.md"), installed + "\nlocal note\n", "utf8");
+  const foreign = "---\nname: waypost-search\ndescription: mine\n---\n";
+  writeFileSync(join(proj, ".agents", "skills", "waypost-search", "SKILL.md"), foreign, "utf8");
+  const after = JSON.parse(waypost(proj, ["skills", "list", "--harness", "codex", "--json"]).stdout).targets[0].skills;
+  assert.equal(after.find((s) => s.name === "waypost-draft").state, "stale");
+  assert.equal(after.find((s) => s.name === "waypost-search").state, "foreign");
+  const again = waypost(proj, ["skills", "install", "--harness", "codex"]).stdout;
+  assert.match(again, /updated\s+.*waypost-draft/);
+  assert.match(again, /skipped \(not ours\)\s+.*waypost-search/);
+  assert.equal(readFileSync(join(proj, ".agents", "skills", "waypost-search", "SKILL.md"), "utf8"), foreign, "a foreign file is never overwritten");
+  const removed = waypost(proj, ["skills", "uninstall", "--harness", "codex"]).stdout;
+  assert.match(removed, /kept \(not ours\)\s+.*waypost-search/);
+  assert.ok(!existsSync(join(proj, ".agents", "skills", "waypost-draft")), "ours removed");
+  assert.ok(existsSync(join(proj, ".agents", "skills", "waypost-search", "SKILL.md")), "theirs kept");
+});
+
+test("doctor reports missing or stale skills for the harnesses in use, and --fix reinstalls", () => {
+  const { proj } = bound();
+  mkdirSync(join(proj, ".codex"), { recursive: true });
+  const before = JSON.parse(waypost(proj, ["doctor", "--json"], { expectFail: true }).stdout);
+  const info = before.find((f) => f.check === "agent-skills" && /\.agents\/skills/.test(f.message));
+  assert.ok(info && info.level === "info", JSON.stringify(before.filter((f) => f.check === "agent-skills")));
+  waypost(proj, ["skills", "install", "--harness", "codex"]);
+  const p = join(proj, ".agents", "skills", "waypost-story", "SKILL.md");
+  writeFileSync(p, readFileSync(p, "utf8") + "\nedited\n", "utf8");
+  const stale = JSON.parse(waypost(proj, ["doctor", "--json"], { expectFail: true }).stdout)
+    .find((f) => f.check === "agent-skills" && f.level === "issue");
+  assert.ok(stale && /edited by hand/.test(stale.message), JSON.stringify(stale));
+  waypost(proj, ["doctor", "--install", "--fix"], { expectFail: true });
+  const clean = JSON.parse(waypost(proj, ["doctor", "--json"], { expectFail: true }).stdout);
+  assert.ok(!clean.some((f) => f.check === "agent-skills" && f.level === "issue"), "--fix reinstalled it");
+});
+
+test("brief installs the skills of the harness it runs in, next to its roles", () => {
+  const { proj } = bound();
+  const first = waypost(proj, ["brief"], { env: { WAYPOST_HARNESS: "codex" } }).stdout;
+  assert.match(first, /installed \d+ skill\(s\) into \.agents\/skills\//);
+  assert.ok(existsSync(join(proj, ".agents", "skills", "waypost-commit", "SKILL.md")));
+  const second = waypost(proj, ["brief"], { env: { WAYPOST_HARNESS: "codex" } }).stdout;
+  assert.doesNotMatch(second, /installed \d+ skill/, "nothing to do the second time");
+});
+
+test("`waypost skill` prints a bundled skill by short or full name; setup installs skills for detected harnesses", () => {
+  const { proj } = bound();
+  assert.match(waypost(proj, ["skill", "decision-detector"]).stdout, /^name: waypost-decision-detector$/m);
+  assert.match(waypost(proj, ["skill", "waypost-decision-detector"]).stdout, /^name: waypost-decision-detector$/m);
+  assert.match(waypost(proj, ["skill"]).stdout, /waypost-draft/);
+  mkdirSync(join(proj, ".opencode"), { recursive: true });
+  waypost(proj, ["setup"]);
+  assert.ok(existsSync(join(proj, ".agents", "skills", "waypost-draft", "SKILL.md")), "opencode reads .agents/skills");
 });
 
 // ─── the shared CLI ────────────────────────────────────────────────────

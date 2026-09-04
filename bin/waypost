@@ -161,6 +161,8 @@ function handleSetup(args) {
   if (harnesses || detected.length) {
     step(`install roles for ${harnesses || detected.join(", ")}`,
       () => run("agents", ["install", ...(harnesses ? ["--harness", harnesses] : [])]));
+    step(`install skills for ${harnesses || detected.join(", ")}`,
+      () => run("skills", ["install", ...(harnesses ? ["--harness", harnesses] : [])]));
     step("register the routing block", () => run("agents", ["register"]));
   } else {
     say("no harness detected — run `waypost agents install --harness <id>` once you pick one");
@@ -670,6 +672,10 @@ function printDoc(dir, name, suffix) {
   // A name, never a path: `waypost prompt ../README` used to print whatever the
   // traversal landed on.
   if (!/^[\w.-]+$/.test(name) || name.includes("..")) fail(`not a valid name: ${name}`);
+  // Bundled skills carry the waypost- prefix (the standard wants a name
+  // that is unique across every skill a harness loads); the short name
+  // still works here.
+  if (suffix && !existsSync(join(base, name, suffix)) && existsSync(join(base, `waypost-${name}`, suffix))) name = `waypost-${name}`;
   const p = suffix ? join(base, name, suffix) : join(base, `${name}.md`);
   if (!existsSync(p)) fail(`no such ${dir === "prompts" ? "prompt" : "skill"}: ${name} (have: ${names.join(", ")})`);
   process.stdout.write(readFileSync(p, "utf8"));
@@ -799,7 +805,8 @@ ROLES (same roles in every harness)
 
 PROCEDURES
   prompt [name]            print a workflow procedure (the verified loop's steps)
-  skill [name]             print a skill (proactive procedure)
+  skill [name]             print a bundled skill (waypost-<name> or <name>)
+  skills …                 Agent Skills in this project: install [--harness <id,…>|all], list, uninstall, validate
   sessions [--touch]       active-session registry (--claim/--release/--prune [--older-than 6h])
   tokens [flags]           what the loop cost, from Claude Code transcripts
                            (Claude-only: no other harness writes them)
@@ -835,7 +842,7 @@ function leaseArgs(rest) {
 // session without anyone remembering `waypost sessions --touch`. Never fails the
 // command, never runs for a read-only lookup, and WAYPOST_NO_BEAT=1 turns it off.
 const QUIET_COMMANDS = new Set(["help", "--help", "-h", "version", "--version", "-v",
-  "harnesses", "prompt", "skill", "agents", "log", "storage", "merge-derived"]);
+  "harnesses", "prompt", "skill", "skills", "agents", "log", "storage", "merge-derived"]);
 
 // ─── brief: the session start also installs its own harness ───────────
 //
@@ -867,6 +874,18 @@ async function selfInstall(rest) {
     const targets = A.instructionTargetFor(h, proj);
     const reg = targets.length ? A.register({ proj, cfg, files: targets }).filter((r) => r.action !== "unchanged") : [];
     if (reg.length) did.push(`${reg[0].action} the routing block in ${reg.map((r) => r.file).join(", ")}`);
+    // Skills too: the same standard file for every harness, in the directory
+    // this harness discovers (registry data); one copy serves every harness
+    // that reads the shared .agents/skills.
+    const sk = A.skillsOf(h);
+    if (sk) {
+      const S = await import(`file://${SCRIPT("skills")}`);
+      const st = S.status({ proj, ids: [h] })[0];
+      if (st && st.skills.some((r) => r.state === "absent" || r.state === "stale")) {
+        const wrote = S.install([h], { proj }).filter((r) => r.action === "created" || r.action === "updated");
+        if (wrote.length) did.push(`installed ${wrote.length} skill(s) into ${sk.dir}/`);
+      }
+    }
     if (!did.length) return;
     const note = `This session runs in ${h}, which this project was not set up for yet — ${did.join("; ")}. `
       + "Commit them, so every machine and harness gets the same roles (`waypost brief --no-install` reads only).\n\n";
@@ -966,6 +985,7 @@ async function main() {
     case "tokens": run("tokens", rest); break;
     case "prompt": printDoc("prompts", positionals(rest)[0]); break;
     case "skill": printDoc("skills", positionals(rest)[0], "SKILL.md"); break;
+    case "skills": run("skills", rest); break;
     case "status": handleStatus(); break;
     case "version": case "--version": case "-v": process.stdout.write(`${VERSION}\n`); break;
     case "help": case "--help": case "-h": help(); break;

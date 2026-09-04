@@ -1,5 +1,7 @@
 ---
-description: When communicating with the user about anything stored in the waypost vault (epics, stories, ADRs, research, kanban, backlog), reference every artifact by its human title from frontmatter — never by session-invented shorthand. Name the parent epic for stories; include status/priority when discussing state or plans. Applies by default in bound projects to summaries, plans, and progress reports.
+name: waypost-vault-communication
+description: When talking about anything in the waypost vault (epics, stories, ADRs, research, kanban), name artifacts by their frontmatter title and parent epic, with status; never by invented shorthand.
+license: MIT
 ---
 
 # Vault-native communication

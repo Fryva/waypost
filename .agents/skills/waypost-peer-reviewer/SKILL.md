@@ -1,5 +1,10 @@
 ---
-description: After a new waypost artifact is created via `waypost draft adr|research|epic … --write`, suggest peer-reviewing the artifact with a fresh critic agent before it's committed. Only suggest for artifact kinds whose checklist has default_review=true. Never auto-execute — always ask first.
+name: waypost-peer-reviewer
+description: After `waypost draft … --write` creates an ADR, spec, epic or research note, suggest a fresh-context critic pass (waypost-critic) before it is committed. Ask first; never run it unasked.
+license: MIT
+metadata:
+  waypost-source: skills/waypost-peer-reviewer/SKILL.md
+  waypost-hash: 66c5bb06a93b
 ---
 
 # Peer-reviewer skill

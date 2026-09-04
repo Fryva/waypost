@@ -596,6 +596,7 @@ export function harnessOwnedPaths() {
     if (r.dir) out.add(String(r.dir).replace(/\/+$/, ""));
     else if (r.file && !String(r.file).includes("{")) out.add(r.file);
     for (const f of h.instructions || []) if (f.includes("/")) out.add(f);
+    if (h.skills && h.skills.dir) out.add(String(h.skills.dir).replace(/\/+$/, ""));
   }
   return [...out];
 }
@@ -637,8 +638,28 @@ export function detectHarnesses(proj = projectRoot()) {
 function markerCounts(abs) {
   if (!existsSync(abs)) return false;
   let text;
-  try { text = readFileSync(abs, "utf8"); } catch { return true; } // a directory: real evidence
+  try { text = readFileSync(abs, "utf8"); } catch { return directoryCounts(abs); }
   return text.replace(BLOCK_RE, "").trim().length > 0;
+}
+
+// A directory is evidence unless everything in it is waypost's own skills:
+// `waypost skills install` puts one copy into the shared `.agents/skills/` for
+// the eleven harnesses that read it, and `.agents/` is also Antigravity's
+// detection marker — so a Codex project's skills used to read back as "this
+// project uses Antigravity" and install an unrequested agent set (the E-1
+// loop again, one directory up). Roles are different: they are installed for a
+// harness on purpose, so they stay evidence.
+function directoryCounts(abs) {
+  let names;
+  try { names = readdirSync(abs).filter((n) => !n.startsWith(".")); } catch { return true; }
+  if (!names.length) return true; // an empty directory is the user's, as before
+  for (const n of names) {
+    if (n !== "skills") return true;
+    let inner;
+    try { inner = readdirSync(join(abs, n)).filter((x) => !x.startsWith(".")); } catch { return true; }
+    if (inner.some((x) => !x.startsWith(PREFIX))) return true;
+  }
+  return false;
 }
 
 // The running harness, from an explicit WAYPOST_HARNESS or, failing that, the

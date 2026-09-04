@@ -1,5 +1,10 @@
 ---
-description: When the user makes or accepts an architectural/technical decision (choosing between alternatives, locking in a pattern, picking a library or tool, settling a trade-off), suggest capturing it as an ADR via `waypost draft adr`. Never write to the vault directly — only suggest, and let the `waypost draft adr` flow handle approval.
+name: waypost-decision-detector
+description: When the user makes or accepts a technical decision (picks between alternatives, locks a pattern, chooses a library), suggest recording it with `waypost draft adr`. Suggest only; never write the vault directly.
+license: MIT
+metadata:
+  waypost-source: skills/waypost-decision-detector/SKILL.md
+  waypost-hash: a5436c2d203e
 ---
 
 # Decision detector

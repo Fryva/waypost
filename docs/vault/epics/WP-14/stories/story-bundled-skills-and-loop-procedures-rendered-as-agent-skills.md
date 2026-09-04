@@ -3,7 +3,7 @@ type: story
 id: "story-bundled-skills-and-loop-procedures-rendered-as-agent-skills"
 epic: "WP-14"
 title: "Bundled skills and loop procedures rendered as Agent Skills"
-status: planned
+status: in-progress
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-04
@@ -12,9 +12,9 @@ external_refs: {}
 tags: []
 code_refs: []
 specs: []
-started_at: null
+started_at: "2026-09-04T16:16:51.267Z"
 closed_at: null
-plan_updated_at: null
+plan_updated_at: "2026-09-04T16:16:51.267Z"
 ---
 
 # Bundled skills and loop procedures rendered as Agent Skills
@@ -22,7 +22,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-14](../epic.md) |
-| **Status** | planned |
+| **Status** | in-progress |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -34,27 +34,31 @@ The four `skills/*/SKILL.md` and the thirteen `prompts/*.md` become one set of s
 
 ## Decomposition
 
-- [ ] Decide the grouping and write each SKILL.md with a trigger-shaped description (what + when)
-- [ ] Frontmatter per spec: name matches the directory, description ≤1024, `metadata.waypost-source` for provenance
-- [ ] Move long content to `references/` so each SKILL.md stays under 500 lines
-- [ ] Validate with the `skills-ref` rules re-implemented in tests (no new dependency)
+- [x] Grouping decided and ten SKILL.md written with trigger-shaped descriptions — evidence: skills/*/SKILL.md
+- [x] Frontmatter per spec: name = directory, description ≤1024 (ours ≤230), license; provenance goes into the installed copy's `metadata` — evidence: scripts/skills.mjs `validateSkill`, `render`
+- [x] Bodies stay far under 500 lines (longest: 97) — evidence: `wc -l skills/*/SKILL.md`
+- [x] Validation re-implemented in tests, no dependency — evidence: `waypost skills validate`; test "every bundled skill is a valid Agent Skill…"
 
 ## Implementation Plan
 
-<!-- Written at the work-start gate (waypost story plan), AFTER studying the
-     codebase. When a spec covers this story, this is a thin route through the
-     spec's contracts: which contracts, in what order, which files. -->
+Ten skills in `skills/` of the tool root, each `waypost-<name>/SKILL.md` with
+`name`, `description` (a trigger, ≤230 chars), `license: MIT` (iFlow requires
+one). The four proactive skills were renamed with the prefix and their
+descriptions trimmed; six new skills (draft, story, review, search, doctor,
+commit) point at the CLI and at `waypost prompt <kind>` for the procedure
+instead of copying the thirteen prompts, so a skill stays small and always
+matches the installed CLI. `scripts/skills.mjs` validates them against the
+standard's rules re-implemented in-tree (no dependency).
 
 ## Acceptance Criteria
 
-- [ ] Every skill directory validates: name format, description length, body length
-- [ ] Each skill's description states when to activate it
-- [ ] `waypost skill <name>` keeps printing the same content
+- [x] Every skill directory validates: name format, description length, body length — evidence: `waypost skills validate` → "10 skill(s) valid"; test in tests/harness.test.mjs
+- [x] Each skill's description states when to activate it — evidence: every description opens with "Use when…" or "When the user…"
+- [x] `waypost skill <name>` keeps printing the same content — evidence: short and full names both print; test "`waypost skill` prints a bundled skill by short or full name…"
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Implemented together with the install story in one commit (skills sources + scripts/skills.mjs). Procedures are reached through `waypost prompt <kind>` rather than copied, which keeps the standing context small and the content current with the CLI.
 
 ## Technical Notes
 

@@ -1,5 +1,10 @@
 ---
-description: When the user finishes work that maps to a known story (story file exists in epics/<id>/stories/) — all acceptance criteria appear satisfied, code merged, tests passing — suggest updating the story's frontmatter status (e.g. planned → in-progress → review → done) and regenerating the kanban. Never write to vault directly without the `waypost` flow and explicit approval.
+name: waypost-story-completion
+description: When finished work maps to a story in epics/<id>/stories/ and its acceptance criteria look met, suggest closing it with `waypost story close <path> --write`. Never edit status by hand.
+license: MIT
+metadata:
+  waypost-source: skills/waypost-story-completion/SKILL.md
+  waypost-hash: 1eba785931ff
 ---
 
 # Story completion / status update suggester

@@ -2,17 +2,14 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-04T16:11:56.000Z
+generated_at: 2026-09-04T16:24:45.277Z
 
 ---
 
 ## Backlog
 
-- [ ] [[epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills|WP-14: Bundled skills and loop procedures rendered as Agent Skills]] #p2
 - [ ] [[epics/WP-14/stories/story-doctor-agentsmd-hygiene-size-duplicate-block-claude-bridge|WP-14: doctor: AGENTS.md hygiene (size, duplicate block, Claude bridge)]] #p2
 - [ ] [[epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop|WP-14: Live verification: Codex and OpenCode run the whole loop]] #p1
-- [ ] [[epics/WP-14/stories/story-skill-descriptions-inside-the-standing-context-budget|WP-14: Skill descriptions inside the standing-context budget]] #p2
-- [ ] [[epics/WP-14/stories/story-waypost-skills-install-list-and-uninstall-doctor-staleness-brief-self-install|WP-14: waypost skills install, list and uninstall; doctor staleness; brief self-install]] #p2
 - [ ] [[epics/WP-15/stories/story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir|WP-15: ADR-0010 accepted: presence, leases and claims in the git common dir]] #p1
 - [ ] [[epics/WP-15/stories/story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked|WP-15: blocked_by in stories, waypost ready, and a board that shows blocked]] #p1
 - [ ] [[epics/WP-15/stories/story-doctor-dangling-and-cyclic-dependencies-duplicate-adr-numbers|WP-15: doctor: dangling and cyclic dependencies, duplicate ADR numbers]] #p2
@@ -30,7 +27,8 @@ generated_at: 2026-09-04T16:11:56.000Z
 
 ## In Progress
 
-
+- [ ] [[epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills|WP-14: Bundled skills and loop procedures rendered as Agent Skills]] #p2
+- [ ] [[epics/WP-14/stories/story-skill-descriptions-inside-the-standing-context-budget|WP-14: Skill descriptions inside the standing-context budget]] #p2
 
 ## Review
 
@@ -39,6 +37,7 @@ generated_at: 2026-09-04T16:11:56.000Z
 ## Done
 
 - [x] [[epics/WP-14/stories/story-skills-registry-a-skillsdir-per-harness-with-evidence|WP-14: Skills registry: a skills.dir per harness, with evidence]] #p1 #done
+- [x] [[epics/WP-14/stories/story-waypost-skills-install-list-and-uninstall-doctor-staleness-brief-self-install|WP-14: waypost skills install, list and uninstall; doctor staleness; brief self-install]] #p2 #done
 
 
 

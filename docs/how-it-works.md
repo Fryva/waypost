@@ -75,6 +75,7 @@ a generator and compare the result with what is on disk.
 | `waypost agents …` | roles: list / show / install / register / model |
 | `waypost harnesses` | the registry: where roles land and how to invoke them |
 | `waypost commit` / `merge` / `log` | the commit protocol (ADR-0006) |
+| `waypost skills …` | the bundled Agent Skills: install/list/uninstall/validate (WP-14) |
 | `waypost sessions` / `watch` / `lease` / `storage` | presence and leases (ADR-0007) |
 | `waypost prompt [name]` / `waypost skill [name]` | loop procedures and skills |
 | `waypost status` | bind summary, live sessions, role state |
@@ -105,6 +106,22 @@ how `waypost doctor` tells "installed and current" from "stale", and how
 `waypost agents register` writes a routing block between markers into `AGENTS.md`
 (and into whichever instruction file each detected harness reads): when to reach
 for which role. Re-running replaces the block in place rather than duplicating it.
+
+## Agent Skills (WP-14)
+
+Waypost's procedures ship as standard [Agent Skills](https://agentskills.io/):
+one `SKILL.md` per skill in `skills/` of the tool root, the same file for every
+harness. A harness loads each skill's `name` and `description` at startup and
+the body only when a task matches, so the descriptions are triggers and their
+total is pinned by a test (ADR-0008). `waypost skills install` copies them into
+the directory each harness discovers — registry data (`skills.dir` in
+`harnesses/*.json`): eleven harnesses read the shared `.agents/skills/`, so one
+copy there serves them all; the rest get their brand directory
+(`.claude/skills/`, `.qwen/skills/`, …). An installed copy carries
+`metadata.waypost-source` and `waypost-hash`, which is how `doctor` tells a
+current copy from a stale or hand-edited one and how install knows a file is
+ours before touching it. `waypost brief` installs the running harness's skills
+when they are missing, as it does roles; `waypost skill <name>` prints one.
 
 ## Parallel sessions (ADR-0006)
 

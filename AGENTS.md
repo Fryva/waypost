@@ -57,6 +57,7 @@ Before analysing a task, planning, editing or running checks:
 | `waypost doctor [--install\|--vault] [--fix]` | consistency diagnostics |
 | `waypost diff-refs` | changed files as evidence for `code_refs` |
 | `waypost agents …` | roles: `list`/`show`/`install`/`uninstall`/`register`/`model` |
+| `waypost skills …` | Agent Skills: `install`/`list`/`uninstall`/`validate` — the bundled procedures as standard `SKILL.md`, in the directory each harness discovers |
 | `waypost harnesses` | which harnesses are supported, where roles land, how to invoke them |
 | `waypost commit -m "<what>"` | commit with harness/session/story trailers |
 | `waypost merge <ref>` | merge, re-derive the views, then commit |
@@ -83,8 +84,14 @@ in `harnesses/`, and your own goes in `.waypost/harnesses/` (see
 `docs/harnesses.md`). Where a harness has no role concept, `waypost agents show
 <role>` prints the prompt for a separate run.
 
+- **Skills carry the procedures.** The ten bundled skills (`waypost-draft`,
+  `-story`, `-review`, `-search`, `-doctor`, `-commit`, and four proactive ones)
+  are standard Agent Skills: a harness loads their name and description at
+  startup and the body only when a task matches. `waypost skills install` puts
+  them where the harness looks (registry data, `docs/harnesses.md`); one copy in
+  `.agents/skills/` serves every harness that reads it. Commit them like roles.
 - **A harness that joins later needs no install step.** Its first
-  `waypost brief` renders its roles and registers its instruction file, and
+  `waypost brief` renders its roles, installs its skills, registers its instruction file, and
   `waypost doctor`/`next` count the harness running them as in use, so a
   session from a new harness is told to install its roles even before that.
   `waypost setup` still installs for every harness the project shows evidence of.

@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Waypost's procedures ship as standard Agent Skills (`SKILL.md`): ten bundled
+  `waypost-*` skills — draft, story, review, search, doctor, commit, and the
+  four proactive ones — installed with `waypost skills install` into the
+  directory each harness discovers (one copy in `.agents/skills/` for the
+  eleven harnesses that read it), checked by `doctor` (stale, missing,
+  foreign), repaired by `--fix`, installed by `setup` and by the running
+  harness's first `brief`. Descriptions are pinned to a standing-context
+  budget by a test. `waypost skill <name>` accepts the short name.
 - The harness registry records where each tool discovers project-level Agent
   Skills (`skills.dir`, `skills.reads`, with the evidence discipline of the
   entry itself); `waypost harnesses` shows the directory and `--json` carries
