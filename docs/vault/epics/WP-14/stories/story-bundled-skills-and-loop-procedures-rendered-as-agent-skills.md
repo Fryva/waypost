@@ -3,7 +3,7 @@ type: story
 id: "story-bundled-skills-and-loop-procedures-rendered-as-agent-skills"
 epic: "WP-14"
 title: "Bundled skills and loop procedures rendered as Agent Skills"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-04
@@ -13,7 +13,7 @@ tags: []
 code_refs: []
 specs: []
 started_at: "2026-09-04T16:16:51.267Z"
-closed_at: null
+closed_at: "2026-09-04T16:24:46.354Z"
 plan_updated_at: "2026-09-04T16:16:51.267Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-09-04T16:16:51.267Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-14](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 

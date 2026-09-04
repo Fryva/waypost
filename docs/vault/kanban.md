@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-04T16:24:45.277Z
+generated_at: 2026-09-04T16:24:46.634Z
 
 ---
 
@@ -27,7 +27,6 @@ generated_at: 2026-09-04T16:24:45.277Z
 
 ## In Progress
 
-- [ ] [[epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills|WP-14: Bundled skills and loop procedures rendered as Agent Skills]] #p2
 - [ ] [[epics/WP-14/stories/story-skill-descriptions-inside-the-standing-context-budget|WP-14: Skill descriptions inside the standing-context budget]] #p2
 
 ## Review
@@ -36,6 +35,7 @@ generated_at: 2026-09-04T16:24:45.277Z
 
 ## Done
 
+- [x] [[epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills|WP-14: Bundled skills and loop procedures rendered as Agent Skills]] #p2 #done
 - [x] [[epics/WP-14/stories/story-skills-registry-a-skillsdir-per-harness-with-evidence|WP-14: Skills registry: a skills.dir per harness, with evidence]] #p1 #done
 - [x] [[epics/WP-14/stories/story-waypost-skills-install-list-and-uninstall-doctor-staleness-brief-self-install|WP-14: waypost skills install, list and uninstall; doctor staleness; brief self-install]] #p2 #done
 
