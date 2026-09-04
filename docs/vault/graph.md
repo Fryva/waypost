@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-04T16:29:57.958Z
+generated_at: 2026-09-04T16:43:55.045Z
 
 ---
 
@@ -16,6 +16,17 @@ full typed neighborhood, both directions, in one call.
 
 | Path | Title | Type | Status |
 |------|-------|------|--------|
+| adr/0001-harness-agnostic-core.md | A harness-agnostic core: one CLI instead of hooks and slash commands | adr | accepted |
+| adr/0002-vault-layout-policy.md | The `engineering` layout as the default; the vault is markdown in git | adr | accepted |
+| adr/0003-agent-roles-across-harnesses.md | Agent roles: one neutral definition plus per-harness adapters | adr | accepted |
+| adr/0004-path-and-name-split.md | Name split: the vault stays ProjectStore-compatible, project wiring lives in `.waypost/` | adr | accepted |
+| adr/0005-harness-registry.md | A harness is data: the `harnesses/*.json` registry instead of a branch in a renderer | adr | accepted |
+| adr/0006-commit-protocol.md | A commit protocol for parallel work across harnesses | adr | accepted |
+| adr/0007-shared-vault-presence.md | Working from several devices and operating systems: presence, leases, network drives | adr | accepted |
+| adr/0008-token-budget.md | Context spend as a design constraint, not an outcome | adr | accepted |
+| adr/0009-artifact-integrity-checks.md | doctor verifies artifact integrity, not just story mechanics | adr | accepted |
+| adr/0010-coordination-follows-the-repository.md | Coordination follows the repository: presence and leases in the git common dir | adr | accepted |
+| adr/0011-decisions-that-check-themselves.md | Decisions that check themselves: guards and provenance in ADRs | adr | accepted |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
 | epics/WP-14/epic.md | Skills as the portable layer, and the first verified harnesses | epic | planned |
 | epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills.md | Bundled skills and loop procedures rendered as Agent Skills | story | done |
@@ -42,6 +53,8 @@ full typed neighborhood, both directions, in one call.
 
 | From | Kind | To |
 |------|------|----|
+| concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | adr/0010-coordination-follows-the-repository.md |
+| concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | adr/0011-decisions-that-check-themselves.md |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | epics/WP-14/epic.md |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | epics/WP-15/epic.md |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | epics/WP-16/epic.md |
@@ -65,6 +78,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive.md |
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md |
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md |
+| epics/WP-15/epic.md | mdlink | adr/0010-coordination-follows-the-repository.md |
 | epics/WP-15/epic.md | mdlink | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md |
 | epics/WP-15/stories/story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-15/stories/story-blockedby-in-stories-waypost-ready-and-a-board-that-shows-blocked.md | mdlink | epics/WP-15/epic.md |
@@ -76,6 +90,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot.md |
+| epics/WP-16/epic.md | mdlink | adr/0011-decisions-that-check-themselves.md |
 | epics/WP-16/epic.md | mdlink | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md |
 | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md | mdlink | epics/WP-16/epic.md |
 | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md | mdlink | epics/WP-16/epic.md |

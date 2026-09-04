@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0001"
+title: "A harness-agnostic core: one CLI instead of hooks and slash commands"
+status: accepted
+date: 2026-08-28
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["bin/waypost", "scripts/lib.mjs", "scripts/doctor.mjs", "scripts/graph.mjs", "scripts/codemap.mjs", "scripts/reconcile.mjs", "scripts/draft.mjs", "scripts/kanban.mjs", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/sessions.mjs", "tests/harness.test.mjs", "AGENTS.md", "opencode.json"]
+review_status: reviewed
+reviewed_at: 2026-08-28
+deciders: "Ivan Morozov (project owner); approved 2026-09-03"
+related: "`bin/waypost`, `scripts/*.mjs`, `AGENTS.md`, `opencode.json`"
+---
 # ADR-0001: A harness-agnostic core: one CLI instead of hooks and slash commands
 
-- Status: accepted
-- Date: 2026-08-28
-- Deciders: Ivan Morozov (project owner); approved 2026-09-03
-- Supersedes: —
-- Superseded by: —
-- Related: `bin/waypost`, `scripts/*.mjs`, `AGENTS.md`, `opencode.json`
-- code_refs: ["bin/waypost", "scripts/lib.mjs", "scripts/doctor.mjs", "scripts/graph.mjs", "scripts/codemap.mjs", "scripts/reconcile.mjs", "scripts/draft.mjs", "scripts/kanban.mjs", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/sessions.mjs", "tests/harness.test.mjs", "AGENTS.md", "opencode.json"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-08-28 |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-03 |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | `bin/waypost`, `scripts/*.mjs`, `AGENTS.md`, `opencode.json` |
 
+---
 ## Context
 
 Upstream ProjectStore is a Claude Code plugin: slash commands (`/projectstore:adr`),

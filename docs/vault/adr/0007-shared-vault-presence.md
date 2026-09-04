@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0007"
+title: "Working from several devices and operating systems: presence, leases, network drives"
+status: accepted
+date: 2026-09-01
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/doctor.mjs", "scripts/brief.mjs", "scripts/lib.mjs", "tests/presence.test.mjs"]
+review_status: reviewed
+reviewed_at: 2026-09-01
+deciders: "Ivan Morozov (project owner); approved 2026-09-03"
+related: "ADR-0006 (commit protocol), `scripts/presence.mjs`, `scripts/lib.mjs`"
+---
 # ADR-0007: Working from several devices and operating systems: presence, leases, network drives
 
-- Status: accepted
-- Date: 2026-09-01
-- Deciders: Ivan Morozov (project owner); approved 2026-09-03
-- Supersedes: —
-- Superseded by: —
-- Related: ADR-0006 (commit protocol), `scripts/presence.mjs`, `scripts/lib.mjs`
-- code_refs: ["scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/doctor.mjs", "scripts/brief.mjs", "scripts/lib.mjs", "tests/presence.test.mjs"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-09-01 |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-03 |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | ADR-0006 (commit protocol), `scripts/presence.mjs`, `scripts/lib.mjs` |
 
+---
 ## Context
 
 ADR-0006 described a commit protocol for parallel sessions but silently assumed

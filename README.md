@@ -146,7 +146,7 @@ waypost log --story PS-1/story-codex-adapter     # or --harness codex
 Every commit carries git trailers (`Waypost-Harness`, `Waypost-Session`,
 `Waypost-Story`) that git itself can read, so the record survives without this
 tool. Generated views regenerate on merge instead of conflicting line by line.
-See [ADR-0006](docs/decisions/0006-commit-protocol.md).
+See [ADR-0006](docs/vault/adr/0006-commit-protocol.md).
 
 For a vault synced across machines (iCloud, Dropbox, a network share) Waypost
 does not pretend to lock anything — it coordinates:
@@ -159,7 +159,7 @@ waypost watch                # stay live and see others join, leave, take a stor
 
 Liveness never compares one machine's clock with another's, so a device whose
 clock is hours off is still judged correctly, and every answer says how stale it
-might be. See [ADR-0007](docs/decisions/0007-shared-vault-presence.md).
+might be. See [ADR-0007](docs/vault/adr/0007-shared-vault-presence.md).
 When two sessions share one *checkout*, not just one vault, `waypost brief` says
 so, and `waypost commit --all` refuses to sweep the other session's uncommitted
 edits into your commit.
@@ -180,7 +180,7 @@ The agent roles are where real money goes, and that's the point — a critic pas
 on Opus measured about $1.62, mostly the reading it does. Use `waypost agents
 model default sonnet` to cut that by ~60%, and reserve the roles for decisions,
 specs and story reviews rather than every edit. Budgets for all of this are
-enforced by tests. See [ADR-0008](docs/decisions/0008-token-budget.md).
+enforced by tests. See [ADR-0008](docs/vault/adr/0008-token-budget.md).
 
 ## Layout
 
@@ -215,14 +215,14 @@ difference from it is being harness-agnostic instead of Claude-only.
 
 - [docs/how-it-works.md](docs/how-it-works.md) — the mechanics in depth.
 - [docs/harnesses.md](docs/harnesses.md) — every supported tool and how to add one.
-- [docs/decisions/](docs/decisions/) — the architecture decision records.
+- [docs/vault/adr/](docs/vault/adr/) — the architecture decision records, in Waypost's own vault.
 - [CHANGELOG.md](./CHANGELOG.md) — what changed in each release.
 - [AGENTS.md](./AGENTS.md) — the rules every tool and contributor follows.
 
 ## Contributing
 
 Issues and pull requests are welcome. Read [AGENTS.md](./AGENTS.md) (the single
-source of the project's rules) and [docs/decisions/](docs/decisions/) (the ADR
+source of the project's rules) and [docs/vault/adr/](docs/vault/adr/) (the ADR
 log — architectural changes get an ADR before they get code) first.
 
 ```bash

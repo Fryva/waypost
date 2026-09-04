@@ -70,7 +70,7 @@ Not to do, and why:
 ## Related
 
 - Epics: [WP-14](../epics/WP-14/epic.md), [WP-15](../epics/WP-15/epic.md), [WP-16](../epics/WP-16/epic.md)
-- ADR-0010 and ADR-0011 in `docs/decisions/` (proposed)
+- [ADR-0010](../adr/0010-coordination-follows-the-repository.md) and [ADR-0011](../adr/0011-decisions-that-check-themselves.md), accepted 2026-09-04
 - Research: [Agent tooling landscape, September 2026](../research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md)
 
 ## References

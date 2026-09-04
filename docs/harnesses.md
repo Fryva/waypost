@@ -103,7 +103,7 @@ JSON file in `.waypost/harnesses/providers/`.
 Any harness not in the table still works, with no adapter at all:
 
 ```bash
-<your-cli> "$(waypost agents show critic) docs/decisions/0003-….md"
+<your-cli> "$(waypost agents show critic) docs/vault/adr/0003-….md"
 ```
 
 That is the floor the whole design rests on — a role is a prompt, and every

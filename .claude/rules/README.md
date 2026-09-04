@@ -6,7 +6,7 @@ it in through `instructions`.
 
 This directory is a place for rules specific to Claude Code. Technical rules are
 not duplicated here: the vault structure, the CLI, the agent roles and the ADR
-process are described in `AGENTS.md` and `docs/decisions/`.
+process are described in `AGENTS.md` and `docs/vault/adr/`.
 
 Agent roles do not live here either: their source is `agents/*.md`, and the
 harness-native files (`.claude/agents/`, `.opencode/agents/`, `.codex/agents/`, …)

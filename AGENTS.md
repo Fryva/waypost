@@ -26,7 +26,7 @@ Before analysing a task, planning, editing or running checks:
    when they are missing or stale, puts the routing block into that harness's
    own instruction file, and says what it wrote so you commit it
    (`--no-install` to only read).
-3. Read `docs/decisions/README.md` and the related ADRs when the task touches the
+3. Read `docs/vault/adr/README.md` and the related ADRs when the task touches the
    fork's architecture, CLI, roles, layouts, templates or working mechanics.
 4. `waypost next` — what this project needs right now, ranked, with the command for
    each.
@@ -229,8 +229,9 @@ One project may be driven by several sessions at the same time (ADR-0006):
 
 ## Architecture decisions (ADR)
 
-- The canonical source of Waypost decisions is `docs/decisions/`. The process is in
-  `docs/decisions/README.md`, the template in `docs/decisions/0000-template.md`.
+- The canonical source of Waypost decisions is `docs/vault/adr/` — Waypost's own
+  vault, checked by its own `doctor`. The process is in `docs/vault/adr/README.md`;
+  a new one is drafted with `waypost draft adr "<title>" --write`.
 - A new ADR is for a long-lived decision with real alternatives. Status stays
   `proposed` until the project owner approves it.
 - After a decision is made or superseded, update the ADR index, the related

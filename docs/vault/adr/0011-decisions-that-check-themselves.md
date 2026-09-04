@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0011"
+title: "Decisions that check themselves: guards and provenance in ADRs"
+status: accepted
+date: 2026-09-04
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["scripts/doctor.mjs (planned)", "scripts/draft.mjs (planned)", "scripts/lib.mjs (planned)", "templates/en/adr.md.tmpl (planned)", "bin/waypost (planned)", "tests/scripts.test.mjs (planned)"]
+review_status: reviewed
+reviewed_at: 2026-09-04
+deciders: "Ivan Morozov (project owner); approved 2026-09-04 by delegation after the fresh-context critic pass"
+related: "ADR-0009 (artifact integrity checks), ADR-0008 (token budget), `scripts/doctor.mjs`, `scripts/lib.mjs` (`parseFrontmatter`), `agents/critic.md`, `agents/reviewer.md`"
+---
 # ADR-0011: Decisions that check themselves: guards and provenance in ADRs
 
-- Status: proposed
-- Date: 2026-09-04 (revised the same day after a fresh-context critic pass)
-- Deciders: not approved by the project owner; status `proposed`
-- Supersedes: —
-- Superseded by: —
-- Related: ADR-0009 (artifact integrity checks), ADR-0008 (token budget), `scripts/doctor.mjs`, `scripts/lib.mjs` (`parseFrontmatter`), `agents/critic.md`, `agents/reviewer.md`
-- code_refs: ["scripts/doctor.mjs (planned)", "scripts/draft.mjs (planned)", "scripts/lib.mjs (planned)", "templates/en/adr.md.tmpl (planned)", "bin/waypost (planned)", "tests/scripts.test.mjs (planned)"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-09-04 — revised the same day after a fresh-context critic pass |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-04 by delegation after the fresh-context critic pass |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | ADR-0009 (artifact integrity checks), ADR-0008 (token budget), `scripts/doctor.mjs`, `scripts/lib.mjs` (`parseFrontmatter`), `agents/critic.md`, `agents/reviewer.md` |
 
+---
 ## Context
 
 A decision log works only while something checks that the code still follows
@@ -136,9 +155,9 @@ project command without running it. `draft --write` records `drafted_by`. The
 critic and reviewer roles stay the semantic layer; `doctor` reports what a
 regular expression can settle.
 
-Waypost's own decisions live in `docs/decisions/` outside a vault and use the
-list-style header, so they cannot carry guards until they gain frontmatter;
-whether to move them is a separate decision, not part of this one.
+Waypost's own decisions moved into this vault (`docs/vault/adr/`, with
+frontmatter) on the day this ADR was accepted, so they are checked by the same
+`doctor` and can carry guards once WP-16 lands.
 
 ## Consequences
 
@@ -176,5 +195,5 @@ whether to move them is a separate decision, not part of this one.
   `draft --write` and absent on a hand-made file; `waypost next` shows the
   repair hint for `adr-guard`.
 - Live: a real vault with one guard that fails on purpose, and the fix.
-- Open: whether `docs/decisions/` should move into a vault so that Waypost's
-  own decisions can carry guards.
+- Resolved on acceptance: the decision log moved from `docs/decisions/` into
+  `docs/vault/adr/`, so Waypost's own decisions are vault artifacts.

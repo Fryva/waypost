@@ -1023,7 +1023,7 @@ function stripLineComment(line) {
 test("no user-facing message cites an ADR this fork does not have", () => {
   // Upstream's numbers survive in comments (marked "upstream ADR-00N"), which is
   // fine — a reader of the source can place them. A finding shown to a user is
-  // different: "(ADR-008)" sends them to docs/decisions/ for a file that is not
+  // different: "(ADR-008)" sends them to docs/vault/adr/ for a file that is not
   // there. Comments are stripped, so this checks the strings that ship.
   const have = new Set(readdirSync(join(REPO, "docs", "decisions"))
     .map((n) => (n.match(/^(\d{4})-/) || [])[1]).filter(Boolean));
@@ -1032,7 +1032,7 @@ test("no user-facing message cites an ADR this fork does not have", () => {
       .split("\n").map(stripLineComment).join("\n");
     for (const m of code.matchAll(/ADR-(\d+)/g)) {
       const n = m[1].padStart(4, "0");
-      assert.ok(have.has(n), `scripts/${f} cites ADR-${m[1]} in shipped text, but docs/decisions/ has no ${n}-*.md`);
+      assert.ok(have.has(n), `scripts/${f} cites ADR-${m[1]} in shipped text, but docs/vault/adr/ has no ${n}-*.md`);
     }
   }
 });

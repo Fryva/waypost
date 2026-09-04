@@ -58,7 +58,7 @@ code_refs prove that files exist, not that they still follow the decision. The m
 
 ## Related
 
-- ADR-0011 (proposed): ../../../decisions/0011-decisions-that-check-themselves.md
+- [ADR-0011](../../adr/0011-decisions-that-check-themselves.md), accepted 2026-09-04
 - [Concept: Waypost 1.0](../../concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md)
 
 ---

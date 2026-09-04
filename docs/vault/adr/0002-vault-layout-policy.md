@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0002"
+title: "The `engineering` layout as the default; the vault is markdown in git"
+status: accepted
+date: 2026-08-28
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["scaffold/layouts/engineering.json", "bin/waypost", "AGENTS.md", "README.md", "tests/harness.test.mjs"]
+review_status: reviewed
+reviewed_at: 2026-08-28
+deciders: "Ivan Morozov (project owner); approved 2026-09-03"
+related: "`scaffold/layouts/engineering.json`, `README.md`, `AGENTS.md`"
+---
 # ADR-0002: The `engineering` layout as the default; the vault is markdown in git
 
-- Status: accepted
-- Date: 2026-08-28
-- Deciders: Ivan Morozov (project owner); approved 2026-09-03
-- Supersedes: —
-- Superseded by: —
-- Related: `scaffold/layouts/engineering.json`, `README.md`, `AGENTS.md`
-- code_refs: ["scaffold/layouts/engineering.json", "bin/waypost", "AGENTS.md", "README.md", "tests/harness.test.mjs"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-08-28 |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-03 |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | `scaffold/layouts/engineering.json`, `README.md`, `AGENTS.md` |
 
+---
 ## Context
 
 ProjectStore defines the vault structure through layouts (JSON). The only

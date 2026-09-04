@@ -60,7 +60,7 @@ Orchestrators isolate agents by git worktree; Waypost's presence, leases and cla
 
 ## Related
 
-- ADR-0010 (proposed): ../../../decisions/0010-coordination-follows-the-repository.md
+- [ADR-0010](../../adr/0010-coordination-follows-the-repository.md), accepted 2026-09-04
 - [Concept: Waypost 1.0](../../concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md)
 
 ---

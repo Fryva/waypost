@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0008"
+title: "Context spend as a design constraint, not an outcome"
+status: accepted
+date: 2026-09-01
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["agents/critic.md", "templates/agents-block.md.tmpl", "scripts/brief.mjs", "scripts/agents.mjs", "bin/waypost", "tests/harness.test.mjs"]
+review_status: reviewed
+reviewed_at: 2026-09-01
+deciders: "Ivan Morozov (project owner); approved 2026-09-03"
+related: "ADR-0003 (roles), `agents/*.md`, `templates/agents-block.md.tmpl`, `scripts/brief.mjs`, `bin/waypost`"
+---
 # ADR-0008: Context spend as a design constraint, not an outcome
 
-- Status: accepted
-- Date: 2026-09-01
-- Deciders: Ivan Morozov (project owner); approved 2026-09-03
-- Supersedes: —
-- Superseded by: —
-- Related: ADR-0003 (roles), `agents/*.md`, `templates/agents-block.md.tmpl`, `scripts/brief.mjs`, `bin/waypost`
-- code_refs: ["agents/critic.md", "templates/agents-block.md.tmpl", "scripts/brief.mjs", "scripts/agents.mjs", "bin/waypost", "tests/harness.test.mjs"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-09-01 |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-03 |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | ADR-0003 (roles), `agents/*.md`, `templates/agents-block.md.tmpl`, `scripts/brief.mjs`, `bin/waypost` |
 
+---
 ## Context
 
 A tool that runs a project through an agent pays in context twice: for what sits

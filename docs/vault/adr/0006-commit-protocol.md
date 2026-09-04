@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0006"
+title: "A commit protocol for parallel work across harnesses"
+status: accepted
+date: 2026-09-01
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["scripts/commit.mjs", "scripts/merge-derived.mjs", "scripts/sessions.mjs", "scripts/doctor.mjs", "bin/waypost", "tests/commits.test.mjs"]
+review_status: reviewed
+reviewed_at: 2026-09-01
+deciders: "Ivan Morozov (project owner); approved 2026-09-03"
+related: "ADR-0003 (roles), ADR-0004 (paths), ADR-0007 (shared vaults), `scripts/commit.mjs`, `scripts/merge-derived.mjs`"
+---
 # ADR-0006: A commit protocol for parallel work across harnesses
 
-- Status: accepted
-- Date: 2026-09-01
-- Deciders: Ivan Morozov (project owner); approved 2026-09-03
-- Supersedes: —
-- Superseded by: —
-- Related: ADR-0003 (roles), ADR-0004 (paths), ADR-0007 (shared vaults), `scripts/commit.mjs`, `scripts/merge-derived.mjs`
-- code_refs: ["scripts/commit.mjs", "scripts/merge-derived.mjs", "scripts/sessions.mjs", "scripts/doctor.mjs", "bin/waypost", "tests/commits.test.mjs"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-09-01 |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-03 |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | ADR-0003 (roles), ADR-0004 (paths), ADR-0007 (shared vaults), `scripts/commit.mjs`, `scripts/merge-derived.mjs` |
 
+---
 ## Context
 
 The fork exists so that one project can be driven from different harnesses. That

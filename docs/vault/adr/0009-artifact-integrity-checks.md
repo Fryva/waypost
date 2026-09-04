@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0009"
+title: "doctor verifies artifact integrity, not just story mechanics"
+status: accepted
+date: 2026-09-02
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["scripts/doctor.mjs", "scripts/lib.mjs", "scripts/graph.mjs", "bin/waypost", "tests/scripts.test.mjs", "AGENTS.md", "docs/how-it-works.md", "docs/decisions/README.md", "agents/planner.md", "agents/reviewer.md", "prompts/story.md"]
+review_status: reviewed
+reviewed_at: 2026-09-02
+deciders: "Ivan Morozov (project owner); approved 2026-09-03"
+related: "`scripts/doctor.mjs`, `scripts/graph.mjs`, `docs/vault/adr/0008-token-budget.md`"
+---
 # ADR-0009: doctor verifies artifact integrity, not just story mechanics
 
-- Status: accepted
-- Date: 2026-09-02
-- Deciders: Ivan Morozov (project owner); approved 2026-09-03
-- Supersedes: —
-- Superseded by: —
-- Related: `scripts/doctor.mjs`, `scripts/graph.mjs`, `docs/decisions/0008-token-budget.md`
-- code_refs: ["scripts/doctor.mjs", "scripts/lib.mjs", "scripts/graph.mjs", "bin/waypost", "tests/scripts.test.mjs", "AGENTS.md", "docs/how-it-works.md", "docs/decisions/README.md", "agents/planner.md", "agents/reviewer.md", "prompts/story.md"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-09-02 |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-03 |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | `scripts/doctor.mjs`, `scripts/graph.mjs`, `docs/vault/adr/0008-token-budget.md` |
 
+---
 ## Context
 
 Three integrity properties that a vault's frontmatter asserts are not verified by

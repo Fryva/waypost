@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0003"
+title: "Agent roles: one neutral definition plus per-harness adapters"
+status: accepted
+date: 2026-08-29
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["scripts/agents.mjs", "agents/critic.md", "agents/planner.md", "agents/reviewer.md", "agents/librarian.md", "agents/archaeologist.md", "templates/agents-block.md.tmpl", "scripts/doctor.mjs", "tests/harness.test.mjs", "bin/waypost"]
+review_status: reviewed
+reviewed_at: 2026-08-29
+deciders: "Ivan Morozov (project owner); approved 2026-09-03"
+related: "`agents/*.md`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, ADR-0001, ADR-0005"
+---
 # ADR-0003: Agent roles: one neutral definition plus per-harness adapters
 
-- Status: accepted
-- Date: 2026-08-29
-- Deciders: Ivan Morozov (project owner); approved 2026-09-03
-- Supersedes: —
-- Superseded by: —
-- Related: `agents/*.md`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, ADR-0001, ADR-0005
-- code_refs: ["scripts/agents.mjs", "agents/critic.md", "agents/planner.md", "agents/reviewer.md", "agents/librarian.md", "agents/archaeologist.md", "templates/agents-block.md.tmpl", "scripts/doctor.mjs", "tests/harness.test.mjs", "bin/waypost"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-08-29 |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-03 |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | `agents/*.md`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, ADR-0001, ADR-0005 |
 
+---
 ## Context
 
 In ProjectStore the five roles (critic, planner, reviewer, librarian,

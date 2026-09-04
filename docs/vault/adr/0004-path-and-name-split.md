@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0004"
+title: "Name split: the vault stays ProjectStore-compatible, project wiring lives in `.waypost/`"
+status: accepted
+date: 2026-08-29
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["scripts/lib.mjs", "bin/waypost", "scripts/doctor.mjs", "scripts/sessions.mjs", ".gitignore"]
+review_status: reviewed
+reviewed_at: 2026-08-29
+deciders: "Ivan Morozov (project owner); approved 2026-09-03"
+related: "`scripts/lib.mjs`, `bin/waypost`, `scripts/doctor.mjs`, ADR-0001, ADR-0002"
+---
 # ADR-0004: Name split: the vault stays ProjectStore-compatible, project wiring lives in `.waypost/`
 
-- Status: accepted
-- Date: 2026-08-29
-- Deciders: Ivan Morozov (project owner); approved 2026-09-03
-- Supersedes: —
-- Superseded by: —
-- Related: `scripts/lib.mjs`, `bin/waypost`, `scripts/doctor.mjs`, ADR-0001, ADR-0002
-- code_refs: ["scripts/lib.mjs", "bin/waypost", "scripts/doctor.mjs", "scripts/sessions.mjs", ".gitignore"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-08-29 |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-03 |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | `scripts/lib.mjs`, `bin/waypost`, `scripts/doctor.mjs`, ADR-0001, ADR-0002 |
 
+---
 ## Context
 
 The fork renamed the tool (`projectstore` → `waypost`), but the name appears in two

@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0010"
+title: "Coordination follows the repository: presence and leases in the git common dir"
+status: accepted
+date: 2026-09-04
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["scripts/presence.mjs (planned)", "scripts/sessions.mjs (planned)", "scripts/lib.mjs (planned)", "scripts/commit.mjs (planned)", "bin/waypost (planned)", "tests/presence.test.mjs (planned)"]
+review_status: reviewed
+reviewed_at: 2026-09-04
+deciders: "Ivan Morozov (project owner); approved 2026-09-04 by delegation after the fresh-context critic pass"
+related: "ADR-0004 (vault service files stay upstream-compatible), ADR-0006 (commit protocol), ADR-0007 (presence, leases, network drives), `scripts/presence.mjs`"
+---
 # ADR-0010: Coordination follows the repository: presence and leases in the git common dir
 
-- Status: proposed
-- Date: 2026-09-04 (revised the same day after a fresh-context critic pass)
-- Deciders: not approved by the project owner; status `proposed`
-- Supersedes: —
-- Superseded by: —
-- Related: ADR-0004 (vault service files stay upstream-compatible), ADR-0006 (commit protocol), ADR-0007 (presence, leases, network drives), `scripts/presence.mjs`
-- code_refs: ["scripts/presence.mjs (planned)", "scripts/sessions.mjs (planned)", "scripts/lib.mjs (planned)", "scripts/commit.mjs (planned)", "bin/waypost (planned)", "tests/presence.test.mjs (planned)"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-09-04 — revised the same day after a fresh-context critic pass |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-04 by delegation after the fresh-context critic pass |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | ADR-0004 (vault service files stay upstream-compatible), ADR-0006 (commit protocol), ADR-0007 (presence, leases, network drives), `scripts/presence.mjs` |
 
+---
 ## Context
 
 ADR-0007 keeps a session's presence record (which carries its story claim) and

@@ -1,13 +1,32 @@
+---
+type: adr
+id: "ADR-0005"
+title: "A harness is data: the `harnesses/*.json` registry instead of a branch in a renderer"
+status: accepted
+date: 2026-09-01
+authors: ["Ivan Morozov"]
+tags: []
+external_refs: {}
+supersedes: null
+superseded_by: null
+code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "harnesses/cursor.json", "harnesses/windsurf.json", "harnesses/copilot.json", "harnesses/gemini.json", "harnesses/cline.json", "harnesses/roo.json", "harnesses/qwen.json", "harnesses/kimi.json", "harnesses/zcode.json", "harnesses/codebuddy.json", "harnesses/dsh.json", "harnesses/trae.json", "harnesses/lingma.json", "harnesses/iflow.json", "harnesses/grok.json", "harnesses/antigravity.json", "harnesses/qm.json", "harnesses/pi.json", "harnesses/providers/deepseek.json", "harnesses/providers/moonshot.json", "harnesses/providers/glm.json", "harnesses/providers/minimax.json", "harnesses/providers/dashscope.json", "harnesses/providers/xai.json", "scripts/agents.mjs", "scripts/commit.mjs", "docs/harnesses.md", "tests/harness.test.mjs"]
+review_status: reviewed
+reviewed_at: 2026-09-01
+deciders: "Ivan Morozov (project owner); approved 2026-09-03"
+related: "ADR-0003 (roles), `harnesses/*.json`, `scripts/agents.mjs`, `docs/harnesses.md`"
+---
 # ADR-0005: A harness is data: the `harnesses/*.json` registry instead of a branch in a renderer
 
-- Status: accepted
-- Date: 2026-09-01
-- Deciders: Ivan Morozov (project owner); approved 2026-09-03
-- Supersedes: —
-- Superseded by: —
-- Related: ADR-0003 (roles), `harnesses/*.json`, `scripts/agents.mjs`, `docs/harnesses.md`
-- code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "harnesses/cursor.json", "harnesses/windsurf.json", "harnesses/copilot.json", "harnesses/gemini.json", "harnesses/cline.json", "harnesses/roo.json", "harnesses/qwen.json", "harnesses/kimi.json", "harnesses/zcode.json", "harnesses/codebuddy.json", "harnesses/dsh.json", "harnesses/trae.json", "harnesses/lingma.json", "harnesses/iflow.json", "harnesses/grok.json", "harnesses/antigravity.json", "harnesses/qm.json", "harnesses/pi.json", "harnesses/providers/deepseek.json", "harnesses/providers/moonshot.json", "harnesses/providers/glm.json", "harnesses/providers/minimax.json", "harnesses/providers/dashscope.json", "harnesses/providers/xai.json", "scripts/agents.mjs", "scripts/commit.mjs", "docs/harnesses.md", "tests/harness.test.mjs"]
+| Field | Value |
+|---|---|
+| **Status** | accepted |
+| **Date** | 2026-09-01 |
+| **Deciders** | Ivan Morozov (project owner); approved 2026-09-03 |
+| **Supersedes** | — |
+| **Superseded by** | — |
+| **Related** | ADR-0003 (roles), `harnesses/*.json`, `scripts/agents.mjs`, `docs/harnesses.md` |
 
+---
 ## Context
 
 ADR-0003 introduced one neutral role definition and adapters for three
