@@ -1,6 +1,6 @@
 {
   "name": "waypost",
-  "version": "0.12.2",
+  "version": "0.13.0",
   "description": "One project vault — decisions, specs, epics, stories, a board — as markdown in git, and the same agent roles in every harness. Harness-agnostic fork of ProjectStore.",
   "keywords": ["adr", "architecture-decision-records", "ai-agents", "claude-code", "opencode", "codex", "cli", "markdown", "project-management", "agent-roles"],
   "license": "MIT",
