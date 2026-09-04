@@ -61,7 +61,7 @@ Before analysing a task, planning, editing or running checks:
 | `waypost commit -m "<what>"` | commit with harness/session/story trailers |
 | `waypost merge <ref>` | merge, re-derive the views, then commit |
 | `waypost log [--story\|--harness]` | history read back through those trailers |
-| `waypost sessions [--touch] [--claim/--release]` | active sessions and story claims |
+| `waypost sessions [--touch] [--claim/--release] [--prune [--older-than <span>]]` | active sessions and story claims |
 | `waypost watch` | stay live and see other devices' events |
 | `waypost lease <path…>` | announce the files you are editing right now |
 | `waypost storage` | what the vault is stored on and how far behind presence can be |
@@ -152,7 +152,9 @@ One project may be driven by several sessions at the same time (ADR-0006):
   for 24h+ is reaped the same way, by `waypost sessions --prune`, never by hand.
   On this host a record whose harness process is gone is reaped by `--prune` at
   once: a beat records that process, and a pid means something only on the
-  machine that issued it.
+  machine that issued it. `--prune --older-than 6h` lowers the 24h threshold
+  explicitly; a record whose harness process is still running on this host is
+  never reaped by age, whatever the threshold.
 - **Cross-OS hygiene**: `waypost doctor` catches names that cannot be checked out on
   Windows, case collisions and a missing line-ending policy; `--fix` writes
   `* text=auto`. Do not create vault names with `<>:"|?*`, with a trailing space

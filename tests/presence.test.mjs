@@ -15,7 +15,7 @@ import {
   beat, peers, acquire, release, readLeases, winnerOf, storageOf, presenceDir, leaseDir, vaultRel,
   prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset, processGone,
 } from "../scripts/presence.mjs";
-import { claimsOf } from "../scripts/sessions.mjs";
+import { claimsOf, parseDuration } from "../scripts/sessions.mjs";
 import { checkPortableNames } from "../scripts/doctor.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -163,6 +163,47 @@ test("`waypost sessions --prune` also prunes stale presence, and the text mode h
   const pruned = JSON.parse(run(["sessions", "--prune", "--json"]).stdout);
   assert.equal(pruned.pruned_presence, 1, "a 48h-quiet, first-sight peer is reaped by --prune");
   assert.ok(!readdirSync(presenceDir(vault)).includes("long-gone.json"));
+});
+
+test("`--older-than` lowers the reaping threshold explicitly, and never reaps a session still running here", () => {
+  assert.equal(parseDuration("90m"), 5_400_000);
+  assert.equal(parseDuration("1.5h"), 5_400_000);
+  assert.equal(parseDuration("2d"), 172_800_000);
+  assert.equal(parseDuration("0s"), null, "a threshold of nothing is not a threshold");
+  assert.equal(parseDuration("6"), null);
+  assert.equal(parseDuration("6x"), null);
+
+  const { proj, vault } = project();
+  const me = hostname().split(".")[0];
+  const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
+    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
+  });
+  const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString();
+  withProject(proj, () => {
+    const mine = beat(vault, "me", { harness: "claude" });
+    peerFile(vault, { session: "seven-h", host: "otherbox", at: ago(7) });
+    peerFile(vault, { session: "five-h", host: "otherbox", at: ago(5) });
+    if (mine.proc) {
+      // 30h quiet on paper, but its harness — ours, for the test — is still running here.
+      peerFile(vault, { session: "idle-here", host: me, at: ago(30), proc: mine.proc });
+    }
+    assert.equal(prunePresence(vault, { self: "me", maxAgeMs: 6 * 3600e3, dryRun: true }), 1);
+  });
+
+  const bad = run(["sessions", "--prune", "--older-than", "6x", "--json"]);
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stderr, /span like 6h/);
+  const alone = run(["sessions", "--older-than", "6h", "--json"]);
+  assert.notEqual(alone.status, 0);
+  assert.match(alone.stderr, /only means something with --prune/);
+
+  const pruned = JSON.parse(run(["sessions", "--prune", "--older-than", "6h", "--json"]).stdout);
+  assert.equal(pruned.older_than_ms, 6 * 3600e3);
+  assert.equal(pruned.pruned_presence, 1, "seven hours is past six; five is not");
+  const left = readdirSync(presenceDir(vault));
+  assert.ok(left.includes("five-h.json"));
+  assert.ok(!left.includes("seven-h.json"));
+  if (platform() !== "win32") assert.ok(left.includes("idle-here.json"), "a session whose harness still runs here is idle, not gone");
 });
 
 // ─── leases ────────────────────────────────────────────────────────────

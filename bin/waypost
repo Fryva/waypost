@@ -94,7 +94,7 @@ function readConfig() {
 // boolean flag was written before it.
 const VALUED = new Set(["--harness", "--layout", "--lang", "--only", "--id",
   "--budget", "--project", "--since", "--for", "--kind", "--limit", "--message",
-  "--story", "--merge", "--session", "--provider"]);
+  "--story", "--merge", "--session", "--provider", "--older-than"]);
 
 // The literal `--` stops flag parsing, same as most POSIX CLIs: everything
 // after it is positional even if it is spelled like a flag (`waypost search --
@@ -800,7 +800,7 @@ ROLES (same roles in every harness)
 PROCEDURES
   prompt [name]            print a workflow procedure (the verified loop's steps)
   skill [name]             print a skill (proactive procedure)
-  sessions [--touch]       active-session registry (--claim/--release/--prune)
+  sessions [--touch]       active-session registry (--claim/--release/--prune [--older-than 6h])
   tokens [flags]           what the loop cost, from Claude Code transcripts
                            (Claude-only: no other harness writes them)
 

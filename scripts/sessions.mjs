@@ -85,6 +85,15 @@ function die(msg) {
   process.exit(1);
 }
 
+// `--older-than 6h`: a span as <number><s|m|h|d>. Null for anything else,
+// including zero — a threshold of nothing is not a threshold.
+export function parseDuration(s) {
+  const m = String(s || "").trim().match(/^(\d+(?:\.\d+)?)\s*([smhd])$/i);
+  if (!m) return null;
+  const ms = Math.round(Number(m[1]) * { s: 1e3, m: 60e3, h: 3600e3, d: 86400e3 }[m[2].toLowerCase()]);
+  return ms > 0 ? ms : null;
+}
+
 function main() {
   ignoreEpipe();
   const args = process.argv.slice(2);
@@ -125,9 +134,21 @@ function main() {
     clearPresence(vault, sid);
     out.ended = true;
   }
+  // The 24h threshold is the default, not a law: `--older-than 6h` lowers it
+  // explicitly and stays a threshold-bounded mechanical reap (ADR-0007). A
+  // record whose harness process is still running on this host is never
+  // reaped by age, whatever the threshold — prunePresence checks that.
+  const oi = args.indexOf("--older-than");
+  let maxAgeMs = 24 * 3600e3;
+  if (oi !== -1) {
+    if (!args.includes("--prune")) die("--older-than only means something with --prune");
+    maxAgeMs = parseDuration(args[oi + 1]);
+    if (!maxAgeMs) die(`--older-than needs a span like 6h, 90m or 2d (got ${JSON.stringify(args[oi + 1] || "")})`);
+    out.older_than_ms = maxAgeMs;
+  }
   if (args.includes("--prune")) {
-    out.pruned = cleanupStaleSessions(vault, 24, sid);
-    out.pruned_presence = prunePresence(vault, { self: sid });
+    out.pruned = cleanupStaleSessions(vault, maxAgeMs / 3600e3, sid);
+    out.pruned_presence = prunePresence(vault, { self: sid, maxAgeMs });
   }
 
   const view = peers(vault, { self: sid });

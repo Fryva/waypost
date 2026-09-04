@@ -316,7 +316,8 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
     const isSelf = self != null && rec.session === self;
     // On this host the process table settles "idle or gone" exactly; nothing
     // else about liveness changes (see harnessProcess()).
-    const gone = !isSelf && rec.proc && rec.host === here ? processGone(rec, tableOnce()) === true : false;
+    const verdict = !isSelf && rec.proc && rec.host === here ? processGone(rec, tableOnce()) : null;
+    const gone = verdict === true;
     const live = !gone && sinceLocalChange < window;
 
     out.push({
@@ -324,6 +325,7 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
       self: isSelf,
       live,
       ended: gone,
+      process_alive: verdict === false,
       basis: gone ? "harness process gone on this host"
         : firstSight ? "first sight (their timestamp seeds the clock; the counter decides from here)" : "observed locally",
       quiet_ms: firstSight ? null : sinceLocalChange,
@@ -350,6 +352,10 @@ export function prunePresence(vault, { self = null, maxAgeMs = 24 * 60 * 60 * 10
     // Its harness process is gone from this host: nothing to wait 24h for.
     if (p.ended) { if (!dryRun) { try { unlinkSync(p.file); } catch {} } removed++; continue; }
     if (p.live) continue;
+    // Its harness is still running on this host: idle, not gone. No age
+    // threshold — a lowered `--older-than` included — reaps a record whose
+    // owner is provably still here, since that would drop its story claim.
+    if (p.process_alive) continue;
     // Either evidence is enough once the record is not live: our own
     // observation of it standing still, or its own timestamp — a remote clock,
     // but the 24h threshold dwarfs any real skew, and without it a device that

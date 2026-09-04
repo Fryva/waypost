@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `waypost sessions --prune --older-than <span>` (`6h`, `90m`, `2d`) lowers
+  the 24h reaping threshold explicitly. A record whose harness process is
+  still running on this host is never reaped by age, whatever the threshold:
+  that would drop its story claim.
+
 ## [0.13.0] — 2026-09-04
 
 ### Added
