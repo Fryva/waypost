@@ -1,0 +1,83 @@
+{
+  "id": "scala",
+  "name": "Scala / sbt (Ivy, Coursier, Bloop)",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "sbt",
+      "scala",
+      "coursier"
+    ],
+    "manifests": [
+      "build.sbt"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": ".bloop",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "bloop clean, or delete the directory"
+    }
+  ],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.ivy2/cache",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred",
+        "win32": "inferred"
+      },
+      "notes": "Ivy's documented default cache is ${ivy.default.ivy.user.dir}/cache, which defaults to ~/.ivy2/cache; not measured on this machine and no single stable docs URL for the default found with confidence.",
+      "regenerable": true,
+      "clean": "rm -rf ~/.ivy2/cache"
+    },
+    {
+      "path": "$HOME/Library/Caches/Coursier",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Coursier follows the OS cache-dir convention (macOS: ~/Library/Caches/Coursier); not present on this machine.",
+      "regenerable": true,
+      "clean": "rm -rf (will re-download)"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/coursier",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "Coursier on Linux follows XDG_CACHE_HOME, default ~/.cache/coursier; Linux path not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "rm -rf (will re-download)"
+    },
+    {
+      "path": "$LOCALAPPDATA/Coursier/Cache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "Coursier on Windows follows the LOCALAPPDATA convention; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "rm -rf (will re-download)"
+    }
+  ],
+  "locators": []
+}

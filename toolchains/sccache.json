@@ -1,0 +1,57 @@
+{
+  "id": "sccache",
+  "name": "sccache",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "sccache"
+    ],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/Mozilla.sccache",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "docs": "https://github.com/mozilla/sccache#usage",
+      "notes": "sccache's documented macOS cache directory; not present on this machine, and its README rather than a docs site is the closest thing to official documentation.",
+      "regenerable": true,
+      "clean": "sccache --stop-server; rm -rf"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/sccache",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "sccache's documented Linux cache directory; only a project README is available as documentation, not a dedicated docs site.",
+      "regenerable": true,
+      "clean": "sccache --stop-server; rm -rf"
+    },
+    {
+      "path": "$LOCALAPPDATA/Mozilla/sccache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "sccache's documented Windows cache directory; only a project README is available as documentation, not a dedicated docs site.",
+      "regenerable": true,
+      "clean": "sccache --stop-server; rm -rf"
+    }
+  ],
+  "locators": []
+}

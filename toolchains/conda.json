@@ -1,0 +1,90 @@
+{
+  "id": "conda",
+  "name": "conda / Miniconda / Miniforge / Anaconda",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "conda"
+    ],
+    "manifests": [
+      "environment.yml"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/miniconda3/pkgs",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred",
+        "win32": "inferred"
+      },
+      "docs": "https://docs.conda.io/projects/conda/en/latest/commands/clean.html",
+      "notes": "Default only when Miniconda was installed into the user's home directory; not installed on this machine.",
+      "regenerable": true,
+      "clean": "conda clean --all"
+    },
+    {
+      "path": "$HOME/miniforge3/pkgs",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred",
+        "win32": "inferred"
+      },
+      "docs": "https://docs.conda.io/projects/conda/en/latest/commands/clean.html",
+      "notes": "Default only when Miniforge was installed into the user's home directory; not installed on this machine.",
+      "regenerable": true,
+      "clean": "conda clean --all"
+    },
+    {
+      "path": "$HOME/anaconda3/pkgs",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred",
+        "win32": "inferred"
+      },
+      "docs": "https://docs.conda.io/projects/conda/en/latest/commands/clean.html",
+      "notes": "Default only when Anaconda was installed into the user's home directory; not installed on this machine.",
+      "regenerable": true,
+      "clean": "conda clean --all"
+    },
+    {
+      "path": "$HOME/.conda/pkgs",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred",
+        "win32": "inferred"
+      },
+      "docs": "https://docs.conda.io/projects/conda/en/latest/commands/clean.html",
+      "notes": "conda's per-user package cache fallback; not present on this machine.",
+      "regenerable": true,
+      "clean": "conda clean --all"
+    }
+  ],
+  "locators": []
+}

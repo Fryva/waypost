@@ -1,0 +1,31 @@
+{
+  "id": "puppeteer",
+  "name": "Puppeteer",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$XDG_CACHE_HOME/puppeteer",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "notes": "Puppeteer's browser download cache defaults under XDG_CACHE_HOME on Unix, including macOS when set; not present on this machine.",
+      "regenerable": true,
+      "clean": "rm -rf (will re-download)"
+    }
+  ],
+  "locators": []
+}

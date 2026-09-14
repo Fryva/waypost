@@ -1,0 +1,37 @@
+{
+  "id": "ruby",
+  "name": "Ruby (RubyGems)",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [
+      "ruby",
+      "gem"
+    ],
+    "manifests": [
+      "Gemfile"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.gem",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "docs": "https://guides.rubygems.org/command-reference/#gem-cleanup",
+      "notes": "RubyGems user install directory on Unix; the Windows default is tied to the Ruby installation rather than the home directory, so it is intentionally left off this entry's os list; not present on this machine.",
+      "regenerable": true,
+      "clean": "gem cleanup"
+    }
+  ],
+  "locators": []
+}

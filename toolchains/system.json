@@ -1,0 +1,163 @@
+{
+  "id": "system",
+  "name": "Operating system (crash reports, temp directories)",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "/cores",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "notes": "A macOS core dump — review before removing, never bulk-deleted.",
+      "regenerable": false,
+      "clean": "rm /cores/core.* after reviewing them"
+    },
+    {
+      "path": "$HOME/Library/Logs/DiagnosticReports",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "notes": "Crash/diagnostic reports — review before removing.",
+      "regenerable": false,
+      "clean": "remove reports you have already reviewed"
+    },
+    {
+      "path": "/var/lib/systemd/coredump",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "documented"
+      },
+      "docs": "https://www.freedesktop.org/software/systemd/man/latest/coredumpctl.html",
+      "notes": "Crash dumps — review before removing.",
+      "regenerable": false,
+      "clean": "coredumpctl list; sudo rm dumps you have already reviewed"
+    },
+    {
+      "path": "/var/crash",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "Ubuntu/Apport's crash-report directory; documented on the distribution's wiki rather than an upstream tool docs page. Crash reports — review before removing.",
+      "regenerable": false,
+      "clean": "sudo rm dumps you have already reviewed"
+    },
+    {
+      "path": "$LOCALAPPDATA/CrashDumps",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "Windows Error Reporting's LocalDumps convention; not verifiable from macOS. Crash dumps — review before removing.",
+      "regenerable": false,
+      "clean": "remove dumps you have already reviewed"
+    },
+    {
+      "path": "$TMPDIR",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "notes": "Shared system temp directory used by other processes too; only your own files are ever safe to remove, never the whole directory.",
+      "regenerable": false,
+      "clean": "only your own files and this session's scratchpad — never the whole directory"
+    },
+    {
+      "path": "$TMPDIR",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "Measured on macOS only; not verified on this OS. Shared system temp directory used by other processes too; only your own files are ever safe to remove, never the whole directory.",
+      "regenerable": false,
+      "clean": "only your own files and this session's scratchpad — never the whole directory"
+    },
+    {
+      "path": "/tmp",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "notes": "Shared system temp directory used by other processes too; only your own files are ever safe to remove, never the whole directory.",
+      "regenerable": false,
+      "clean": "only your own files and this session's scratchpad — never the whole directory"
+    },
+    {
+      "path": "/tmp",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "Measured on macOS only; not verified on this OS. Shared system temp directory used by other processes too; only your own files are ever safe to remove, never the whole directory.",
+      "regenerable": false,
+      "clean": "only your own files and this session's scratchpad — never the whole directory"
+    },
+    {
+      "path": "/var/tmp",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "notes": "Shared system temp directory used by other processes too; only your own files are ever safe to remove, never the whole directory.",
+      "regenerable": false,
+      "clean": "only your own files and this session's scratchpad — never the whole directory"
+    },
+    {
+      "path": "/var/tmp",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "Measured on macOS only; not verified on this OS. Shared system temp directory used by other processes too; only your own files are ever safe to remove, never the whole directory.",
+      "regenerable": false,
+      "clean": "only your own files and this session's scratchpad — never the whole directory"
+    },
+    {
+      "path": "$TEMP",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "Windows per-user temp directory; not verifiable from macOS. Shared system temp directory used by other processes too; only your own files are ever safe to remove, never the whole directory.",
+      "regenerable": false,
+      "clean": "only your own files and this session's scratchpad — never the whole directory"
+    }
+  ],
+  "locators": []
+}

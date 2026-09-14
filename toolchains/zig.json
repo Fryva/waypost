@@ -1,0 +1,67 @@
+{
+  "id": "zig",
+  "name": "Zig",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "zig"
+    ],
+    "manifests": [
+      "build.zig"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": ".zig-cache",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; zig build recreates it"
+    },
+    {
+      "name": "zig-cache",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; zig build recreates it"
+    },
+    {
+      "name": "zig-out",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; zig build recreates it"
+    }
+  ],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$XDG_CACHE_HOME/zig",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "notes": "Zig's global cache follows XDG_CACHE_HOME/zig on Unix, including macOS; not present on this machine.",
+      "regenerable": true,
+      "clean": "rm -rf (Zig's global cache)"
+    },
+    {
+      "path": "$LOCALAPPDATA/zig",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "Zig's global cache on Windows follows the LOCALAPPDATA convention; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "rm -rf (Zig's global cache)"
+    }
+  ],
+  "locators": []
+}

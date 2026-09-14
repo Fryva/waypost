@@ -1,0 +1,71 @@
+{
+  "id": "ccache",
+  "name": "ccache",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "ccache"
+    ],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/ccache",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "docs": "https://ccache.dev/manual/latest.html#_configuration",
+      "notes": "ccache's default cache dir follows the OS cache-dir convention on macOS; not present on this machine.",
+      "regenerable": true,
+      "clean": "ccache -C"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/ccache",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "documented"
+      },
+      "docs": "https://ccache.dev/manual/latest.html#_configuration",
+      "regenerable": true,
+      "clean": "ccache -C"
+    },
+    {
+      "path": "$LOCALAPPDATA/ccache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://ccache.dev/manual/latest.html#_configuration",
+      "regenerable": true,
+      "clean": "ccache -C"
+    },
+    {
+      "path": "$HOME/.ccache",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "notes": "Legacy pre-XDG ccache default, still used when CCACHE_DIR is unset on older configurations; not present on this machine.",
+      "regenerable": true,
+      "clean": "ccache -C"
+    }
+  ],
+  "locators": []
+}

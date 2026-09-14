@@ -1,0 +1,64 @@
+{
+  "id": "php",
+  "name": "PHP (Composer)",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "php",
+      "composer"
+    ],
+    "manifests": [
+      "composer.json"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.composer/cache",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "docs": "https://getcomposer.org/doc/03-cli.md#clear-cache",
+      "notes": "Legacy pre-XDG Composer cache path, still used when COMPOSER_HOME is unset on older configurations; not present on this machine.",
+      "regenerable": true,
+      "clean": "composer clear-cache"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/composer",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "documented",
+        "linux": "documented"
+      },
+      "docs": "https://getcomposer.org/doc/03-cli.md#clear-cache",
+      "regenerable": true,
+      "clean": "composer clear-cache"
+    },
+    {
+      "path": "$LOCALAPPDATA/Composer",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://getcomposer.org/doc/03-cli.md#clear-cache",
+      "regenerable": true,
+      "clean": "composer clear-cache"
+    }
+  ],
+  "locators": []
+}

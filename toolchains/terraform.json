@@ -1,0 +1,28 @@
+{
+  "id": "terraform",
+  "name": "Terraform",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "terraform"
+    ],
+    "manifests": [
+      "*.tf"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": ".terraform",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "terraform init recreates provider/module downloads; the state file lives elsewhere by default (check your backend config before deleting)"
+    }
+  ],
+  "skip": [],
+  "caches": [],
+  "locators": []
+}

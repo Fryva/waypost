@@ -1,0 +1,81 @@
+{
+  "id": "haskell",
+  "name": "Haskell (Stack, Cabal, ghcup)",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [
+      "stack",
+      "cabal",
+      "ghc",
+      "ghcup"
+    ],
+    "manifests": [
+      "stack.yaml",
+      "*.cabal"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": "dist-newstyle",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "cabal clean"
+    },
+    {
+      "name": ".stack-work",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "stack clean"
+    }
+  ],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.stack",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "notes": "Documented default STACK_ROOT on Unix; Windows default differs (commonly %APPDATA%\\stack) so it is intentionally left off this entry's os list; not present on this machine.",
+      "regenerable": true,
+      "clean": "stack: remove old snapshots and unused GHC installations"
+    },
+    {
+      "path": "$HOME/.cabal/packages",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "notes": "Default cabal package-download cache on Unix; Windows default differs (%APPDATA%\\cabal) so it is intentionally left off this entry's os list; not present on this machine.",
+      "regenerable": true,
+      "clean": "rm -rf ~/.cabal/packages"
+    },
+    {
+      "path": "$HOME/.ghcup/cache",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "docs": "https://www.haskell.org/ghcup/guide/",
+      "notes": "ghcup's documented install base defaults to the user's home directory on Unix; not present on this machine.",
+      "regenerable": true,
+      "clean": "ghcup gc --cache"
+    }
+  ],
+  "locators": []
+}

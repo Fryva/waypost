@@ -1,0 +1,74 @@
+{
+  "id": "yarn",
+  "name": "Yarn",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "yarn"
+    ],
+    "manifests": [
+      "yarn.lock"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/Yarn",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Classic Yarn (v1) macOS cache convention; not present on this machine.",
+      "regenerable": true,
+      "clean": "yarn cache clean"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/yarn",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "Classic Yarn (v1) Linux cache convention; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "yarn cache clean"
+    },
+    {
+      "path": "$LOCALAPPDATA/Yarn/Cache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "Classic Yarn (v1) Windows cache convention; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "yarn cache clean"
+    },
+    {
+      "path": "$HOME/.yarn/berry/cache",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred",
+        "win32": "inferred"
+      },
+      "notes": "Berry's global cache path when no per-project cacheFolder override is set; not present on this machine.",
+      "regenerable": true,
+      "clean": "yarn cache clean --mirror"
+    }
+  ],
+  "locators": []
+}

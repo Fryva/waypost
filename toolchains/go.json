@@ -1,0 +1,75 @@
+{
+  "id": "go",
+  "name": "Go",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "go"
+    ],
+    "manifests": [
+      "go.mod"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/go-build",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
+      "notes": "Documented default Go build cache location for macOS; not present under this exact path on this machine (see $XDG_CACHE_HOME/go-build).",
+      "regenerable": true,
+      "clean": "go clean -cache"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/go-build",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "documented"
+      },
+      "docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
+      "regenerable": true,
+      "clean": "go clean -cache"
+    },
+    {
+      "path": "$LOCALAPPDATA/go-build",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
+      "regenerable": true,
+      "clean": "go clean -cache"
+    },
+    {
+      "path": "$HOME/go/pkg/mod",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "verified",
+        "linux": "documented",
+        "win32": "documented"
+      },
+      "docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
+      "regenerable": true,
+      "clean": "go clean -modcache"
+    }
+  ],
+  "locators": []
+}

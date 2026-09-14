@@ -1,0 +1,59 @@
+{
+  "id": "pnpm",
+  "name": "pnpm",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "pnpm"
+    ],
+    "manifests": [
+      "pnpm-lock.yaml"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/pnpm/store",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "docs": "https://pnpm.io/cli/store",
+      "notes": "Documented pnpm macOS store location; not present on this machine.",
+      "regenerable": true,
+      "clean": "pnpm store prune"
+    },
+    {
+      "path": "$XDG_DATA_HOME/pnpm/store",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "documented"
+      },
+      "docs": "https://pnpm.io/cli/store",
+      "regenerable": true,
+      "clean": "pnpm store prune"
+    },
+    {
+      "path": "$LOCALAPPDATA/pnpm/store",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://pnpm.io/cli/store",
+      "regenerable": true,
+      "clean": "pnpm store prune"
+    }
+  ],
+  "locators": []
+}

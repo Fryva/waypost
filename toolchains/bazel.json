@@ -1,0 +1,47 @@
+{
+  "id": "bazel",
+  "name": "Bazel",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [
+      "bazel"
+    ],
+    "manifests": [
+      "WORKSPACE",
+      "BUILD"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "/private/var/tmp/_bazel_$USER",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "docs": "https://bazel.build/remote/output-directories",
+      "notes": "Bazel's default output-base root on macOS (TMPDIR-based); not present on this machine.",
+      "regenerable": true,
+      "clean": "bazel clean --expunge in each workspace"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/bazel",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "documented"
+      },
+      "docs": "https://bazel.build/remote/output-directories",
+      "regenerable": true,
+      "clean": "bazel clean --expunge in each workspace"
+    }
+  ],
+  "locators": []
+}

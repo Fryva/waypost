@@ -1,0 +1,57 @@
+{
+  "id": "dart",
+  "name": "Dart / Flutter",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "dart",
+      "flutter"
+    ],
+    "manifests": [
+      "pubspec.yaml"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": ".dart_tool",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "flutter clean (or dart pub get to just refresh it)"
+    }
+  ],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.pub-cache",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "docs": "https://dart.dev/tools/pub/glossary#system-cache",
+      "notes": "Documented default on Unix; not present on this machine.",
+      "regenerable": true,
+      "clean": "dart pub cache clean"
+    },
+    {
+      "path": "$LOCALAPPDATA/Pub/Cache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://dart.dev/tools/pub/glossary#system-cache",
+      "regenerable": true,
+      "clean": "dart pub cache clean"
+    }
+  ],
+  "locators": []
+}

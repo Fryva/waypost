@@ -1,0 +1,54 @@
+{
+  "id": "electron",
+  "name": "Electron",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/electron",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Electron's build-download cache convention for macOS; not present on this machine.",
+      "regenerable": true,
+      "clean": "rm -rf (will re-download)"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/electron",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "Electron's build-download cache convention for Linux; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "rm -rf (will re-download)"
+    },
+    {
+      "path": "$LOCALAPPDATA/electron/Cache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "Electron's build-download cache convention for Windows; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "rm -rf (will re-download)"
+    }
+  ],
+  "locators": []
+}

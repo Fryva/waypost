@@ -1,0 +1,35 @@
+{
+  "id": "precommit",
+  "name": "pre-commit",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [
+      "pre-commit"
+    ],
+    "manifests": [
+      ".pre-commit-config.yaml"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$XDG_CACHE_HOME/pre-commit",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "notes": "pre-commit's own cache is $PRE_COMMIT_HOME or ~/.cache/pre-commit on Unix including macOS; not present on this machine.",
+      "regenerable": true,
+      "clean": "pre-commit clean"
+    }
+  ],
+  "locators": []
+}

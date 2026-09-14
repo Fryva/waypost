@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-04T18:29:13.128Z
+generated_at: 2026-09-14T20:18:50.318Z
 
 ---
 
@@ -27,6 +27,7 @@ full typed neighborhood, both directions, in one call.
 | adr/0009-artifact-integrity-checks.md | doctor verifies artifact integrity, not just story mechanics | adr | accepted |
 | adr/0010-coordination-follows-the-repository.md | Coordination follows the repository: presence and leases in the git common dir | adr | accepted |
 | adr/0011-decisions-that-check-themselves.md | Decisions that check themselves: guards and provenance in ADRs | adr | accepted |
+| adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | adr | accepted |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
 | epics/WP-14/epic.md | Skills as the portable layer, and the first verified harnesses | epic | planned |
 | epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills.md | Bundled skills and loop procedures rendered as Agent Skills | story | done |
@@ -47,6 +48,12 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md | check guards name the project's own fitness command; doctor prints it and never runs it | story | done |
 | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md | doctor evaluates regex guards of accepted ADRs | story | done |
 | epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot.md | Live verification: Cursor, Gemini CLI and Copilot | story | planned |
+| epics/WP-17/epic.md | Disk hygiene by discovery | epic | planned |
+| epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md | Discovery and the profile: the scheme of what Waypost works with | story | planned |
+| epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | doctor and next surface build artifacts | story | planned |
+| epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md | Verified on Linux and Windows virtual machines | story | planned |
+| epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | waypost clean: a classified plan, removal after a yes, the setup audit | story | planned |
+| epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md | The toolchain registry and a tool-agnostic waypost size | story | in-progress |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
 | ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
@@ -98,3 +105,19 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md | mdlink | epics/WP-16/epic.md |
 | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md | mdlink | epics/WP-16/epic.md |
 | epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot.md | mdlink | epics/WP-16/epic.md |
+| epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md |
+| epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md |
+| epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md |
+| epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md |
+| epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md |
+| epics/WP-17/epic.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
+| epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
+| epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md | mdlink | epics/WP-17/epic.md |
+| epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
+| epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | mdlink | epics/WP-17/epic.md |
+| epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
+| epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md | mdlink | epics/WP-17/epic.md |
+| epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
+| epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | mdlink | epics/WP-17/epic.md |
+| epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
+| epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md | mdlink | epics/WP-17/epic.md |

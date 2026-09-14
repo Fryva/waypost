@@ -1,0 +1,64 @@
+{
+  "id": "swiftpm",
+  "name": "Swift Package Manager",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [
+      "swift"
+    ],
+    "manifests": [
+      "Package.swift"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": ".build",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "swift package clean"
+    }
+  ],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/org.swift.swiftpm",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "docs": "https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/Usage.md#swift-package-purge-cache",
+      "regenerable": true,
+      "clean": "swift package purge-cache"
+    },
+    {
+      "path": "$HOME/Library/org.swift.swiftpm",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "docs": "https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/Usage.md#swift-package-purge-cache",
+      "regenerable": true,
+      "clean": "swift package purge-cache"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/org.swift.swiftpm",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "documented"
+      },
+      "docs": "https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/Usage.md#swift-package-purge-cache",
+      "regenerable": true,
+      "clean": "swift package purge-cache"
+    }
+  ],
+  "locators": []
+}

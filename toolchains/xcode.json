@@ -1,0 +1,205 @@
+{
+  "id": "xcode",
+  "name": "Xcode",
+  "os": [
+    "darwin"
+  ],
+  "detect": {
+    "bins": [
+      "xcodebuild",
+      "xcrun"
+    ],
+    "manifests": []
+  },
+  "artifacts": [
+    {
+      "name": "DerivedData",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "with Xcode closed; remove the folder (Xcode rebuilds it)"
+    },
+    {
+      "pattern": "^\\.?derived[-_]?data",
+      "flags": "i",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "with Xcode closed; remove the folder (Xcode rebuilds it)"
+    }
+  ],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Developer/Xcode/DerivedData",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "regenerable": true,
+      "clean": "with Xcode closed; a specific project's own DerivedData is found by --project, matched via its info.plist WorkspacePath"
+    },
+    {
+      "path": "$HOME/Library/Developer/Xcode/iOS DeviceSupport",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "regenerable": true,
+      "clean": "keep only the iOS version(s) your own devices actually use"
+    },
+    {
+      "path": "$HOME/Library/Developer/Xcode/watchOS DeviceSupport",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Same convention as iOS DeviceSupport; not present on this machine (no paired Apple Watch used with Xcode here).",
+      "regenerable": true,
+      "clean": "keep only the watchOS version(s) your own devices actually use"
+    },
+    {
+      "path": "$HOME/Library/Developer/Xcode/tvOS DeviceSupport",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Same convention as iOS DeviceSupport; not present on this machine.",
+      "regenerable": true,
+      "clean": "keep only the tvOS version(s) your own devices actually use"
+    },
+    {
+      "path": "$HOME/Library/Developer/Xcode/visionOS DeviceSupport",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Same convention as iOS DeviceSupport; not present on this machine.",
+      "regenerable": true,
+      "clean": "keep only the visionOS version(s) your own devices actually use"
+    },
+    {
+      "path": "$HOME/Library/Developer/Xcode/macOS DeviceSupport",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Same convention as iOS DeviceSupport; not present on this machine.",
+      "regenerable": true,
+      "clean": "keep only the current macOS version"
+    },
+    {
+      "path": "$HOME/Library/Developer/Xcode/Archives",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "notes": "Kept for crash-report symbolication of past releases; not a rebuildable cache.",
+      "regenerable": false,
+      "clean": "remove old ones, but keep release archives — needed to symbolicate crash reports"
+    },
+    {
+      "path": "$HOME/Library/Developer/Xcode/UserData/Previews",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "regenerable": true,
+      "clean": "xcrun simctl --set previews delete all"
+    },
+    {
+      "path": "$HOME/Library/Developer/CoreSimulator/Devices",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "notes": "Each simulator holds its own installed apps and data; not purely a rebuildable artifact.",
+      "regenerable": false,
+      "clean": "xcrun simctl delete unavailable; specific ones with xcrun simctl delete <UDID>"
+    },
+    {
+      "path": "$HOME/Library/Developer/CoreSimulator/Caches",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "regenerable": true,
+      "clean": "rm -rf (with Simulator closed)"
+    },
+    {
+      "path": "/Library/Developer/CoreSimulator/Images",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "regenerable": true,
+      "clean": "xcrun simctl runtime list; xcrun simctl runtime delete <id>"
+    },
+    {
+      "path": "$HOME/Library/Developer/XCTestDevices",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Legacy pre-simctl XCTest device directory; not present on this machine (superseded by CoreSimulator/Devices). Legacy per-device simulator state, superseded by CoreSimulator/Devices; kept out of caution rather than confirmed safe.",
+      "regenerable": false,
+      "clean": "rm -rf"
+    },
+    {
+      "path": "$HOME/Library/Caches/com.apple.dt.Xcode",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "regenerable": true,
+      "clean": "rm -rf (with Xcode closed)"
+    },
+    {
+      "path": "$HOME/Library/Logs/CoreSimulator",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "regenerable": true,
+      "clean": "rm -rf"
+    }
+  ],
+  "locators": [
+    {
+      "name": "xcode-derived-data",
+      "os": [
+        "darwin"
+      ],
+      "collect": [
+        ".xcodeproj",
+        ".xcworkspace"
+      ]
+    }
+  ]
+}

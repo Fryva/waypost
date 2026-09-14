@@ -1,0 +1,72 @@
+{
+  "id": "generic",
+  "name": "Generic build-directory conventions",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [],
+    "manifests": []
+  },
+  "artifacts": [
+    {
+      "name": "target",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "project-specific — delete only after confirming the project's own build tool regenerates it"
+    },
+    {
+      "name": "build",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "project-specific — delete only after confirming the project's own build tool regenerates it"
+    },
+    {
+      "name": "out",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "project-specific — delete only after confirming the project's own build tool regenerates it"
+    },
+    {
+      "name": "dist",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "project-specific — delete only after confirming the project's own build tool regenerates it"
+    },
+    {
+      "name": "bin",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "project-specific — delete only after confirming the project's own build tool regenerates it"
+    },
+    {
+      "name": "obj",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "project-specific — delete only after confirming the project's own build tool regenerates it"
+    },
+    {
+      "name": "_build",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "project-specific — delete only after confirming the project's own build tool regenerates it"
+    },
+    {
+      "name": "coverage",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "project-specific — delete only after confirming the project's own build tool regenerates it"
+    },
+    {
+      "name": "htmlcov",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "project-specific — delete only after confirming the project's own build tool regenerates it"
+    }
+  ],
+  "skip": [],
+  "caches": [],
+  "locators": []
+}

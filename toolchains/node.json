@@ -1,0 +1,100 @@
+{
+  "id": "node",
+  "name": "Node.js / JavaScript build tooling",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "node",
+      "npm"
+    ],
+    "manifests": [
+      "package.json"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": ".next",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; Next.js has no dedicated project clean command"
+    },
+    {
+      "name": ".nuxt",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; Nuxt has no dedicated project clean command"
+    },
+    {
+      "name": ".turbo",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "npx turbo clean, or delete the directory"
+    },
+    {
+      "name": ".parcel-cache",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory (Parcel rebuilds its cache)"
+    },
+    {
+      "name": ".svelte-kit",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; SvelteKit rebuilds it on the next build/dev run"
+    },
+    {
+      "name": ".angular",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "ng cache clean, or delete the directory"
+    },
+    {
+      "name": ".expo",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "npx expo start -c (clears the bundler cache), or delete the directory"
+    },
+    {
+      "name": ".nyc_output",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; nyc rebuilds it on the next run"
+    }
+  ],
+  "skip": [
+    "node_modules"
+  ],
+  "caches": [
+    {
+      "path": "$HOME/.npm",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "verified",
+        "linux": "documented"
+      },
+      "docs": "https://docs.npmjs.com/cli/v10/commands/npm-cache",
+      "regenerable": true,
+      "clean": "npm cache clean --force"
+    },
+    {
+      "path": "$LOCALAPPDATA/npm-cache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://docs.npmjs.com/cli/v10/commands/npm-cache",
+      "regenerable": true,
+      "clean": "npm cache clean --force"
+    }
+  ],
+  "locators": []
+}

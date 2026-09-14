@@ -1,0 +1,166 @@
+{
+  "id": "python",
+  "name": "Python",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "python3",
+      "python",
+      "pip"
+    ],
+    "manifests": [
+      "requirements.txt",
+      "pyproject.toml",
+      "setup.py"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": "__pycache__",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory (or python -B to avoid writing it); no dedicated clean command"
+    },
+    {
+      "name": ".pytest_cache",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; pytest recreates it"
+    },
+    {
+      "name": ".mypy_cache",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; mypy recreates it"
+    },
+    {
+      "name": ".ruff_cache",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; ruff recreates it"
+    },
+    {
+      "name": ".tox",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; tox recreates its environments"
+    },
+    {
+      "name": ".nox",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; nox recreates its environments"
+    }
+  ],
+  "skip": [
+    ".venv",
+    "venv"
+  ],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/pip",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "docs": "https://pip.pypa.io/en/stable/topics/caching/",
+      "notes": "Documented pip macOS cache location; not present on this machine.",
+      "regenerable": true,
+      "clean": "pip cache purge"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/pip",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "documented"
+      },
+      "docs": "https://pip.pypa.io/en/stable/topics/caching/",
+      "regenerable": true,
+      "clean": "pip cache purge"
+    },
+    {
+      "path": "$LOCALAPPDATA/pip/Cache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://pip.pypa.io/en/stable/topics/caching/",
+      "regenerable": true,
+      "clean": "pip cache purge"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/uv",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "verified",
+        "linux": "documented"
+      },
+      "docs": "https://docs.astral.sh/uv/concepts/cache/",
+      "regenerable": true,
+      "clean": "uv cache clean"
+    },
+    {
+      "path": "$LOCALAPPDATA/uv/cache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://docs.astral.sh/uv/concepts/cache/",
+      "regenerable": true,
+      "clean": "uv cache clean"
+    },
+    {
+      "path": "$HOME/Library/Caches/pypoetry",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "docs": "https://python-poetry.org/docs/cache/",
+      "notes": "Documented Poetry macOS cache location; not present on this machine.",
+      "regenerable": true,
+      "clean": "poetry cache clear --all PyPI"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/pypoetry",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "documented"
+      },
+      "docs": "https://python-poetry.org/docs/cache/",
+      "regenerable": true,
+      "clean": "poetry cache clear --all PyPI"
+    },
+    {
+      "path": "$LOCALAPPDATA/pypoetry/Cache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://python-poetry.org/docs/cache/",
+      "regenerable": true,
+      "clean": "poetry cache clear --all PyPI"
+    }
+  ],
+  "locators": []
+}

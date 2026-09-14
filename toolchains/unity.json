@@ -1,0 +1,32 @@
+{
+  "id": "unity",
+  "name": "Unity",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [],
+    "manifests": [
+      "ProjectSettings/ProjectVersion.txt"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": "Library",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "delete with the Unity Editor closed; Unity reimports all assets on next open (can take a long time)"
+    },
+    {
+      "name": "Temp",
+      "match": "generic",
+      "regenerable": true,
+      "clean": "delete with the Unity Editor closed; Unity recreates it"
+    }
+  ],
+  "skip": [],
+  "caches": [],
+  "locators": []
+}

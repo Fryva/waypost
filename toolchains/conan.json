@@ -1,0 +1,56 @@
+{
+  "id": "conan",
+  "name": "Conan (C/C++)",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "conan"
+    ],
+    "manifests": [
+      "conanfile.txt",
+      "conanfile.py"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.conan2/p",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred",
+        "win32": "inferred"
+      },
+      "docs": "https://docs.conan.io/2/reference/commands/cache.html",
+      "notes": "Conan 2's default CONAN_HOME is the user's home directory on every platform; not installed on this machine.",
+      "regenerable": true,
+      "clean": "conan remove \"*\" -c"
+    },
+    {
+      "path": "$HOME/.conan/data",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred",
+        "win32": "inferred"
+      },
+      "notes": "Conan 1.x default cache location; not installed on this machine.",
+      "regenerable": true,
+      "clean": "conan remove \"*\" -f"
+    }
+  ],
+  "locators": []
+}

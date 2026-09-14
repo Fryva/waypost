@@ -1,0 +1,58 @@
+{
+  "id": "deno",
+  "name": "Deno",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "deno"
+    ],
+    "manifests": [
+      "deno.json"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/deno",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Deno's OS cache-dir convention for macOS; not present on this machine.",
+      "regenerable": true,
+      "clean": "deno clean"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/deno",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "Deno's OS cache-dir convention for Linux; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "deno clean"
+    },
+    {
+      "path": "$LOCALAPPDATA/deno",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "Deno's OS cache-dir convention for Windows; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "deno clean"
+    }
+  ],
+  "locators": []
+}

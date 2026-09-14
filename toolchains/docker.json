@@ -1,0 +1,62 @@
+{
+  "id": "docker",
+  "name": "Docker",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "docker"
+    ],
+    "manifests": [
+      "Dockerfile",
+      "docker-compose.yml"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Containers/com.docker.docker/Data",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "docs": "https://docs.docker.com/config/pruning/",
+      "notes": "Docker Desktop's documented macOS VM data path; not present on this machine (Docker Desktop not installed). Holds the container/VM data volume, including running containers and volumes, not merely a pull cache.",
+      "regenerable": false,
+      "clean": "docker system df; docker system prune / docker builder prune"
+    },
+    {
+      "path": "$LOCALAPPDATA/Docker/wsl",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://docs.docker.com/config/pruning/",
+      "notes": "Holds the container/VM data volume, including running containers and volumes, not merely a pull cache.",
+      "regenerable": false,
+      "clean": "docker system df; docker system prune / docker builder prune"
+    },
+    {
+      "path": "/var/lib/docker",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "documented"
+      },
+      "docs": "https://docs.docker.com/config/pruning/",
+      "notes": "Holds the container/VM data volume, including running containers and volumes, not merely a pull cache.",
+      "regenerable": false,
+      "clean": "docker system df; docker system prune / docker builder prune"
+    }
+  ],
+  "locators": []
+}

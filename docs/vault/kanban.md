@@ -2,13 +2,17 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-04T18:29:12.927Z
+generated_at: 2026-09-14T19:02:44.373Z
 
 ---
 
 ## Backlog
 
 - [ ] [[epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot|WP-16: Live verification: Cursor, Gemini CLI and Copilot]] #p2 #blocked
+- [ ] [[epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with|WP-17: Discovery and the profile: the scheme of what Waypost works with]] #p2 #blocked
+- [ ] [[epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt|WP-17: doctor and next surface build artifacts]] #p2 #blocked
+- [ ] [[epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines|WP-17: Verified on Linux and Windows virtual machines]] #p2 #blocked
+- [ ] [[epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit|WP-17: waypost clean: a classified plan, removal after a yes, the setup audit]] #p2 #blocked
 
 ## ToDo
 
@@ -18,6 +22,7 @@ generated_at: 2026-09-04T18:29:12.927Z
 
 - [ ] [[epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop|WP-14: Live verification: Codex and OpenCode run the whole loop]] #p1
 - [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
+- [ ] [[epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global|WP-17: The toolchain registry and a tool-agnostic waypost size]] #p2
 
 ## Review
 

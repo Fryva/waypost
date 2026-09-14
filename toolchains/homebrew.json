@@ -1,0 +1,43 @@
+{
+  "id": "homebrew",
+  "name": "Homebrew",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [
+      "brew"
+    ],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/Homebrew",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "docs": "https://docs.brew.sh/Manpage",
+      "regenerable": true,
+      "clean": "brew cleanup --prune=all"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/Homebrew",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "documented"
+      },
+      "docs": "https://docs.brew.sh/Manpage",
+      "regenerable": true,
+      "clean": "brew cleanup --prune=all"
+    }
+  ],
+  "locators": []
+}

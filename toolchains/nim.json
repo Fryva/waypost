@@ -1,0 +1,28 @@
+{
+  "id": "nim",
+  "name": "Nim",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "nim"
+    ],
+    "manifests": [
+      "*.nimble"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": "nimcache",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "delete the directory; the Nim compiler recreates it"
+    }
+  ],
+  "skip": [],
+  "caches": [],
+  "locators": []
+}

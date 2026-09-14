@@ -30,6 +30,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [0009-artifact-integrity-checks](./0009-artifact-integrity-checks.md) | doctor verifies artifact integrity, not just story mechanics | accepted | 2026-09-02 |
 | [0010-coordination-follows-the-repository](./0010-coordination-follows-the-repository.md) | Coordination follows the repository: presence and leases in the git common dir | accepted | 2026-09-04 |
 | [0011-decisions-that-check-themselves](./0011-decisions-that-check-themselves.md) | Decisions that check themselves: guards and provenance in ADRs | accepted | 2026-09-04 |
+| [disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes](./disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md) | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | accepted | 2026-09-14 |
 
 ---
 

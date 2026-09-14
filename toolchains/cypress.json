@@ -1,0 +1,58 @@
+{
+  "id": "cypress",
+  "name": "Cypress",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "cypress"
+    ],
+    "manifests": [
+      "cypress.config.js"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/Cypress",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Documented Cypress macOS cache location; not present on this machine.",
+      "regenerable": true,
+      "clean": "npx cypress cache clear"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/Cypress",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "Cypress Linux cache convention; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "npx cypress cache clear"
+    },
+    {
+      "path": "$LOCALAPPDATA/Cypress/Cache",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "Cypress Windows cache convention; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "npx cypress cache clear"
+    }
+  ],
+  "locators": []
+}

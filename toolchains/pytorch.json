@@ -1,0 +1,41 @@
+{
+  "id": "pytorch",
+  "name": "PyTorch (torch.hub cache)",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$XDG_CACHE_HOME/torch",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "verified"
+      },
+      "notes": "A downloaded model weight can be gated or withdrawn upstream, so re-downloading it is not guaranteed; the ADR keeps model downloads as keep unless an entry says otherwise.",
+      "regenerable": false,
+      "clean": "rm -rf ~/.cache/torch (weights will re-download)"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/torch",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "Measured on macOS only; not verified on this OS. A downloaded model weight can be gated or withdrawn upstream, so re-downloading it is not guaranteed; the ADR keeps model downloads as keep unless an entry says otherwise.",
+      "regenerable": false,
+      "clean": "rm -rf ~/.cache/torch (weights will re-download)"
+    }
+  ],
+  "locators": []
+}

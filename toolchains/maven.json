@@ -1,0 +1,38 @@
+{
+  "id": "maven",
+  "name": "Maven",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "mvn"
+    ],
+    "manifests": [
+      "pom.xml"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.m2/repository",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "documented",
+        "linux": "documented",
+        "win32": "documented"
+      },
+      "docs": "https://maven.apache.org/settings.html",
+      "regenerable": true,
+      "clean": "rm -rf ~/.m2/repository (will re-download)"
+    }
+  ],
+  "locators": []
+}

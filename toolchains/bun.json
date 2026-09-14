@@ -1,0 +1,38 @@
+{
+  "id": "bun",
+  "name": "Bun",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "bun"
+    ],
+    "manifests": [
+      "bun.lockb"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.bun/install/cache",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "documented",
+        "linux": "documented",
+        "win32": "documented"
+      },
+      "docs": "https://bun.sh/docs/install/cache",
+      "regenerable": true,
+      "clean": "bun pm cache rm"
+    }
+  ],
+  "locators": []
+}

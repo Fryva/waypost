@@ -1,0 +1,92 @@
+{
+  "id": "vscode",
+  "name": "Visual Studio Code",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "code"
+    ],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Application Support/Code/CachedData",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "VS Code's documented per-platform user-data layout; not present under this exact name on this machine.",
+      "regenerable": true,
+      "clean": "rm -rf (with VS Code closed)"
+    },
+    {
+      "path": "$HOME/Library/Application Support/Code/User/workspaceStorage",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "VS Code's per-workspace storage directory; content is project-specific so nothing to measure generically, and it was not inspected on this machine. Per-workspace extension state; some extensions keep real data here (not merely cache) that nothing rebuilds.",
+      "regenerable": false,
+      "clean": "remove directories of deleted projects"
+    },
+    {
+      "path": "$HOME/.config/Code/CachedData",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "VS Code's Linux user-data layout; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "rm -rf (with VS Code closed)"
+    },
+    {
+      "path": "$HOME/.config/Code/User/workspaceStorage",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "VS Code's Linux per-workspace storage directory; not verifiable from macOS. Per-workspace extension state; some extensions keep real data here (not merely cache) that nothing rebuilds.",
+      "regenerable": false,
+      "clean": "remove directories of deleted projects"
+    },
+    {
+      "path": "$APPDATA/Code/CachedData",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "VS Code's Windows user-data layout; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "rm -rf (with VS Code closed)"
+    },
+    {
+      "path": "$APPDATA/Code/User/workspaceStorage",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "VS Code's Windows per-workspace storage directory; not verifiable from macOS. Per-workspace extension state; some extensions keep real data here (not merely cache) that nothing rebuilds.",
+      "regenerable": false,
+      "clean": "remove directories of deleted projects"
+    }
+  ],
+  "locators": []
+}

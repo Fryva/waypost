@@ -1,0 +1,33 @@
+{
+  "id": "cocoapods",
+  "name": "CocoaPods",
+  "os": [
+    "darwin"
+  ],
+  "detect": {
+    "bins": [
+      "pod"
+    ],
+    "manifests": [
+      "Podfile"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/CocoaPods",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "docs": "https://guides.cocoapods.org/terminal/commands.html#pod_cache_clean",
+      "notes": "Documented CocoaPods cache location; not present on this machine.",
+      "regenerable": true,
+      "clean": "pod cache clean --all"
+    }
+  ],
+  "locators": []
+}

@@ -1,0 +1,33 @@
+{
+  "id": "colima",
+  "name": "Colima",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [
+      "colima"
+    ],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.colima",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "notes": "Colima's own home directory; not present on this machine, and only its README is available as documentation. Holds Colima's VM state and any containers/volumes running in it, not merely a cache.",
+      "regenerable": false,
+      "clean": "colima prune; docker system prune"
+    }
+  ],
+  "locators": []
+}

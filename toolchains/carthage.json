@@ -1,0 +1,32 @@
+{
+  "id": "carthage",
+  "name": "Carthage",
+  "os": [
+    "darwin"
+  ],
+  "detect": {
+    "bins": [
+      "carthage"
+    ],
+    "manifests": [
+      "Cartfile"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/org.carthage.CarthageKit",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Carthage's documented cache convention; not present on this machine, and no single stable docs page for the exact path was found with confidence.",
+      "regenerable": true,
+      "clean": "rm -rf"
+    }
+  ],
+  "locators": []
+}

@@ -1,0 +1,32 @@
+{
+  "id": "huggingface",
+  "name": "Hugging Face Hub cache",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$XDG_CACHE_HOME/huggingface",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "verified",
+        "linux": "documented"
+      },
+      "docs": "https://huggingface.co/docs/huggingface_hub/guides/manage-cache",
+      "notes": "A downloaded model can be gated or withdrawn upstream, so re-downloading it is not guaranteed; the ADR keeps model downloads as keep unless an entry says otherwise.",
+      "regenerable": false,
+      "clean": "huggingface-cli delete-cache (models — only with explicit consent)"
+    }
+  ],
+  "locators": []
+}

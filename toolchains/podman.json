@@ -1,0 +1,34 @@
+{
+  "id": "podman",
+  "name": "Podman",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "detect": {
+    "bins": [
+      "podman"
+    ],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$XDG_DATA_HOME/containers",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "documented",
+        "linux": "documented"
+      },
+      "docs": "https://docs.podman.io/en/latest/markdown/podman-system-prune.1.html",
+      "notes": "Holds container storage and volumes, not merely a cache.",
+      "regenerable": false,
+      "clean": "podman system prune"
+    }
+  ],
+  "locators": []
+}

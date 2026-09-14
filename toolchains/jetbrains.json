@@ -1,0 +1,54 @@
+{
+  "id": "jetbrains",
+  "name": "JetBrains IDEs",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Caches/JetBrains",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Documented JetBrains directory convention; not present on this machine.",
+      "regenerable": true,
+      "clean": "remove old IDE version directories"
+    },
+    {
+      "path": "$XDG_CACHE_HOME/JetBrains",
+      "os": [
+        "linux"
+      ],
+      "confidence": {
+        "linux": "inferred"
+      },
+      "notes": "JetBrains Linux cache convention; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "remove old IDE version directories"
+    },
+    {
+      "path": "$LOCALAPPDATA/JetBrains",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "inferred"
+      },
+      "notes": "JetBrains Windows cache convention; not verifiable from macOS.",
+      "regenerable": true,
+      "clean": "remove old IDE version directories"
+    }
+  ],
+  "locators": []
+}

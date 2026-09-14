@@ -1,0 +1,49 @@
+{
+  "id": "vcpkg",
+  "name": "vcpkg",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "vcpkg"
+    ],
+    "manifests": [
+      "vcpkg.json"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$XDG_CACHE_HOME/vcpkg/archives",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred"
+      },
+      "docs": "https://learn.microsoft.com/en-us/vcpkg/users/binarycaching",
+      "notes": "vcpkg's default binary-cache path on Unix, including macOS when XDG_CACHE_HOME falls back to ~/.cache; not present on this machine.",
+      "regenerable": true,
+      "clean": "rm -rf (vcpkg's binary cache; will re-download)"
+    },
+    {
+      "path": "$LOCALAPPDATA/vcpkg/archives",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://learn.microsoft.com/en-us/vcpkg/users/binarycaching",
+      "regenerable": true,
+      "clean": "rm -rf (vcpkg's binary cache; will re-download)"
+    }
+  ],
+  "locators": []
+}

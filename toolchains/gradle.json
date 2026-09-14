@@ -1,0 +1,63 @@
+{
+  "id": "gradle",
+  "name": "Gradle",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "gradle"
+    ],
+    "manifests": [
+      "build.gradle",
+      "build.gradle.kts",
+      "settings.gradle"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": ".gradle",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "./gradlew clean"
+    }
+  ],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.gradle/caches",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "verified",
+        "linux": "documented",
+        "win32": "documented"
+      },
+      "docs": "https://docs.gradle.org/current/userguide/directory_layout.html",
+      "regenerable": true,
+      "clean": "gradle --stop; rm -rf ~/.gradle/caches"
+    },
+    {
+      "path": "$HOME/.gradle/wrapper/dists",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "verified",
+        "linux": "documented",
+        "win32": "documented"
+      },
+      "docs": "https://docs.gradle.org/current/userguide/directory_layout.html",
+      "regenerable": true,
+      "clean": "remove old Gradle wrapper versions"
+    }
+  ],
+  "locators": []
+}

@@ -1,0 +1,34 @@
+{
+  "id": "cmake",
+  "name": "CMake",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "cmake"
+    ],
+    "manifests": [
+      "CMakeLists.txt"
+    ]
+  },
+  "artifacts": [
+    {
+      "name": "CMakeFiles",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "cmake --build <dir> --target clean, or remove the build directory"
+    },
+    {
+      "prefix": "cmake-build-",
+      "match": "sure",
+      "regenerable": true,
+      "clean": "cmake --build <dir> --target clean, or remove the build directory"
+    }
+  ],
+  "skip": [],
+  "caches": [],
+  "locators": []
+}

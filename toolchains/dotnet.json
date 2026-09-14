@@ -1,0 +1,66 @@
+{
+  "id": "dotnet",
+  "name": ".NET / NuGet",
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "detect": {
+    "bins": [
+      "dotnet"
+    ],
+    "manifests": [
+      "*.csproj",
+      "*.sln"
+    ]
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/.nuget/packages",
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "confidence": {
+        "darwin": "inferred",
+        "linux": "inferred",
+        "win32": "inferred"
+      },
+      "docs": "https://learn.microsoft.com/en-us/nuget/consume-packages/managing-the-global-packages-and-cache-folders",
+      "notes": "Default NuGet global-packages folder; not present on this machine.",
+      "regenerable": true,
+      "clean": "dotnet nuget locals all --clear"
+    },
+    {
+      "path": "$XDG_DATA_HOME/NuGet",
+      "os": [
+        "darwin",
+        "linux"
+      ],
+      "confidence": {
+        "darwin": "documented",
+        "linux": "documented"
+      },
+      "docs": "https://learn.microsoft.com/en-us/nuget/consume-packages/managing-the-global-packages-and-cache-folders",
+      "regenerable": true,
+      "clean": "dotnet nuget locals all --clear"
+    },
+    {
+      "path": "$LOCALAPPDATA/NuGet",
+      "os": [
+        "win32"
+      ],
+      "confidence": {
+        "win32": "documented"
+      },
+      "docs": "https://learn.microsoft.com/en-us/nuget/consume-packages/managing-the-global-packages-and-cache-folders",
+      "regenerable": true,
+      "clean": "dotnet nuget locals all --clear"
+    }
+  ],
+  "locators": []
+}

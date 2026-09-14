@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   board tags blocked stories `#blocked`; `doctor` reports a `blocked_by`
   that names no story, a dependency cycle, block-form `blocked_by`, and two
   ADRs sharing one number.
+- Disk hygiene, first slice (WP-17, ADR "Disk hygiene by discovery"):
+  `waypost size` measures a project's build artifacts (`--project`) and the
+  machine's tool caches (`--global`), read-only, with `--budget` for a
+  bounded run. What counts as a tool's output or cache is data:
+  `toolchains/*.json`, one file per tool, with per-OS paths, the evidence
+  behind each (`verified` only where measured) and whether it is
+  regenerable. A project's own `.waypost/toolchains/` entries are data only:
+  they never run anything and never reach outside the project.
+  `docs/toolchains.md` describes the format.
 
 ### Changed
 - Coordination follows the repository (ADR-0010): inside a git repository,

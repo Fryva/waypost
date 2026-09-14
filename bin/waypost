@@ -6,11 +6,12 @@
 //
 // Subcommands: see help() at the bottom, or `waypost help`.
 
-import { resolve, dirname, join } from "node:path";
+import { resolve, dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, lstatSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { homedir } from "node:os";
 import {
   parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, storyRefOf, expandHome,
   storedVaultPath, resolveVaultPath, bindingInfo, readConfig as readConfigLib, isLinkedWorktree, worktreeTag,
@@ -682,6 +683,86 @@ function printDoc(dir, name, suffix) {
   process.stdout.write(readFileSync(p, "utf8"));
 }
 
+// ─── size ──────────────────────────────────────────────────────────────
+//
+// Read-only measurement of build artifacts and dev caches (WP-17, "Disk
+// hygiene by discovery"): never writes, never deletes. A dynamic
+// import(), the way selfInstall reaches agents.mjs above — in-process, not
+// a subprocess — so a later `doctor` check can share this exact code.
+const GB = 1024 ** 3;
+
+function tildeHome(p) {
+  const home = homedir();
+  return p === home || p.startsWith(home + sep) ? `~${p.slice(home.length)}` : p;
+}
+
+async function handleSize(args) {
+  let sizes, toolchains;
+  try {
+    sizes = await import(`file://${SCRIPT("sizes")}`);
+    toolchains = await import(`file://${SCRIPT("toolchains")}`);
+  } catch (e) { fail(`size: ${e.message}`); }
+  const json = flag(args, "--json");
+
+  if (flag(args, "--global")) {
+    let out, reg;
+    try {
+      reg = toolchains.loadRegistry({ projectRoot: projectRoot(), platform: process.platform });
+      out = sizes.scanGlobal({ registry: reg });
+    } catch (e) { fail(`size --global: ${e.message}`); }
+    if (json) { process.stdout.write(JSON.stringify({ caches: out, notes: reg.notes }, null, 2) + "\n"); return; }
+    const threshold = 0.1 * GB;
+    const big = out.filter((e) => e.bytes >= threshold).sort((a, b) => b.bytes - a.bytes);
+    if (!big.length) { process.stdout.write("no caches at or above 0.1 GB found (waypost size --global --json for the rest)\n"); }
+    for (const e of big) {
+      process.stdout.write(`  ${(e.bytes / GB).toFixed(1)} GB  ${tildeHome(e.path)}  [${e.tool} · ${e.source}]\n    → ${e.clean}\n`);
+    }
+    const small = out.length - big.length;
+    if (small > 0) process.stdout.write(`…and ${small} more below 0.1 GB (--json for all)\n`);
+    if (reg.notes.length) process.stdout.write(`\n${reg.notes.length} note(s) from .waypost/toolchains/ (--json for detail)\n`);
+    return;
+  }
+
+  const bi = args.indexOf("--budget");
+  let budget = null;
+  if (bi !== -1) {
+    const v = args[bi + 1];
+    if (v === undefined) fail("--budget requires a value");
+    budget = Number(v);
+    if (!Number.isInteger(budget) || budget < 0) fail(`--budget must be a non-negative integer, got "${v}"`);
+  }
+
+  // A local extractor: the shared opt() does not know --project's value is
+  // optional, and would swallow --json as the directory (A-8's own lesson,
+  // applied here rather than reused, since --project's arity differs from
+  // every other flag in VALUED).
+  const pi = args.indexOf("--project");
+  const dir = pi !== -1 && args[pi + 1] !== undefined && !args[pi + 1].startsWith("--")
+    ? resolve(expandHome(args[pi + 1]))
+    : projectRoot();
+
+  let out, reg;
+  try {
+    reg = toolchains.loadRegistry({ projectRoot: dir, platform: process.platform });
+    out = sizes.scanProject(dir, { budget, registry: reg });
+  } catch (e) { fail(`size: ${e.message}`); }
+  if (json) { process.stdout.write(JSON.stringify({ ...out, notes: reg.notes }, null, 2) + "\n"); return; }
+
+  const totalGb = (out.bytes_at_least / GB).toFixed(1);
+  if (out.complete) {
+    process.stdout.write(`${totalGb} GB\n`);
+  } else {
+    process.stdout.write(`≥ ${totalGb} GB (stopped after ${out.entries_visited} entries — `
+      + "the entry budget; waypost size --budget <n> to raise it)\n");
+  }
+  const sorted = [...out.dirs].sort((a, b) => b.bytes - a.bytes);
+  if (!sorted.length) { process.stdout.write("no build artifacts found\n"); return; }
+  for (const d of sorted) {
+    const abs = resolve(out.root, d.path || ".");
+    process.stdout.write(`  ${(d.bytes / GB).toFixed(1)} GB  ${tildeHome(abs)}${d.partial ? "  (partial)" : ""}\n`);
+  }
+}
+
 // ─── status ────────────────────────────────────────────────────────────
 
 function handleStatus() {
@@ -812,6 +893,11 @@ PROCEDURES
   sessions [--touch]       active-session registry (--claim/--release/--prune [--older-than 6h])
   tokens [flags]           what the loop cost, from Claude Code transcripts
                            (Claude-only: no other harness writes them)
+  size [--project [dir]]   build-artifact sizes, read-only — measures, never
+                           deletes; needs no bound vault [--budget <n>] [--json]
+  size --global            toolchain/package-manager caches, simulators,
+                           containers and temp dirs ≥ 0.1 GB, each with its
+                           own clean command [--json for the rest]
 
 HARNESS-AGNOSTIC
   No hooks, no status line, no slash commands: the CLI is the interface, and
@@ -844,7 +930,7 @@ function leaseArgs(rest) {
 // session without anyone remembering `waypost sessions --touch`. Never fails the
 // command, never runs for a read-only lookup, and WAYPOST_NO_BEAT=1 turns it off.
 const QUIET_COMMANDS = new Set(["help", "--help", "-h", "version", "--version", "-v",
-  "harnesses", "prompt", "skill", "skills", "agents", "log", "storage", "merge-derived"]);
+  "harnesses", "prompt", "skill", "skills", "agents", "log", "storage", "merge-derived", "size"]);
 
 // ─── brief: the session start also installs its own harness ───────────
 //
@@ -983,6 +1069,7 @@ async function main() {
     case "reconcile": handleReconcile(rest); break;
     case "doctor": run("doctor", rest); break;
     case "diff-refs": run("diff-refs", rest); break;
+    case "size": await handleSize(rest); break;
     case "agents": run("agents", rest); break;
     case "harnesses": run("agents", ["harnesses", ...rest]); break;
     case "sessions": run("sessions", rest); break;

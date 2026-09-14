@@ -1,0 +1,28 @@
+{
+  "id": "cursor",
+  "name": "Cursor (editor)",
+  "os": [
+    "darwin"
+  ],
+  "detect": {
+    "bins": [],
+    "manifests": []
+  },
+  "artifacts": [],
+  "skip": [],
+  "caches": [
+    {
+      "path": "$HOME/Library/Application Support/Cursor/CachedData",
+      "os": [
+        "darwin"
+      ],
+      "confidence": {
+        "darwin": "inferred"
+      },
+      "notes": "Cursor forks VS Code's layout under its own app-support directory; not present on this machine, and Cursor publishes no dedicated docs page for it.",
+      "regenerable": true,
+      "clean": "rm -rf (with Cursor closed)"
+    }
+  ],
+  "locators": []
+}
