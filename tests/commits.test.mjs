@@ -277,6 +277,29 @@ test("with no WAYPOST_SESSION_ID and no terminal env, the derived session id is 
   assert.doesNotMatch(dry.stderr || "", /is claimed by/);
 });
 
+test("commit --dry-run previews without touching the real index: pathspec, --tracked and --all", () => {
+  const proj = repo();
+  const staged = () => (git(proj, ["diff", "--cached", "--name-only"]).stdout || "").split("\n").filter(Boolean);
+  writeFileSync(join(proj, "t.txt"), "1\n");
+  git(proj, ["add", "t.txt"]);
+  git(proj, ["commit", "-qm", "t"]);
+  writeFileSync(join(proj, "t.txt"), "2\n");          // tracked, modified
+  writeFileSync(join(proj, "a.txt"), "new\n");        // untracked
+  writeFileSync(join(proj, "b.txt"), "pre-staged\n"); // already in the index before the preview
+  git(proj, ["add", "b.txt"]);
+
+  for (const [mode, expected] of [
+    [["--", "a.txt"], ["a.txt", "b.txt"]],
+    [["--tracked"], ["t.txt", "b.txt"]],
+    [["--all"], ["a.txt", "b.txt", "t.txt"]],
+  ]) {
+    const r = waypost(proj, ["commit", "--dry-run", "-m", "x", ...mode]);
+    const listed = (r.stdout.split("--- would commit ---")[1] || "").split("\n").map((l) => l.trim()).filter(Boolean);
+    for (const f of expected) assert.ok(listed.includes(f), `${mode.join(" ")}: ${f} missing from ${JSON.stringify(listed)}`);
+    assert.deepEqual(staged(), ["b.txt"], `${mode.join(" ")}: the real index must be exactly as it was`);
+  }
+});
+
 // ─── derived views under merge ─────────────────────────────────────────
 
 test("two branches that both add a story merge without a conflict in the board", () => {

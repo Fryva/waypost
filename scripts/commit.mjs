@@ -37,8 +37,9 @@
 //      node commit.mjs --log [--story <id>] [--session <id>] [--harness <id>]
 //                            [--provider <id>] [-n <count>]
 
-import { existsSync, readFileSync } from "node:fs";
-import { join, relative, basename } from "node:path";
+import { existsSync, readFileSync, mkdtempSync, copyFileSync, rmSync } from "node:fs";
+import { join, relative, basename, isAbsolute } from "node:path";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
@@ -140,9 +141,23 @@ export function leasesOverStaged(staged, cfg, self) {
     .filter((l) => l.live && !l.mine && stagedRel.has(l.path));
 }
 
-function stagedFiles() {
-  const r = git(["diff", "--cached", "--name-only"]);
+function stagedFiles(opts = {}) {
+  const r = git(["diff", "--cached", "--name-only"], opts);
   return (r.stdout || "").split("\n").filter(Boolean);
+}
+
+// A dry run stages into a copy of the real index, in a temporary directory
+// removed when the process exits (die() included), so the preview never
+// leaves files staged behind — where a later plain `git commit` would take
+// them and a plain `git diff` would no longer show them.
+function scratchIndex() {
+  const dir = mkdtempSync(join(tmpdir(), "waypost-commit-dry-"));
+  process.on("exit", () => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ } });
+  const idx = join(dir, "index");
+  const real = (git(["rev-parse", "--git-path", "index"]).stdout || "").trim();
+  const realAbs = isAbsolute(real) ? real : join(projectRoot(), real);
+  if (real && existsSync(realAbs)) copyFileSync(realAbs, idx);
+  return idx;
 }
 
 function main() {
@@ -210,10 +225,11 @@ function main() {
         + '       Stage explicit paths (waypost commit -m "…" -- <paths>), or re-run with --force.');
     }
   }
-  if (has("--all")) git(["add", "-A", "--", ".", ":!.waypost"]);
-  if (has("--tracked")) git(["add", "-u"]);
-  if (pathspec.length) git(["add", "--", ...pathspec]);
-  const staged = stagedFiles();
+  const io = has("--dry-run") ? { env: { ...process.env, GIT_INDEX_FILE: scratchIndex() } } : {};
+  if (has("--all")) git(["add", "-A", "--", ".", ":!.waypost"], io);
+  if (has("--tracked")) git(["add", "-u"], io);
+  if (pathspec.length) git(["add", "--", ...pathspec], io);
+  const staged = stagedFiles(io);
   if (!staged.length) {
     die("nothing staged. Stage the change, or pass --all (everything not ignored, minus .waypost/) or -- <paths>.");
   }
@@ -234,7 +250,7 @@ function main() {
   });
 
   if (has("--dry-run")) {
-    process.stdout.write(message + "\n--- would commit ---\n" + stagedFiles().map((f) => `  ${f}`).join("\n") + "\n");
+    process.stdout.write(message + "\n--- would commit ---\n" + staged.map((f) => `  ${f}`).join("\n") + "\n");
     return;
   }
 

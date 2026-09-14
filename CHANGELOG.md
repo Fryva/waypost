@@ -47,6 +47,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read, so a peer on 0.14 keeps its protection. The legacy session registry
   stays in the vault (ADR-0004).
 
+### Fixed
+- `waypost commit --dry-run` no longer stages anything. The preview ran the
+  same `git add` as a real commit against the real index, and left the files
+  staged: a later plain `git commit` would take them, and a plain `git diff`
+  no longer showed them. It now stages into a temporary copy of the index
+  and prints the same list.
+
 ## [0.14.0] — 2026-09-04
 
 ### Added
