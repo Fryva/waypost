@@ -3,7 +3,7 @@ type: story
 id: "story-waypost-size-the-read-only-scan-project-and-global"
 epic: "WP-17"
 title: "The toolchain registry and a tool-agnostic waypost size"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-14
@@ -13,7 +13,7 @@ tags: []
 code_refs: ["toolchains/", "scripts/toolchains.mjs", "scripts/sizes.mjs", "bin/waypost", "package.json", "docs/toolchains.md", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "CHANGELOG.md"]
 specs: []
 started_at: "2026-09-14T16:28:58.090Z"
-closed_at: null
+closed_at: "2026-09-14T20:34:10.911Z"
 plan_updated_at: "2026-09-14T16:28:58.090Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-09-14T16:28:58.090Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-17](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -42,32 +42,32 @@ their paths to the discovery story.
 
 ## Decomposition
 
-- [ ] `toolchains/<id>.json`, one per tool, in the ADR's format: `os`,
+- [x] `toolchains/<id>.json`, one per tool, in the ADR's format: `os`,
       `confidence` per OS with `docs` or `notes`, `detect`, `artifacts`,
       `caches` (environment variable, then a per-OS default), `skip` names
       and named locators; every cache and artifact states `regenerable`.
       `ask`, `clean_argv`, `processes` and `detectors` arrive with the
       stories that run them. The conventional names every ecosystem uses are
       the `generic` entry.
-- [ ] Port the 129 entries of `scripts/sizes-global.json` into their tools'
+- [x] Port the 129 entries of `scripts/sizes-global.json` into their tools'
       entries, keeping each OS's confidence, docs and notes; remove the flat
       file and `loadGlobalList`.
-- [ ] `scripts/toolchains.mjs`: loader and schema check, shipped entries plus
+- [x] `scripts/toolchains.mjs`: loader and schema check, shipped entries plus
       `<project>/.waypost/toolchains/` entries as data only (`detect`
       manifests and `artifacts` inside the project; every other field dropped
       and reported); path resolution; the named locators, including the Xcode
       DerivedData match moved out of `scripts/sizes.mjs`.
-- [ ] `scripts/sizes.mjs`: names, prefixes, patterns and skip names from the
+- [x] `scripts/sizes.mjs`: names, prefixes, patterns and skip names from the
       registry; `CACHEDIR.TAG`, the git-ignore and tracked-file rules, the
       budget and the accounting unchanged; no tool named anywhere in the file.
-- [ ] `bin/waypost size`: same flags; `--global` says where each path came
+- [x] `bin/waypost size`: same flags; `--global` says where each path came
       from.
-- [ ] `docs/toolchains.md`: the entry format and the confidence levels, as
+- [x] `docs/toolchains.md`: the entry format and the confidence levels, as
       `docs/harnesses.md` does for harnesses.
-- [ ] Tests: the scan fixtures kept, fed by a test registry; a schema pass over
+- [x] Tests: the scan fixtures kept, fed by a test registry; a schema pass over
       every shipped entry; override precedence; the ADR's guards on
       `scripts/sizes.mjs` end to end (replacing the test keyed to the removed
-      draft, `tests/sizes.test.mjs:506-512`).
+      draft).
 
 ## Implementation Plan
 
@@ -92,30 +92,102 @@ the ADR.
 
 ## Acceptance Criteria
 
-- [ ] Every shipped `toolchains/*.json` passes the schema test: `os` and a
+- [x] Every shipped `toolchains/*.json` passes the schema test: `os` and a
       `confidence` for each OS listed, `docs` for `documented`, `notes` for
       `inferred`, `regenerable` stated on every cache and artifact.
-- [ ] The existing project-scan fixtures pass with names from the registry:
+      — evidence: `tests/toolchains.test.mjs:53`, `:66`, `:79`, `:92`,
+      `:106`, `:119`
+- [x] The existing project-scan fixtures pass with names from the registry:
       nested tags counted once, an ignored `build/` counted and a tracked
       `src/build/` not, symlink loops not followed, hard links once, the
       stopped-scan JSON shape, `$HOME` and `/` refused.
-- [ ] On macOS the Xcode DerivedData match still finds a project's folder,
+      — evidence: `tests/sizes.test.mjs:101`, `:133`, `:252`, `:264`,
+      `:279`, `:292`, `:300`
+- [x] On macOS the Xcode DerivedData match still finds a project's folder,
       now through the Xcode entry; on other platforms the locator does not run.
-- [ ] A `.waypost/toolchains/` entry adds a name the scan then counts, and
+      — evidence: `tests/sizes.test.mjs:320`, `tests/toolchains.test.mjs:243`
+- [x] A `.waypost/toolchains/` entry adds a name the scan then counts, and
       with a shipped entry's `id` extends that entry's project artifacts.
-- [ ] A project entry's `ask`, `clean_argv`, project clean command, processes,
+      — evidence: `tests/toolchains.test.mjs:282`, `:296`, `:249`
+- [x] A project entry's `ask`, `clean_argv`, project clean command, processes,
       detectors or machine cache fields are dropped and reported, and an
       artifact that resolves outside the project is refused.
-- [ ] `waypost size --global` on a temporary home lists only paths that exist
+      — evidence: `tests/toolchains.test.mjs:129`, `:155`, `:175`, `:191`,
+      `:228`
+- [x] `waypost size --global` on a temporary home lists only paths that exist
       on this OS, each with its source and clean text.
-- [ ] `scripts/sizes-global.json` is gone and nothing refers to it.
-- [ ] The ADR's guards on `scripts/sizes.mjs` select it and pass; `npm test`
+      — evidence: `tests/sizes.test.mjs:371`, `:382`, `:391`, `:450`
+- [x] `scripts/sizes-global.json` is gone and nothing refers to it.
+      — evidence: absent from b3a6f9a; `rg -n loadGlobalList scripts bin
+      tests` finds nothing
+- [x] The ADR's guards on `scripts/sizes.mjs` select it and pass; `npm test`
       and `node --check` are green; `waypost doctor` reports 0 issues.
+      — evidence: `tests/sizes.test.mjs:501`, `:494`,
+      `tests/toolchains.test.mjs:311`; `npm test` 409/409; `waypost doctor`
+      0 issues, 0 warnings with the ADR accepted
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Landed in b3a6f9a with the ADR's acceptance.
+
+**What changed.**
+- Tool knowledge moved from code to data. `toolchains/*.json` has 47
+  entries:
+  - 135 machine caches with per-OS paths and per-OS confidence:
+    - darwin: 29 verified, 5 documented, 47 inferred;
+    - linux: 24 documented, 39 inferred;
+    - win32: 20 documented, 25 inferred.
+  - 42 project artifacts, one of them a shipped pattern.
+  - Skip names and one locator.
+
+  Every item states `regenerable`. 28 caches are not regenerable: archives,
+  crash reports and core dumps, temp directories, simulator devices,
+  container data, downloaded models, editor workspace state.
+- `scripts/toolchains.mjs` loads the shipped entries, then a project's
+  `.waypost/toolchains/` entries as data only: `id`, `name`, single-segment
+  `detect.manifests`, and name/prefix artifacts rebuilt field by field. Every
+  other field, and any pattern, is dropped with a note. It also resolves cache
+  paths with their source and holds the locator that moved out of the
+  scanner.
+- `scripts/sizes.mjs` names no tool, and the three ADR guards pass. The walk
+  invariants are unchanged. Locators run generically after the walk, charged
+  to the same budget. The flat `scripts/sizes-global.json` is gone.
+- `bin/waypost size` keeps its flags. `--global` shows each path's tool and
+  source, and `--json` carries the loader's notes.
+- Also new: `docs/toolchains.md`, `toolchains/` in `package.json`'s `files`,
+  and a CHANGELOG entry.
+
+**Why.** The owner's rule that Waypost is universal (ADR Decisions 1 and 3):
+the first implementation carried Xcode and one machine in its core.
+
+**Tests executed.**
+- `npm test` 409/409, `node --check`, and `waypost doctor` 0 issues and 0
+  warnings with the ADR accepted.
+- Before-and-after runs found the same paths: `waypost size --project` on this
+  repository and on a second, larger local project, and `--global`. Byte
+  counts moved only with live build activity.
+
+**Review.**
+- Two rounds of lead review of the diff:
+  - comments naming other projects removed;
+  - project artifacts rebuilt field by field;
+  - patterns and out-of-project manifests refused from project entries;
+  - `os` never empty;
+  - models and editor workspace state marked not regenerable;
+  - `plutil` dropped from Xcode detection.
+- `waypost-reviewer` found all eight criteria met; its four nits are fixed.
+
+**Risks and follow-ups.**
+- `ask`, `clean_argv`, `processes` and `detectors` land with the discovery
+  and clean stories.
+- On Windows, resolved cache paths can mix separators. This is checked in
+  the verification story.
+- The `clean` texts written for artifacts are prose, unverified against each
+  tool's CLI. The clean story never runs prose.
+- `regenerable`, `stale_days` and `clean` on a project entry are normalized
+  without a note.
+- Found in passing: `waypost commit --dry-run` leaves files staged
+  (`scripts/commit.mjs:213-236`). It is a separate task.
 
 ## Technical Notes
 
