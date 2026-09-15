@@ -3,7 +3,7 @@ type: story
 id: "story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work"
 epic: "WP-18"
 title: "The heavy-work rule in every project, and Waypost's own heavy work"
-status: in-progress
+status: done
 priority: p1
 assignee: "Ivan Morozov"
 created: 2026-09-15
@@ -14,7 +14,7 @@ code_refs: ["templates/agents-block.md.tmpl", "scripts/agents.mjs", "AGENTS.md",
 specs: []
 blocked_by: ["WP-18/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work"]
 started_at: "2026-09-15T14:08:40.220Z"
-closed_at: null
+closed_at: "2026-09-15T15:43:15.433Z"
 plan_updated_at: "2026-09-15T14:08:40.220Z"
 ---
 
@@ -23,7 +23,7 @@ plan_updated_at: "2026-09-15T14:08:40.220Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-18](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p1 |
 | **Assignee** | Ivan Morozov |
 
