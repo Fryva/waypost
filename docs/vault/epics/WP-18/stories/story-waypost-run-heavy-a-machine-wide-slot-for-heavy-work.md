@@ -10,7 +10,7 @@ created: 2026-09-15
 updated: 2026-09-15
 external_refs: {}
 tags: []
-code_refs: ["bin/waypost", "scripts/capacity.mjs (planned)", "scripts/presence.mjs", "tests/capacity.test.mjs (planned)"]
+code_refs: ["bin/waypost", "scripts/capacity.mjs", "scripts/presence.mjs", "tests/capacity.test.mjs"]
 specs: []
 blocked_by: ["WP-18/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os"]
 started_at: null

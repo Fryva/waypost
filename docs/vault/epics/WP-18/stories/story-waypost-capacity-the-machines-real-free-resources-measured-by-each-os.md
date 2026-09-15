@@ -10,7 +10,7 @@ created: 2026-09-15
 updated: 2026-09-15
 external_refs: {}
 tags: []
-code_refs: ["scripts/capacity.mjs (planned)", "scripts/lib.mjs", "bin/waypost", "tests/capacity.test.mjs (planned)"]
+code_refs: ["scripts/capacity.mjs", "scripts/lib.mjs", "bin/waypost", "tests/capacity.test.mjs", "CHANGELOG.md"]
 specs: []
 started_at: "2026-09-15T03:14:34.602Z"
 closed_at: null

@@ -10,7 +10,7 @@ created: 2026-09-15
 updated: 2026-09-15
 external_refs: {}
 tags: []
-code_refs: ["scripts/capacity.mjs (planned)", "bin/waypost"]
+code_refs: ["scripts/capacity.mjs", "bin/waypost"]
 specs: []
 blocked_by: ["WP-18/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work"]
 started_at: null

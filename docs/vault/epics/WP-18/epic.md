@@ -8,7 +8,7 @@ created: 2026-09-15
 updated: 2026-09-15
 external_refs: {}
 tags: []
-code_refs: ["scripts/capacity.mjs (planned)", "scripts/lib.mjs", "scripts/presence.mjs", "scripts/agents.mjs", "bin/waypost", "AGENTS.md", "package.json", "prompts/heavy.md (planned)", "tests/capacity.test.mjs (planned)", "tests/harness.test.mjs", "README.md", "CHANGELOG.md"]
+code_refs: ["scripts/capacity.mjs", "scripts/lib.mjs", "scripts/presence.mjs", "scripts/agents.mjs", "bin/waypost", "AGENTS.md", "package.json", "prompts/heavy.md (planned)", "tests/capacity.test.mjs", "tests/harness.test.mjs", "README.md", "CHANGELOG.md"]
 review_status: pending
 reviewed_at: null
 ---

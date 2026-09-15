@@ -47,6 +47,17 @@ export function configPath() {
   return join(root, ".claude", "projectstore.json");
 }
 
+// The machine state directory (disk-hygiene ADR): local, per host, never
+// synced, and unrelated both to WAYPOST_HOME (where the tool is installed)
+// and to a project's .waypost/state/ (ADR-0004). Pure — never creates the
+// directory, only names it, so capacity.mjs and the machine profile (a later
+// story) agree on one location without either owning a side effect.
+export function machineStateDir({ platform = process.platform, env = process.env, home = homedir() } = {}) {
+  if (platform === "darwin") return join(home, "Library", "Application Support", "Waypost");
+  if (platform === "win32") return join(env.LOCALAPPDATA || join(home, "AppData", "Local"), "Waypost");
+  return join(env.XDG_STATE_HOME || join(home, ".local", "state"), "waypost");
+}
+
 // `~` is only expanded by an interactive shell — a harness that spawns us
 // directly (spawn/execFile with an argv array, no shell in between) passes it
 // through literally. One helper, reused everywhere a path arrives from argv

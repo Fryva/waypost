@@ -31,6 +31,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   regenerable. A project's own `.waypost/toolchains/` entries are data only:
   they never run anything and never reach outside the project.
   `docs/toolchains.md` describes the format.
+- Heavy work sized to the machine, first slice (WP-18, ADR "Heavy work sized
+  to the machine"): `waypost capacity` measures the machine's real free
+  resources on every call, and says how many more heavy jobs it can take,
+  with the reason when none. It measures:
+  - cores, capped by a cgroup CPU quota;
+  - load, from a CPU sample on Windows;
+  - memory available to new work, by each OS's own measure:
+    `kern.memorystatus_level` with a `vm_stat` fallback on macOS, and
+    `MemAvailable` capped by cgroup limits on Linux.
+
+  The machine-wide slot that makes sessions queue behind this limit comes
+  next.
 
 ### Changed
 - Coordination follows the repository (ADR-0010): inside a git repository,
