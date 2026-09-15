@@ -3,7 +3,7 @@ type: story
 id: "story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work"
 epic: "WP-18"
 title: "waypost run --heavy: a machine-wide slot for heavy work"
-status: in-progress
+status: done
 priority: p1
 assignee: "Ivan Morozov"
 created: 2026-09-15
@@ -14,7 +14,7 @@ code_refs: ["bin/waypost", "scripts/capacity.mjs", "scripts/lib.mjs", "scripts/p
 specs: []
 blocked_by: ["WP-18/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os"]
 started_at: "2026-09-15T13:17:33.403Z"
-closed_at: null
+closed_at: "2026-09-15T13:58:47.188Z"
 plan_updated_at: "2026-09-15T13:17:33.403Z"
 ---
 
@@ -23,7 +23,7 @@ plan_updated_at: "2026-09-15T13:17:33.403Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-18](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p1 |
 | **Assignee** | Ivan Morozov |
 
@@ -39,19 +39,19 @@ stale slot never blocks after a restart.
 
 ## Decomposition
 
-- [ ] The slot table in the machine state directory, keyed by host. Each
+- [x] The slot table in the machine state directory, keyed by host. Each
       record holds the pid, process start time, boot identity, host, session,
       harness, command and start.
-- [ ] The lock: `mkdir` of a lock directory that holds its owner's pid and
+- [x] The lock: `mkdir` of a lock directory that holds its owner's pid and
       start time. It is broken only when that owner is dead, or after five
       minutes.
-- [ ] Liveness:
+- [x] Liveness:
       - **boot identity:** Linux `boot_id`, macOS `kern.boottime`, and
         otherwise now − uptime within two minutes;
       - **POSIX:** the process table and start time, as `presence.mjs` does;
       - **Windows:** signal-0 plus the image name `tasklist` reports (no
         shell, a few seconds' timeout), and a 24-hour cap.
-- [ ] `waypost run --heavy [--wait <duration>] -- <argv…>`:
+- [x] `waypost run --heavy [--wait <duration>] -- <argv…>`:
       - claims under the lock, against `can_start` with the live holders;
       - refuses at once, with a distinct exit code, the reason and the retry
         command;
@@ -60,9 +60,9 @@ stale slot never blocks after a restart.
         Waypost's own priority (nice +10, below-normal on Windows);
       - forwards SIGINT and SIGTERM, releases the slot on exit, and returns
         the command's exit code.
-- [ ] `waypost capacity` lists the holders.
+- [x] `waypost capacity` lists the holders.
       `waypost capacity --release <id> [--force]` is the recovery path.
-- [ ] Tests, including the stress test.
+- [x] Tests, including the stress test.
 
 ## Implementation Plan
 
@@ -159,35 +159,108 @@ Technical notes for this plan:
 
 ## Acceptance Criteria
 
-- [ ] Several claims start at once against a cap of one, each with a trivial
+- [x] Several claims start at once against a cap of one, each with a trivial
       command, in a temporary state directory. Exactly one holds the slot;
       the rest are refused with the reason.
-- [ ] Records that are not holders:
+      — evidence: `tests/slots.test.mjs:532`
+- [x] Records that are not holders:
       - one from an earlier boot;
       - one whose pid now belongs to a process with another start time;
       - on injected Windows, one whose pid is alive under another image
         name.
 
       A Windows record older than 24 hours is released.
-- [ ] A lock whose owner is dead is broken at once. A live owner's lock is
+      — evidence: `tests/slots.test.mjs:141`, `:147`, `:152`, `:177`,
+      `:182`, `:188`
+- [x] A lock whose owner is dead is broken at once. A live owner's lock is
       kept for up to five minutes.
-- [ ] A refused `run --heavy` exits with its distinct code within a second
+      — evidence: `tests/slots.test.mjs:346`, `:359`, `:383`, and `:406`
+      (an owner from another boot)
+- [x] A refused `run --heavy` exits with its distinct code within a second
       and prints why and the retry command. `--wait 2s` retries, then gives
       up at the deadline. Nothing starts without a slot.
-- [ ] The command:
+      — evidence: `tests/slots.test.mjs:242`, `:256`, `:267`, `:359`
+      (nothing starts)
+- [x] The command:
       - runs at lowered priority, with its niceness read back on POSIX;
       - inherits stdio and receives interrupts;
       - releases the slot and passes on its exit code, including when it
         crashes.
-- [ ] `--release` refuses a live-looking record without `--force`, and prints
+      — evidence: `tests/slots.test.mjs:300` (priority 10), `:309`
+      (interrupt), `:282`, `:292` (exit codes), `:333` (release)
+- [x] `--release` refuses a live-looking record without `--force`, and prints
       what it released.
-- [ ] `npm test` is green at capped concurrency, and `waypost doctor` reports
+      — evidence: `tests/slots.test.mjs:438`, `:457`, `:469`, `:485`
+- [x] `npm test` is green at capped concurrency, and `waypost doctor` reports
       0 issues.
+      — evidence: `node --test --test-concurrency=2 tests/*.test.mjs` passed
+      497/497 in 136 s, started at load 3.3. `waypost doctor`: 0 issues,
+      0 warnings.
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Landed in e0d9c27.
+
+**What changed.**
+- `bin/waypost`:
+  - `run --heavy [--wait <Ns|Nm>] -- <argv…>`;
+  - the lock and the slot records;
+  - `capacity`, which lists the holders, and
+    `capacity --release <id> [--force]`.
+
+  Every write to the slot table lives here.
+- `scripts/capacity.mjs`: `bootIdentity`, `sameBoot`, `slotLive`,
+  `readHolders` (read only), `measure({ holders })`, and
+  `WAYPOST_CAPACITY_PROBE` for hermetic tests.
+- `scripts/presence.mjs`: `hostSlug` is exported.
+- `tests/slots.test.mjs`: 41 tests.
+- `CHANGELOG.md`.
+
+**Why.** ADR Decision 2: sessions and harnesses that know nothing of each
+other must queue behind one limit per machine. The freeze of 2026-09-14
+happened with only a rule in place.
+
+**Tests executed.**
+- `tests/slots.test.mjs`: 41/41.
+- The full suite, once, at `--test-concurrency=2`: 497/497 in 136 s,
+  started at load 3.3.
+- `node --check`.
+- `waypost doctor`: 0 issues.
+- Manual checks with a temporary `HOME`:
+  - the priority reads back 10;
+  - a second claim against a cap of one exits 75 with the reason and the
+    retry line;
+  - `waypost capacity` lists the holder.
+
+`~/Library/Application Support/Waypost` never existed during the work.
+
+**Review.**
+- The stress test caught a race in the first lock: a claimant broke a lock
+  whose owner had not yet written `owner.json`. Now only a confirmed-dead
+  owner, or the five-minute cap, may break a lock.
+- Lead review of the diff found two defects, both now fixed with tests:
+  - `capacity --release <id>` joined an unchecked id into a path, so it
+    could delete any `.json` next to the slot directory;
+  - the retry line was not quoted.
+- `waypost-reviewer` found the diff fit to commit. Its should-fix items are
+  done:
+  - the lock owner carries the boot identity;
+  - a test proves an interrupt reaches the command;
+  - stderr says so whenever `WAYPOST_CAPACITY_PROBE` is honoured.
+
+  The probe stays a full replacement. A conservative clamp would make the
+  cross-process stress test depend on the host's load.
+
+**Risks and follow-ups.**
+- Windows is covered by injected tests only: `tasklist`, signal 0, and
+  `.cmd`/`.bat` targets run through `cmd.exe`. The verification story runs
+  it for real.
+- If the `waypost run` process is killed outright, its command may keep
+  running untracked. Its load still counts.
+- On Windows, a retry line with an argument that ends in backslashes may not
+  paste back exactly. This is cosmetic.
+- The routing-block line, and Waypost's own test suite under the limit, are
+  the next story.
 
 ## Technical Notes
 
