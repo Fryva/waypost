@@ -8,7 +8,7 @@ created: 2026-09-14
 updated: 2026-09-14
 external_refs: {}
 tags: []
-code_refs: ["toolchains/", "scripts/toolchains.mjs", "scripts/sizes.mjs", "scripts/cleanup.mjs (planned)", "bin/waypost", "package.json", "scripts/doctor.mjs", "scripts/presence.mjs", "prompts/cleanup.md (planned)", "skills/waypost-doctor/SKILL.md", "docs/toolchains.md", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "tests/cleanup.test.mjs (planned)", "README.md", "AGENTS.md", "CHANGELOG.md"]
+code_refs: ["toolchains/", "scripts/toolchains.mjs", "scripts/discovery.mjs (planned)", "scripts/sizes.mjs", "scripts/cleanup.mjs (planned)", "bin/waypost", "package.json", "scripts/doctor.mjs", "scripts/presence.mjs", "prompts/cleanup.md (planned)", "skills/waypost-doctor/SKILL.md", "docs/toolchains.md", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "tests/discovery.test.mjs (planned)", "tests/scripts.test.mjs", "tests/cleanup.test.mjs (planned)", "README.md", "AGENTS.md", "CHANGELOG.md"]
 review_status: pending
 reviewed_at: null
 ---

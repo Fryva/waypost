@@ -12,6 +12,7 @@
 | [WP-15](./WP-15/epic.md) | Coordination follows the repository, and ready work | planned | 2026-09-04 |
 | [WP-16](./WP-16/epic.md) | Decisions that check themselves | planned | 2026-09-04 |
 | [WP-17](./WP-17/epic.md) | Disk hygiene by discovery | planned | 2026-09-14 |
+| [WP-18](./WP-18/epic.md) | Heavy work sized to the machine | planned | 2026-09-15 |
 
 ---
 

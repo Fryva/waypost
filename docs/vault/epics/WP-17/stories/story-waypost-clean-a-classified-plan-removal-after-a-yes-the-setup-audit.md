@@ -42,6 +42,9 @@ decides (Decisions 4–6):
 ## Decomposition
 
 - [ ] `scripts/sizes.mjs`: a read-only `newest_mtime` per item.
+- [ ] Tool versions in the machine profile, for the detector that finds a
+      toolchain duplicating another at the same version (deferred from the
+      discovery story; the ADR's "with versions").
 - [ ] `scripts/cleanup.mjs` computes keep / should / can, each with a reason:
       - in use — the registry's process names, plus 10-minute recency (recency
         alone where the process table is unavailable);
