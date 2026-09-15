@@ -25,9 +25,16 @@
       "confidence": {
         "darwin": "inferred"
       },
-      "notes": "Deno's OS cache-dir convention for macOS; not present on this machine.",
+      "notes": "Deno's OS cache-dir convention for macOS; not present on this machine. ask.env sets DENO_NO_UPDATE_CHECK=1 so being asked never checks for a newer Deno release (https://docs.deno.com/runtime/reference/env_variables/).",
       "regenerable": true,
-      "clean": "deno clean"
+      "clean": "deno clean",
+      "ask": {
+        "argv": ["deno", "info", "--json"],
+        "parse": "json",
+        "key": "denoDir",
+        "env": { "DENO_NO_UPDATE_CHECK": "1" },
+        "docs": "https://docs.deno.com/runtime/reference/cli/info/"
+      }
     },
     {
       "path": "$XDG_CACHE_HOME/deno",
@@ -37,9 +44,16 @@
       "confidence": {
         "linux": "inferred"
       },
-      "notes": "Deno's OS cache-dir convention for Linux; not verifiable from macOS.",
+      "notes": "Deno's OS cache-dir convention for Linux; not verifiable from macOS. ask.env sets DENO_NO_UPDATE_CHECK=1 so being asked never checks for a newer Deno release (https://docs.deno.com/runtime/reference/env_variables/).",
       "regenerable": true,
-      "clean": "deno clean"
+      "clean": "deno clean",
+      "ask": {
+        "argv": ["deno", "info", "--json"],
+        "parse": "json",
+        "key": "denoDir",
+        "env": { "DENO_NO_UPDATE_CHECK": "1" },
+        "docs": "https://docs.deno.com/runtime/reference/cli/info/"
+      }
     },
     {
       "path": "$LOCALAPPDATA/deno",
@@ -49,9 +63,16 @@
       "confidence": {
         "win32": "inferred"
       },
-      "notes": "Deno's OS cache-dir convention for Windows; not verifiable from macOS.",
+      "notes": "Deno's OS cache-dir convention for Windows; not verifiable from macOS. ask.env sets DENO_NO_UPDATE_CHECK=1 so being asked never checks for a newer Deno release (https://docs.deno.com/runtime/reference/env_variables/).",
       "regenerable": true,
-      "clean": "deno clean"
+      "clean": "deno clean",
+      "ask": {
+        "argv": ["deno", "info", "--json"],
+        "parse": "json",
+        "key": "denoDir",
+        "env": { "DENO_NO_UPDATE_CHECK": "1" },
+        "docs": "https://docs.deno.com/runtime/reference/cli/info/"
+      }
     }
   ],
   "locators": []

@@ -26,7 +26,12 @@
       "docs": "https://ccache.dev/manual/latest.html#_configuration",
       "notes": "ccache's default cache dir follows the OS cache-dir convention on macOS; not present on this machine.",
       "regenerable": true,
-      "clean": "ccache -C"
+      "clean": "ccache -C",
+      "ask": {
+        "argv": ["ccache", "--get-config", "cache_dir"],
+        "parse": "line",
+        "docs": "https://ccache.dev/manual/latest.html#_configuration"
+      }
     },
     {
       "path": "$XDG_CACHE_HOME/ccache",
@@ -38,7 +43,12 @@
       },
       "docs": "https://ccache.dev/manual/latest.html#_configuration",
       "regenerable": true,
-      "clean": "ccache -C"
+      "clean": "ccache -C",
+      "ask": {
+        "argv": ["ccache", "--get-config", "cache_dir"],
+        "parse": "line",
+        "docs": "https://ccache.dev/manual/latest.html#_configuration"
+      }
     },
     {
       "path": "$LOCALAPPDATA/ccache",
@@ -50,7 +60,12 @@
       },
       "docs": "https://ccache.dev/manual/latest.html#_configuration",
       "regenerable": true,
-      "clean": "ccache -C"
+      "clean": "ccache -C",
+      "ask": {
+        "argv": ["ccache", "--get-config", "cache_dir"],
+        "parse": "line",
+        "docs": "https://ccache.dev/manual/latest.html#_configuration"
+      }
     },
     {
       "path": "$HOME/.ccache",

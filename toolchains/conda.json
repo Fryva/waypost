@@ -30,9 +30,15 @@
         "win32": "inferred"
       },
       "docs": "https://docs.conda.io/projects/conda/en/latest/commands/clean.html",
-      "notes": "Default only when Miniconda was installed into the user's home directory; not installed on this machine.",
+      "notes": "Default only when Miniconda was installed into the user's home directory; not installed on this machine. This item carries the ask: conda info --json's pkgs_dirs is an array (Lead decision), so a successful ask can report several asked paths at once; the other cache items in this entry stay as env/default fallbacks, deduplicated by path.",
       "regenerable": true,
-      "clean": "conda clean --all"
+      "clean": "conda clean --all",
+      "ask": {
+        "argv": ["conda", "info", "--json"],
+        "parse": "json",
+        "key": "pkgs_dirs",
+        "docs": "https://docs.conda.io/projects/conda/en/stable/commands/info.html"
+      }
     },
     {
       "path": "$HOME/miniforge3/pkgs",

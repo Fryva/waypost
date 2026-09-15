@@ -70,9 +70,15 @@
         "darwin": "inferred"
       },
       "docs": "https://pip.pypa.io/en/stable/topics/caching/",
-      "notes": "Documented pip macOS cache location; not present on this machine.",
+      "notes": "Documented pip macOS cache location; not present on this machine. ask.env sets PIP_DISABLE_PIP_VERSION_CHECK=1 to suppress pip's periodic version-check network call (https://pip.pypa.io/en/stable/cli/pip/#cmdoption-disable-pip-version-check).",
       "regenerable": true,
-      "clean": "pip cache purge"
+      "clean": "pip cache purge",
+      "ask": {
+        "argv": ["pip", "cache", "dir"],
+        "parse": "line",
+        "env": { "PIP_DISABLE_PIP_VERSION_CHECK": "1" },
+        "docs": "https://pip.pypa.io/en/stable/cli/pip_cache/"
+      }
     },
     {
       "path": "$XDG_CACHE_HOME/pip",
@@ -83,8 +89,15 @@
         "linux": "documented"
       },
       "docs": "https://pip.pypa.io/en/stable/topics/caching/",
+      "notes": "ask.env sets PIP_DISABLE_PIP_VERSION_CHECK=1 to suppress pip's periodic version-check network call (https://pip.pypa.io/en/stable/cli/pip/#cmdoption-disable-pip-version-check).",
       "regenerable": true,
-      "clean": "pip cache purge"
+      "clean": "pip cache purge",
+      "ask": {
+        "argv": ["pip", "cache", "dir"],
+        "parse": "line",
+        "env": { "PIP_DISABLE_PIP_VERSION_CHECK": "1" },
+        "docs": "https://pip.pypa.io/en/stable/cli/pip_cache/"
+      }
     },
     {
       "path": "$LOCALAPPDATA/pip/Cache",
@@ -95,8 +108,15 @@
         "win32": "documented"
       },
       "docs": "https://pip.pypa.io/en/stable/topics/caching/",
+      "notes": "ask.env sets PIP_DISABLE_PIP_VERSION_CHECK=1 to suppress pip's periodic version-check network call (https://pip.pypa.io/en/stable/cli/pip/#cmdoption-disable-pip-version-check).",
       "regenerable": true,
-      "clean": "pip cache purge"
+      "clean": "pip cache purge",
+      "ask": {
+        "argv": ["pip", "cache", "dir"],
+        "parse": "line",
+        "env": { "PIP_DISABLE_PIP_VERSION_CHECK": "1" },
+        "docs": "https://pip.pypa.io/en/stable/cli/pip_cache/"
+      }
     },
     {
       "path": "$XDG_CACHE_HOME/uv",
@@ -110,7 +130,12 @@
       },
       "docs": "https://docs.astral.sh/uv/concepts/cache/",
       "regenerable": true,
-      "clean": "uv cache clean"
+      "clean": "uv cache clean",
+      "ask": {
+        "argv": ["uv", "cache", "dir"],
+        "parse": "line",
+        "docs": "https://docs.astral.sh/uv/reference/cli/#uv-cache-dir"
+      }
     },
     {
       "path": "$LOCALAPPDATA/uv/cache",
@@ -122,7 +147,12 @@
       },
       "docs": "https://docs.astral.sh/uv/concepts/cache/",
       "regenerable": true,
-      "clean": "uv cache clean"
+      "clean": "uv cache clean",
+      "ask": {
+        "argv": ["uv", "cache", "dir"],
+        "parse": "line",
+        "docs": "https://docs.astral.sh/uv/reference/cli/#uv-cache-dir"
+      }
     },
     {
       "path": "$HOME/Library/Caches/pypoetry",
@@ -135,7 +165,12 @@
       "docs": "https://python-poetry.org/docs/cache/",
       "notes": "Documented Poetry macOS cache location; not present on this machine.",
       "regenerable": true,
-      "clean": "poetry cache clear --all PyPI"
+      "clean": "poetry cache clear --all PyPI",
+      "ask": {
+        "argv": ["poetry", "config", "cache-dir"],
+        "parse": "line",
+        "docs": "https://python-poetry.org/docs/configuration/"
+      }
     },
     {
       "path": "$XDG_CACHE_HOME/pypoetry",
@@ -147,7 +182,12 @@
       },
       "docs": "https://python-poetry.org/docs/cache/",
       "regenerable": true,
-      "clean": "poetry cache clear --all PyPI"
+      "clean": "poetry cache clear --all PyPI",
+      "ask": {
+        "argv": ["poetry", "config", "cache-dir"],
+        "parse": "line",
+        "docs": "https://python-poetry.org/docs/configuration/"
+      }
     },
     {
       "path": "$LOCALAPPDATA/pypoetry/Cache",
@@ -159,7 +199,12 @@
       },
       "docs": "https://python-poetry.org/docs/cache/",
       "regenerable": true,
-      "clean": "poetry cache clear --all PyPI"
+      "clean": "poetry cache clear --all PyPI",
+      "ask": {
+        "argv": ["poetry", "config", "cache-dir"],
+        "parse": "line",
+        "docs": "https://python-poetry.org/docs/configuration/"
+      }
     }
   ],
   "locators": []

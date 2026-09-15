@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, renameSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -40,6 +40,29 @@ function bound() {
   const vault = join(proj, "vault");
   waypost(proj, ["bind", vault]);
   return { proj, vault };
+}
+
+// WP-17: a non-dry-run `setup` now runs real discovery (buildMachineProfile,
+// ask:true), so every such call below needs an env as hermetic as
+// scripts/discovery.mjs's own findOnPath — a temp HOME (also covers
+// XDG_STATE_HOME/LOCALAPPDATA, so the machine profile lands under it, not
+// under this developer's real machine state directory) and a PATH holding
+// only a symlink to the real `git` this step's own plumbing (gitCommonDir,
+// bind) needs. Without this, `setup` used to probe every real tool on the
+// machine running the suite and write a real machine.<host>.json under
+// ~/Library/Application Support/Waypost (or the Linux/Windows equivalent) —
+// on macOS, /usr/bin/pip3 is a shim that can pop an install dialog. Mirrors
+// the pattern in tests/scripts.test.mjs.
+let _gitPath = null;
+function realGitPath() {
+  if (!_gitPath) _gitPath = spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim();
+  return _gitPath;
+}
+function hermeticDiscoveryEnv() {
+  const home = mkdtempSync(join(tmpdir(), "waypost-h-home-"));
+  const bin = mkdtempSync(join(tmpdir(), "waypost-h-bin-"));
+  symlinkSync(realGitPath(), join(bin, "git"));
+  return { HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin };
 }
 
 // ─── role definitions ──────────────────────────────────────────────────
@@ -809,7 +832,7 @@ test("`waypost skill` prints a bundled skill by short or full name; setup instal
   assert.match(waypost(proj, ["skill", "waypost-decision-detector"]).stdout, /^name: waypost-decision-detector$/m);
   assert.match(waypost(proj, ["skill"]).stdout, /waypost-draft/);
   mkdirSync(join(proj, ".opencode"), { recursive: true });
-  waypost(proj, ["setup"]);
+  waypost(proj, ["setup"], { env: hermeticDiscoveryEnv() });
   assert.ok(existsSync(join(proj, ".agents", "skills", "waypost-draft", "SKILL.md")), "opencode reads .agents/skills");
 });
 
@@ -1235,11 +1258,12 @@ test("one command leaves a project ready, and says what it did", () => {
   const proj = project();
   writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");   // a harness in use
 
-  const dry = waypost(proj, ["setup", "--dry-run"]).stdout;
+  const denv = hermeticDiscoveryEnv();
+  const dry = waypost(proj, ["setup", "--dry-run"], { env: denv }).stdout;
   assert.match(dry, /would bind vault/, "a dry run explains itself before touching anything");
   assert.ok(!existsSync(join(proj, ".waypost")), "…and touches nothing");
 
-  const out = waypost(proj, ["setup"]).stdout;
+  const out = waypost(proj, ["setup"], { env: denv }).stdout;
   assert.match(out, /install roles for claude/, "the harness in use is detected, not asked about");
   assert.ok(existsSync(join(proj, ".waypost", "projectstore.json")), "bound");
   assert.ok(existsSync(join(proj, "vault", "adr", "README.md")), "vault scaffolded at a conventional path");
@@ -1247,7 +1271,7 @@ test("one command leaves a project ready, and says what it did", () => {
   assert.match(readFileSync(join(proj, "CLAUDE.md"), "utf8"), /waypost:agents/, "roles routed");
   assert.match(readFileSync(join(proj, ".gitignore"), "utf8"), /\.waypost\//, "mechanical findings repaired");
 
-  const again = waypost(proj, ["setup"]).stdout;
+  const again = waypost(proj, ["setup"], { env: denv }).stdout;
   assert.match(again, /already bound/, "running it twice is safe and says so");
 });
 
@@ -1300,7 +1324,7 @@ test("the binding follows the checkout: stored relative inside the project, reso
 test("setup adopts a vault the project already has instead of making a second one", () => {
   const proj = project();
   mkdirSync(join(proj, "docs", "vault", "adr"), { recursive: true });
-  waypost(proj, ["setup"]);
+  waypost(proj, ["setup"], { env: hermeticDiscoveryEnv() });
   const cfg = JSON.parse(readFileSync(join(proj, ".waypost", "projectstore.json"), "utf8"));
   assert.match(cfg.vault_path, /docs\/vault$/, "an existing vault is found, not duplicated");
 });
@@ -1310,7 +1334,7 @@ test("`waypost next` ranks what to do, and `waypost` alone answers the two real 
   assert.match(waypost(proj, []).stdout, /not set up[\s\S]*waypost setup/,
     "an unconfigured project is told the one command that configures it");
 
-  waypost(proj, ["setup"]);
+  waypost(proj, ["setup"], { env: hermeticDiscoveryEnv() });
   waypost(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);
   waypost(proj, ["draft", "story", "PS-1", "Story", "--write"]);
   writeFileSync(join(proj, "vault", "kanban.md"), "hand-broken\n", "utf8");
@@ -1327,7 +1351,7 @@ test("`waypost next` ranks what to do, and `waypost` alone answers the two real 
 
 test("presence beats on its own, so another device sees this session without being told", () => {
   const proj = project();
-  waypost(proj, ["setup"]);
+  waypost(proj, ["setup"], { env: hermeticDiscoveryEnv() });
   waypost(proj, ["doctor"], { session: "auto-1" });          // any working command
   const state = JSON.parse(waypost(proj, ["sessions", "--json"], { session: "auto-2" }).stdout);
   assert.ok(state.active.some((s) => s.id === "auto-1"),

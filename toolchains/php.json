@@ -44,8 +44,15 @@
         "linux": "documented"
       },
       "docs": "https://getcomposer.org/doc/03-cli.md#clear-cache",
+      "notes": "ask.env sets COMPOSER_DISABLE_NETWORK=1 so being asked never reaches the network (https://getcomposer.org/doc/03-cli.md).",
       "regenerable": true,
-      "clean": "composer clear-cache"
+      "clean": "composer clear-cache",
+      "ask": {
+        "argv": ["composer", "config", "cache-dir"],
+        "parse": "line",
+        "env": { "COMPOSER_DISABLE_NETWORK": "1" },
+        "docs": "https://getcomposer.org/doc/03-cli.md"
+      }
     },
     {
       "path": "$LOCALAPPDATA/Composer",
@@ -56,8 +63,15 @@
         "win32": "documented"
       },
       "docs": "https://getcomposer.org/doc/03-cli.md#clear-cache",
+      "notes": "ask.env sets COMPOSER_DISABLE_NETWORK=1 so being asked never reaches the network (https://getcomposer.org/doc/03-cli.md).",
       "regenerable": true,
-      "clean": "composer clear-cache"
+      "clean": "composer clear-cache",
+      "ask": {
+        "argv": ["composer", "config", "cache-dir"],
+        "parse": "line",
+        "env": { "COMPOSER_DISABLE_NETWORK": "1" },
+        "docs": "https://getcomposer.org/doc/03-cli.md"
+      }
     }
   ],
   "locators": []

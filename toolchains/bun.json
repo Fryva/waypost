@@ -31,7 +31,12 @@
       },
       "docs": "https://bun.sh/docs/install/cache",
       "regenerable": true,
-      "clean": "bun pm cache rm"
+      "clean": "bun pm cache rm",
+      "ask": {
+        "argv": ["bun", "pm", "cache"],
+        "parse": "line",
+        "docs": "https://bun.sh/docs/cli/pm"
+      }
     }
   ],
   "locators": []

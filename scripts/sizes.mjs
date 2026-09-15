@@ -409,9 +409,58 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
 // scripts/toolchains.mjs (token + trailing-"*" expansion), reporting only
 // the ones that exist. Nothing here is filtered by size — bin/waypost's
 // human output does that.
-export function scanGlobal({ home = homedir(), env = process.env, platform = process.platform, registry = null } = {}) {
-  const reg = registry || loadRegistry({ projectRoot: process.cwd(), platform });
-  const candidates = resolveCachePaths(reg.entries, { home, env, platform });
+//
+// `profile` (WP-17, the discovery story): when bin/waypost has a fresh
+// machine profile for this host, its own `caches` are measured directly —
+// no resolveCachePaths, no re-asking. But a profile holds facts, not policy
+// (ADR Decision 2): it carries only { tool, item, path, source, ask_note? },
+// so `clean`/`confidence`/`docs`/`notes`/`regenerable` are read back from
+// the CURRENT `registry` at measurement time, matched by (tool, item) —
+// `item` is the cache item's own raw path template, a stable key regardless
+// of how it resolved. This is what keeps a fixed `regenerable` or `clean`
+// in the registry visible to `size --global` at once, never stale for up to
+// 30 days waiting on the next profile refresh. A profile item whose (tool,
+// item) no longer matches anything in the current registry — the entry or
+// that exact cache item was removed or renamed — is not measured; the
+// caller sees this via the returned array's own `.dropped` count (an extra
+// own property on the array, not a fourth output shape: `JSON.stringify`
+// and a plain `for…of` both only ever see the indexed elements, so every
+// existing consumer of "scanGlobal returns an array of measured caches" is
+// unaffected — only a caller that deliberately reads `.dropped`, or a
+// whole-object comparison like `assert.deepEqual`, ever sees it). Without a
+// profile, today's path (the registry's own env/default resolution) runs
+// unchanged.
+export function scanGlobal({ home = homedir(), env = process.env, platform = process.platform, registry = null, profile = null } = {}) {
+  let candidates;
+  let dropped = 0;
+  if (profile) {
+    // Item 7: a profile whose own `caches` is not an array (corrupt, or an
+    // older shape) is not trusted at all — treated as empty rather than
+    // thrown. bin/waypost's own freshness check already excludes this case
+    // before ever calling scanGlobal with a profile; this is the same rule
+    // enforced here too, since scanGlobal is a public function other
+    // callers (tests, a future doctor check) may call directly.
+    const items = Array.isArray(profile.caches) ? profile.caches : [];
+    const reg = registry || loadRegistry({ projectRoot: process.cwd(), platform });
+    const policy = new Map();
+    for (const e of reg.entries) {
+      for (const c of e.caches || []) {
+        if (!Array.isArray(c.os) || !c.os.includes(platform)) continue;
+        policy.set(`${e.id}::${c.path}`, {
+          clean: c.clean, confidence: (c.confidence || {})[platform] || null,
+          docs: c.docs ?? null, notes: c.notes ?? null, regenerable: c.regenerable ?? null,
+        });
+      }
+    }
+    candidates = [];
+    for (const item of items) {
+      const pol = policy.get(`${item.tool}::${item.item}`);
+      if (!pol) { dropped++; continue; }
+      candidates.push({ ...item, ...pol });
+    }
+  } else {
+    candidates = resolveCachePaths((registry || loadRegistry({ projectRoot: process.cwd(), platform })).entries, { home, env, platform });
+  }
   const seen = new Set();
   const out = [];
   for (const cand of candidates) {
@@ -425,9 +474,10 @@ export function scanGlobal({ home = homedir(), env = process.env, platform = pro
     const { bytes } = dirBytes(cand.path, seen, null);
     out.push({
       path: cand.path, bytes, clean: cand.clean, tool: cand.tool, source: cand.source,
-      confidence: cand.confidence, docs: cand.docs, notes: cand.notes,
+      confidence: cand.confidence, docs: cand.docs, notes: cand.notes, regenerable: cand.regenerable ?? null,
     });
   }
+  out.dropped = dropped;
   return out;
 }
 

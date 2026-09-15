@@ -68,6 +68,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `WAYPOST_HEAVY_WAIT` waits for one instead of failing at once. `waypost
   size --global` holds a slot for the whole-disk scan the same way, exit 75
   when refused.
+- Disk hygiene, discovery and the profile (WP-17): `waypost profile
+  [--refresh] [--json]` builds and keeps the scheme of what waypost works
+  with — which registry tools are present on `PATH`, where their caches
+  really are, and the project's own ecosystems — asking each present tool
+  first (its shipped `ask` argv, no shell, stdin closed, home directory as
+  cwd, a 3s timeout), then falling back to the environment, then a per-OS
+  default; every path carries its `source`. `ask` is now shipped for go,
+  node/npm, python (pip/uv/poetry), yarn (classic and Berry), pnpm,
+  Homebrew, conda, dotnet/NuGet, Deno, Bun, PHP/Composer and ccache — each
+  with the command's own documentation and, where the tool documents one, a
+  switch that keeps asking from reaching the network or checking for
+  updates. `machine.<host>.json` lives in the machine state directory (per
+  OS convention); `.waypost/state/project.<host>.json` is project-local; a
+  profile is rebuilt when missing, older than 30 days, or on `--refresh`.
+  `waypost setup` runs discovery under the same rule (`--dry-run` says
+  whether each profile would be refreshed or kept), and a discovery failure
+  is reported without stopping the rest of setup. Outside a project,
+  `waypost profile` writes the machine profile only. The profile holds facts
+  only — which tool, which registry item, the path and how it was found;
+  `waypost size --global` measures a fresh profile's paths and takes `clean`,
+  `regenerable` and the rest from the current registry, so a registry fix
+  shows at once. Without a fresh profile it falls back to the registry's
+  own defaults with a hint. The whole registry is resolved, so caches of
+  tools not on `PATH` are still measured; only the tools found are asked.
+  Discovery is a `PATH` stat plus a handful of short subprocess calls, not
+  heavy work — it takes no machine-wide slot.
 
 ### Changed
 - Coordination follows the repository (ADR-0010): inside a git repository,

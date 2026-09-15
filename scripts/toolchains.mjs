@@ -16,10 +16,12 @@
 //   loadRegistry({ projectRoot, platform }) -> { entries, notes }
 //   applicableLocators(entries, platform)   -> [{ name, collect }]
 //   runLocator(name, ctx)                   -> { matches, incomplete }
-//   resolveCachePaths(entries, { home, env, platform }) -> [{ ... }]
+//   askCache(ask, { bin, env, home, platform, timeoutMs }) -> { ok, value|note }
+//   resolveCachePaths(entries, { home, env, platform, ask, bins }) -> [{ ... }]
+//   ASK_TIMEOUT_MS
 
 import { readFileSync, readdirSync, lstatSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join, sep, win32 as pathWin32, posix as pathPosix } from "node:path";
 import { spawnSync } from "node:child_process";
 import { pluginRoot } from "./lib.mjs";
 
@@ -287,6 +289,100 @@ function tokensFor(home, env) {
   };
 }
 
+// ─── asking a tool for its cache location ────────────────────────────────
+//
+// The only thing in this whole module (or scripts/discovery.mjs) that ever
+// spawns anything besides the registry's own detect probe: the shipped
+// entry's own `ask` argv, run against the ABSOLUTE path discovery already
+// found on PATH — never a bare command name, never through a shell, never
+// with stdin open, never outside the caller's home directory. A cloned
+// repository cannot add an `ask` of its own (the project-entry allowlist in
+// loadRegistry never carries one), so this only ever runs what waypost
+// itself ships.
+export const ASK_TIMEOUT_MS = 3000;
+
+const BATCH_SHIM_RE = /\.(cmd|bat)$/i;
+
+// Returns { ok: true, value: [absolutePath, …] } or { ok: false, note }. Every
+// failure mode becomes a note instead of a throw — resolveCachePaths falls
+// back to env/default either way, so discovery never stops because one tool
+// hung, exited non-zero, or answered with something unusable. `value` is
+// always an array: most parses produce one path, but conda's `pkgs_dirs`
+// (Lead decision) answers with several, all worth keeping as fallbacks of
+// each other via the caller's own dedupe.
+export function askCache(ask, { bin, env = process.env, home, platform = process.platform, timeoutMs = ASK_TIMEOUT_MS } = {}) {
+  if (platform === "win32" && BATCH_SHIM_RE.test(bin)) {
+    return { ok: false, note: "batch shim skipped" };
+  }
+  // Defense in depth: scripts/discovery.mjs's findOnPath never returns a
+  // relative path (a relative PATH entry is skipped there), so `bin` here
+  // is already absolute in the normal call path — but this is the one place
+  // that ever spawns it, with cwd=home, so a relative `bin` would silently
+  // run whatever THAT name resolves to under home instead of the file
+  // discovery actually found. Refused rather than trusted.
+  const isAbs = platform === "win32" ? pathWin32.isAbsolute : pathPosix.isAbsolute;
+  if (!isAbs(bin)) return { ok: false, note: "bin is not an absolute path" };
+  let r;
+  try {
+    r = spawnSync(bin, (ask.argv || []).slice(1), {
+      shell: false,
+      stdio: ["ignore", "pipe", "ignore"],
+      cwd: home,
+      env: { ...env, ...(ask.env || {}) },
+      timeout: timeoutMs,
+      encoding: "utf8",
+    });
+  } catch (e) {
+    return { ok: false, note: `failed to run: ${e.message}` };
+  }
+  if (r.error) return { ok: false, note: r.error.code === "ETIMEDOUT" ? "timed out" : `failed to run: ${r.error.message}` };
+  if (r.signal) return { ok: false, note: "timed out" };
+  if (r.status !== 0) return { ok: false, note: `exit ${r.status}` };
+
+  const stdout = r.stdout || "";
+  let values;
+  try {
+    if (ask.parse === "line") {
+      const line = stdout.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0);
+      values = line ? [line] : [];
+    } else if (ask.parse === "json") {
+      const data = JSON.parse(stdout);
+      const v = data[ask.key];
+      values = Array.isArray(v) ? v.filter((x) => typeof x === "string") : (typeof v === "string" ? [v] : []);
+    } else if (ask.parse === "kv") {
+      const line = stdout.split(/\r?\n/).find((l) => l.includes(ask.key));
+      values = line ? [line.slice(line.indexOf(ask.key) + ask.key.length).trim()] : [];
+    } else {
+      values = [];
+    }
+  } catch (e) {
+    return { ok: false, note: `could not parse output: ${e.message}` };
+  }
+
+  const pathMod = platform === "win32" ? pathWin32 : pathPosix;
+  const valid = values
+    .filter((v) => v && v !== "undefined" && v !== "null" && pathMod.isAbsolute(v))
+    .map((v) => normalizeAskedPath(v, pathMod));
+  if (!valid.length) return { ok: false, note: "not an absolute path" };
+  return { ok: true, value: valid };
+}
+
+// A tool's own reported path is otherwise taken verbatim, but two spellings
+// of the SAME directory (dotnet's own `dotnet nuget locals` prints a
+// trailing separator — "…/packages/" — while the registry's own default
+// template resolves to "…/packages", no trailing separator) must dedupe
+// against each other in resolveCachePaths' final by-path pass below, or the
+// same cache gets measured (and reported) twice. `path.normalize` collapses
+// "." / ".." segments and repeated separators the tool's own formatting
+// might use; the trailing separator is then stripped by hand — normalize()
+// alone keeps it — except when the whole path IS the root ("/" or "C:\"),
+// which must keep its own trailing separator to stay a valid path.
+function normalizeAskedPath(v, pathMod) {
+  let n = pathMod.normalize(v);
+  if (n.length > pathMod.parse(n).root.length && n.endsWith(pathMod.sep)) n = n.slice(0, -1);
+  return n;
+}
+
 const TOKEN_RE = /\$[A-Z_]+/g;
 
 function substitute(template, tokens) {
@@ -315,26 +411,68 @@ function expandTrailingStar(resolved) {
 // Flattens every applicable cache of every loaded entry into concrete,
 // existing-or-not candidate paths for this platform, each carrying its own
 // tool id/name, single-OS confidence, and where the path came from. Purely
-// computed (plus the read-only directory listing a trailing "*" needs) —
-// scanGlobal decides what to do with each candidate (does it exist, how big
-// is it).
-export function resolveCachePaths(entries, { home, env = process.env, platform = process.platform } = {}) {
+// computed (plus the read-only directory listing a trailing "*" needs, and,
+// with `ask: true`, the shipped `ask` argv itself) — scanGlobal decides what
+// to do with each candidate (does it exist, how big is it).
+//
+// `ask` opts into asking each cache item's own `ask` field first, through
+// `bins`: a { "<argv[0]>": "<absolute path>" | undefined } map the caller
+// builds (scripts/discovery.mjs's buildMachineProfile, which owns
+// findOnPath) — this module never looks anything up on PATH itself. An item
+// whose command is not in `bins` (not found, or this cache has no `ask`) is
+// resolved exactly as before, from the environment then the per-OS default.
+// A path asked successfully is reported with source "asked" and no fallback
+// candidate; one that failed keeps its env/default candidate plus an
+// `ask_note` explaining why. A final pass dedupes the whole result by path,
+// keeping the best-sourced entry when two items agree on one location.
+//
+// Every candidate carries `item`: the cache item's own raw, un-substituted
+// `path` template from the registry — a stable key for "this cache item",
+// independent of how its path resolved this run. buildMachineProfile keeps
+// only `item` (with `tool`/`path`/`source`/`ask_note`) when it writes the
+// profile to disk — the rest of `base` below (`clean`/`confidence`/`docs`/
+// `notes`/`regenerable`) is policy, re-read from the CURRENT registry by
+// scanGlobal({ profile, registry }) at measurement time, never persisted
+// (ADR Decision 2: the profile holds facts, not policy).
+export function resolveCachePaths(entries, { home, env = process.env, platform = process.platform, ask = false, bins = {}, timeoutMs = ASK_TIMEOUT_MS } = {}) {
   const tokens = tokensFor(home, env);
-  const out = [];
+  const raw = [];
   for (const e of entries) {
     for (const c of e.caches || []) {
       if (!Array.isArray(c.os) || !c.os.includes(platform)) continue;
+      const base = {
+        tool: e.id, item: c.path, clean: c.clean, confidence: (c.confidence || {})[platform] || null,
+        docs: c.docs ?? null, notes: c.notes ?? null, regenerable: c.regenerable ?? null,
+      };
+
+      let askNote = null;
+      if (ask && c.ask && Array.isArray(c.ask.argv) && c.ask.argv.length) {
+        const bin = bins[c.ask.argv[0]];
+        if (bin) {
+          const result = askCache(c.ask, { bin, env, home, platform, timeoutMs });
+          if (result.ok) {
+            for (const p of result.value) raw.push({ ...base, path: p, source: "asked" });
+            continue; // resolved by asking; no env/default fallback needed for this item
+          }
+          askNote = result.note;
+        }
+      }
+
       const sub = substitute(c.path, tokens);
       if (sub == null) continue;
       const candidates = sub.path.endsWith("*") ? expandTrailingStar(sub.path) : [sub.path];
       for (const p of candidates) {
-        out.push({
-          tool: e.id, path: p, source: sub.source, clean: c.clean,
-          confidence: (c.confidence || {})[platform] || null,
-          docs: c.docs ?? null, notes: c.notes ?? null, regenerable: c.regenerable ?? null,
-        });
+        raw.push({ ...base, path: p, source: sub.source, ...(askNote ? { ask_note: askNote } : {}) });
       }
     }
   }
-  return out;
+
+  // A duplicate path keeps the asked one, then the env one, then the default.
+  const RANK = { asked: 0, env: 1, default: 2 };
+  const byPath = new Map();
+  for (const item of raw) {
+    const prev = byPath.get(item.path);
+    if (!prev || RANK[item.source] < RANK[prev.source]) byPath.set(item.path, item);
+  }
+  return [...byPath.values()];
 }

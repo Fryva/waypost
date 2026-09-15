@@ -120,6 +120,20 @@ decides (Decisions 4–6):
 
 - `scripts/cleanup.mjs` only computes; removal lives in `bin/waypost` alone.
 - A `clean_argv` is a literal argv run without a shell; prose stays manual.
+- From the discovery story's review (2026-09-15):
+  - An asked cache path is only checked to be absolute. Before removing
+    anything, refuse the filesystem root, a drive root, the home directory,
+    and any ancestor of the home directory or the project.
+  - Policy (`regenerable`, `clean`) comes from the current registry at scan
+    time, never from the machine profile, which holds facts only.
+  - A successful `ask` replaces the default path. After a tool's cache has
+    moved, data left at the old location is not measured. Decide whether the
+    plan also looks at the default when it differs from the asked path.
+  - A trailing `*` is expanded when the profile is built. A newer tool
+    version (Android Studio's `AndroidStudio*`) is not measured until the
+    profile is refreshed.
+  - The audit in `waypost setup` holds a machine-wide slot (the heavy-work
+    ADR, Decision 4). Discovery, the step before it, does not.
 
 ## Dependencies
 

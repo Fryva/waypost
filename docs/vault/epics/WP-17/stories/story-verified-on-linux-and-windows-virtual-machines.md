@@ -85,6 +85,26 @@ these runs.
   presence shows it as a peer, so the plan on the virtual machines must keep
   project artifacts at most `can` — a check in itself.
 - Guest-host setup: shared Memory symlink, CLI symlink, local skills.
+- Known from the discovery story (2026-09-15), unverified until these runs:
+  - its tests fake tools as `#!/bin/sh` scripts, 16 of them in
+    `tests/discovery.test.mjs`, `tests/toolchains.test.mjs` and
+    `tests/scripts.test.mjs`, with no `win32` skip;
+  - the hermetic `setup` env in `tests/harness.test.mjs` and
+    `tests/scripts.test.mjs` finds git with `which` and symlinks it.
+
+  Neither runs on Windows as written. Expect to skip the shell fakes on
+  `win32` or give them a Windows fake, and to find git with `findOnPath` and
+  put its own directory on `PATH` instead of a symlink.
+- Asking a tool, to check live:
+  - the python `ask` looks for `pip`, and some Linux distributions ship only
+    `pip3`;
+  - deno's `ask` reads the `denoDir` key of `deno info --json`, a key the
+    docs page does not show;
+  - `pnpm store path` and `yarn cache dir` (v1) may print a version
+    subdirectory (`store/v3`, `Yarn/v6`), which would leave older versions
+    unmeasured;
+  - time `conda info --json` and a first `dotnet` run against the 3 s ask
+    timeout.
 
 ## Dependencies
 

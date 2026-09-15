@@ -8,7 +8,7 @@ created: 2026-09-14
 updated: 2026-09-14
 external_refs: {}
 tags: []
-code_refs: ["toolchains/", "scripts/toolchains.mjs", "scripts/discovery.mjs (planned)", "scripts/sizes.mjs", "scripts/cleanup.mjs (planned)", "bin/waypost", "package.json", "scripts/doctor.mjs", "scripts/presence.mjs", "prompts/cleanup.md (planned)", "skills/waypost-doctor/SKILL.md", "docs/toolchains.md", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "tests/discovery.test.mjs (planned)", "tests/scripts.test.mjs", "tests/cleanup.test.mjs (planned)", "README.md", "AGENTS.md", "CHANGELOG.md"]
+code_refs: ["toolchains/", "scripts/toolchains.mjs", "scripts/discovery.mjs", "scripts/sizes.mjs", "scripts/cleanup.mjs (planned)", "bin/waypost", "package.json", "scripts/doctor.mjs", "scripts/presence.mjs", "prompts/cleanup.md (planned)", "skills/waypost-doctor/SKILL.md", "docs/toolchains.md", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "tests/discovery.test.mjs", "tests/scripts.test.mjs", "tests/harness.test.mjs", "tests/cleanup.test.mjs (planned)", "README.md", "AGENTS.md", "CHANGELOG.md"]
 review_status: pending
 reviewed_at: null
 ---
@@ -41,7 +41,7 @@ Code hook on one machine; the first Waypost implementation carried Xcode and
 that machine into its core, and the owner stopped it on 2026-09-14. The
 decision is the ADR
 [Disk hygiene by discovery](../../adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md)
-(proposed).
+(accepted).
 
 ## Stories
 
@@ -49,8 +49,8 @@ Each story is blocked by the one above it.
 
 | Story | Status | Description |
 |-------|--------|-------------|
-| `story-waypost-size-the-read-only-scan-project-and-global` | in-progress | the toolchain registry (`toolchains/*.json`, `scripts/toolchains.mjs`) and a tool-agnostic `waypost size`, keeping the first scan's walk invariants |
-| `story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with` | planned | `waypost profile`: tools present, cache paths asked from the tools, the machine and project profiles, per-machine calibration |
+| `story-waypost-size-the-read-only-scan-project-and-global` | done | the toolchain registry (`toolchains/*.json`, `scripts/toolchains.mjs`) and a tool-agnostic `waypost size`, keeping the first scan's walk invariants |
+| `story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with` | done | `waypost profile`: tools present, cache paths asked from the tools, the machine and project profiles (facts only) |
 | `story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit` | planned | `scripts/cleanup.mjs`, `waypost clean`, the yes and its log, the setup audit, `prompts/cleanup.md` |
 | `story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt` | planned | the `build-artifacts` warning in `doctor`, the `next` item pointing at `waypost clean`, the docs |
 | `story-verified-on-linux-and-windows-virtual-machines` | planned | `npm test`, `profile`, `size` and a `clean` plan on the owner's Linux and Windows virtual machines; `verified` per OS from those runs |

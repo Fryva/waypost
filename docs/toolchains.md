@@ -1,20 +1,31 @@
 # Toolchains
 
-`waypost size` (and, later, `waypost profile` and `waypost clean`) knows no
+`waypost size`, `waypost profile` (and, later, `waypost clean`) know no
 tool. What counts as a Rust build directory, where Xcode keeps its caches,
 whether an npm cache is safe to remove — all of that is data:
 `toolchains/<id>.json`, one file per tool, plus `generic.json` for the
 conventional names (`build`, `dist`, `target`, …) that many unrelated
 ecosystems all happen to use. `scripts/sizes.mjs` walks a project by name and
-pattern alone; `scripts/toolchains.mjs` is the only thing that loads this
-data and knows how to resolve a cache path. Adding a tool, or fixing one, is
-a JSON file and a test — never a branch in the scanner (see the ADR,
+pattern alone; `scripts/discovery.mjs` detects tools and ecosystems and
+builds the machine/project profile; `scripts/toolchains.mjs` is the only
+thing that loads this data, resolves a cache path, and asks a tool for its
+own. Adding a tool, or fixing one, is a JSON file and a test — never a
+branch in the scanner (see the ADR,
 [Disk hygiene by discovery](vault/adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md)).
 
 ```bash
+waypost profile          # the scheme: detected tools, their cache paths, the project's ecosystems
 waypost size --project   # walks this project for build/cache output, read-only
-waypost size --global    # measures every registry cache that exists on this machine
+waypost size --global    # measures a fresh machine profile's caches, or the registry's defaults
 ```
+
+The machine profile records facts only: for each cache, the tool, the
+registry item (its path template), the resolved path and how it was found.
+`clean`, `regenerable`, `confidence`, `docs` and `notes` are read from the
+registry each time `size --global` runs, so fixing an entry here takes effect
+at once, without refreshing any profile. A profile item whose registry item no
+longer exists is not measured, and `size --global` asks for
+`waypost profile --refresh`.
 
 ## Entry format
 
@@ -47,16 +58,77 @@ waypost size --global    # measures every registry cache that exists on this mac
 | `id` | registry key; must equal the filename (`toolchains/swiftpm.json` → `"swiftpm"`) |
 | `name` | shown in `waypost size --global` output |
 | `os` | the OSes this tool runs on — a non-empty subset of `darwin`/`linux`/`win32`, and a superset of every `caches[].os` and `locators[].os` the entry lists (an artifact-only entry with no caches or locators, like `cmake` or `generic`, still names every OS it runs on — this is what the discovery story detects it on, not a fact derived from its caches) |
-| `detect` | `bins` (executables looked up, never run, on `PATH`) and `manifests` (project files like `Cargo.toml`) — data only in this story; nothing runs it yet |
+| `detect` | `bins` (executables looked up, never run, on `PATH`) and `manifests` (project files like `Cargo.toml`, matched in the project root) — what discovery (`waypost profile`) uses to list the tools and ecosystems present; an entry without `bins` is never listed as a tool, but its caches are still resolved from the environment or the default |
 | `artifacts` | where the tool writes *inside a project*: `name` (exact), `prefix`, or `pattern` (a JS regex source matched against one directory name, with optional `flags`), `match` (`sure` counts unconditionally, wherever it appears; `generic` counts only when the project's own `.gitignore` says so and it holds no tracked file), `regenerable`, `clean` (the tool's own project-clean command, in prose) |
 | `skip` | names this tool's own artifacts never get walked into (`node_modules`, a virtualenv name); `.git` is hard-coded in the scanner core, not listed anywhere |
-| `caches` | machine-wide cache paths: `path` (with the tokens below), `os`, `confidence` (**one key per OS in this item's `os`**), `docs`/`notes` as the confidence levels below require, `regenerable`, `clean`, optional `env` (an override variable name) |
+| `caches` | machine-wide cache paths: `path` (with the tokens below), `os`, `confidence` (**one key per OS in this item's `os`**), `docs`/`notes` as the confidence levels below require, `regenerable`, `clean`, optional `env` (an override variable name), optional `ask` (below) |
 | `locators` | named checks in `scripts/toolchains.mjs` for something a plain name/pattern match cannot find (matched by content, not by its own directory name) — `{ "name", "os", "collect": ["<suffix>", …] }`; the core collects basenames ending in `collect`'s suffixes during the walk and calls the locator by name afterwards, generically, never knowing what it does |
 
-`ask`, `clean_argv`, `processes` and `detectors` are part of the ADR's full
-shape but belong to later stories (discovery, and classified cleanup) — they
-are not read yet, and a shipped entry should not carry them before the story
-that uses them lands.
+`clean_argv`, `processes` and `detectors` are part of the ADR's full shape
+but belong to a later story (classified cleanup) — they are not read yet,
+and a shipped entry should not carry them before that story lands.
+
+### `ask`: asking the tool itself (WP-17, the discovery story)
+
+A cache item's `ask` lets discovery (`waypost profile`/`waypost setup`, via
+`scripts/discovery.mjs`'s `buildMachineProfile`) find the tool's *real* cache
+location instead of guessing from a default — a moved `GOCACHE`, a custom
+npm cache, a global Yarn Berry `cacheFolder`. The machine profile asks from
+the home directory, so a project-level setting (a project `.npmrc`, a Berry
+project's own `cacheFolder`) is not what it reports. Shape:
+
+```json
+"ask": { "argv": ["go", "env", "GOCACHE"], "parse": "line",
+         "docs": "https://pkg.go.dev/cmd/go#hdr-Print_Go_environment_information" }
+```
+
+`parse: "kv"` also takes a `key` (the text after it, on the line naming it —
+`dotnet nuget locals global-packages --list` prints `global-packages: <path>`,
+so `"key": "global-packages:"`), and a network- or telemetry-suppressing
+switch goes in `env`:
+
+```json
+"ask": { "argv": ["dotnet", "nuget", "locals", "global-packages", "--list"],
+         "parse": "kv", "key": "global-packages:",
+         "env": { "DOTNET_CLI_TELEMETRY_OPTOUT": "1", "DOTNET_NOLOGO": "1" },
+         "docs": "https://learn.microsoft.com/en-us/nuget/consume-packages/managing-the-global-packages-and-cache-folders" }
+```
+
+- `argv` — the command, never through a shell. `argv[0]` is looked up on
+  `PATH` the same way `detect.bins` is (never by a bare name), and only the
+  ABSOLUTE path discovery already found is ever spawned; a tool discovery
+  did not find on `PATH` is simply never asked (the item falls back to
+  `env`/default, silently — no note).
+- `parse` — `"line"` (the first non-empty output line), `"json"` (a top-level
+  key, which may be a string or, like conda's `pkgs_dirs`, an array of
+  strings — every array entry is kept as an asked path, and the entry's
+  *other* cache items stay as ordinary env/default fallbacks, deduplicated
+  by path against the asked ones), or `"kv"` (the text after `key` on the
+  first line containing it, e.g. `global-packages: /home/x/.nuget/packages`).
+  `parse: "json"`/`"kv"` require `key`.
+- `env` — documented switches for that exact command only, to keep asking
+  from ever reaching the network, checking for updates, or prompting (e.g.
+  `PIP_DISABLE_PIP_VERSION_CHECK=1`, `DOTNET_CLI_TELEMETRY_OPTOUT=1`,
+  `HOMEBREW_NO_AUTO_UPDATE=1`, `COREPACK_ENABLE_NETWORK=0` for a
+  corepack-managed yarn/pnpm shim). Every switch here must be one the tool's
+  own documentation names — never invented — and the doc URL for it belongs
+  in the cache item's own `notes`, the same way `docs` is never guessed.
+- `docs` — the command's own documentation URL (separate from the cache
+  item's own `docs`, which documents the *default path*, not the query).
+
+Execution (`scripts/toolchains.mjs`'s `askCache`, called only from
+`buildMachineProfile`): no shell, stdin closed, cwd the home directory,
+`ASK_TIMEOUT_MS` (3s) killed and reported as timed out past that. A hang, a
+non-zero exit, unparseable output, or a result that is not an absolute path
+all become a `note` on that cache item (`ask_note` in the profile) and fall
+back to `env`, then the per-OS default — discovery never stops because one
+tool misbehaved. On Windows, a `.cmd`/`.bat` shim cannot run without a shell
+(Node refuses), so its `ask` is skipped with a note rather than attempted.
+`ask` only ever runs argv the **shipped** registry carries — a project's own
+`.waypost/toolchains/<id>.json` entry can never add one (the allowlist below
+drops it), so `--refresh` needs no confirmation (ADR-0011's perimeter for
+guard commands: a cloned repository cannot make waypost run anything of its
+own).
 
 ### Path tokens
 
@@ -110,11 +182,13 @@ build output — conventions the shipped registry cannot know because they are
 this project's own choice, not a public tool's. It is read as **data only**:
 
 - Kept at the top level: `id`, `name`, `detect.manifests`.
-- Every other top-level field — `caches`, `skip`, `locators`, `detect.bins`,
-  and anything from a later story (`ask`, `clean_argv`, a project clean
-  command, `processes`, `detectors`) — is dropped and reported, one
-  `{ file, field, reason }` per field, in `notes` from `loadRegistry` and by
-  `waypost size --json`/`--global --json`.
+- Every other top-level field — `caches` (so `ask` can never ride along
+  either — asking only ever runs the shipped registry's own argv), `skip`,
+  `locators`, `detect.bins`, and anything from a later story (`clean_argv`, a
+  project clean command, `processes`, `detectors`) — is dropped and
+  reported, one `{ file, field, reason }` per field, in `notes` from
+  `loadRegistry` and by `waypost size --json`/`--global --json`/
+  `waypost profile --json`.
 - Each `artifacts[]` item is **rebuilt field by field from an allowlist**,
   never passed through whole, so no stray key (a `clean_argv`, an `ask`, a
   `path`) can ride along inside one:

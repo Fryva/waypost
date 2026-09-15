@@ -870,9 +870,24 @@ test("doctor: text-mode exit reflects an issue finding; --json stays a reporting
 test("waypost setup: the repair step prints doctor's own report instead of swallowing it (P1-9, G-10)", () => {
   const proj = mkdtempSync(join(tmpdir(), "ps-setup-"));
   spawnSync("git", ["init", "-q"], { cwd: proj });
-  const r = runBinRaw(proj, ["setup", "--vault", join(proj, "vault")]);
+  // WP-17: `setup` now runs real discovery (a step through the same `step()`
+  // as everything else here), so PATH must be hermetic like the dedicated
+  // WP-17 tests below — only a symlink to the real `git` this step's own
+  // plumbing needs, nothing else on the machine running this suite is ever
+  // probed or asked.
+  const bin = mkdtempSync(join(tmpdir(), "ps-setup-bin-"));
+  const gitPath = spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim();
+  symlinkSync(gitPath, join(bin, "git"));
+  const home = mkdtempSync(join(tmpdir(), "ps-setup-home-"));
+  const env = {
+    ...ENV, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1",
+    PATH: bin, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home,
+  };
+  const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "setup", "--vault", join(proj, "vault")],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /## repairs/, "doctor --fix's own report must be visible, not discarded");
+  assert.match(r.stdout, /discover tools and ecosystems/);
 });
 
 test("draft --lang overrides the bound vault's language for one call (P1-10, A-5)", () => {
@@ -1237,6 +1252,365 @@ test("doctor: a driver that is not this fork's merge-derived shape is still flag
   spawnSync("git", ["config", "merge.waypost-derived.driver", "some-old-command %A"], { cwd: proj });
   const out = checkMergeDriver({ vault_path: vault }, proj);
   assert.ok(out.some((f) => f.check === "merge-driver" && /different command/.test(f.message)));
+});
+
+// ─── WP-17: discovery — `waypost profile`, the setup step, `size --global`
+//     with a profile ─────────────────────────────────────────────────────
+//
+// Any test that lets bin/waypost run REAL discovery (buildMachineProfile,
+// ask:true) needs PATH as hermetic as scripts/discovery.mjs's own
+// findOnPath: an empty tool directory, so nothing on the machine running
+// this suite is ever probed or asked (on macOS, /usr/bin/pip3 is a shim
+// that can pop an install dialog). A test that only reads or pre-seeds a
+// profile file, never triggering discovery itself, does not need that —
+// `size --global`'s fallback path is exactly today's registry-only
+// behaviour, already exercised without PATH isolation in tests/sizes.test.mjs.
+
+const GB = 1024 ** 3;
+
+function emptyBinDir() {
+  return mkdtempSync(join(tmpdir(), "wp-empty-bin-"));
+}
+
+function discoveryEnv(home, extra = {}) {
+  return {
+    ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home,
+    PATH: emptyBinDir(), WAYPOST_NO_BEAT: "1", ...extra,
+  };
+}
+
+// Item 5 (independent review): --dry-run must be read-only, so it needs the
+// same hermetic HOME/PATH as every other test that lets bin/waypost run
+// real discovery — otherwise it reads (never writes, but still reads) the
+// REAL machine profile at ~/Library/Application Support/Waypost/…, making
+// "would refresh" vs. "would keep" depend on whatever is on the machine
+// running this suite.
+test("bin/waypost setup --dry-run: says what discovery would do (refresh or keep, machine and project), and writes nothing (WP-17)", async () => {
+  const { machineStateDir } = await import("../scripts/discovery.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-setup-discovery-"));
+  const home = mkdtempSync(join(tmpdir(), "wp-setup-discovery-home-"));
+  const bin = mkdtempSync(join(tmpdir(), "wp-setup-discovery-bin-"));
+  symlinkSync(spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim(), join(bin, "git"));
+  const env = { ...ENV, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1", HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin };
+  const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "setup", "--dry-run"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /would discover tools and ecosystems/);
+  assert.match(r.stdout, /would refresh the machine profile/, "no existing profile: would refresh, not keep");
+  assert.match(r.stdout, /would refresh the project profile/, "no existing profile: would refresh, not keep");
+  assert.ok(!existsSync(join(proj, ".waypost", "state")), "dry-run must write nothing to the project");
+  assert.ok(!existsSync(machineStateDir({ platform: process.platform, env, home })), "dry-run must write nothing to the machine state dir either");
+});
+
+test("bin/waypost profile --json: writes both profiles; a second run keeps generated_at; --refresh rebuilds (WP-17)", async () => {
+  const { machineProfilePath } = await import("../scripts/discovery.mjs");
+  const { hostSlug } = await import("../scripts/presence.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-profile-proj-"));
+  const home = mkdtempSync(join(tmpdir(), "wp-profile-home-"));
+  const env = discoveryEnv(home, { WAYPOST_PROJECT_DIR: proj });
+  const runProfile = (args = []) => spawnSync(process.execPath,
+    [join(REPO, "bin", "waypost"), "profile", "--json", ...args],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+
+  const r1 = runProfile();
+  assert.equal(r1.status, 0, r1.stderr);
+  const p1 = JSON.parse(r1.stdout);
+  assert.ok(p1.machine.generated_at && p1.project.generated_at);
+  assert.deepEqual(p1.machine.tools, [], "an empty PATH detects no tools");
+  // Detection gates `tools`, not `caches`: every applicable entry's cache
+  // paths still resolve via env/default even when nothing was detected (the
+  // size --global regression fix) — never "asked" (nothing was ever found
+  // to ask) and never carrying an ask_note (an undetected entry's ask is
+  // never attempted, so there is nothing to report failing).
+  assert.ok(p1.machine.caches.length > 0, "caches still resolve via env/default for every applicable entry, detected or not");
+  assert.ok(p1.machine.caches.every((c) => c.source === "env" || c.source === "default"), JSON.stringify(p1.machine.caches.map((c) => c.source)));
+  assert.ok(!p1.machine.caches.some((c) => "ask_note" in c), "nothing was ever asked, so nothing has an ask_note either");
+  assert.deepEqual(p1.project.ecosystems, []);
+  // Item 3 (independent review): the machine state directory is per-OS
+  // (darwin: Library/Application Support/Waypost; win32: LOCALAPPDATA;
+  // linux/else: XDG_STATE_HOME) — asked of machineProfilePath itself with
+  // the SAME env this run used, rather than guessed with an OR of two
+  // hardcoded darwin/linux shapes that would both miss on a Linux VM where
+  // XDG_STATE_HOME=home resolves the directory to plain "home/waypost".
+  const machinePath = machineProfilePath({ platform: process.platform, env, home, host: hostSlug() });
+  assert.ok(existsSync(machinePath), `the machine profile lands at ${machinePath}`);
+  assert.ok(existsSync(join(proj, ".waypost", "state")), "the project profile lands in .waypost/state/");
+
+  const r2 = runProfile();
+  assert.equal(r2.status, 0, r2.stderr);
+  const p2 = JSON.parse(r2.stdout);
+  assert.equal(p2.machine.generated_at, p1.machine.generated_at, "a fresh profile is kept, not rebuilt");
+  assert.equal(p2.project.generated_at, p1.project.generated_at);
+
+  const r3 = runProfile(["--refresh"]);
+  assert.equal(r3.status, 0, r3.stderr);
+  const p3 = JSON.parse(r3.stdout);
+  assert.notEqual(p3.machine.generated_at, p1.machine.generated_at, "--refresh rebuilds even a fresh profile");
+  assert.notEqual(p3.project.generated_at, p1.project.generated_at);
+});
+
+test("bin/waypost profile --json: a fake tool on PATH that reports a moved cache puts that path in the profile with source 'asked' (WP-17, AC1)", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-profile-asked-proj-"));
+  const home = mkdtempSync(join(tmpdir(), "wp-profile-asked-home-"));
+  const bin = mkdtempSync(join(tmpdir(), "wp-profile-asked-bin-"));
+  const moved = mkdtempSync(join(tmpdir(), "wp-profile-asked-moved-"));
+  // A fake `go` — the shipped registry's own go.json carries `ask: go env
+  // GOCACHE`/`GOMODCACHE`, so this one fake tool exercises the real,
+  // shipped ask wiring end to end, not a synthetic entry.
+  writeFileSync(join(bin, "go"), `#!/bin/sh\ncase "$2" in\n  GOCACHE) echo "${moved}";;\n  GOMODCACHE) echo "${moved}";;\nesac\n`, { mode: 0o755 });
+  const env = { ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
+  const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile", "--json"], { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(r.status, 0, r.stderr);
+  const p = JSON.parse(r.stdout);
+  assert.ok(p.machine.tools.some((t) => t.id === "go"), JSON.stringify(p.machine.tools));
+  const asked = p.machine.caches.filter((c) => c.tool === "go" && c.path === moved);
+  assert.ok(asked.length > 0, JSON.stringify(p.machine.caches));
+  for (const c of asked) assert.equal(c.source, "asked");
+});
+
+// Item 3 (independent review): a bins-less registry entry's cache path is
+// darwin-specific if hardcoded ("Library/Caches/electron"). Picking any
+// entry the CURRENT platform's registry itself resolves a cache for, with
+// no detect.bins at all, works identically on macOS/Linux/Windows and is
+// exactly the shape the buildMachineProfile regression fix (item 1 of the
+// prior round) is about.
+async function noBinsCacheItemFor(platform, projectRoot) {
+  const { loadRegistry } = await import("../scripts/toolchains.mjs");
+  const { entries } = loadRegistry({ projectRoot, platform });
+  for (const e of entries) {
+    if (e.detect && e.detect.bins && e.detect.bins.length) continue;
+    const item = (e.caches || []).find((c) => Array.isArray(c.os) && c.os.includes(platform));
+    if (item) return { entry: e, item };
+  }
+  return null;
+}
+
+test("bin/waypost size --global: with a fresh machine profile for this host, it measures the profile's own paths, not the registry (WP-17)", async () => {
+  const { machineProfilePath } = await import("../scripts/discovery.mjs");
+  const { hostSlug } = await import("../scripts/presence.mjs");
+  const { resolveCachePaths } = await import("../scripts/toolchains.mjs");
+  const home = mkdtempSync(join(tmpdir(), "wp-size-profile-home-"));
+  const platform = process.platform;
+  const found = await noBinsCacheItemFor(platform, REPO);
+  assert.ok(found, "expected at least one bins-less registry entry with a cache for this platform");
+
+  const profileEnv = { XDG_STATE_HOME: home, LOCALAPPDATA: home };
+  // The path the SAME entry would itself resolve to under this fixture
+  // HOME/env — an arbitrary fixture location would work for scanGlobal, but
+  // resolving it for real through resolveCachePaths keeps this test honest
+  // about what a real profile's `path` looks like for this entry.
+  const resolved = resolveCachePaths([found.entry], { home, env: profileEnv, platform });
+  const target = resolved.find((c) => c.item === found.item.path);
+  assert.ok(target, "expected to resolve the chosen cache item's own path");
+  const fixture = target.path;
+  mkdirSync(fixture, { recursive: true });
+  writeFileSync(join(fixture, "f.bin"), Buffer.alloc(2_000_000, 1));
+
+  const host = hostSlug();
+  const profilePath = machineProfilePath({ platform, env: profileEnv, home, host });
+  mkdirSync(dirname(profilePath), { recursive: true });
+  const profile = {
+    host, platform, arch: process.arch, generated_at: new Date().toISOString(),
+    tools: [],
+    // The trimmed, facts-only shape buildMachineProfile actually writes
+    // (WP-17 hardening, item 2): { tool, item, path, source }, no policy.
+    caches: [{ tool: found.entry.id, item: found.item.path, path: fixture, source: "default" }],
+  };
+  writeFileSync(profilePath, JSON.stringify(profile, null, 2) + "\n", "utf8");
+
+  const env = {
+    ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, WAYPOST_NO_BEAT: "1",
+    WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB }),
+  };
+  const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "size", "--global", "--json"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.profile_used, true);
+  assert.deepEqual(out.caches.map((c) => c.path), [fixture]);
+  assert.ok(out.caches[0].bytes > 0);
+  assert.equal(out.caches[0].tool, found.entry.id, "policy (here, just the identity) is reattached from the CURRENT registry");
+});
+
+test("bin/waypost size --global: a profile built by real discovery still measures a bins-less entry's cache (WP-17 regression: an undetected tool must not drop out of the profile)", async () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-size-nobins-proj-"));
+  const home = mkdtempSync(join(tmpdir(), "wp-size-nobins-home-"));
+  const platform = process.platform;
+  // Any entry with no detect.bins at all (electron/cursor/huggingface/
+  // jetbrains/puppeteer/pytorch/system on darwin, whichever the loaded
+  // registry offers for THIS platform) — nothing on an empty PATH ever
+  // "detects" it, and its cache must still land in the profile and be
+  // measured by size --global; before the fix, buildMachineProfile only
+  // resolved caches for DETECTED entries, so such entries' cache paths
+  // silently vanished the moment a machine profile existed.
+  const found = await noBinsCacheItemFor(platform, proj);
+  assert.ok(found, "expected at least one bins-less registry entry with a cache for this platform");
+
+  const env = discoveryEnv(home, {
+    WAYPOST_PROJECT_DIR: proj,
+    WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB }),
+  });
+  const { resolveCachePaths } = await import("../scripts/toolchains.mjs");
+  const resolved = resolveCachePaths([found.entry], { home, env, platform });
+  const target = resolved.find((c) => c.item === found.item.path);
+  assert.ok(target, "expected to resolve the chosen cache item's own path");
+  const fixture = target.path;
+  mkdirSync(fixture, { recursive: true });
+  writeFileSync(join(fixture, "f.bin"), Buffer.alloc(500_000, 1));
+
+  const profileR = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile", "--json"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(profileR.status, 0, profileR.stderr);
+  const profile = JSON.parse(profileR.stdout);
+  assert.deepEqual(profile.machine.tools, [], "nothing is detected on an empty PATH");
+  assert.ok(profile.machine.caches.some((c) => c.tool === found.entry.id && c.path === fixture),
+    `${found.entry.id}'s cache must be in the profile despite never being detected: ${JSON.stringify(profile.machine.caches.map((c) => [c.tool, c.path]))}`);
+
+  const sizeR = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "size", "--global", "--json"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(sizeR.status, 0, sizeR.stderr);
+  const out = JSON.parse(sizeR.stdout);
+  assert.equal(out.profile_used, true);
+  const hit = out.caches.find((c) => c.path === fixture);
+  assert.ok(hit, `expected the ${found.entry.id} cache fixture to be measured: ${JSON.stringify(out.caches.map((c) => c.path))}`);
+  assert.ok(hit.bytes > 0);
+});
+
+test("bin/waypost size --global: without a fresh machine profile, falls back to the registry with a hint (WP-17)", () => {
+  const home = mkdtempSync(join(tmpdir(), "wp-size-noprofile-home-"));
+  const env = {
+    ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, WAYPOST_NO_BEAT: "1",
+    WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB }),
+  };
+  const json = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "size", "--global", "--json"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(json.status, 0, json.stderr);
+  assert.equal(JSON.parse(json.stdout).profile_used, false);
+
+  const human = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "size", "--global"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(human.status, 0, human.stderr);
+  assert.match(human.stdout, /no fresh machine profile.*waypost profile/);
+});
+
+// ─── WP-17 hardening, independent review round 2 ────────────────────────
+
+test("bin/waypost setup: a discovery failure (unwritable machine-state dir) does not abort the rest of setup (item 4)", async () => {
+  const { machineStateDir } = await import("../scripts/discovery.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-setup-discfail-proj-"));
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  const home = mkdtempSync(join(tmpdir(), "wp-setup-discfail-home-"));
+  const bin = mkdtempSync(join(tmpdir(), "wp-setup-discfail-bin-"));
+  symlinkSync(spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim(), join(bin, "git"));
+  const env = { ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
+
+  // The machine state directory itself is a plain FILE, so
+  // mkdirSync(..., { recursive: true }) inside refreshProfiles throws
+  // instead of creating it — a stand-in for "the state dir is not
+  // writable" without needing actual filesystem permissions trickery.
+  const stateDir = machineStateDir({ platform: process.platform, env, home });
+  mkdirSync(dirname(stateDir), { recursive: true });
+  writeFileSync(stateDir, "not a directory", "utf8");
+
+  const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "setup", "--vault", join(proj, "vault")],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /discovery failed:.*waypost profile to retry/);
+  assert.match(r.stdout, /## repairs/, "setup still reaches the doctor repair step after a discovery failure");
+});
+
+test("bin/waypost profile: outside a project (projectRoot === HOME) builds no project profile and writes nothing under it (item 6)", () => {
+  const home = mkdtempSync(join(tmpdir(), "wp-profile-athome-"));
+  const bin = emptyBinDir();
+  const env = { ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: home, WAYPOST_NO_BEAT: "1" };
+  const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile", "--json"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(r.status, 0, r.stderr);
+  const p = JSON.parse(r.stdout);
+  assert.equal(p.project, null);
+  assert.ok(p.machine, "the machine profile still builds");
+  assert.ok(!existsSync(join(home, ".waypost")), "no .waypost/state/ is created directly under $HOME");
+
+  const human = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(human.status, 0, human.stderr);
+  assert.match(human.stdout, /no project here — machine profile only/);
+});
+
+test("bin/waypost setup: a real (non-dry-run) run writes both the machine and project profiles (item 8)", async () => {
+  const { machineProfilePath, projectProfilePath } = await import("../scripts/discovery.mjs");
+  const { hostSlug } = await import("../scripts/presence.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-setup-bothprofiles-proj-"));
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  const home = mkdtempSync(join(tmpdir(), "wp-setup-bothprofiles-home-"));
+  const bin = mkdtempSync(join(tmpdir(), "wp-setup-bothprofiles-bin-"));
+  symlinkSync(spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim(), join(bin, "git"));
+  const env = { ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
+  const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "setup", "--vault", join(proj, "vault")],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(r.status, 0, r.stderr);
+  const host = hostSlug();
+  const machinePath = machineProfilePath({ platform: process.platform, env, home, host });
+  const projectPath = projectProfilePath({ projectRoot: proj, host });
+  assert.ok(existsSync(machinePath), `expected the machine profile at ${machinePath}`);
+  assert.ok(existsSync(projectPath), `expected the project profile at ${projectPath}`);
+});
+
+test("bin/waypost profile: a profile older than 30 days is rebuilt; a fresh one (just rebuilt) is kept on the next run (item 8, end to end)", async () => {
+  const { machineProfilePath } = await import("../scripts/discovery.mjs");
+  const { hostSlug } = await import("../scripts/presence.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-profile-age-proj-"));
+  const home = mkdtempSync(join(tmpdir(), "wp-profile-age-home-"));
+  const env = discoveryEnv(home, { WAYPOST_PROJECT_DIR: proj });
+  const host = hostSlug();
+  const machinePath = machineProfilePath({ platform: process.platform, env, home, host });
+  mkdirSync(dirname(machinePath), { recursive: true });
+  const old = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
+  writeFileSync(machinePath, JSON.stringify({
+    host, platform: process.platform, arch: process.arch, generated_at: old, tools: [], caches: [],
+  }, null, 2) + "\n", "utf8");
+
+  const r1 = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile", "--json"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(r1.status, 0, r1.stderr);
+  const p1 = JSON.parse(r1.stdout);
+  assert.notEqual(p1.machine.generated_at, old, "a profile older than 30 days is rebuilt");
+
+  const r2 = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile", "--json"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(r2.status, 0, r2.stderr);
+  const p2 = JSON.parse(r2.stdout);
+  assert.equal(p2.machine.generated_at, p1.machine.generated_at, "a fresh profile (just rebuilt) is kept, not rebuilt again");
+});
+
+test("bin/waypost profile: a hostile project .waypost/toolchains/ entry (ask, caches[].ask, detect.bins, clean_argv) never runs anything, and is reported as dropped (item 8)", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-profile-hostile-proj-"));
+  const home = mkdtempSync(join(tmpdir(), "wp-profile-hostile-home-"));
+  const bin = mkdtempSync(join(tmpdir(), "wp-profile-hostile-bin-"));
+  const marker = join(bin, "ran.marker");
+  // `:` is a shell builtin (a no-op) — no external `touch` needed (item 9).
+  writeFileSync(join(bin, "evil-tool"), `#!/bin/sh\n: > "${marker}"\necho /should/never/be/asked\n`, { mode: 0o755 });
+
+  mkdirSync(join(proj, ".waypost", "toolchains"), { recursive: true });
+  writeFileSync(join(proj, ".waypost", "toolchains", "evil.json"), JSON.stringify({
+    id: "evil", name: "Evil",
+    detect: { bins: ["evil-tool"], manifests: [] },
+    ask: { argv: ["evil-tool"], parse: "line" },
+    caches: [{
+      path: "$HOME/evil-cache", os: [process.platform], confidence: { [process.platform]: "verified" },
+      regenerable: true, clean: "x", ask: { argv: ["evil-tool"], parse: "line" },
+    }],
+    clean_argv: ["evil-tool", "clean"],
+  }), "utf8");
+
+  const env = { ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
+  const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile"],
+    { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(marker), "the project entry's ask/clean_argv must never run");
+  assert.doesNotMatch(r.stdout, /evil-cache/);
+  assert.match(r.stdout, /evil\.json/, "the dropped fields are reported by file");
+  assert.match(r.stdout, /\bask\b/, "ask is among the reported dropped fields");
 });
 
 // ─── A2-4: draft filters kinds by layout.commands ───────────────────────

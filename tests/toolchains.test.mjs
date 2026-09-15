@@ -1,17 +1,20 @@
 // waypost — tests for scripts/toolchains.mjs and the shipped toolchains/*.json
-// registry (WP-17, the registry story). Loader + schema only: nothing here executes
-// anything a registry entry names.
+// registry (WP-17, the registry story and the discovery story). Loader +
+// schema, and the loaded registry never executes anything a project's own
+// entry names — the askCache/resolveCachePaths section below is the one
+// exception, and it only ever runs a throwaway shell script this suite
+// wrote itself on a temp PATH, exactly the way tests/discovery.test.mjs does.
 //   node --test tests/toolchains.test.mjs
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, readdirSync, rmSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { loadRegistry, registryDirs, applicableLocators } from "../scripts/toolchains.mjs";
+import { loadRegistry, registryDirs, applicableLocators, askCache, resolveCachePaths } from "../scripts/toolchains.mjs";
 import { scanProject } from "../scripts/sizes.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -120,6 +123,31 @@ test("toolchains/<id>.json: no docs URL is invented — every docs value is a pl
   for (const e of shippedOnly()) {
     for (const c of e.caches || []) {
       if (c.docs != null) assert.match(c.docs, /^https:\/\/\S+$/, `${e.id} ${c.path}: docs is not a bare URL`);
+    }
+  }
+});
+
+test("toolchains/<id>.json: every shipped ask is a well-formed argv+parse, with docs and, for json/kv, a key (WP-17, the discovery story)", () => {
+  for (const e of shippedOnly()) {
+    for (const c of e.caches || []) {
+      if (!("ask" in c)) continue;
+      const a = c.ask;
+      const where = `${e.id} ${c.path} ask`;
+      assert.ok(Array.isArray(a.argv) && a.argv.length > 0, `${where}: argv must be a non-empty array`);
+      for (const tok of a.argv) assert.equal(typeof tok, "string", `${where}: argv entries must be strings, got ${JSON.stringify(a.argv)}`);
+      assert.ok(["line", "json", "kv"].includes(a.parse), `${where}: parse must be line/json/kv, got ${JSON.stringify(a.parse)}`);
+      if (a.parse === "json" || a.parse === "kv") {
+        assert.equal(typeof a.key, "string", `${where}: parse ${a.parse} needs a string key`);
+        assert.ok(a.key.length > 0, `${where}: key must not be empty`);
+      }
+      if ("env" in a) {
+        assert.ok(a.env && typeof a.env === "object" && !Array.isArray(a.env), `${where}: env must be an object`);
+        for (const [k, v] of Object.entries(a.env)) {
+          assert.equal(typeof k, "string", `${where}: env key must be a string`);
+          assert.equal(typeof v, "string", `${where}: env.${k} must be a string, got ${JSON.stringify(v)}`);
+        }
+      }
+      assert.match(a.docs || "", /^https:\/\/\S+$/, `${where}: docs must be a bare https URL, got ${JSON.stringify(a.docs)}`);
     }
   }
 });
@@ -306,6 +334,166 @@ test("scanProject: a project's own toolchain artifact with match:generic still n
 
   const out = scanProject(root);
   assert.ok(out.dirs.some((d) => d.path === "maybeoutput"), JSON.stringify(out.dirs));
+});
+
+// ─── askCache / resolveCachePaths: parse kinds and dedup ranking ────────
+
+function fakeTool(dir, name, script) {
+  const p = join(dir, name);
+  writeFileSync(p, script, "utf8");
+  chmodSync(p, 0o755);
+  return p;
+}
+
+test("askCache: parse 'json' reads a string key, and a 'kv' key's text after it on the matching line", () => {
+  const bin = tmpRoot("waypost-toolchains-askbin-");
+  const jsonTool = fakeTool(bin, "jsontool", '#!/bin/sh\necho \'{"cacheDir": "/abs/from/json"}\'\n');
+  const jr = askCache({ argv: ["jsontool"], parse: "json", key: "cacheDir" }, { bin: jsonTool, home: bin, platform: "darwin" });
+  assert.deepEqual(jr, { ok: true, value: ["/abs/from/json"] });
+
+  const kvTool = fakeTool(bin, "kvtool", '#!/bin/sh\necho "info : global-packages: /abs/from/kv"\n');
+  const kr = askCache({ argv: ["kvtool"], parse: "kv", key: "global-packages:" }, { bin: kvTool, home: bin, platform: "darwin" });
+  assert.deepEqual(kr, { ok: true, value: ["/abs/from/kv"] });
+});
+
+test("askCache: parse 'json' with an array key (conda's pkgs_dirs shape) keeps every absolute string entry as its own value", () => {
+  const bin = tmpRoot("waypost-toolchains-askbin2-");
+  const tool = fakeTool(bin, "condatool", '#!/bin/sh\necho \'{"pkgs_dirs": ["/abs/one", "/abs/two", "relative/three"]}\'\n');
+  const r = askCache({ argv: ["condatool"], parse: "json", key: "pkgs_dirs" }, { bin: tool, home: bin, platform: "darwin" });
+  // The absolute-path filter applies to every value regardless of parse
+  // kind, so the one relative entry in the array is dropped here too.
+  assert.deepEqual(r, { ok: true, value: ["/abs/one", "/abs/two"] });
+});
+
+test("askCache: a non-zero exit, unparseable JSON, and a missing kv line are all reported, never thrown", () => {
+  const bin = tmpRoot("waypost-toolchains-askbin3-");
+  const failTool = fakeTool(bin, "failtool", "#!/bin/sh\nexit 2\n");
+  assert.equal(askCache({ argv: ["failtool"], parse: "line" }, { bin: failTool, home: bin, platform: "darwin" }).ok, false);
+
+  const badJsonTool = fakeTool(bin, "badjsontool", "#!/bin/sh\necho 'not json'\n");
+  const badJson = askCache({ argv: ["badjsontool"], parse: "json", key: "x" }, { bin: badJsonTool, home: bin, platform: "darwin" });
+  assert.equal(badJson.ok, false);
+  assert.match(badJson.note, /could not parse/);
+
+  const noKvTool = fakeTool(bin, "nokvtool", "#!/bin/sh\necho 'nothing relevant here'\n");
+  const noKv = askCache({ argv: ["nokvtool"], parse: "kv", key: "global-packages:" }, { bin: noKvTool, home: bin, platform: "darwin" });
+  assert.equal(noKv.ok, false);
+});
+
+test("askCache: a .cmd/.bat batch shim is refused on win32 before ever spawning it", () => {
+  const bin = tmpRoot("waypost-toolchains-askbin4-");
+  // Content is never run — the guard returns before spawnSync.
+  const shim = join(bin, "shim.cmd");
+  writeFileSync(shim, "@echo off\r\necho should-never-run\r\n", "utf8");
+  const r = askCache({ argv: ["shim"], parse: "line" }, { bin: shim, home: bin, platform: "win32" });
+  assert.deepEqual(r, { ok: false, note: "batch shim skipped" });
+});
+
+// Item 1 (independent review): askCache's own defense-in-depth check — the
+// normal call path (scripts/discovery.mjs's findOnPath) never hands it a
+// relative `bin` any more (a relative PATH entry is skipped there), but
+// askCache is the one place that ever spawns it, with cwd=home, so a
+// relative `bin` here would silently run whatever that name resolves to
+// under home — never the file discovery actually found.
+test("askCache: a relative bin is refused before ever spawning it", () => {
+  const bin = tmpRoot("waypost-toolchains-relbin-");
+  const tool = join(bin, "faketool");
+  writeFileSync(tool, "#!/bin/sh\necho /should/never/run\n", { mode: 0o755 });
+  const r = askCache({ argv: ["faketool"], parse: "line" }, { bin: "faketool", home: bin, platform: "darwin" });
+  assert.deepEqual(r, { ok: false, note: "bin is not an absolute path" });
+});
+
+// Item 7 (independent review): askCache normalizes what it gets back — a
+// tool's own trailing separator (dotnet's `dotnet nuget locals … --list`
+// really does print "…/packages/", trailing slash included) must not stop
+// the SAME directory reported two ways from deduplicating.
+test("askCache: a trailing separator is stripped so two spellings of the same path dedupe", () => {
+  const bin = tmpRoot("waypost-toolchains-normbin-");
+  const tool = fakeTool(bin, "trailingslash", "#!/bin/sh\necho /home/x/.nuget/packages/\n");
+  const r = askCache({ argv: ["trailingslash"], parse: "line" }, { bin: tool, home: bin, platform: "darwin" });
+  assert.deepEqual(r, { ok: true, value: ["/home/x/.nuget/packages"] });
+});
+
+test("resolveCachePaths: an asked path with a trailing separator dedupes against the SAME item's own env/default template with none", () => {
+  const bin = tmpRoot("waypost-toolchains-normbin2-");
+  const home = tmpRoot("waypost-toolchains-normhome2-");
+  const tool = fakeTool(bin, "trailingslash2", `#!/bin/sh\necho "${join(home, ".nuget", "packages")}/"\n`);
+  const entries = [{
+    id: "dotnetlike", caches: [{
+      path: "$HOME/.nuget/packages", os: ["linux"], regenerable: true, clean: "x",
+      ask: { argv: ["trailingslash2"], parse: "line" },
+    }],
+  }];
+  const out = resolveCachePaths(entries, { home, env: {}, platform: "linux", ask: true, bins: { trailingslash2: tool } });
+  assert.equal(out.length, 1, `expected exactly one deduped entry, got ${JSON.stringify(out)}`);
+  assert.equal(out[0].path, join(home, ".nuget", "packages"));
+  assert.equal(out[0].source, "asked");
+});
+
+// Item 8 (independent review — tests for the criteria themselves, not just
+// the mechanics): no shell means an argv token is passed through to the
+// spawned tool literally, never expanded — spawnSync's own shell:false
+// already guarantees this; this proves it end to end through askCache with
+// a token containing real shell metacharacters.
+test("askCache: no shell — an argv token containing shell metacharacters like $(...) arrives at the fake tool literally, never expanded", () => {
+  const bin = tmpRoot("waypost-toolchains-noshell-");
+  const marker = join(bin, "marker.txt");
+  const tool = fakeTool(bin, "noshelltool", `#!/bin/sh\nprintf '%s' "$1" > "${marker}"\necho /abs/path\n`);
+  const literalToken = "$(echo shell-would-expand-this)";
+  const r = askCache({ argv: ["noshelltool", literalToken], parse: "line" }, { bin: tool, home: bin, platform: "darwin" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(readFileSync(marker, "utf8"), literalToken, "the token must arrive exactly as written, never shell-expanded");
+});
+
+// cwd=home: the fake tool prints its own working directory (a shell
+// builtin, `pwd` — no external binary, per the sleep-flake lesson above).
+// realpathSync on both sides absorbs a symlinked tmpdir (macOS's /tmp ->
+// /private/tmp) without which this could spuriously fail on some hosts.
+test("askCache: the ask runs with cwd = home, not the caller's own cwd", () => {
+  const bin = tmpRoot("waypost-toolchains-cwdbin-");
+  const home = tmpRoot("waypost-toolchains-cwdhome-");
+  const tool = fakeTool(bin, "pwdtool", "#!/bin/sh\npwd\n");
+  const r = askCache({ argv: ["pwdtool"], parse: "line" }, { bin: tool, home, platform: "darwin" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(realpathSync(r.value[0]), realpathSync(home));
+});
+
+// stdin closed: a fake tool that tries to `read` a line from stdin gets an
+// immediate EOF (read fails at once) rather than blocking — proving stdin
+// really is closed (stdio: ["ignore", …]), since an inherited, still-open
+// stdin with nothing written to it would leave `read` blocked until the
+// timeout, and this completes well under it.
+test("askCache: stdin is closed — a fake tool that tries to read from it gets EOF at once, not a hang", () => {
+  const bin = tmpRoot("waypost-toolchains-stdinbin-");
+  const tool = fakeTool(bin, "readtool", "#!/bin/sh\nread x\necho /abs/answered\n");
+  const started = Date.now();
+  const r = askCache({ argv: ["readtool"], parse: "line" }, { bin: tool, home: bin, platform: "darwin", timeoutMs: 3000 });
+  const elapsed = Date.now() - started;
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.value[0], "/abs/answered");
+  assert.ok(elapsed < 2000, `expected read to fail at once on closed stdin, took ${elapsed}ms`);
+});
+
+test("resolveCachePaths: a duplicate path across cache items keeps the best-sourced one (asked > env > default)", () => {
+  const bin = tmpRoot("waypost-toolchains-dedupbin-");
+  const home = tmpRoot("waypost-toolchains-deduphome-");
+  const askedPath = join(home, ".cache", "dup"); // matches the second entry's own DEFAULT resolution
+  const tool = fakeTool(bin, "duptool", `#!/bin/sh\necho "${askedPath}"\n`);
+  const entries = [
+    {
+      id: "dup-a", caches: [{
+        path: "$XDG_CACHE_HOME/dup", os: ["linux"], regenerable: true, clean: "x",
+        ask: { argv: ["duptool"], parse: "line" },
+      }],
+    },
+    {
+      id: "dup-b", caches: [{ path: "$XDG_CACHE_HOME/dup", os: ["linux"], regenerable: true, clean: "x" }],
+    },
+  ];
+  const out = resolveCachePaths(entries, { home, env: {}, platform: "linux", ask: true, bins: { duptool: tool } });
+  const hits = out.filter((c) => c.path === askedPath);
+  assert.equal(hits.length, 1, "the duplicate path is deduplicated to one entry");
+  assert.equal(hits[0].source, "asked", "the asked entry outranks the plain-default one sharing its path");
 });
 
 test("node --check passes on scripts/toolchains.mjs", () => {

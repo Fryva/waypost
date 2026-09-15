@@ -143,7 +143,7 @@ function positionals(args) {
 // Everything here is derivable: where the vault goes, which harnesses this
 // project uses, which repairs are mechanical. So derive it, do it, and print
 // what happened — with --dry-run for anyone who wants to look first.
-function handleSetup(args) {
+async function handleSetup(args) {
   const dry = flag(args, "--dry-run");
   const say = (l) => process.stdout.write(l + "\n");
   const step = (label, fn) => { if (dry) { say(`would ${label}`); return null; } say(label); return fn(); };
@@ -170,6 +170,58 @@ function handleSetup(args) {
   } else {
     say("no harness detected — run `waypost agents install --harness <id>` once you pick one");
     say("  (`waypost harnesses --all` lists what is supported)");
+  }
+
+  // WP-17, the discovery story: the machine and project profiles, under the
+  // same refresh rule `waypost profile` uses (missing, older than 30 days, or
+  // --refresh — never forced just because setup is running). Discovery is a
+  // PATH stat plus a handful of ≤3s subprocess calls, not heavy work in the
+  // WP-18 sense, so it takes no machine-wide slot; the machine audit that
+  // does is a later story's step, not this one.
+  //
+  // --dry-run reports what refreshing WOULD do (read-only: load the existing
+  // profiles, if any, and say whether each is due) rather than the generic
+  // `step()` one-liner every other step uses — "would discover" alone never
+  // says whether a fresh profile would be kept or a stale one rebuilt.
+  if (dry) {
+    say("would discover tools and ecosystems");
+    const discovery = await import(`file://${SCRIPT("discovery")}`);
+    const presence = await import(`file://${SCRIPT("presence")}`);
+    const home = homedir();
+    const host = presence.hostSlug();
+    const machinePath = discovery.machineProfilePath({ home, host });
+    const load = (p) => {
+      if (!existsSync(p)) return null;
+      try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
+    };
+    const describe = (label, prof) => discovery.needsRefresh(prof, {})
+      ? `  would refresh the ${label} profile`
+      : `  would keep the ${label} profile (generated ${prof.generated_at})`;
+    say(describe("machine", load(machinePath)));
+    // Item 6: a project profile at $HOME would write into the user's home
+    // directory itself — the same reasoning `waypost size --project`
+    // already refuses ($HOME as a project root, scripts/sizes.mjs).
+    if (resolve(projectRoot()) === resolve(home)) {
+      say("  no project here — machine profile only");
+    } else {
+      const projectPath = discovery.projectProfilePath({ projectRoot: projectRoot(), host });
+      say(describe("project", load(projectPath)));
+    }
+  } else {
+    await step("discover tools and ecosystems", async () => {
+      // A discovery failure (an unwritable machine-state directory, a
+      // registry that fails to load, …) must not take the rest of setup
+      // down with it — the vault is already bound, roles already installed,
+      // and the repair step below still matters. Reported inline instead.
+      try {
+        const r = await refreshProfiles({ force: false });
+        say(`  machine  ${r.machineRefreshed ? "refreshed" : "kept"} — ${r.machine.tools.length} tool(s), ${r.machine.caches.length} cache path(s)`);
+        if (r.noProject) say("  project  no project here — machine profile only");
+        else say(`  project  ${r.projectRefreshed ? "refreshed" : "kept"} — ${r.project.ecosystems.length} ecosystem(s)`);
+      } catch (e) {
+        say(`  discovery failed: ${e.message} — waypost profile to retry`);
+      }
+    });
   }
 
   // Not run(): doctor is a diagnostic, and `--fix` only mends what is
@@ -695,6 +747,98 @@ function printDoc(dir, name, suffix) {
   process.stdout.write(readFileSync(p, "utf8"));
 }
 
+// ─── profile ─────────────────────────────────────────────────────────────
+//
+// WP-17, the discovery story, ADR Decision 2: the machine and project
+// profiles — the scheme of what waypost works with. discovery.mjs is
+// compute only (detection, asking, no fs writes); this is the one place
+// that reads the previous profile, decides whether it is due (missing,
+// older than 30 days, or --refresh — discovery.mjs's needsRefresh), rebuilds
+// it, and writes it back atomically — the same division every other write
+// in this file keeps with its scripts/*.mjs collaborator. Shared by
+// `waypost profile` and `waypost setup`'s own discovery step, so both apply
+// the exact same refresh rule.
+async function refreshProfiles({ force = false } = {}) {
+  const discovery = await import(`file://${SCRIPT("discovery")}`);
+  const toolchains = await import(`file://${SCRIPT("toolchains")}`);
+  const presence = await import(`file://${SCRIPT("presence")}`);
+  const root = projectRoot();
+  const host = presence.hostSlug();
+  const home = homedir();
+  const reg = toolchains.loadRegistry({ projectRoot: root, platform: process.platform });
+
+  const machinePath = discovery.machineProfilePath({ home, host });
+  // A profile that exists but does not parse is treated exactly like a
+  // missing one — needsRefresh(null, …) is always true — so a hand-edited or
+  // half-written file is silently repaired on the next refresh rather than
+  // wedging this command the way an unreadable projectstore.json must not.
+  const load = (p) => {
+    if (!existsSync(p)) return null;
+    try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
+  };
+
+  let machine = load(machinePath);
+  const machineRefreshed = discovery.needsRefresh(machine, { force });
+  if (machineRefreshed) {
+    machine = discovery.buildMachineProfile(reg.entries, { home, host });
+    mkdirSync(dirname(machinePath), { recursive: true });
+    writeFileAtomic(machinePath, JSON.stringify(machine, null, 2) + "\n");
+  }
+
+  // Item 6: a project AT $HOME (no project bound, cwd left at the user's
+  // home, WAYPOST_PROJECT_DIR unset or pointed at ~) must never get a
+  // project.<host>.json written into ~/.waypost/state/ — the same "no
+  // project here" `waypost size --project` already enforces by refusing to
+  // scan $HOME (scripts/sizes.mjs). No project profile is built at all.
+  const noProject = resolve(root) === resolve(home);
+  let project = null, projectPath = null, projectRefreshed = false;
+  if (!noProject) {
+    projectPath = discovery.projectProfilePath({ projectRoot: root, host });
+    project = load(projectPath);
+    projectRefreshed = discovery.needsRefresh(project, { force });
+    if (projectRefreshed) {
+      project = discovery.buildProjectProfile(reg.entries, { projectRoot: root, host });
+      mkdirSync(dirname(projectPath), { recursive: true });
+      writeFileAtomic(projectPath, JSON.stringify(project, null, 2) + "\n");
+    }
+  }
+
+  return { host, machine, machinePath, machineRefreshed, project, projectPath, projectRefreshed, noProject, notes: reg.notes };
+}
+
+async function handleProfile(args) {
+  let r;
+  try {
+    r = await refreshProfiles({ force: flag(args, "--refresh") });
+  } catch (e) { fail(`profile: ${e.message}`); }
+
+  if (flag(args, "--json")) {
+    process.stdout.write(JSON.stringify({ machine: r.machine, project: r.noProject ? null : r.project, notes: r.notes }, null, 2) + "\n");
+    return;
+  }
+
+  process.stdout.write(`host  ${r.host}\n`);
+  process.stdout.write(`machine  ${tildeHome(r.machinePath)}  (${r.machineRefreshed ? "refreshed" : "kept"}, ${r.machine.generated_at})\n`);
+  process.stdout.write(`  ${r.machine.platform}/${r.machine.arch}\n`);
+  for (const t of r.machine.tools) process.stdout.write(`  tool       ${t.name} (${t.id})  ${t.bin}\n`);
+  for (const c of r.machine.caches) {
+    process.stdout.write(`  cache      ${tildeHome(c.path)}  [${c.tool} · ${c.source}]${c.ask_note ? `  (asked: ${c.ask_note})` : ""}\n`);
+  }
+  if (r.noProject) {
+    process.stdout.write("no project here — machine profile only\n");
+  } else {
+    process.stdout.write(`project  ${tildeHome(r.projectPath)}  (${r.projectRefreshed ? "refreshed" : "kept"}, ${r.project.generated_at})\n`);
+    for (const e of r.project.ecosystems) process.stdout.write(`  ecosystem  ${e.name} (${e.id})  ${e.manifest}\n`);
+  }
+  // ADR Decision 1: a project's own .waypost/toolchains/ entry may only be
+  // data — every dropped field is a project author reaching for something
+  // this profile refuses to run, so it belongs here, not just in doctor.
+  if (r.notes.length) {
+    process.stdout.write(`\n${r.notes.length} note(s) from .waypost/toolchains/:\n`);
+    for (const n of r.notes) process.stdout.write(`  ${n.file}${n.field ? ` (${n.field})` : ""}: ${n.reason}\n`);
+  }
+}
+
 // ─── size ──────────────────────────────────────────────────────────────
 //
 // Read-only measurement of build artifacts and dev caches (WP-17, "Disk
@@ -735,17 +879,52 @@ async function handleSize(args) {
       process.exitCode = EX_TEMPFAIL;
       return;
     }
-    let out, reg, error;
+    let out, reg, error, usedProfile = false;
     try {
       reg = toolchains.loadRegistry({ projectRoot: projectRoot(), platform: process.platform });
-      out = sizes.scanGlobal({ registry: reg });
+      // WP-17, the discovery story: a fresh machine profile for THIS host and
+      // platform (built by `waypost profile`/`waypost setup`, never here —
+      // `size` stays read-only, Decision 3 of the ADR) is measured directly;
+      // otherwise today's path, unchanged. A profile is never rebuilt or
+      // refreshed by this command.
+      const discovery = await import(`file://${SCRIPT("discovery")}`);
+      const host = presence.hostSlug();
+      const machinePath = discovery.machineProfilePath({ home: homedir(), host });
+      let machine = null;
+      if (existsSync(machinePath)) {
+        try { machine = JSON.parse(readFileSync(machinePath, "utf8")); } catch { machine = null; }
+      }
+      // Item 7: a profile missing its own `caches` array (corrupt, or an
+      // older shape from before the fact-only profile) is not "fresh" —
+      // fall back to the registry entirely rather than measure nothing.
+      const fresh = machine && machine.platform === process.platform
+        && Array.isArray(machine.caches) && !discovery.needsRefresh(machine, {});
+      // The registry travels WITH the profile (ADR Decision 2): a profile
+      // holds facts only (tool/item/path/source), never clean/regenerable/
+      // confidence/docs/notes — scanGlobal reattaches that policy from
+      // THIS, the current, registry, matched by (tool, item), so a fixed
+      // `regenerable` or `clean` is visible here at once, never stale for
+      // up to 30 days waiting on the next profile refresh.
+      out = fresh ? sizes.scanGlobal({ profile: machine, registry: reg }) : sizes.scanGlobal({ registry: reg });
+      usedProfile = Boolean(fresh);
     } catch (e) {
       error = e;
     } finally {
       claim.release();
     }
     if (error) fail(`size --global: ${error.message}`);
-    if (json) { process.stdout.write(JSON.stringify({ caches: out, notes: reg.notes }, null, 2) + "\n"); return; }
+    if (json) {
+      process.stdout.write(JSON.stringify({
+        caches: out, notes: reg.notes, profile_used: usedProfile,
+        ...(usedProfile && out.dropped ? { profile_stale_items: out.dropped } : {}),
+      }, null, 2) + "\n");
+      return;
+    }
+    if (!usedProfile) {
+      process.stdout.write("no fresh machine profile for this host — measuring the shipped registry's own defaults (waypost profile to build one)\n");
+    } else if (out.dropped) {
+      process.stdout.write(`${out.dropped} cache item(s) in the profile are no longer in the registry — registry changed — waypost profile --refresh\n`);
+    }
     const threshold = 0.1 * GB;
     const big = out.filter((e) => e.bytes >= threshold).sort((a, b) => b.bytes - a.bytes);
     if (!big.length) { process.stdout.write("no caches at or above 0.1 GB found (waypost size --global --json for the rest)\n"); }
@@ -1261,11 +1440,17 @@ PROCEDURES
   sessions [--touch]       active-session registry (--claim/--release/--prune [--older-than 6h])
   tokens [flags]           what the loop cost, from Claude Code transcripts
                            (Claude-only: no other harness writes them)
+  profile [--refresh]      the scheme of what waypost works with: detected
+                           tools, their cache paths (asked, then env, then
+                           default) and the project's ecosystems — rebuilt
+                           when missing, older than 30 days, or --refresh
+                           [--json]
   size [--project [dir]]   build-artifact sizes, read-only — measures, never
                            deletes; needs no bound vault [--budget <n>] [--json]
   size --global            toolchain/package-manager caches, simulators,
                            containers and temp dirs ≥ 0.1 GB, each with its
-                           own clean command [--json for the rest]
+                           own clean command — measures a fresh machine
+                           profile's paths when one exists [--json for the rest]
   capacity [--json]        the machine's real free resources right now: cores,
                            load, available memory and how many more heavy
                            jobs it can take (never cached) [--json for detail]
@@ -1431,7 +1616,7 @@ async function main() {
 
   switch (cmd) {
     case "": handleDefault(); break;
-    case "setup": handleSetup(rest); break;
+    case "setup": await handleSetup(rest); break;
     case "next": handleNext(rest); break;
     case "bind": case "init": handleBind(rest); break;
     case "scaffold": handleScaffold(rest); break;
@@ -1448,6 +1633,7 @@ async function main() {
     case "doctor": run("doctor", rest); break;
     case "diff-refs": run("diff-refs", rest); break;
     case "size": await handleSize(rest); break;
+    case "profile": await handleProfile(rest); break;
     case "capacity": await handleCapacity(rest); break;
     case "run": await handleRun(rest); break;
     case "agents": run("agents", rest); break;

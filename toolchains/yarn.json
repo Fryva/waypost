@@ -25,9 +25,15 @@
       "confidence": {
         "darwin": "inferred"
       },
-      "notes": "Classic Yarn (v1) macOS cache convention; not present on this machine.",
+      "notes": "Classic Yarn (v1) macOS cache convention; not present on this machine. ask.env sets COREPACK_ENABLE_NETWORK=0 so a corepack-managed yarn shim never fetches a package manager release while being asked (https://github.com/nodejs/corepack#readme).",
       "regenerable": true,
-      "clean": "yarn cache clean"
+      "clean": "yarn cache clean",
+      "ask": {
+        "argv": ["yarn", "cache", "dir"],
+        "parse": "line",
+        "env": { "COREPACK_ENABLE_NETWORK": "0" },
+        "docs": "https://classic.yarnpkg.com/en/docs/cli/cache/"
+      }
     },
     {
       "path": "$XDG_CACHE_HOME/yarn",
@@ -37,9 +43,15 @@
       "confidence": {
         "linux": "inferred"
       },
-      "notes": "Classic Yarn (v1) Linux cache convention; not verifiable from macOS.",
+      "notes": "Classic Yarn (v1) Linux cache convention; not verifiable from macOS. ask.env sets COREPACK_ENABLE_NETWORK=0 so a corepack-managed yarn shim never fetches a package manager release while being asked (https://github.com/nodejs/corepack#readme).",
       "regenerable": true,
-      "clean": "yarn cache clean"
+      "clean": "yarn cache clean",
+      "ask": {
+        "argv": ["yarn", "cache", "dir"],
+        "parse": "line",
+        "env": { "COREPACK_ENABLE_NETWORK": "0" },
+        "docs": "https://classic.yarnpkg.com/en/docs/cli/cache/"
+      }
     },
     {
       "path": "$LOCALAPPDATA/Yarn/Cache",
@@ -49,9 +61,15 @@
       "confidence": {
         "win32": "inferred"
       },
-      "notes": "Classic Yarn (v1) Windows cache convention; not verifiable from macOS.",
+      "notes": "Classic Yarn (v1) Windows cache convention; not verifiable from macOS. ask.env sets COREPACK_ENABLE_NETWORK=0 so a corepack-managed yarn shim never fetches a package manager release while being asked (https://github.com/nodejs/corepack#readme).",
       "regenerable": true,
-      "clean": "yarn cache clean"
+      "clean": "yarn cache clean",
+      "ask": {
+        "argv": ["yarn", "cache", "dir"],
+        "parse": "line",
+        "env": { "COREPACK_ENABLE_NETWORK": "0" },
+        "docs": "https://classic.yarnpkg.com/en/docs/cli/cache/"
+      }
     },
     {
       "path": "$HOME/.yarn/berry/cache",
@@ -65,9 +83,15 @@
         "linux": "inferred",
         "win32": "inferred"
       },
-      "notes": "Berry's global cache path when no per-project cacheFolder override is set; not present on this machine.",
+      "notes": "Berry's global cache path when no per-project cacheFolder override is set; not present on this machine. ask.env sets COREPACK_ENABLE_NETWORK=0 so a corepack-managed yarn shim never fetches a package manager release while being asked (https://github.com/nodejs/corepack#readme).",
       "regenerable": true,
-      "clean": "yarn cache clean --mirror"
+      "clean": "yarn cache clean --mirror",
+      "ask": {
+        "argv": ["yarn", "config", "get", "cacheFolder"],
+        "parse": "line",
+        "env": { "COREPACK_ENABLE_NETWORK": "0" },
+        "docs": "https://yarnpkg.com/cli/config/get"
+      }
     }
   ],
   "locators": []

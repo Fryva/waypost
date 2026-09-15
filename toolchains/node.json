@@ -80,8 +80,15 @@
         "linux": "documented"
       },
       "docs": "https://docs.npmjs.com/cli/v10/commands/npm-cache",
+      "notes": "ask.env sets npm_config_update_notifier=false to suppress the update-notifier network check (https://docs.npmjs.com/cli/v10/using-npm/config#update-notifier).",
       "regenerable": true,
-      "clean": "npm cache clean --force"
+      "clean": "npm cache clean --force",
+      "ask": {
+        "argv": ["npm", "config", "get", "cache"],
+        "parse": "line",
+        "env": { "npm_config_update_notifier": "false" },
+        "docs": "https://docs.npmjs.com/cli/v10/commands/npm-config"
+      }
     },
     {
       "path": "$LOCALAPPDATA/npm-cache",
@@ -92,8 +99,15 @@
         "win32": "documented"
       },
       "docs": "https://docs.npmjs.com/cli/v10/commands/npm-cache",
+      "notes": "ask.env sets npm_config_update_notifier=false to suppress the update-notifier network check (https://docs.npmjs.com/cli/v10/using-npm/config#update-notifier).",
       "regenerable": true,
-      "clean": "npm cache clean --force"
+      "clean": "npm cache clean --force",
+      "ask": {
+        "argv": ["npm", "config", "get", "cache"],
+        "parse": "line",
+        "env": { "npm_config_update_notifier": "false" },
+        "docs": "https://docs.npmjs.com/cli/v10/commands/npm-config"
+      }
     }
   ],
   "locators": []

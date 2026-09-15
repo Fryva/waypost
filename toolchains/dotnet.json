@@ -31,9 +31,16 @@
         "win32": "inferred"
       },
       "docs": "https://learn.microsoft.com/en-us/nuget/consume-packages/managing-the-global-packages-and-cache-folders",
-      "notes": "Default NuGet global-packages folder; not present on this machine.",
+      "notes": "Default NuGet global-packages folder; not present on this machine. ask.env sets DOTNET_CLI_TELEMETRY_OPTOUT=1 and DOTNET_NOLOGO=1 so being asked never sends telemetry or prints the first-run welcome message (https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-environment-variables).",
       "regenerable": true,
-      "clean": "dotnet nuget locals all --clear"
+      "clean": "dotnet nuget locals all --clear",
+      "ask": {
+        "argv": ["dotnet", "nuget", "locals", "global-packages", "--list"],
+        "parse": "kv",
+        "key": "global-packages:",
+        "env": { "DOTNET_CLI_TELEMETRY_OPTOUT": "1", "DOTNET_NOLOGO": "1" },
+        "docs": "https://learn.microsoft.com/en-us/nuget/consume-packages/managing-the-global-packages-and-cache-folders"
+      }
     },
     {
       "path": "$XDG_DATA_HOME/NuGet",

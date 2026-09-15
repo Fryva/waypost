@@ -455,6 +455,82 @@ test("scanGlobal: a trailing * is expanded by prefix-matching the parent directo
   assert.ok(!out.some((e) => e.path.endsWith("Other")));
 });
 
+// scanGlobal({ profile, registry }) (WP-17, the discovery story; hardened per
+// independent review): a fresh machine profile's own `caches` are measured
+// directly, but the profile holds FACTS only — { tool, item, path, source,
+// ask_note? } — never policy (clean/regenerable/confidence/docs/notes).
+// `item` is the cache item's own raw path template, a stable key; scanGlobal
+// reattaches policy from the CURRENT `registry`, matched by (tool, item), so
+// a fix to `regenerable`/`clean` in the registry is visible at once, and an
+// item the registry no longer carries is skipped (never measured) and
+// counted on the returned array's own `.dropped` property.
+test("scanGlobal({ profile, registry }): measures the profile's own path, re-attaching policy from the registry by (tool, item)", () => {
+  const home = tmpRoot("waypost-sizes-profile-");
+  const fixture = join(home, "asked-cache-dir");
+  mkdirSync(fixture, { recursive: true });
+  writeFileSync(join(fixture, "f.bin"), Buffer.alloc(12345, 1));
+  const profile = {
+    host: "h1", platform: "darwin", arch: "arm64", generated_at: new Date().toISOString(),
+    tools: [],
+    caches: [{ tool: "faketool", item: "$HOME/asked-cache-dir", path: fixture, source: "asked" }],
+  };
+  const registry = {
+    entries: [{
+      id: "faketool", os: ["darwin"],
+      caches: [{
+        path: "$HOME/asked-cache-dir", os: ["darwin"], confidence: { darwin: "verified" },
+        docs: "https://example.com", notes: null, regenerable: true, clean: "faketool clean",
+      }],
+    }],
+  };
+  const out = scanGlobal({ profile, registry });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].path, fixture);
+  assert.equal(out[0].source, "asked");
+  assert.equal(out[0].tool, "faketool");
+  assert.equal(out[0].clean, "faketool clean");
+  assert.equal(out[0].regenerable, true);
+  assert.equal(out[0].confidence, "verified");
+  assert.ok(out[0].bytes >= 12345);
+  assert.equal(out.dropped, 0);
+});
+
+test("scanGlobal({ profile, registry }): editing regenerable/clean in the registry is visible immediately, the profile itself is never touched", () => {
+  const home = tmpRoot("waypost-sizes-policychange-");
+  const fixture = join(home, "cache-dir");
+  mkdirSync(fixture, { recursive: true });
+  writeFileSync(join(fixture, "f.bin"), Buffer.alloc(1000, 1));
+  const profile = { caches: [{ tool: "faketool", item: "$HOME/cache-dir", path: fixture, source: "default" }] };
+  const entryWith = (regenerable, clean) => ({ entries: [{ id: "faketool", os: ["darwin"], caches: [{
+    path: "$HOME/cache-dir", os: ["darwin"], confidence: { darwin: "verified" }, regenerable, clean,
+  }] }] });
+
+  const before = scanGlobal({ profile, registry: entryWith(false, "old clean text") });
+  assert.equal(before[0].regenerable, false);
+  assert.equal(before[0].clean, "old clean text");
+
+  const after = scanGlobal({ profile, registry: entryWith(true, "new clean text") });
+  assert.equal(after[0].regenerable, true, "a fixed regenerable is visible without refreshing the profile");
+  assert.equal(after[0].clean, "new clean text");
+});
+
+test("scanGlobal({ profile, registry }): a cache item no longer in the registry is not measured, and counted via out.dropped", () => {
+  const home = tmpRoot("waypost-sizes-dropped-");
+  const fixture = join(home, "gone-from-registry");
+  mkdirSync(fixture, { recursive: true });
+  writeFileSync(join(fixture, "f.bin"), Buffer.alloc(1000, 1));
+  const profile = { caches: [{ tool: "faketool", item: "$HOME/gone-from-registry", path: fixture, source: "default" }] };
+  const out = scanGlobal({ profile, registry: { entries: [] } }); // faketool's entry no longer exists
+  assert.equal(out.length, 0, "the dropped item is not measured");
+  assert.equal(out.dropped, 1);
+});
+
+test("scanGlobal({ profile }): a profile whose caches is not an array is treated as empty, not thrown", () => {
+  const out = scanGlobal({ profile: { caches: "not an array" }, registry: { entries: [] } });
+  assert.equal(out.length, 0);
+  assert.equal(out.dropped, 0);
+});
+
 // ─── bin/waypost size ────────────────────────────────────────────────────
 
 function runBin(args, opts = {}) {

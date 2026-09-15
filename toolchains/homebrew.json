@@ -23,8 +23,15 @@
         "darwin": "verified"
       },
       "docs": "https://docs.brew.sh/Manpage",
+      "notes": "ask.env sets HOMEBREW_NO_AUTO_UPDATE=1 so being asked never triggers brew's own auto-update (https://docs.brew.sh/Manpage#environment).",
       "regenerable": true,
-      "clean": "brew cleanup --prune=all"
+      "clean": "brew cleanup --prune=all",
+      "ask": {
+        "argv": ["brew", "--cache"],
+        "parse": "line",
+        "env": { "HOMEBREW_NO_AUTO_UPDATE": "1" },
+        "docs": "https://docs.brew.sh/Manpage"
+      }
     },
     {
       "path": "$XDG_CACHE_HOME/Homebrew",
@@ -35,8 +42,15 @@
         "linux": "documented"
       },
       "docs": "https://docs.brew.sh/Manpage",
+      "notes": "ask.env sets HOMEBREW_NO_AUTO_UPDATE=1 so being asked never triggers brew's own auto-update (https://docs.brew.sh/Manpage#environment).",
       "regenerable": true,
-      "clean": "brew cleanup --prune=all"
+      "clean": "brew cleanup --prune=all",
+      "ask": {
+        "argv": ["brew", "--cache"],
+        "parse": "line",
+        "env": { "HOMEBREW_NO_AUTO_UPDATE": "1" },
+        "docs": "https://docs.brew.sh/Manpage"
+      }
     }
   ],
   "locators": []

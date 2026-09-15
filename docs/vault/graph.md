@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-15T15:43:16.020Z
+generated_at: 2026-09-15T19:45:21.628Z
 
 ---
 
@@ -50,7 +50,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md | doctor evaluates regex guards of accepted ADRs | story | done |
 | epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot.md | Live verification: Cursor, Gemini CLI and Copilot | story | planned |
 | epics/WP-17/epic.md | Disk hygiene by discovery | epic | planned |
-| epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md | Discovery and the profile: the scheme of what Waypost works with | story | in-progress |
+| epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md | Discovery and the profile: the scheme of what Waypost works with | story | done |
 | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | doctor and next surface build artifacts | story | planned |
 | epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md | Verified on Linux and Windows virtual machines | story | planned |
 | epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | waypost clean: a classified plan, removal after a yes, the setup audit | story | planned |

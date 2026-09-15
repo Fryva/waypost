@@ -3,18 +3,18 @@ type: story
 id: "story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with"
 epic: "WP-17"
 title: "Discovery and the profile: the scheme of what Waypost works with"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-14
-updated: 2026-09-14
+updated: 2026-09-15
 external_refs: {}
 tags: []
-code_refs: ["scripts/discovery.mjs (planned)", "scripts/toolchains.mjs", "toolchains/", "scripts/sizes.mjs", "scripts/presence.mjs", "bin/waypost", "docs/toolchains.md", "tests/discovery.test.mjs (planned)", "tests/toolchains.test.mjs", "tests/sizes.test.mjs", "tests/scripts.test.mjs", "CHANGELOG.md"]
+code_refs: ["scripts/discovery.mjs", "scripts/toolchains.mjs", "toolchains/", "scripts/sizes.mjs", "scripts/presence.mjs", "bin/waypost", "docs/toolchains.md", "tests/discovery.test.mjs", "tests/toolchains.test.mjs", "tests/sizes.test.mjs", "tests/scripts.test.mjs", "tests/harness.test.mjs", "CHANGELOG.md"]
 specs: []
 blocked_by: ["WP-17/story-waypost-size-the-read-only-scan-project-and-global"]
 started_at: "2026-09-14T21:00:53.429Z"
-closed_at: null
+closed_at: "2026-09-15T19:45:21.015Z"
 plan_updated_at: "2026-09-14T21:00:53.429Z"
 ---
 
@@ -23,7 +23,7 @@ plan_updated_at: "2026-09-14T21:00:53.429Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-17](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -45,13 +45,13 @@ fixed list.
 
 ## Decomposition
 
-- [ ] Detection (`scripts/discovery.mjs`):
+- [x] Detection (`scripts/discovery.mjs`):
       - each entry's `detect.bins` is looked up on `PATH` without running
         anything: it must be a regular file, executable on POSIX, found
         through `PATHEXT` on Windows;
       - `detect.manifests` is matched in the project root, by exact names and
         `*.ext`.
-- [ ] Asking (`scripts/toolchains.mjs`): a shipped cache item's `ask` holds
+- [x] Asking (`scripts/toolchains.mjs`): a shipped cache item's `ask` holds
       argv, `parse` (`line`, `json` key, `kv` key) and documented `env`
       switches.
       - It runs by the absolute path detection found, without a shell, with
@@ -61,22 +61,22 @@ fixed list.
       - Every path records its source. A duplicate path keeps the asked one.
       - On Windows a batch shim (`.cmd`, `.bat`) cannot run without a shell,
         so its ask is skipped with a note.
-- [ ] `ask` added to the entries whose tools document a cache query (the
+- [x] `ask` added to the entries whose tools document a cache query (the
       table below); `docs/toolchains.md` describes the field.
-- [ ] The machine state directory per OS (`scripts/discovery.mjs`):
+- [x] The machine state directory per OS (`scripts/discovery.mjs`):
       `$XDG_STATE_HOME/waypost` (default `~/.local/state/waypost`),
       `~/Library/Application Support/Waypost`, `%LOCALAPPDATA%\Waypost`. The
       host key is presence's `hostSlug`, exported.
-- [ ] Profiles: `machine.<host>.json` there, and
+- [x] Profiles: `machine.<host>.json` there, and
       `.waypost/state/project.<host>.json`. Each is rebuilt when missing,
       when older than 30 days, or on `--refresh`.
-- [ ] `waypost profile [--refresh] [--json]`. `waypost setup` runs discovery
+- [x] `waypost profile [--refresh] [--json]`. `waypost setup` runs discovery
       under the same refresh rule, and `setup --dry-run` says what it would
       discover.
-- [ ] `waypost size --global` measures the machine profile's paths when a
+- [x] `waypost size --global` measures the machine profile's paths when a
       fresh profile exists; otherwise it falls back to the registry with a
       hint.
-- [ ] Tests, hermetic: fake tools on an injected `PATH`, injected platform,
+- [x] Tests, hermetic: fake tools on an injected `PATH`, injected platform,
       environment, home and host name.
 
 ## Implementation Plan
@@ -89,8 +89,10 @@ lead's decisions below.
    - `detectManifests(entries, { projectRoot })` — root only
    - `machineStateDir({ platform, env, home })`
    - `needsRefresh(profile, { maxAgeDays: 30, force, now })`
-   - `buildMachineProfile(entries, { platform, env, home, host })` — detected
-     tools only, then `resolveCachePaths(…, { ask: true, bins })`
+   - `buildMachineProfile(entries, { platform, env, home, host })` — the
+     tools found on `PATH`, then `resolveCachePaths(…, { ask: true, bins })`
+     over every entry for this OS, asking only the tools found (lead
+     decisions of 2026-09-15 below)
    - `buildProjectProfile(entries, { projectRoot, host })`
 
    `hostSlug` is exported from `scripts/presence.mjs` and reused.
@@ -151,34 +153,123 @@ Lead decisions:
 - **conda's `pkgs_dirs` is an array**, expanded like a trailing `*`. Its other
   items stay as fallbacks, deduplicated by path.
 
+Lead decisions of 2026-09-15, after the lead's review of the diff and a
+`waypost-reviewer` pass:
+- **Caches of every entry, asking only the tools found.** The machine profile
+  resolves the caches of every registry entry for this OS. Only a tool found
+  on `PATH` is listed and asked. Without this, a fresh profile would measure
+  less than the registry fallback: entries with no `detect.bins` (system temp
+  directories, IDEs, model downloads) and tools not on `PATH` would drop out
+  of `size --global`.
+- **Discovery takes no machine-wide slot.** It is a `PATH` lookup and a few
+  short asks, not heavy work. The slot in the heavy-work ADR (Decision 4) is
+  for the machine audit in `waypost setup`, which lands with the clean story.
+- **The profile holds facts only.** Each cache is `{ tool, item, path,
+  source, ask_note }`, where `item` is the registry's path template.
+  `size --global` takes `clean`, `regenerable`, `confidence`, `docs` and
+  `notes` from the current registry at scan time. An item the registry no
+  longer has is not measured. A registry fix therefore reaches the scan at
+  once, not after 30 days, which matters once `regenerable` decides what may
+  be removed.
+- **The project profile records ecosystems and their manifests.** Artifact
+  locations stay with the registry and `scanProject`, as the lead decision
+  above keeps them. The ADR's "their artifact locations" is therefore read
+  from the registry, not stored.
+- **No project profile outside a project.** Run from the home directory,
+  `waypost profile` writes the machine profile only, the way `size --project`
+  refuses the home directory.
+
 ## Acceptance Criteria
 
-- [ ] A fake tool on `PATH` that reports a moved cache puts that path in
+- [x] A fake tool on `PATH` that reports a moved cache puts that path in
       `waypost profile --json` with source `asked`. Without the tool, the
       environment variable and then the default are used, each with its
       source.
-- [ ] A fake tool that hangs or fails is reported, and discovery continues
+- [x] A fake tool that hangs or fails is reported, and discovery continues
       within its timeout. An asked value that is not an absolute path is
       ignored.
-- [ ] With an injected `win32` platform an executable is found through
+- [x] With an injected `win32` platform an executable is found through
       `PATHEXT`, and a `.cmd` shim's ask is skipped with a note.
-- [ ] Every shipped `ask` is an argv array with a `parse` kind. It runs
+- [x] Every shipped `ask` is an argv array with a `parse` kind. It runs
       without a shell, with stdin closed and the home directory as cwd, and
       its cache item names the docs for the command.
-- [ ] The machine state directory resolves per OS from the injected platform
+- [x] The machine state directory resolves per OS from the injected platform
       and environment. Two host names sharing one home keep two machine
       profiles; two sharing one checkout keep two project profiles.
-- [ ] `waypost setup --dry-run` names the discovery and writes nothing.
+- [x] `waypost setup --dry-run` names the discovery and writes nothing.
       `waypost setup` writes both profiles. A profile older than 30 days is
       refreshed, and a fresh one is kept unless `--refresh` is given.
-- [ ] `waypost size --global` measures a fresh machine profile's paths, and
+- [x] `waypost size --global` measures a fresh machine profile's paths, and
       without one falls back to the registry with a hint.
-- [ ] `npm test` is green and `waypost doctor` reports 0 issues.
+- [x] `npm test` is green and `waypost doctor` reports 0 issues.
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+What changed:
+- `scripts/discovery.mjs` (new, compute only):
+  - `findOnPath`: absolute `PATH` entries only, `X_OK` on POSIX, `PATHEXT`
+    on Windows;
+  - `detectManifests`, the profile paths and `needsRefresh`;
+  - `buildMachineProfile` and `buildProjectProfile`.
+- `scripts/toolchains.mjs`:
+  - `askCache` runs the shipped `ask` by absolute path, with no shell, stdin
+    closed, cwd = home and a 3 s timeout, and normalizes the answer;
+  - `resolveCachePaths(…, { ask, bins })` puts the asked value first,
+    records each path's source and item, and deduplicates by path.
+- `ask` on 12 registry entries, from the story's table, each with its docs.
+  Network and update switches are only the ones the tool documents.
+- `bin/waypost`:
+  - `waypost profile [--refresh] [--json]`;
+  - a discovery step in `setup`: `--dry-run` says refresh or keep, and a
+    failure is reported without stopping setup;
+  - `size --global` measures a fresh profile and takes its policy from the
+    current registry.
+- `docs/toolchains.md` and `CHANGELOG.md`.
+
+Why the plan changed: see the lead decisions of 2026-09-15 above.
+- Caches of every entry, asking only the tools found.
+- Discovery takes no slot.
+- The profile holds facts only.
+- Project profile: ecosystems only.
+- No project profile outside a project.
+
+Tests and checks, all on macOS 27 with Node 25.6.1, 2026-09-15:
+- `npm test`: 551/551.
+- `waypost doctor`: 0 issues.
+- A live `waypost profile` on the owner's Mac found 11 tools. Go, Homebrew,
+  npm and pip answered for their own caches.
+
+Review:
+- The lead's review of the diff found two defects, both fixed:
+  - a fresh profile dropped the caches of entries without `detect.bins`;
+  - `setup` in `tests/harness.test.mjs` ran with the real `HOME` and `PATH`,
+    so it asked real tools and wrote a real machine profile.
+- A `waypost-reviewer` pass found every acceptance criterion closed. Its
+  should-fix items were applied:
+  - an absolute path to run;
+  - facts-only profiles;
+  - tests that do not depend on the OS;
+  - a `setup` that survives a discovery failure;
+  - `--dry-run` detail;
+  - no profile in the home directory;
+  - tests for cwd, stdin, no shell, a stale profile and a hostile project
+    entry.
+
+Risks and follow-ups:
+- Recorded in the verification story:
+  - on Windows, the new tests' shell fakes and the git symlink;
+  - `pip` or `pip3`;
+  - deno's `denoDir` key;
+  - version subdirectories in pnpm and yarn;
+  - how long conda and dotnet take against the timeout.
+- Recorded in the clean story:
+  - refuse to remove the root, the home directory and their ancestors;
+  - data left at a cache's old location after it moved;
+  - a `*` expanded when the profile is built;
+  - the slot for the setup audit.
+- Separate task: the test suite leaves its temporary directories behind.
+- For the owner: the ADR's "artifact locations" in the project profile are
+  read from the registry, not stored (lead decision above).
 
 ## Technical Notes
 
@@ -189,17 +280,9 @@ Lead decisions:
 - A project-level setting (a project `.npmrc`, a Berry project) can move a
   cache for that project only. The machine profile asks from the home
   directory and reports the global location.
-- Paused on 2026-09-15 for the capacity work (WP-18). The partial
-  implementation is in `git stash` as "WP-17 discovery story: partial
-  implementation, paused 2026-09-15 for the capacity work". It holds:
-  - `scripts/discovery.mjs`;
-  - the `hostSlug` export in `scripts/presence.mjs`;
-  - the changes to `scripts/toolchains.mjs`;
-  - `ask` on `toolchains/go.json` and `toolchains/node.json`.
-
-  To resume, run `git stash pop`. Then take `machineStateDir` and the host
-  key from `scripts/lib.mjs` and `scripts/presence.mjs`, which WP-18 lands,
-  instead of defining them in `scripts/discovery.mjs`.
+- Paused on 2026-09-15 for the capacity work (WP-18) and resumed the same
+  day. `machineStateDir` comes from `scripts/lib.mjs` and the host key is
+  `hostSlug` from `scripts/presence.mjs`.
 
 ## Dependencies
 
@@ -212,4 +295,4 @@ Lead decisions:
 
 ---
 
-*Last updated: 2026-09-14*
+*Last updated: 2026-09-15*

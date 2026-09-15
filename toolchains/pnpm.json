@@ -26,9 +26,15 @@
         "darwin": "inferred"
       },
       "docs": "https://pnpm.io/cli/store",
-      "notes": "Documented pnpm macOS store location; not present on this machine.",
+      "notes": "Documented pnpm macOS store location; not present on this machine. ask.env sets COREPACK_ENABLE_NETWORK=0 so a corepack-managed pnpm shim never fetches a package manager release while being asked (https://github.com/nodejs/corepack#readme).",
       "regenerable": true,
-      "clean": "pnpm store prune"
+      "clean": "pnpm store prune",
+      "ask": {
+        "argv": ["pnpm", "store", "path"],
+        "parse": "line",
+        "env": { "COREPACK_ENABLE_NETWORK": "0" },
+        "docs": "https://pnpm.io/cli/store"
+      }
     },
     {
       "path": "$XDG_DATA_HOME/pnpm/store",
@@ -39,8 +45,15 @@
         "linux": "documented"
       },
       "docs": "https://pnpm.io/cli/store",
+      "notes": "ask.env sets COREPACK_ENABLE_NETWORK=0 so a corepack-managed pnpm shim never fetches a package manager release while being asked (https://github.com/nodejs/corepack#readme).",
       "regenerable": true,
-      "clean": "pnpm store prune"
+      "clean": "pnpm store prune",
+      "ask": {
+        "argv": ["pnpm", "store", "path"],
+        "parse": "line",
+        "env": { "COREPACK_ENABLE_NETWORK": "0" },
+        "docs": "https://pnpm.io/cli/store"
+      }
     },
     {
       "path": "$LOCALAPPDATA/pnpm/store",
@@ -51,8 +64,15 @@
         "win32": "documented"
       },
       "docs": "https://pnpm.io/cli/store",
+      "notes": "ask.env sets COREPACK_ENABLE_NETWORK=0 so a corepack-managed pnpm shim never fetches a package manager release while being asked (https://github.com/nodejs/corepack#readme).",
       "regenerable": true,
-      "clean": "pnpm store prune"
+      "clean": "pnpm store prune",
+      "ask": {
+        "argv": ["pnpm", "store", "path"],
+        "parse": "line",
+        "env": { "COREPACK_ENABLE_NETWORK": "0" },
+        "docs": "https://pnpm.io/cli/store"
+      }
     }
   ],
   "locators": []
