@@ -3,7 +3,7 @@ type: story
 id: "story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os"
 epic: "WP-18"
 title: "waypost capacity: the machine's real free resources, measured by each OS"
-status: in-progress
+status: done
 priority: p1
 assignee: "Ivan Morozov"
 created: 2026-09-15
@@ -13,7 +13,7 @@ tags: []
 code_refs: ["scripts/capacity.mjs", "scripts/lib.mjs", "bin/waypost", "tests/capacity.test.mjs", "CHANGELOG.md"]
 specs: []
 started_at: "2026-09-15T03:14:34.602Z"
-closed_at: null
+closed_at: "2026-09-15T13:11:23.069Z"
 plan_updated_at: "2026-09-15T03:14:34.602Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-09-15T03:14:34.602Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-18](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p1 |
 | **Assignee** | Ivan Morozov |
 
@@ -38,12 +38,12 @@ story; until then there are none.
 
 ## Decomposition
 
-- [ ] `scripts/lib.mjs`: `machineStateDir({ platform, env, home })`, as the
+- [x] `scripts/lib.mjs`: `machineStateDir({ platform, env, home })`, as the
       disk-hygiene ADR defines it:
       - `$XDG_STATE_HOME/waypost` (default `~/.local/state/waypost`);
       - `~/Library/Application Support/Waypost`;
       - `%LOCALAPPDATA%\Waypost`.
-- [ ] `scripts/capacity.mjs` (compute only, no writes):
+- [x] `scripts/capacity.mjs` (compute only, no writes):
       - **cores:** `os.availableParallelism()`, capped by the cgroup CPU
         quota;
       - **busy:** the load average, or on Windows two `os.cpus()` samples;
@@ -55,16 +55,16 @@ story; until then there are none.
         - anything else: `os.freemem()`, as a lower bound.
 
       Each figure records the probe that produced it.
-- [ ] `canStart(...)`, with the owner's defaults: one slot per four cores,
+- [x] `canStart(...)`, with the owner's defaults: one slot per four cores,
       and a job share of a quarter of the cores and the smaller of 2 GB and a
       quarter of the memory. `WAYPOST_HEAVY_MAX` only lowers the slot count,
       and the reason names the binding limit.
-- [ ] Every probe is injectable: platform, file reads (`/proc`, cgroup),
+- [x] Every probe is injectable: platform, file reads (`/proc`, cgroup),
       `sysctl` and `vm_stat` output, the `os` functions. Tests never depend on
       the host.
-- [ ] `bin/waypost capacity [--json]`: one human line. `--json` gives every
+- [x] `bin/waypost capacity [--json]`: one human line. `--json` gives every
       figure, its probe, the holders, `can_start` and the reason.
-- [ ] Tests for each acceptance criterion below.
+- [x] Tests for each acceptance criterion below.
 
 ## Implementation Plan
 
@@ -131,27 +131,91 @@ Written by the lead on 2026-09-15, from the ADR and the patterns of
 
 ## Acceptance Criteria
 
-- [ ] With injected macOS probes, available memory is
+- [x] With injected macOS probes, available memory is
       `kern.memorystatus_level` × total. When the sysctl is refused, it is
       `vm_stat`'s free + inactive + speculative + purgeable pages.
       `os.freemem()` is never used on macOS while a probe works.
-- [ ] With injected Linux probes, `MemAvailable` is capped by a cgroup v2 and
+      — evidence: `tests/capacity.test.mjs:192`, `:201`, `:220`. On this Mac
+      the forced `vm_stat` fallback gave 4.7 GB against 9.0 GB through the
+      sysctl.
+- [x] With injected Linux probes, `MemAvailable` is capped by a cgroup v2 and
       by a v1 memory limit, and the cores by a cgroup CPU quota.
-- [ ] With injected Windows probes, busy comes from two `os.cpus()` samples
+      — evidence: `tests/capacity.test.mjs:94`, `:102`, `:109`, `:116`,
+      `:126`, `:233`, `:245`, `:259`, `:271`
+- [x] With injected Windows probes, busy comes from two `os.cpus()` samples
       and memory from `os.freemem()`.
-- [ ] `can_start` follows the ADR's rules (a), (b) and (c) with the owner's
+      — evidence: `tests/capacity.test.mjs:150`, `:170`, `:289`
+- [x] `can_start` follows the ADR's rules (a), (b) and (c) with the owner's
       defaults, on a 2-core, an 8-core and a 32-core machine, idle and
       loaded. `WAYPOST_HEAVY_MAX` lowers it but never raises it, and the
       reason names the binding limit.
-- [ ] `waypost capacity --json` on this machine returns every figure with
+      — evidence: `tests/capacity.test.mjs:308`–`:366` (the matrix), `:374`,
+      `:381`, `:387` (`WAYPOST_HEAVY_MAX`), `:395`, `:402`, `:409`, `:416`
+      (the edges)
+- [x] `waypost capacity --json` on this machine returns every figure with
       its probe, well within a second.
-- [ ] `npm test` is green at capped concurrency, and `waypost doctor` reports
+      — evidence: `tests/capacity.test.mjs:465`, `:489`. `waypost capacity`
+      ran in 0.14 s and printed "8 cores, load 2.80; 8.5 of 16.0 GB
+      available (kern.memorystatus_level)".
+- [x] `npm test` is green at capped concurrency, and `waypost doctor` reports
       0 issues.
+      — evidence: `node --test --test-concurrency=2 tests/*.test.mjs` passed
+      456/456 in 89 s, at load 2.5 with nothing else heavy running.
+      `waypost doctor`: 0 issues, 0 warnings.
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Landed in b5676d9.
+
+**What changed.**
+- `scripts/capacity.mjs` (new, compute only):
+  - `readCores`: `availableParallelism`, capped by a cgroup v2 `cpu.max` or
+    v1 CFS quota, rounded up;
+  - `readBusy`: the load average, or on Windows two `os.cpus()` samples
+    250 ms apart;
+  - `readMemory`:
+    - macOS: `kern.memorystatus_level` × total, then `vm_stat`;
+    - Linux: `MemAvailable` capped by cgroup v2 or v1 limits;
+    - Windows: `os.freemem()`;
+    - elsewhere: `os.freemem()`, as a lower bound;
+  - `canStart`, with the owner's defaults; an unknown figure means "cannot
+    start";
+  - `measure`.
+
+  Every probe is injectable. `sysctl` and `vm_stat` run through `spawnSync`
+  without a shell and with a 2-second timeout.
+- `scripts/lib.mjs`: `machineStateDir`, pure.
+- `bin/waypost capacity [--json]`, a help line, and a `CHANGELOG.md` entry.
+
+**Why.** After the freeze of 2026-09-14 the owner ruled that Waypost always
+takes the machine's real free resources into account, on every machine (ADR
+Decision 1).
+
+**Tests executed.**
+- `tests/capacity.test.mjs`: 46/46.
+- The full suite, run once at `--test-concurrency=2`: 456/456 in 89 s, at
+  load 2.5.
+- `node --check`.
+- `waypost doctor`: 0 issues, 0 warnings.
+
+On this Mac, available memory reads 8.5 of 16 GB by `kern.memorystatus_level`,
+4.7 GB by the `vm_stat` fallback, and 0.2 GB by `os.freemem()`.
+
+**Review.**
+- Lead review of the diff:
+  - only the four expected files changed;
+  - nothing writes, spawns a shell or touches the network;
+  - the WP-17 stash is untouched.
+- `waypost-reviewer` found all six criteria met. Its should-fix (a zero total
+  made `canStart` return NaN) and its nit (tests for the edge cases) are
+  fixed.
+
+**Risks and follow-ups.**
+- The `vm_stat` fallback is conservative, 4.7 against 9.0 GB here, because it
+  leaves out compressible memory.
+- Holders stay at 0 until the slot table arrives in the next story.
+- The probes are verified on macOS only. The Linux and Windows runs belong to
+  the verification story.
 
 ## Technical Notes
 

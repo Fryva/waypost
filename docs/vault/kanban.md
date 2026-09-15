@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-15T03:14:35.203Z
+generated_at: 2026-09-15T13:11:23.483Z
 
 ---
 
@@ -14,7 +14,7 @@ generated_at: 2026-09-15T03:14:35.203Z
 - [ ] [[epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit|WP-17: waypost clean: a classified plan, removal after a yes, the setup audit]] #p2 #blocked
 - [ ] [[epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines|WP-18: Capacity verified on Linux and Windows virtual machines]] #p1 #blocked
 - [ ] [[epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work|WP-18: The heavy-work rule in every project, and Waypost's own heavy work]] #p1 #blocked
-- [ ] [[epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work|WP-18: waypost run --heavy: a machine-wide slot for heavy work]] #p1 #blocked
+- [ ] [[epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work|WP-18: waypost run --heavy: a machine-wide slot for heavy work]] #p1
 
 ## ToDo
 
@@ -25,7 +25,6 @@ generated_at: 2026-09-15T03:14:35.203Z
 - [ ] [[epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop|WP-14: Live verification: Codex and OpenCode run the whole loop]] #p1
 - [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
 - [ ] [[epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with|WP-17: Discovery and the profile: the scheme of what Waypost works with]] #p2
-- [ ] [[epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os|WP-18: waypost capacity: the machine's real free resources, measured by each OS]] #p1
 
 ## Review
 
@@ -47,6 +46,7 @@ generated_at: 2026-09-15T03:14:35.203Z
 - [x] [[epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix|WP-16: check guards name the project's own fitness command; doctor prints it and never runs it]] #p2 #done
 - [x] [[epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs|WP-16: doctor evaluates regex guards of accepted ADRs]] #p1 #done
 - [x] [[epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global|WP-17: The toolchain registry and a tool-agnostic waypost size]] #p2 #done
+- [x] [[epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os|WP-18: waypost capacity: the machine's real free resources, measured by each OS]] #p1 #done
 
 
 
