@@ -483,7 +483,7 @@ test("scanGlobal({ profile, registry }): measures the profile's own path, re-att
       }],
     }],
   };
-  const out = scanGlobal({ profile, registry });
+  const out = scanGlobal({ profile, platform: "darwin", registry });
   assert.equal(out.length, 1);
   assert.equal(out[0].path, fixture);
   assert.equal(out[0].source, "asked");
@@ -505,11 +505,11 @@ test("scanGlobal({ profile, registry }): editing regenerable/clean in the regist
     path: "$HOME/cache-dir", os: ["darwin"], confidence: { darwin: "verified" }, regenerable, clean,
   }] }] });
 
-  const before = scanGlobal({ profile, registry: entryWith(false, "old clean text") });
+  const before = scanGlobal({ profile, platform: "darwin", registry: entryWith(false, "old clean text") });
   assert.equal(before[0].regenerable, false);
   assert.equal(before[0].clean, "old clean text");
 
-  const after = scanGlobal({ profile, registry: entryWith(true, "new clean text") });
+  const after = scanGlobal({ profile, platform: "darwin", registry: entryWith(true, "new clean text") });
   assert.equal(after[0].regenerable, true, "a fixed regenerable is visible without refreshing the profile");
   assert.equal(after[0].clean, "new clean text");
 });
@@ -520,7 +520,7 @@ test("scanGlobal({ profile, registry }): a cache item no longer in the registry 
   mkdirSync(fixture, { recursive: true });
   writeFileSync(join(fixture, "f.bin"), Buffer.alloc(1000, 1));
   const profile = { caches: [{ tool: "faketool", item: "$HOME/gone-from-registry", path: fixture, source: "default" }] };
-  const out = scanGlobal({ profile, registry: { entries: [] } }); // faketool's entry no longer exists
+  const out = scanGlobal({ profile, platform: "darwin", registry: { entries: [] } }); // faketool's entry no longer exists
   assert.equal(out.length, 0, "the dropped item is not measured");
   assert.equal(out.dropped, 1);
 });
