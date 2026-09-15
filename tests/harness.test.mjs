@@ -2,9 +2,9 @@
 // adapters (ADR-0003), and the CLI that every harness shares (ADR-0001).
 //   node --test tests/*.test.mjs
 
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync } from "node:fs";
+import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -15,6 +15,12 @@ import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleO
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
   instructionTargets, skillsOf, CONFIDENCE } from "../scripts/agents.mjs";
 import { skillNames, readSkill, validateSkill, DESCRIPTION_MAX, DESCRIPTIONS_TOTAL_MAX } from "../scripts/skills.mjs";
+
+// Every temp dir this file makes goes through here and is removed once its
+// tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
+const TMP_DIRS = [];
+const mkdtempSync = (prefix) => { const p = fsMkdtemp(prefix); TMP_DIRS.push(p); return p; };
+after(() => { for (const p of TMP_DIRS) rmSync(p, { recursive: true, force: true }); });
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
@@ -1292,6 +1298,7 @@ test("the binding follows the checkout: stored relative inside the project, reso
   // The same tree under another path — what a second machine, or another OS,
   // sees of a checkout shared between them (ADR-0007 addendum).
   const moved = proj + "-elsewhere";
+  TMP_DIRS.push(moved);
   renameSync(proj, moved);
   const st = waypost(moved, ["status"]).stdout;
   assert.ok(st.includes(`vault   ${join(moved, "vault")}`), st);

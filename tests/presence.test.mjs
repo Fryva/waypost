@@ -4,9 +4,9 @@
 // that vanishes. They are constructed on disk directly.
 //   node --test tests/*.test.mjs
 
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, unlinkSync, realpathSync } from "node:fs";
+import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, unlinkSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir, hostname, platform } from "node:os";
 import { spawnSync, spawn } from "node:child_process";
@@ -18,6 +18,12 @@ import {
 import { claimsOf, parseDuration } from "../scripts/sessions.mjs";
 import { gitCommonDir } from "../scripts/lib.mjs";
 import { checkPortableNames } from "../scripts/doctor.mjs";
+
+// Every temp dir this file makes goes through here and is removed once its
+// tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
+const TMP_DIRS = [];
+const mkdtempSync = (prefix) => { const p = fsMkdtemp(prefix); TMP_DIRS.push(p); return p; };
+after(() => { for (const p of TMP_DIRS) rmSync(p, { recursive: true, force: true }); });
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
@@ -577,6 +583,7 @@ test("a linked worktree inherits the binding, shares the records, is named a sib
   writeFileSync(join(proj, ".gitignore"), ".waypost/\n", "utf8"); // as `waypost setup` leaves it: the binding is machine-local
   g(["add", "-A"]); g(["commit", "-qm", "vault"]);
   const wt = proj + "-wt";
+  TMP_DIRS.push(wt);
   g(["worktree", "add", "-q", wt, "-b", "wt"]);
   const run = (cwd, args, env = {}) => spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd, env: { ...process.env, WAYPOST_PROJECT_DIR: cwd, WAYPOST_HOME: REPO, ...env },
