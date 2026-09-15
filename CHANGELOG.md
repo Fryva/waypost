@@ -43,6 +43,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   The machine-wide slot that makes sessions queue behind this limit comes
   next.
+- Heavy work sized to the machine, the slot (WP-18):
+  `waypost run --heavy [--wait <Ns|Nm>] -- <argv…>` claims a slot shared by
+  every session, harness and project on the machine.
+  - The claim happens under an exclusive lock, so two jobs started in the
+    same second cannot both pass the limit.
+  - The command runs at lowered priority (nice +10, below-normal on
+    Windows). Signals and the exit code pass through, and the slot is
+    released on exit.
+  - When the machine cannot take the job, it refuses at once with exit 75,
+    the reason, and a retry line that pastes back. `--wait` retries until a
+    deadline.
+  - A holder is judged alive by boot identity and process start time (the
+    image name on Windows), so a restart never leaves a stale slot behind.
+
+  `waypost capacity` lists the holders. `waypost capacity --release <id>` is
+  the recovery path; it refuses a live-looking holder unless `--force` is
+  given.
 
 ### Changed
 - Coordination follows the repository (ADR-0010): inside a git repository,

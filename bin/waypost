@@ -6,15 +6,18 @@
 //
 // Subcommands: see help() at the bottom, or `waypost help`.
 
-import { resolve, dirname, join, sep } from "node:path";
+import { resolve, dirname, join, sep, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, lstatSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import {
+  existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, lstatSync, unlinkSync, rmSync,
+} from "node:fs";
+import { spawnSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { homedir } from "node:os";
+import { homedir, hostname, setPriority, constants as osConstants } from "node:os";
 import {
   parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, storyRefOf, expandHome,
   storedVaultPath, resolveVaultPath, bindingInfo, readConfig as readConfigLib, isLinkedWorktree, worktreeTag,
+  machineStateDir,
 } from "../scripts/lib.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -85,7 +88,7 @@ function readConfig() {
 // boolean flag was written before it.
 const VALUED = new Set(["--harness", "--layout", "--lang", "--only", "--id",
   "--budget", "--project", "--since", "--for", "--kind", "--limit", "--message",
-  "--story", "--merge", "--session", "--provider", "--older-than"]);
+  "--story", "--merge", "--session", "--provider", "--older-than", "--wait", "--release"]);
 
 // The literal `--` stops flag parsing, same as most POSIX CLIs: everything
 // after it is positional even if it is spelled like a flag (`waypost search --
@@ -771,17 +774,32 @@ async function handleSize(args) {
 // scripts/capacity.mjs the way handleSize reaches sizes.mjs: a dynamic
 // import(), in-process, no subprocess.
 async function handleCapacity(args) {
-  let capacity;
+  let capacity, presence;
   try {
     capacity = await import(`file://${SCRIPT("capacity")}`);
+    presence = await import(`file://${SCRIPT("presence")}`);
   } catch (e) { fail(`capacity: ${e.message}`); }
+
+  const releaseId = opt(args, "--release");
+  if (releaseId != null) {
+    await handleCapacityRelease(capacity, presence, releaseId, flag(args, "--force"), flag(args, "--json"));
+    return;
+  }
+
+  const dir = slotsDir(presence);
+  let holders;
+  try { holders = capacity.readHolders({ dir }); } catch { holders = { live: [], stale: [] }; }
 
   let m;
   try {
-    m = await capacity.measure();
+    m = await capacity.measure({ holders: holders.live, env: process.env });
   } catch (e) { fail(`capacity: ${e.message}`); }
+  warnIfProbed(m);
 
-  if (flag(args, "--json")) { process.stdout.write(JSON.stringify(m, null, 2) + "\n"); return; }
+  if (flag(args, "--json")) {
+    process.stdout.write(JSON.stringify({ ...m, holders_live: holders.live.map(holderSummary) }, null, 2) + "\n");
+    return;
+  }
 
   const availGb = (m.memory.available / GB).toFixed(1);
   const totalGb = (m.memory.total / GB).toFixed(1);
@@ -790,6 +808,278 @@ async function handleCapacity(args) {
     process.stdout.write(`can start ${m.can_start} heavy job${m.can_start === 1 ? "" : "s"}\n`);
   } else {
     process.stdout.write(`can start 0 — ${m.reason}\n`);
+  }
+  if (holders.live.length) {
+    process.stdout.write("\nholders:\n");
+    for (const h of holders.live) process.stdout.write(`  ${holderLine(h)}\n`);
+  }
+}
+
+function holderSummary(h) {
+  return { id: h.id, session: h.session, harness: h.harness, command: h.command, since: h.started_at, host: h.host };
+}
+
+function holderLine(h) {
+  return `${h.id}  ${h.session || "?"} (${h.harness || "?"})  ${h.command || ""}  since ${h.started_at}`;
+}
+
+// waypost capacity --release <id> [--force]: the recovery path when a slot
+// looks stuck. slotLive() runs first — the same check readHolders() uses —
+// and a record that still looks alive is refused without --force.
+async function handleCapacityRelease(capacity, presence, id, force, json) {
+  // An id names a record in the slot directory and nothing else: no path
+  // separator and no dot, so --release can never reach a file outside it.
+  if (!/^[A-Za-z0-9_-]+$/.test(String(id))) fail(`capacity --release: "${id}" is not a slot id`);
+  const dir = slotsDir(presence);
+  const file = join(dir, `${id}.json`);
+  if (!existsSync(file)) fail(`capacity --release: no such holder "${id}"`);
+  let rec;
+  try { rec = JSON.parse(readFileSync(file, "utf8")); }
+  catch (e) { fail(`capacity --release: ${file}: ${e.message}`); }
+  if (!rec || rec.id !== id || !rec.proc) fail(`capacity --release: ${file} is not a slot record for "${id}"`);
+  const live = capacity.slotLive(rec, {});
+  if (live && !force) {
+    fail(`capacity --release: ${id} still looks alive (${rec.session || "?"} on ${rec.host}, pid ${rec.proc && rec.proc.pid}) — pass --force to release it anyway`);
+  }
+  try { unlinkSync(file); } catch (e) { fail(`capacity --release: ${e.message}`); }
+  if (json) {
+    process.stdout.write(JSON.stringify({ released: id, was_live: live, forced: live && force, record: holderSummary(rec) }, null, 2) + "\n");
+  } else {
+    process.stdout.write(`released ${holderLine(rec)}${live ? "  (forced, was still alive)" : ""}\n`);
+  }
+}
+
+// ─── run --heavy: a machine-wide slot for heavy work ────────────────────
+//
+// WP-18 Decision 2. One slot table per machine, in the machine state
+// directory (never synced): <machineStateDir()>/slots.<hostSlug>/. Every
+// session, harness and project on this machine shares it. All writes to it —
+// the lock, a new record, pruning a stale one — live here; scripts/capacity.mjs
+// (readHolders, slotLive, bootIdentity) only ever reads it.
+function slotsDir(presence) {
+  return join(machineStateDir(), `slots.${presence.hostSlug()}`);
+}
+
+const EX_TEMPFAIL = 75; // sysexits.h: temporary failure, safe to retry
+const LOCK_STALE_MS = 5 * 60 * 1000;
+const LOCK_RETRY_BUDGET_MS = 2000;
+const LOCK_RETRY_DELAY_MS = 250;
+const WAIT_POLL_MS = 5000;
+const REASON_PRINT_MS = 30_000;
+
+function delay(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// WAYPOST_CAPACITY_PROBE replaces the machine's real measures, for hermetic
+// tests only. When it is honoured, say so on stderr, so a variable leaked
+// into an interactive shell cannot silently fake an idle machine.
+function warnIfProbed(m) {
+  if (warnIfProbed.done || !m || !m.probes || m.probes.memory !== "WAYPOST_CAPACITY_PROBE") return;
+  warnIfProbed.done = true;
+  process.stderr.write("waypost: WAYPOST_CAPACITY_PROBE is set — the real machine is not being measured (tests only)\n");
+}
+
+// Is the lock's owner gone? The same evidence slotLive() uses for a slot
+// record: the boot identity first, then on POSIX the process table and start
+// time (a reused pid is not mistaken for the owner), on win32 signal-0. The
+// 24-hour part is left out, since a five-minute mtime already bounds a lock.
+function lockOwnerGone(owner, presence, table, capacity) {
+  if (!owner || !owner.pid) return true;
+  // An owner from an earlier boot is gone whatever its pid names now, so a
+  // pid reused after an unclean restart never holds the lock for five minutes.
+  if (owner.boot && capacity && !capacity.sameBoot(owner.boot, capacity.bootIdentity())) return true;
+  if (process.platform === "win32") {
+    try { process.kill(owner.pid, 0); return false; }
+    catch (e) { return e.code === "ESRCH"; }
+  }
+  const rec = { host: hostname().split(".")[0], proc: { pid: owner.pid, started: owner.started || null } };
+  const gone = presence.processGone(rec, table);
+  if (gone !== null) return gone;
+  try { process.kill(owner.pid, 0); return false; }
+  catch (e) { return e.code === "ESRCH"; }
+}
+
+// Broken only when its owner is dead, or the lock itself is older than five
+// minutes — either reason alone is enough to reclaim it. A briefly unreadable
+// owner.json (the sliver of time between the owner's own mkdirSync and its
+// writeFileSync) is NOT evidence of death: treating it as such let a second
+// claimant "break" a lock its rightful owner had just created, defeating
+// mutual exclusion (caught by the stress test). Only a successfully read and
+// confirmed-dead owner, or the five-minute mtime cap, may break it early.
+function breakStaleLock(lockDir, presence, table, capacity) {
+  let st;
+  try { st = statSync(lockDir); } catch { return true; } // already gone
+  if (Date.now() - st.mtimeMs > LOCK_STALE_MS) {
+    try { rmSync(lockDir, { recursive: true, force: true }); } catch { return false; }
+    return true;
+  }
+  let owner = null;
+  try { owner = JSON.parse(readFileSync(join(lockDir, "owner.json"), "utf8")); } catch {}
+  if (!owner || !lockOwnerGone(owner, presence, table, capacity)) return false;
+  try { rmSync(lockDir, { recursive: true, force: true }); } catch { return false; }
+  return true;
+}
+
+// mkdirSync is atomic on every OS: EEXIST means someone else holds it right
+// now. Retried a few times within about 2 seconds, breaking it along the way
+// per breakStaleLock(); null when the budget runs out (report busy).
+async function acquireLock(dir, presence, capacity) {
+  const lockDir = join(dir, ".lock");
+  const deadline = Date.now() + LOCK_RETRY_BUDGET_MS;
+  for (;;) {
+    try {
+      mkdirSync(lockDir);
+      const table = process.platform === "win32" ? null : presence.processTable();
+      const self = table ? table.get(process.pid) : null;
+      writeFileSync(join(lockDir, "owner.json"),
+        JSON.stringify({ pid: process.pid, started: self ? self.started : null, boot: capacity ? capacity.bootIdentity() : null }) + "\n", "utf8");
+      return lockDir;
+    } catch (e) {
+      if (e.code !== "EEXIST") throw e;
+      const table = process.platform === "win32" ? null : presence.processTable();
+      if (breakStaleLock(lockDir, presence, table, capacity)) continue; // reclaimed — retry the mkdir at once
+      if (Date.now() >= deadline) return null;
+      await delay(LOCK_RETRY_DELAY_MS);
+    }
+  }
+}
+
+function releaseLock(lockDir) {
+  try { rmSync(lockDir, { recursive: true, force: true }); } catch {}
+}
+
+// Under the lock: prune the stale records, measure with the live ones, and
+// either write our own record or report why not. Two processes starting in
+// the same second cannot both pass the cap.
+async function claimSlot(dir, argv, capacity, presence) {
+  const lockDir = await acquireLock(dir, presence, capacity);
+  if (!lockDir) {
+    return { ok: false, reason: "the slot lock is busy — another `waypost run --heavy` is claiming right now" };
+  }
+  try {
+    const holders = capacity.readHolders({ dir });
+    for (const rec of holders.stale) { try { unlinkSync(rec.file); } catch {} }
+    const m = await capacity.measure({ holders: holders.live, env: process.env });
+    warnIfProbed(m);
+    if (m.can_start <= 0) return { ok: false, reason: m.reason || "no heavy job slot available" };
+
+    const table = process.platform === "win32" ? null : presence.processTable();
+    const self = table ? table.get(process.pid) : null;
+    const id = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const rec = {
+      id,
+      host: hostname().split(".")[0],
+      proc: { pid: process.pid, started: self ? self.started : null, comm: basename(process.execPath) },
+      boot: capacity.bootIdentity(),
+      session: process.env.WAYPOST_SESSION_ID || null,
+      harness: process.env.WAYPOST_HARNESS || null,
+      command: argv.map(shellQuote).join(" "),
+      started_at: new Date().toISOString(),
+    };
+    writeFileSync(join(dir, `${id}.json`), JSON.stringify(rec, null, 2) + "\n", "utf8");
+    return { ok: true, release: () => { try { unlinkSync(join(dir, `${id}.json`)); } catch {} } };
+  } finally {
+    releaseLock(lockDir);
+  }
+}
+
+// <N>s or <N>m only, the ADR's own examples (30s, 10m) — anything else fails
+// fast rather than guessing.
+function parseDuration(spec) {
+  const m = String(spec).match(/^(\d+)(s|m)$/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return m[2] === "m" ? n * 60_000 : n * 1000;
+}
+
+function signalNumber(sig) {
+  return (osConstants.signals && osConstants.signals[sig]) || 0;
+}
+
+// The retry line is printed to be pasted back, so an argument with anything
+// beyond plain characters is quoted: POSIX single quotes, or double quotes on
+// Windows.
+function shellQuote(arg) {
+  const s = String(arg);
+  if (/^[\w@%+=:,./-]+$/.test(s)) return s;
+  return process.platform === "win32" ? `"${s.replace(/"/g, '\\"')}"` : `'${s.replace(/'/g, "'\\''")}'`;
+}
+
+// Lowers waypost's own priority first, so the command and everything it
+// starts inherits it — Node maps PRIORITY_BELOW_NORMAL to nice +10 on POSIX,
+// below-normal on Windows. No shell, except a .cmd/.bat target on Windows,
+// which only cmd.exe can start (the argv is the caller's own command, not
+// data from a registry).
+async function runHeavy(argv, release) {
+  try { setPriority(osConstants.priority.PRIORITY_BELOW_NORMAL); }
+  catch { /* best-effort: a restricted sandbox must not block the run */ }
+
+  const [cmd, ...cmdArgs] = argv;
+  const useShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(cmd);
+  let child;
+  try {
+    child = spawn(cmd, cmdArgs, { stdio: "inherit", shell: useShell });
+  } catch (e) {
+    release();
+    fail(`run --heavy: ${e.message}`);
+  }
+
+  const forward = (sig) => { try { child.kill(sig); } catch {} };
+  process.on("SIGINT", () => forward("SIGINT"));
+  process.on("SIGTERM", () => forward("SIGTERM"));
+
+  const [code, signal] = await new Promise((res) => {
+    child.on("exit", (c, s) => res([c, s]));
+    child.on("error", (e) => { process.stderr.write(`waypost run --heavy: ${e.message}\n`); res([127, null]); });
+  });
+
+  release();
+  process.exitCode = signal ? 128 + signalNumber(signal) : (code == null ? 1 : code);
+}
+
+// waypost run --heavy [--wait <Ns|Nm>] -- <argv…>. No wait: refuse at once,
+// with the reason and the exact retry command, exit EX_TEMPFAIL. --wait
+// retries every 5 seconds until the deadline, repeating the reason every 30.
+async function handleRun(args) {
+  if (!flag(args, "--heavy")) fail('run: only "run --heavy -- <argv…>" is supported (see `waypost help`)');
+  const { tail: argv } = splitAtTerminator(args);
+  if (!argv.length) fail("run --heavy: usage: waypost run --heavy [--wait <Ns|Nm>] -- <argv…>");
+
+  let waitMs = null;
+  const waitSpec = opt(args, "--wait");
+  if (waitSpec != null) {
+    waitMs = parseDuration(waitSpec);
+    if (waitMs == null) fail(`run --heavy: --wait expects <N>s or <N>m, got "${waitSpec}"`);
+  }
+
+  let capacity, presence;
+  try {
+    capacity = await import(`file://${SCRIPT("capacity")}`);
+    presence = await import(`file://${SCRIPT("presence")}`);
+  } catch (e) { fail(`run --heavy: ${e.message}`); }
+
+  const dir = slotsDir(presence);
+  mkdirSync(dir, { recursive: true });
+  const retryCmd = `waypost run --heavy -- ${argv.map(shellQuote).join(" ")}`;
+  const deadline = waitMs != null ? Date.now() + waitMs : null;
+  let lastPrinted = 0;
+
+  for (;;) {
+    const claim = await claimSlot(dir, argv, capacity, presence);
+    if (claim.ok) { await runHeavy(argv, claim.release); return; }
+
+    const now = Date.now();
+    if (deadline == null || now >= deadline) {
+      process.stderr.write(`waypost run --heavy: refused — ${claim.reason}\n  retry: ${retryCmd}\n`);
+      process.exitCode = EX_TEMPFAIL;
+      return;
+    }
+    if (now - lastPrinted >= REASON_PRINT_MS) {
+      process.stderr.write(`waypost run --heavy: waiting — ${claim.reason}\n`);
+      lastPrinted = now;
+    }
+    await delay(Math.min(WAIT_POLL_MS, deadline - now));
   }
 }
 
@@ -931,6 +1221,13 @@ PROCEDURES
   capacity [--json]        the machine's real free resources right now: cores,
                            load, available memory and how many more heavy
                            jobs it can take (never cached) [--json for detail]
+  capacity --release <id> [--force]
+                           recovery path for a stuck slot: refuses a
+                           live-looking holder unless --force is given
+  run --heavy -- <cmd…>    claim a machine-wide slot, run at lowered priority
+                           (nice +10), and release it on exit
+                           [--wait <Ns|Nm>] (refused: exit 75, with the
+                           reason and the retry command)
 
 HARNESS-AGNOSTIC
   No hooks, no status line, no slash commands: the CLI is the interface, and
@@ -1104,6 +1401,7 @@ async function main() {
     case "diff-refs": run("diff-refs", rest); break;
     case "size": await handleSize(rest); break;
     case "capacity": await handleCapacity(rest); break;
+    case "run": await handleRun(rest); break;
     case "agents": run("agents", rest); break;
     case "harnesses": run("agents", ["harnesses", ...rest]); break;
     case "sessions": run("sessions", rest); break;

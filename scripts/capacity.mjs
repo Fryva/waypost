@@ -10,19 +10,25 @@
 // free while macOS itself reported 81% available; os.loadavg() always zero on
 // Windows) are why each OS gets its own probe instead of one constant call.
 //
-// Holders (the heavy jobs currently occupying a slot) come from the next
-// story's slot table; this story always reports 0.
+// Holders (the heavy jobs currently occupying a slot) come from the slot
+// table in the machine state directory: bootIdentity() and slotLive() below
+// decide which records are live, and measure({ holders }) counts them. This
+// file only ever reads that table — every write (the lock, a new record,
+// pruning a stale one) lives in bin/waypost (WP-18 Decision 2), so two
+// readers racing here can never delete or clobber each other's record.
 
-import { availableParallelism, loadavg, cpus, totalmem, freemem } from "node:os";
-import { readFileSync } from "node:fs";
+import { availableParallelism, loadavg, cpus, totalmem, freemem, uptime } from "node:os";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { processTable, processGone } from "./presence.mjs";
 
 const GB = 1024 ** 3;
 
 // ─── default probes ─────────────────────────────────────────────────────
 
 function defaultOs() {
-  return { availableParallelism, loadavg, cpus, totalmem, freemem };
+  return { availableParallelism, loadavg, cpus, totalmem, freemem, uptime };
 }
 
 function defaultReadFile(path) {
@@ -226,6 +232,131 @@ export function readMemory({ platform = process.platform, os = defaultOs(), read
   return { available: os.freemem(), total, probe: "os.freemem() (lower bound)" };
 }
 
+// ─── boot identity ───────────────────────────────────────────────────────
+//
+// A record from an earlier boot must never hold a slot after a restart —
+// pids are reused at once (the ADR's Alternative H). Linux and macOS each
+// expose a real boot identifier; everywhere else, and when the platform's
+// own probe fails (no /proc, a sandboxed sysctl), now minus os.uptime()
+// stands in, compared later with a tolerance instead of exact equality.
+const BOOT_EPOCH_TOLERANCE_S = 120;
+
+export function bootIdentity({ platform = process.platform, os = defaultOs(), readFile = defaultReadFile, run = defaultRun, now = Date.now() } = {}) {
+  if (platform === "linux") {
+    const id = readFile("/proc/sys/kernel/random/boot_id");
+    if (id != null && id.trim()) return { kind: "boot_id", value: id.trim() };
+  } else if (platform === "darwin") {
+    const out = run("sysctl", ["-n", "kern.boottime"]);
+    const m = out != null ? out.match(/sec\s*=\s*(\d+)/) : null;
+    if (m) return { kind: "kern.boottime", value: Number(m[1]) };
+  }
+  const nowS = Math.floor(now / 1000);
+  return { kind: "epoch", value: Math.round(nowS - os.uptime()) };
+}
+
+// Exact equality for a real OS identifier; a 120s window for the epoch
+// fallback, since two readings of "now - uptime" drift with scheduling and
+// the tests verify this stays sound across sleep/wake.
+export function sameBoot(a, b) {
+  if (!a || !b || a.kind !== b.kind) return false;
+  if (a.kind === "epoch") return Math.abs(a.value - b.value) <= BOOT_EPOCH_TOLERANCE_S;
+  return a.value === b.value;
+}
+
+// ─── slot liveness ───────────────────────────────────────────────────────
+//
+// A slot record names the `waypost run --heavy` process itself (its pid and
+// process start time), so on POSIX processGone() — the same start-time
+// comparison presence.mjs uses for a session's harness process — decides
+// unchanged: a reused pid is not mistaken for the holder. Windows has no
+// process table, so signal-0 plus the image name `tasklist` reports (run
+// without a shell, a 3-second timeout) and a 24-hour cap are the only
+// evidence there.
+const WIN_SLOT_STALE_MS = 24 * 60 * 60 * 1000;
+
+function defaultKill(pid) {
+  try { process.kill(pid, 0); return true; }
+  catch (e) { return Boolean(e) && e.code !== "ESRCH"; }
+}
+
+// CSV, no header: "image.exe","1234","Console","1","12,345 K". Returns the
+// first column, or null on any failure — a hung or missing tasklist, a
+// non-zero exit, unparsable output — so the caller falls back to signal-0
+// and the 24-hour cap alone.
+function defaultTasklist(pid) {
+  let r;
+  try {
+    r = spawnSync("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], {
+      shell: false, stdio: ["ignore", "pipe", "ignore"], encoding: "utf8", timeout: 3000,
+    });
+  } catch { return null; }
+  if (!r || r.error || r.status !== 0 || !r.stdout) return null;
+  const line = (r.stdout.trim().split(/\r?\n/)[0] || "");
+  const m = line.match(/^"([^"]*)"/);
+  return m ? m[1] : null;
+}
+
+// Every probe is injectable — table, tasklist, kill, bootNow, now — so these
+// tests never depend on the host's own process table or clock. Read-only:
+// nothing here removes a stale record, which is bin/waypost's job, under
+// the lock.
+export function slotLive(rec, {
+  table,
+  platform = process.platform,
+  bootNow = bootIdentity(),
+  tasklist = defaultTasklist,
+  now = Date.now(),
+  kill = defaultKill,
+} = {}) {
+  if (!sameBoot(rec.boot, bootNow)) return false;
+
+  if (platform !== "win32") {
+    const gone = processGone(rec, table);
+    if (gone !== null) return !gone;
+    return kill(rec.proc.pid); // undecidable via the table: signal-0 decides
+  }
+
+  // win32: signal-0, the image name, and the 24-hour cap are the only
+  // evidence. Any one finding it stale is enough; when tasklist itself
+  // fails, signal-0 and the cap decide alone.
+  if (!kill(rec.proc.pid)) return false;
+  const started = Date.parse(rec.started_at);
+  if (Number.isFinite(started) && now - started > WIN_SLOT_STALE_MS) return false;
+  const image = tasklist(rec.proc.pid);
+  if (image != null && image !== rec.proc.comm) return false;
+  return true;
+}
+
+// ─── holders ─────────────────────────────────────────────────────────────
+//
+// Every record in the slot directory (<machineStateDir>/slots.<hostSlug>/),
+// split into live and stale by slotLive(). Read and compute only — a stale
+// record is reported, never removed; bin/waypost prunes under the lock, so
+// two readers racing here never delete a record the other still sees as live.
+export function readHolders({ dir, ...probes } = {}) {
+  let names = [];
+  try { names = readdirSync(dir); } catch { return { live: [], stale: [] }; }
+  const platform = probes.platform ?? process.platform;
+  // No process table on win32 (presence.mjs's own probe returns null there);
+  // slotLive() never consults `table` on that branch, so it is not worth a
+  // real `ps` call when a test injects platform: "win32" on a POSIX runner.
+  const table = platform === "win32" ? undefined
+    : (probes.table !== undefined ? probes.table : processTable());
+  const bootNow = probes.bootNow ?? bootIdentity(probes);
+  const live = [];
+  const stale = [];
+  for (const name of names) {
+    if (!name.endsWith(".json")) continue; // skips .lock and any stray entry
+    const file = join(dir, name);
+    let rec;
+    try { rec = JSON.parse(readFileSync(file, "utf8")); } catch { continue; }
+    if (!rec || !rec.id || !rec.proc) continue;
+    const entry = { ...rec, file };
+    (slotLive(rec, { ...probes, platform, table, bootNow }) ? live : stale).push(entry);
+  }
+  return { live, stale };
+}
+
 // ─── canStart ────────────────────────────────────────────────────────────
 //
 // The owner's defaults (Owner's decisions, item 1): one slot per four cores,
@@ -279,11 +410,24 @@ export function canStart({ cores, busy, available, total, holders = 0, max = nul
   return { slots, job_cores: jobCores, job_memory: jobMemory, can_start: started, reason };
 }
 
+// Malformed or partial JSON is ignored, falling back to the real probes, so a
+// typo in the env never silently mis-measures a real machine.
+function parseCapacityProbe(raw) {
+  try {
+    const v = JSON.parse(raw);
+    const nums = ["cores", "busy", "available", "total"];
+    if (v && typeof v === "object" && nums.every((k) => typeof v[k] === "number")) return v;
+  } catch { /* falls through to the real probes */ }
+  return null;
+}
+
 // ─── measure ─────────────────────────────────────────────────────────────
 //
 // Everything above in one call: never cached, so every invocation reflects
-// the machine right now. Holders come from the next story's slot table — this
-// story always reports 0, so can_start here only ever reflects (b) and (c).
+// the machine right now. `holders` is the live-holder array a caller already
+// read with readHolders() (empty by default, e.g. before any slot table
+// exists) — this function only counts it, per WP-18 Decision 2's division of
+// labour: reading the slot directory and writing to it are bin/waypost's job.
 export async function measure({
   platform = process.platform,
   os = defaultOs(),
@@ -291,18 +435,31 @@ export async function measure({
   run = defaultRun,
   wait = defaultWait,
   env = process.env,
+  holders = [],
 } = {}) {
-  const coresResult = readCores({ platform, os, readFile });
-  const busyResult = await readBusy({ platform, os, wait });
-  const memoryResult = readMemory({ platform, os, readFile, run });
-  const holders = 0;
+  // WAYPOST_CAPACITY_PROBE replaces every machine probe with fixed numbers —
+  // for hermetic CLI tests only (WP-18's stress test and its neighbours),
+  // never a documented user-facing override.
+  const probe = env.WAYPOST_CAPACITY_PROBE ? parseCapacityProbe(env.WAYPOST_CAPACITY_PROBE) : null;
 
+  let coresResult, busyResult, memoryResult;
+  if (probe) {
+    coresResult = { cores: probe.cores, probe: "WAYPOST_CAPACITY_PROBE" };
+    busyResult = { busy: probe.busy, probe: "WAYPOST_CAPACITY_PROBE" };
+    memoryResult = { available: probe.available, total: probe.total, probe: "WAYPOST_CAPACITY_PROBE" };
+  } else {
+    coresResult = readCores({ platform, os, readFile });
+    busyResult = await readBusy({ platform, os, wait });
+    memoryResult = readMemory({ platform, os, readFile, run });
+  }
+
+  const holderCount = Array.isArray(holders) ? holders.length : 0;
   const started = canStart({
     cores: coresResult.cores,
     busy: busyResult.busy,
     available: memoryResult.available,
     total: memoryResult.total,
-    holders,
+    holders: holderCount,
     max: env.WAYPOST_HEAVY_MAX,
   });
 
@@ -311,7 +468,7 @@ export async function measure({
     busy: busyResult.busy,
     memory: { available: memoryResult.available, total: memoryResult.total },
     probes: { cores: coresResult.probe, busy: busyResult.probe, memory: memoryResult.probe },
-    holders,
+    holders: holderCount,
     slots: started.slots,
     can_start: started.can_start,
     reason: started.reason,

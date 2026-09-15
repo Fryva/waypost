@@ -141,7 +141,7 @@ const legacyLeaseDir = (vault) => { const l = coordinationDirs(vault).legacy; re
 // to hold even when the project directory itself sits on a sync drive, or two
 // devices sharing it would read each other's clock stamps — the exact
 // comparison assumption 1 rules out — and flip every verdict on every command.
-const hostSlug = () => hostname().split(".")[0].replace(/[^\w.-]+/g, "_");
+export const hostSlug = () => hostname().split(".")[0].replace(/[^\w.-]+/g, "_");
 const observationsPath = () => join(projectRoot(), ".waypost", "state", `peers.${hostSlug()}.json`);
 
 function ensure(dir) {

@@ -3,19 +3,19 @@ type: story
 id: "story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work"
 epic: "WP-18"
 title: "waypost run --heavy: a machine-wide slot for heavy work"
-status: planned
+status: in-progress
 priority: p1
 assignee: "Ivan Morozov"
 created: 2026-09-15
 updated: 2026-09-15
 external_refs: {}
 tags: []
-code_refs: ["bin/waypost", "scripts/capacity.mjs", "scripts/presence.mjs", "tests/capacity.test.mjs"]
+code_refs: ["bin/waypost", "scripts/capacity.mjs", "scripts/lib.mjs", "scripts/presence.mjs", "tests/capacity.test.mjs", "tests/slots.test.mjs", "CHANGELOG.md"]
 specs: []
 blocked_by: ["WP-18/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os"]
-started_at: null
+started_at: "2026-09-15T13:17:33.403Z"
 closed_at: null
-plan_updated_at: null
+plan_updated_at: "2026-09-15T13:17:33.403Z"
 ---
 
 # waypost run --heavy: a machine-wide slot for heavy work
@@ -23,7 +23,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-18](../epic.md) |
-| **Status** | planned |
+| **Status** | in-progress |
 | **Priority** | p1 |
 | **Assignee** | Ivan Morozov |
 
@@ -66,7 +66,96 @@ stale slot never blocks after a restart.
 
 ## Implementation Plan
 
-<!-- Written at the work-start gate (waypost story plan). -->
+Written by the lead on 2026-09-15, from the ADR's Decision 2 and the code in
+`scripts/presence.mjs` (`processTable`, `processGone`, `hostSlug`).
+
+1. **`scripts/presence.mjs`:** `export` `hostSlug`. That is one word and no
+   behaviour change. The paused WP-17 stash makes the same change, so the
+   conflict there will be trivial.
+2. **Record shape:** `{ id, host, proc: { pid, started, comm }, boot,
+   session, harness, command, started_at }`.
+   - `host` and `proc` have exactly the shape `processGone(rec, table)`
+     reads, so on POSIX it decides liveness unchanged: gone, alive, or
+     `null` for "no table".
+   - `proc` is the `waypost run` process itself. It lives as long as the
+     command it waits for.
+3. **`scripts/capacity.mjs`** (read and compute only):
+   - `bootIdentity(probes)`:
+     - Linux: `/proc/sys/kernel/random/boot_id`;
+     - macOS: the `sec` of `sysctl -n kern.boottime`;
+     - otherwise: round(now − `os.uptime()`), with the kind recorded so that
+       comparison uses a 120-second tolerance.
+   - `slotLive(rec, { table, platform, bootNow, tasklist, now, kill })`. A
+     record is stale when:
+     - it belongs to another boot;
+     - POSIX: `processGone` is true. If it is `null`, a signal-0 probe
+       decides;
+     - win32: signal-0 finds nothing (ESRCH); or `tasklist /FI "PID eq N"
+       /FO CSV /NH` (no shell, 3-second timeout) reports another image name
+       than `proc.comm`; or the record is older than 24 hours. When
+       `tasklist` fails, signal-0 and the 24-hour cap decide.
+   - `readHolders({ dir, ...probes })` reads the records and returns
+     `{ live, stale }`. It writes nothing.
+   - `measure({ holders })` counts the live ones.
+   - `WAYPOST_CAPACITY_PROBE` (JSON: cores, busy, available, total) replaces
+     the machine probes when set. This is for hermetic CLI tests only, and
+     the docs say so.
+4. **`bin/waypost`** (all writes live here, as the ADR says). The slot
+   directory is `<machineStateDir()>/slots.<hostSlug>/`.
+   - **Lock:** `mkdirSync(<dir>/.lock)`, holding `owner.json` with
+     `{ pid, started }`. On `EEXIST`, the lock is broken only when its owner
+     is gone by the same liveness check, or when its mtime is more than five
+     minutes old. The claim retries a few times within about 2 seconds, then
+     reports busy.
+   - **`waypost run --heavy [--wait <30s|10m>] -- <argv…>`:**
+     - Take the lock, remove the stale records, and call
+       `measure({ holders })`.
+     - If `can_start > 0`: write our own record, release the lock and run.
+     - Otherwise: release the lock and print the reason and the retry
+       command. Without `--wait`, or past the deadline, exit **75**
+       (EX_TEMPFAIL). With `--wait`, retry every 5 seconds, printing the
+       reason every 30.
+   - **Running:**
+     - `os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL)` on the
+       waypost process itself before spawning: nice +10 on POSIX,
+       below-normal on Windows, and the command's children inherit it.
+     - `spawn(argv[0], argv.slice(1), { stdio: "inherit", shell: false })`.
+       A `.cmd` or `.bat` target on Windows is the exception (see Technical
+       Notes).
+     - Pass SIGINT and SIGTERM on to the child.
+     - On exit, remove our own record and exit with the child's code, or
+       128 + the signal number.
+   - **`waypost capacity`:** lists the live holders (session, harness,
+     command, since).
+   - **`waypost capacity --release <id> [--force]`:** runs `slotLive` first.
+     It refuses a live-looking record unless `--force` is given, and prints
+     what it released.
+5. **`tests/slots.test.mjs`** (new):
+   - liveness: another boot; a reused pid with another start time; on
+     injected win32, an image-name mismatch, a failing `tasklist`, and the
+     24-hour cap;
+   - the lock: a dead owner is broken, a live owner is kept, a lock older
+     than five minutes is broken;
+   - refusal: exit 75 within a second, with the reason and the retry command;
+   - `--wait 2s` retries until the deadline;
+   - the exit code passes through, including a crash (exit 3) and a signal;
+   - the priority read back in the child (`os.getPriority()` → 10 on POSIX);
+   - the `--release` guard;
+   - **the stress test:** 5 parallel `waypost run --heavy -- node -e
+     "setTimeout(()=>{},1500)"`, with `WAYPOST_HEAVY_MAX=1`, an idle
+     `WAYPOST_CAPACITY_PROBE`, and `HOME`/`XDG_STATE_HOME` in a temporary
+     directory. Exactly one runs; four exit 75.
+6. **Test runs:** the new file alone while working; the full suite once at
+   the end with `--test-concurrency=2`, after checking the load.
+
+Technical notes for this plan:
+- Windows starts a batch file (`npm.cmd`, `gradlew.bat`) only through
+  `cmd.exe`. For such a target `run --heavy` uses Node's `shell: true`. The
+  argv is the caller's own command, not data from a registry. Every other
+  target runs without a shell. The verification story checks it.
+- If the `waypost run` process is killed outright (SIGKILL), its record is
+  released as stale, but the child may keep running untracked. Its load still
+  shows in rule (b).
 
 ## Acceptance Criteria
 

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-15T13:03:52.893Z
+generated_at: 2026-09-15T13:45:47.913Z
 
 ---
 
@@ -16,7 +16,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | [[epics/WP-15/epic\|WP-15]] | Coordination follows the repository, and ready work | planned | — |
 | [[epics/WP-16/epic\|WP-16]] | Decisions that check themselves | planned | — |
 | [[epics/WP-17/epic\|WP-17]] | Disk hygiene by discovery | planned | `toolchains/`, `scripts/toolchains.mjs`, `scripts/discovery.mjs (planned)`, `scripts/sizes.mjs`, `scripts/cleanup.mjs (planned)`, `bin/waypost`, `package.json`, `scripts/doctor.mjs`, `scripts/presence.mjs`, `prompts/cleanup.md (planned)`, `skills/waypost-doctor/SKILL.md`, `docs/toolchains.md`, `tests/sizes.test.mjs`, `tests/toolchains.test.mjs`, `tests/discovery.test.mjs (planned)`, `tests/scripts.test.mjs`, `tests/cleanup.test.mjs (planned)`, `README.md`, `AGENTS.md`, `CHANGELOG.md` |
-| [[epics/WP-18/epic\|WP-18]] | Heavy work sized to the machine | planned | `scripts/capacity.mjs`, `scripts/lib.mjs`, `scripts/presence.mjs`, `scripts/agents.mjs`, `bin/waypost`, `AGENTS.md`, `package.json`, `prompts/heavy.md (planned)`, `tests/capacity.test.mjs`, `tests/harness.test.mjs`, `README.md`, `CHANGELOG.md` |
+| [[epics/WP-18/epic\|WP-18]] | Heavy work sized to the machine | planned | `scripts/capacity.mjs`, `scripts/lib.mjs`, `scripts/presence.mjs`, `scripts/agents.mjs`, `bin/waypost`, `AGENTS.md`, `package.json`, `prompts/heavy.md (planned)`, `tests/capacity.test.mjs`, `tests/slots.test.mjs`, `tests/harness.test.mjs`, `README.md`, `CHANGELOG.md` |
 
 ## Story-level refs (files each story touched)
 
@@ -30,4 +30,4 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-18 | Capacity verified on Linux and Windows virtual machines | `scripts/capacity.mjs`, `bin/waypost` |
 | WP-18 | The heavy-work rule in every project, and Waypost's own heavy work | `scripts/agents.mjs`, `AGENTS.md`, `prompts/heavy.md (planned)`, `package.json`, `bin/waypost`, `tests/harness.test.mjs`, `README.md`, `CHANGELOG.md` |
 | WP-18 | waypost capacity: the machine's real free resources, measured by each OS | `scripts/capacity.mjs`, `scripts/lib.mjs`, `bin/waypost`, `tests/capacity.test.mjs`, `CHANGELOG.md` |
-| WP-18 | waypost run --heavy: a machine-wide slot for heavy work | `bin/waypost`, `scripts/capacity.mjs`, `scripts/presence.mjs`, `tests/capacity.test.mjs` |
+| WP-18 | waypost run --heavy: a machine-wide slot for heavy work | `bin/waypost`, `scripts/capacity.mjs`, `scripts/lib.mjs`, `scripts/presence.mjs`, `tests/capacity.test.mjs`, `tests/slots.test.mjs`, `CHANGELOG.md` |
