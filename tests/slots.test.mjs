@@ -56,8 +56,11 @@ function slotsDirFor(home) {
   );
 }
 
+// Run from the temp home, not the repository: from a linked worktree the CLI
+// qualifies an environment WAYPOST_SESSION_ID with the worktree (ADR-0010),
+// and what these tests assert must not depend on where the suite is checked out.
 function runCli(args, env) {
-  return spawnSync(process.execPath, [Waypost, ...args], { encoding: "utf8", env, timeout: 15000 });
+  return spawnSync(process.execPath, [Waypost, ...args], { encoding: "utf8", env, cwd: env.HOME, timeout: 15000 });
 }
 
 // A record naming THIS test process — genuinely alive, on this boot, on this
