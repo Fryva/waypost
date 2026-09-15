@@ -4,15 +4,16 @@
 // edit made for a new locale can change matching for a locale that was already green.
 //   node --test tests/*.test.mjs
 
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
-  mkdtempSync,
+  mkdtempSync as fsMkdtemp,
   mkdirSync,
   writeFileSync,
   readFileSync,
   readdirSync,
   statSync,
+  rmSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -32,6 +33,12 @@ import {
   parseFrontmatter,
 } from "../scripts/lib.mjs";
 import { checkLayoutTemplates } from "../scripts/doctor.mjs";
+
+// Every temp dir this file makes goes through here and is removed once its
+// tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
+const TMP_DIRS = [];
+const mkdtempSync = (prefix) => { const p = fsMkdtemp(prefix); TMP_DIRS.push(p); return p; };
+after(() => { for (const p of TMP_DIRS) rmSync(p, { recursive: true, force: true }); });
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const ENV = { ...process.env, WAYPOST_HOME: REPO };
