@@ -60,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `waypost capacity` lists the holders. `waypost capacity --release <id>` is
   the recovery path; it refuses a live-looking holder unless `--force` is
   given.
+- Heavy work sized to the machine, the rest of it (WP-18): the routing block
+  `waypost agents register` installs (v2) now carries "Heavy work: `waypost
+  run --heavy -- <cmd>`.", and `waypost prompt heavy` gives the full
+  procedure. `npm test` runs through a small runner (`scripts/test.mjs`)
+  that holds a slot and sizes `--test-concurrency` from `waypost capacity`;
+  `WAYPOST_HEAVY_WAIT` waits for one instead of failing at once. `waypost
+  size --global` holds a slot for the whole-disk scan the same way, exit 75
+  when refused.
 
 ### Changed
 - Coordination follows the repository (ADR-0010): inside a git repository,

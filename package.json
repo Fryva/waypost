@@ -11,6 +11,6 @@
   "type": "module",
   "bin": { "waypost": "bin/waypost", "wyp": "bin/waypost" },
   "engines": { "node": ">=20" },
-  "scripts": { "test": "node --test tests/*.test.mjs" },
+  "scripts": { "test": "node scripts/test.mjs" },
   "files": ["bin", "scripts", "agents", "harnesses", "toolchains", "prompts", "skills", "scaffold", "templates", "docs", "AGENTS.md", "README.md", "CHANGELOG.md"]
 }

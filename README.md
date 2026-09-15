@@ -110,6 +110,8 @@ honest.
 | `waypost ready` | stories that are planned, unblocked and unclaimed, with the command that claims each |
 | `waypost sessions` / `lease` / `watch` | see and coordinate who is working |
 | `waypost status` | a summary of the setup and role state |
+| `waypost capacity [--json]` | the machine's real free resources now, and how many more heavy jobs it can take |
+| `waypost run --heavy [--wait <Ns\|Nm>] -- <cmd…>` | claim a machine-wide slot for heavy work (a build, a full test suite, a simulator boot, a whole-disk scan) |
 
 Run `waypost help` for the full list.
 

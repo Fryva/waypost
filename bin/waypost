@@ -20,6 +20,15 @@ import {
   machineStateDir,
 } from "../scripts/lib.mjs";
 
+// Captured before main() (below) pins WAYPOST_SESSION_ID, WAYPOST_HARNESS and
+// WAYPOST_PROC (the harness process) onto process.env for THIS process's own
+// labelling (heartbeat, commit trailers): `run --heavy`'s spawned COMMAND must
+// not silently inherit an identity this process only invented for itself —
+// see runHeavy()'s use of these.
+const INHERITED_SESSION_ID = process.env.WAYPOST_SESSION_ID;
+const INHERITED_HARNESS = process.env.WAYPOST_HARNESS;
+const INHERITED_PROC = process.env.WAYPOST_PROC;
+
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SCRIPT = (name) => join(ROOT, "scripts", `${name}.mjs`);
 const VERSION = (() => {
@@ -708,11 +717,34 @@ async function handleSize(args) {
   const json = flag(args, "--json");
 
   if (flag(args, "--global")) {
-    let out, reg;
+    // WP-18 Decision 4: a whole-disk scan is heavy work too, so it holds a
+    // machine-wide slot exactly like `waypost run --heavy` — same refusal
+    // (exit 75), same reason and retry line. No `fail()` (process.exit)
+    // between the claim and the finally below, so the slot is always
+    // released, even when the scan itself throws.
+    let capacity, presence;
+    try {
+      capacity = await import(`file://${SCRIPT("capacity")}`);
+      presence = await import(`file://${SCRIPT("presence")}`);
+    } catch (e) { fail(`size --global: ${e.message}`); }
+    const dir = slotsDir(presence);
+    mkdirSync(dir, { recursive: true });
+    const claim = await claimSlot(dir, ["waypost", "size", "--global"], capacity, presence);
+    if (!claim.ok) {
+      process.stderr.write(`waypost size --global: refused — ${claim.reason}\n  retry: waypost size --global\n`);
+      process.exitCode = EX_TEMPFAIL;
+      return;
+    }
+    let out, reg, error;
     try {
       reg = toolchains.loadRegistry({ projectRoot: projectRoot(), platform: process.platform });
       out = sizes.scanGlobal({ registry: reg });
-    } catch (e) { fail(`size --global: ${e.message}`); }
+    } catch (e) {
+      error = e;
+    } finally {
+      claim.release();
+    }
+    if (error) fail(`size --global: ${error.message}`);
     if (json) { process.stdout.write(JSON.stringify({ caches: out, notes: reg.notes }, null, 2) + "\n"); return; }
     const threshold = 0.1 * GB;
     const big = out.filter((e) => e.bytes >= threshold).sort((a, b) => b.bytes - a.bytes);
@@ -1015,11 +1047,27 @@ async function runHeavy(argv, release) {
   try { setPriority(osConstants.priority.PRIORITY_BELOW_NORMAL); }
   catch { /* best-effort: a restricted sandbox must not block the run */ }
 
+  // The command is arbitrary and may itself invoke `waypost` (this project's
+  // own test suite does, extensively): it must see the environment it was
+  // actually given, not this wrapper's own session/harness identity — pinned
+  // onto process.env above by main(), for ITS OWN heartbeat/commit labelling
+  // — when that identity was only invented (detected), not passed in. Left
+  // leaking through, a nested `waypost` call would skip its OWN derivation
+  // (main() only pins when unset) and inherit this wrapper's, which is how a
+  // `waypost run --heavy -- node --test …` run once produced a session id
+  // collision in an unrelated test.
+  // The harness process (WAYPOST_PROC) is always derived, never passed in by a
+  // caller, so a nested `waypost` must find its own the same way.
+  const childEnv = { ...process.env };
+  if (INHERITED_SESSION_ID === undefined) delete childEnv.WAYPOST_SESSION_ID;
+  if (INHERITED_HARNESS === undefined) delete childEnv.WAYPOST_HARNESS;
+  if (INHERITED_PROC === undefined) delete childEnv.WAYPOST_PROC;
+
   const [cmd, ...cmdArgs] = argv;
   const useShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(cmd);
   let child;
   try {
-    child = spawn(cmd, cmdArgs, { stdio: "inherit", shell: useShell });
+    child = spawn(cmd, cmdArgs, { stdio: "inherit", shell: useShell, env: childEnv });
   } catch (e) {
     release();
     fail(`run --heavy: ${e.message}`);

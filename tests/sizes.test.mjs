@@ -8,8 +8,8 @@ import assert from "node:assert/strict";
 import {
   mkdtempSync, mkdirSync, writeFileSync, symlinkSync, linkSync, rmSync, existsSync,
 } from "node:fs";
-import { join, dirname } from "node:path";
-import { tmpdir, homedir } from "node:os";
+import { basename, join, dirname } from "node:path";
+import { tmpdir, homedir, hostname } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -17,8 +17,62 @@ import {
   scanProject, scanGlobal, DEFAULT_ENTRY_BUDGET, GIT_CALL_COST,
 } from "../scripts/sizes.mjs";
 import { loadRegistry } from "../scripts/toolchains.mjs";
+import { bootIdentity } from "../scripts/capacity.mjs";
+import { hostSlug, processTable } from "../scripts/presence.mjs";
+import { machineStateDir } from "../scripts/lib.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
+const GB = 1024 ** 3;
+const MY_HOST = hostname().split(".")[0];
+
+// `waypost size --global` (WP-18 Decision 4) now claims a machine-wide slot
+// while it scans, exactly like `waypost run --heavy`: every test below that
+// runs it needs the same isolation tests/slots.test.mjs uses for the real
+// slot table — a temp HOME/XDG_STATE_HOME/LOCALAPPDATA, so it never touches
+// this machine's actual machine-state directory, plus an idle
+// WAYPOST_CAPACITY_PROBE so the claim is not at the mercy of whatever else
+// is running on the machine that happens to run this suite.
+function slotsDirFor(home) {
+  return join(
+    machineStateDir({ platform: process.platform, home, env: { XDG_STATE_HOME: home, LOCALAPPDATA: home } }),
+    `slots.${hostSlug()}`,
+  );
+}
+
+function heavyEnv(home, extra = {}) {
+  return {
+    ...process.env,
+    HOME: home,
+    XDG_STATE_HOME: home,
+    LOCALAPPDATA: home,
+    WAYPOST_NO_BEAT: "1",
+    WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB }),
+    ...extra,
+  };
+}
+
+// A record naming THIS test process — genuinely alive, on this boot, on this
+// host — the cheapest way to manufacture a real "live holder" without
+// spawning a second process (mirrors tests/slots.test.mjs's own helper).
+function selfSlotRecord(id) {
+  const table = process.platform === "win32" ? null : processTable();
+  const self = table ? table.get(process.pid) : null;
+  return {
+    id,
+    host: MY_HOST,
+    proc: { pid: process.pid, started: self ? self.started : null, comm: basename(process.execPath) },
+    boot: bootIdentity(),
+    session: "sizes-test",
+    harness: "test",
+    command: "node -e test",
+    started_at: new Date().toISOString(),
+  };
+}
+
+function writeSlotRecord(dir, rec) {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${rec.id}.json`), JSON.stringify(rec, null, 2) + "\n", "utf8");
+}
 
 // ─── fixtures ────────────────────────────────────────────────────────────
 
@@ -456,7 +510,9 @@ test("bin/waypost size --global: human output shows only entries at or above 0.1
   writeFileSync(join(home, ".cargo", "registry", "big.bin"), Buffer.alloc(150_000_000, 7)); // ~0.14 GB
   mkdirSync(join(home, ".android", "cache"), { recursive: true });
   writeFileSync(join(home, ".android", "cache", "small.bin"), Buffer.alloc(1000, 1)); // well under 0.1 GB
-  const env = { ...process.env, WAYPOST_NO_BEAT: "1", HOME: home };
+  // WP-18 Decision 4: this scan now claims a machine-wide slot, so it needs
+  // the same isolation as the machine-state directory itself (heavyEnv above).
+  const env = heavyEnv(home);
   const runWithHome = (args) => spawnSync(process.execPath, [join(REPO, "bin", "waypost"), ...args], {
     encoding: "utf8", env, cwd: REPO, timeout: 15000,
   });
@@ -475,6 +531,19 @@ test("bin/waypost size --global: human output shows only entries at or above 0.1
   assert.match(human.stdout, /\[rust · default\]/, human.stdout);
   assert.doesNotMatch(human.stdout, /\.android[\\/]cache/, "an entry under 0.1 GB is not named in the human output");
   assert.match(human.stdout, /more below 0\.1 GB/, human.stdout);
+});
+
+test("bin/waypost size --global: exits 75 when a slot is already held and WAYPOST_HEAVY_MAX=1", () => {
+  const home = tmpRoot("waypost-sizes-global-heavy-");
+  const dir = slotsDirFor(home);
+  writeSlotRecord(dir, selfSlotRecord("held-by-this-test")); // this process itself: genuinely alive
+  const env = heavyEnv(home, { WAYPOST_HEAVY_MAX: "1" });
+  const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "size", "--global"], {
+    encoding: "utf8", env, cwd: REPO, timeout: 15000,
+  });
+  assert.equal(r.status, 75, r.stderr);
+  assert.match(r.stderr, /refused/);
+  assert.match(r.stderr, /retry: waypost size --global/);
 });
 
 test("bin/waypost size --project --json rejects a non-integer --budget", () => {

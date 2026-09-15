@@ -2,7 +2,7 @@
 type: adr
 id: "heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first"
 title: "Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first"
-status: proposed
+status: accepted
 date: 2026-09-14
 authors: ["Ivan Morozov"]
 tags: []
@@ -12,7 +12,7 @@ superseded_by: null
 review_status: reviewed
 reviewed_at: 2026-09-15
 drafted_by: {"harness":"claude","provider":null,"date":"2026-09-14"}
-code_refs: ["scripts/capacity.mjs", "bin/waypost", "scripts/agents.mjs", "scripts/presence.mjs", "AGENTS.md", "package.json", "prompts/heavy.md (planned)", "tests/capacity.test.mjs", "tests/slots.test.mjs", "tests/harness.test.mjs"]
+code_refs: ["scripts/capacity.mjs", "bin/waypost", "scripts/agents.mjs", "scripts/presence.mjs", "AGENTS.md", "package.json", "prompts/heavy.md", "scripts/test.mjs", "templates/agents-block.md.tmpl", "tests/capacity.test.mjs", "tests/slots.test.mjs", "tests/harness.test.mjs"]
 related: "ADR-0001, ADR-0004, ADR-0007, ADR-0008, ADR-0010, disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes"
 guards: [{"require": "waypost run --heavy", "in": "AGENTS.md", "why": "Waypost's own instructions keep sending heavy work through the machine-wide slot"}]
 ---
@@ -21,7 +21,7 @@ guards: [{"require": "waypost run --heavy", "in": "AGENTS.md", "why": "Waypost's
 
 | Field | Value |
 |---|---|
-| **Status** | proposed |
+| **Status** | accepted |
 | **Date** | 2026-09-14 |
 | **Authors** | Ivan Morozov |
 
@@ -313,8 +313,8 @@ On 2026-09-15 the owner answered the open questions and approved this ADR:
    - on Windows, a slot older than 24 hours is released;
    - `--release` refuses a live-looking record unless `--force` is given.
 
-The status becomes `accepted` in the commit that lands the implementation,
-when the guard on `AGENTS.md` passes.
+Accepted with the rule story (2026-09-15), once the guard on `AGENTS.md`
+passed.
 
 ## Review history
 

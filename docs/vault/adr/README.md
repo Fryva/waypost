@@ -31,7 +31,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [0010-coordination-follows-the-repository](./0010-coordination-follows-the-repository.md) | Coordination follows the repository: presence and leases in the git common dir | accepted | 2026-09-04 |
 | [0011-decisions-that-check-themselves](./0011-decisions-that-check-themselves.md) | Decisions that check themselves: guards and provenance in ADRs | accepted | 2026-09-04 |
 | [disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes](./disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md) | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | accepted | 2026-09-14 |
-| [heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first](./heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md) | Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first | proposed | 2026-09-14 |
+| [heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first](./heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md) | Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first | accepted | 2026-09-14 |
 
 ---
 

@@ -9,7 +9,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -20,6 +22,20 @@ import { machineStateDir } from "../scripts/lib.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const GB = 1024 ** 3;
+
+// The two real CLI runs below read the REAL slot table unless pointed
+// elsewhere: a temp HOME/XDG_STATE_HOME/LOCALAPPDATA keeps them off the
+// machine's actual machine-state directory (and off whatever `waypost run
+// --heavy` job may really be holding a slot on this machine right now),
+// while still exercising the real cores/busy/memory probes — no
+// WAYPOST_CAPACITY_PROBE here, unlike the hermetic env other test files use.
+function tmpHome() {
+  return mkdtempSync(join(tmpdir(), "waypost-capacity-real-"));
+}
+
+function realRunEnv(home) {
+  return { ...process.env, WAYPOST_NO_BEAT: "1", HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home };
+}
 
 // A fake `os`-shaped object. cpus() may be given as an array (returned every
 // call) or a function of the call index (for the two-snapshot Windows case).
@@ -463,38 +479,44 @@ test("measure: reads WAYPOST_HEAVY_MAX from the injected env", async () => {
 // could be slow) — well within a second.
 
 test("waypost capacity --json: real run, shape and speed", () => {
-  const bin = join(REPO, "bin", "waypost");
-  const start = Date.now();
-  const r = spawnSync(process.execPath, [bin, "capacity", "--json"], {
-    encoding: "utf8",
-    env: { ...process.env, WAYPOST_NO_BEAT: "1" },
-    timeout: 5000,
-  });
-  const elapsed = Date.now() - start;
-  assert.equal(r.status, 0, r.stderr);
-  const out = JSON.parse(r.stdout);
-  assert.equal(typeof out.cores, "number");
-  assert.equal(typeof out.busy, "number");
-  assert.equal(typeof out.memory.available, "number");
-  assert.equal(typeof out.memory.total, "number");
-  assert.equal(typeof out.probes.cores, "string");
-  assert.equal(typeof out.probes.busy, "string");
-  assert.equal(typeof out.probes.memory, "string");
-  assert.equal(out.holders, 0);
-  assert.equal(typeof out.slots, "number");
-  assert.equal(typeof out.can_start, "number");
-  assert.ok(elapsed < 1000, `waypost capacity --json took ${elapsed}ms`);
+  const home = tmpHome();
+  try {
+    const bin = join(REPO, "bin", "waypost");
+    const start = Date.now();
+    const r = spawnSync(process.execPath, [bin, "capacity", "--json"], {
+      encoding: "utf8",
+      env: realRunEnv(home),
+      timeout: 5000,
+    });
+    const elapsed = Date.now() - start;
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(typeof out.cores, "number");
+    assert.equal(typeof out.busy, "number");
+    assert.equal(typeof out.memory.available, "number");
+    assert.equal(typeof out.memory.total, "number");
+    assert.equal(typeof out.probes.cores, "string");
+    assert.equal(typeof out.probes.busy, "string");
+    assert.equal(typeof out.probes.memory, "string");
+    assert.equal(out.holders, 0);
+    assert.equal(typeof out.slots, "number");
+    assert.equal(typeof out.can_start, "number");
+    assert.ok(elapsed < 1000, `waypost capacity --json took ${elapsed}ms`);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
 test("waypost capacity: real run, human output", () => {
-  const bin = join(REPO, "bin", "waypost");
-  const r = spawnSync(process.execPath, [bin, "capacity"], {
-    encoding: "utf8",
-    env: { ...process.env, WAYPOST_NO_BEAT: "1" },
-    timeout: 5000,
-  });
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /cores, load/);
-  assert.match(r.stdout, /available/);
-  assert.match(r.stdout, /can start (\d+ heavy jobs?|0 — .+)/);
+  const home = tmpHome();
+  try {
+    const bin = join(REPO, "bin", "waypost");
+    const r = spawnSync(process.execPath, [bin, "capacity"], {
+      encoding: "utf8",
+      env: realRunEnv(home),
+      timeout: 5000,
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /cores, load/);
+    assert.match(r.stdout, /available/);
+    assert.match(r.stdout, /can start (\d+ heavy jobs?|0 — .+)/);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

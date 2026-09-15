@@ -68,6 +68,8 @@ Before analysing a task, planning, editing or running checks:
 | `waypost lease <path…>` | announce the files you are editing right now |
 | `waypost storage` | what the vault is stored on and how far behind presence can be |
 | `waypost prompt [name]` / `waypost skill [name]` | loop procedures and skills |
+| `waypost capacity [--json] [--release <id>]` | the machine's real free resources right now, and how many more heavy jobs it can take |
+| `waypost run --heavy [--wait <Ns\|Nm>] -- <cmd…>` | the rule: heavy work (a build, a full test suite, a simulator/emulator boot, a whole-disk scan, a background agent that builds or tests) always runs through this, never directly; refused = exit 75 (`waypost prompt heavy`) |
 | `waypost status`, `waypost help` | summary and full help |
 
 Every write to disk is made by the dispatcher `bin/waypost`; the scripts under
@@ -133,10 +135,9 @@ One project may be driven by several sessions at the same time (ADR-0006):
   commit made outside `waypost commit` carries no trailers; `waypost log` says how many.
 - **Opening a story claims it** (`waypost story plan --write`), closing releases it.
   Check `waypost sessions` first: if a story is already held, that is duplicated work.
-- **Never merge derived views by hand.** `waypost doctor --fix` wires `.gitattributes`
-  and the merge driver; a conflict in `kanban.md`/`graph.md`/`code-map.md`/an
-  index is resolved by regeneration. Prefer `waypost merge <ref>`, which puts the
-  correct board in the merge commit itself.
+- **Never merge derived views by hand.** `waypost doctor --fix` wires `.gitattributes` and the merge
+  driver; a conflict in `kanban.md`/`graph.md`/`code-map.md`/an index is resolved by regeneration.
+  Prefer `waypost merge <ref>`, which puts the correct board in the merge commit itself.
 - **Session identity**: a harness should export `WAYPOST_SESSION_ID` (and
   `WAYPOST_HARNESS` when it cannot be detected from the environment), otherwise the
   id is derived from the terminal or the parent pid and may fragment. The harness
@@ -229,12 +230,11 @@ One project may be driven by several sessions at the same time (ADR-0006):
   `superseded`); `check` names the project's own fitness command and is never
   executed. `draft adr --write` records `drafted_by` (harness, provider, date)
   as the environment asserts it.
-- **Frontmatter is checked, not just stored** (ADR-0009): a `code_refs` path must
-  resolve at any status unless annotated `(waiting)`/`(planned)`/`(deleted)`;
-  `supersedes`/`superseded_by` must be mutual and land on a real artifact, and the
-  replaced one carries `status: superseded`; with `acceptance_gate: on` in the vault
-  config, `accepted` requires the review question answered — `reviewed`, `n/a`,
-  `waived` or your own word for it, anything but `pending`.
+- **Frontmatter is checked, not just stored** (ADR-0009): a `code_refs` path must resolve at any
+  status unless annotated `(waiting)`/`(planned)`/`(deleted)`; `supersedes`/`superseded_by` must
+  be mutual and land on a real artifact, and the replaced one carries `status: superseded`; with
+  `acceptance_gate: on` in the vault config, `accepted` requires the review question answered —
+  `reviewed`, `n/a`, `waived` or your own word for it, anything but `pending`.
 
 ## Configuration
 
@@ -276,7 +276,7 @@ One project may be driven by several sessions at the same time (ADR-0006):
   rename the service files inside a vault.
 - Preserve the user's uncommitted changes and keep them separate from your own.
 
-<!-- waypost:agents v1 (managed by waypost — edit outside the markers) -->
+<!-- waypost:agents v2 (managed by waypost — edit outside the markers) -->
 ## waypost agent roles
 
 - **Feature-sized work opens a vault artifact before an editor.** Analysis →
@@ -289,6 +289,7 @@ One project may be driven by several sessions at the same time (ADR-0006):
   `<cli> "$(waypost agents show <role>) <target>"`.
 - Say so and ask which wins if a session instruction contradicts this block.
 - Name artifacts by their frontmatter `title:` and parent epic.
+- Heavy work: `waypost run --heavy -- <cmd>`.
 
 - `waypost-critic` — Adversarial fresh-context review of an artifact or design before it is treated as final.
 - `waypost-planner` — Where and how to implement an epic/story, consistent with how prior epics landed in the code.

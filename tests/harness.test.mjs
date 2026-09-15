@@ -616,6 +616,34 @@ test("register writes exactly one routing block and migrates it in place", () =>
   assert.ok(!/waypost:agents/.test(readFileSync(join(proj, "AGENTS.md"), "utf8")));
 });
 
+// WP-18 Decision 3: the heavy-work line reaches a project already installed
+// under an earlier block version through this same drift-and-repair path —
+// not a special case, the same one register/doctor already use for every
+// other block change.
+test("doctor reports an older routing-block version as an issue, and --fix rewrites it in place", () => {
+  const { proj } = bound();
+  const agents = join(proj, "AGENTS.md");
+  writeFileSync(agents, "# Project rules\n\nkeep me\n", "utf8");
+  waypost(proj, ["agents", "register"]);
+
+  // Simulate a project registered under an earlier block version by rolling
+  // its marker back to v1, the way an install from before this block change
+  // would actually look on disk.
+  const registered = readFileSync(agents, "utf8");
+  writeFileSync(agents, registered.replace(/<!-- waypost:agents v\d+/, "<!-- waypost:agents v1"), "utf8");
+
+  const findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
+  const issue = findings.find((f) => f.check === "agents-block" && f.level === "issue");
+  assert.ok(issue, "a stale block version is an issue, not merely an info note");
+  assert.match(issue.message, /is v1, expected v\d+/);
+
+  waypost(proj, ["doctor", "--fix"]);
+  const fixed = readFileSync(agents, "utf8");
+  assert.ok(!/<!-- waypost:agents v1/.test(fixed), "the stale block was rewritten");
+  assert.ok(fixed.includes("Heavy work: `waypost run --heavy -- <cmd>`."), "the current block carries the rule");
+  assert.ok(fixed.includes("keep me"), "surrounding content survives the rewrite");
+});
+
 // Asking what a destructive command does must not be the same thing as running
 // it: `agents unregister --help` used to strip the routing block and exit 0,
 // because unknown flags were dropped in silence rather than refused.
@@ -1089,6 +1117,15 @@ test("prompts and skills print, and name no upstream slash command", () => {
   assert.ok(!/\/projectstore:/.test(skill));
 });
 
+test("waypost prompt heavy prints the procedure", () => {
+  const proj = project();
+  const text = waypost(proj, ["prompt", "heavy"]).stdout;
+  assert.match(text, /waypost capacity/);
+  assert.match(text, /waypost run --heavy/);
+  assert.match(text, /exit 75|75\b/);
+  assert.ok(!/\/projectstore:/.test(text), "names no upstream slash command");
+});
+
 // Drop a line's // comment, tracking quote state so a "//" inside a string (or a
 // URL) is not mistaken for one. Good enough for this codebase, and its failure
 // mode is a false pass, never a false alarm.
@@ -1139,6 +1176,10 @@ test("the standing context stays small — it is re-read on every turn", () => {
   const block = readFileSync(join(proj, "CLAUDE.md"), "utf8")
     .match(/<!-- waypost:agents[\s\S]*?<!-- \/waypost:agents -->/)[0];
   assert.ok(block.length < 1400, `routing block is ${block.length} chars — it is in every turn`);
+  // WP-18 Decision 3: the heavy-work rule reaches every project through this
+  // same block, within the same budget above — not a separate, unbudgeted line.
+  assert.ok(block.includes("Heavy work: `waypost run --heavy -- <cmd>`."),
+    "the block carries the heavy-work rule");
 
   // What a harness injects into the main context is the description of each
   // agent, not its prompt. That is why roles carry a short `summary`.

@@ -341,6 +341,44 @@ test("run --heavy: releases its own record on exit, leaving the slot table empty
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
+// Regression (found while wiring `npm test` through this command, WP-18
+// Decision 4): the command is arbitrary and may itself invoke `waypost` —
+// this project's own suite does — so it must not silently inherit the
+// WAYPOST_SESSION_ID/WAYPOST_HARNESS this wrapper process invents for its
+// OWN heartbeat/commit labelling when the caller never set them. Left
+// leaking through, a nested `waypost sessions --touch --id X` sees an
+// already-set WAYPOST_SESSION_ID and skips deriving its own from --id,
+// producing two presence records where one was expected — exactly what
+// broke tests/presence.test.mjs's traversal-id test under `npm test` before
+// this fix. An identity the caller DID set explicitly still reaches the
+// command, unchanged.
+test("run --heavy: an invented session/harness identity and harness process are not leaked to the command, but an explicit identity is", () => {
+  const home = tmpHome();
+  try {
+    // Strip whatever the ambient environment running THIS test suite already
+    // carries, so "the caller never set these" holds regardless of how the
+    // test itself was launched.
+    const { WAYPOST_SESSION_ID: _sid, WAYPOST_HARNESS: _h, WAYPOST_PROC: _p, ...bare } = heavyEnv(home);
+    const invented = runCli(
+      ["run", "--heavy", "--", "node", "-e",
+        "console.log(JSON.stringify([process.env.WAYPOST_SESSION_ID, process.env.WAYPOST_HARNESS, process.env.WAYPOST_PROC]))"],
+      bare,
+    );
+    assert.equal(invented.status, 0, invented.stderr);
+    assert.deepEqual(JSON.parse(invented.stdout), [null, null, null], "JSON.stringify turns an absent env var into null");
+  } finally { rmSync(home, { recursive: true, force: true }); }
+
+  const home2 = tmpHome();
+  try {
+    const explicit = runCli(
+      ["run", "--heavy", "--", "node", "-e", "console.log(process.env.WAYPOST_SESSION_ID)"],
+      heavyEnv(home2, { WAYPOST_SESSION_ID: "caller-chosen-id" }),
+    );
+    assert.equal(explicit.status, 0, explicit.stderr);
+    assert.equal(explicit.stdout.trim(), "caller-chosen-id");
+  } finally { rmSync(home2, { recursive: true, force: true }); }
+});
+
 // ─── the lock ───────────────────────────────────────────────────────────
 
 test("the lock: a dead owner is broken at once", () => {
