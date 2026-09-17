@@ -59,6 +59,7 @@ import {
   escCell,
   unescCell,
   ignoreEpipe,
+  pathUnder,
 } from "./lib.mjs";
 import { uncommittedProjectFiles, lastCommitMs } from "./diff-refs.mjs";
 import { peers as peersOf, readLeases as readLeasesOf } from "./presence.mjs";
@@ -344,7 +345,7 @@ export function checkAgentRoles(proj, cfg) {
 export function checkMergeDriver(cfg, proj) {
   if (!existsSync(join(proj, ".git"))) return [];
   const vault = String((cfg && cfg.vault_path) || "");
-  if (!vault || !vault.startsWith(proj + "/")) return [];
+  if (!vault || !pathUnder(vault, proj)) return [];
   const out = [];
   let attrs = "";
   try { attrs = readFileSync(join(proj, ".gitattributes"), "utf8"); } catch {}
@@ -467,13 +468,30 @@ export function checkSharedVaultState(cfg) {
 // machine's absolute paths (the two `node`/execPath forms above are built
 // from this pluginRoot()); this pattern recognises any machine's equivalent
 // invocation by its stable suffix, so `--fix` does not fight another clone.
-const FOREIGN_MACHINE_DRIVER_RE = /merge-derived(\.mjs)? %A %O %B %P$/;
+// Another machine's own path to the same script — a .git shared between
+// machines, or a checkout that lives somewhere else. It has to LOOK like a
+// path: a value whose separators a shell has already eaten
+// (`Y:DocumentsWaypostscriptsmerge-derived.mjs`) names nothing on any machine,
+// and is drift to repair rather than someone else's arrangement to respect.
+const FOREIGN_MACHINE_DRIVER_RE = /[\\/]merge-derived(\.mjs)? %A %O %B %P$/;
+
+// git does not run a merge driver itself: it hands the command line to a
+// shell, and on Windows that is git's own `sh`, where a backslash escapes
+// whatever follows it. `node Y:\Documents\…\merge-derived.mjs %A %O %B %P`
+// reaches node as `Y:Documents…merge-derived.mjs` — measured on Windows:
+// MODULE_NOT_FOUND, and the merge hands back a conflict in a generated file,
+// which is the one thing this driver exists to prevent. Node opens a
+// `/`-spelled path on Windows perfectly well, and git spells its own paths
+// that way too, so that is the spelling that goes into .git/config.
+function driverScript() {
+  return join(pluginRoot(), "scripts", "merge-derived.mjs").replace(/\\/g, "/");
+}
 
 export function mergeDriverAccepted() {
   return [
     "waypost merge-derived %A %O %B %P",
-    `node ${join(pluginRoot(), "scripts", "merge-derived.mjs")} %A %O %B %P`,
-    `${process.execPath} ${join(pluginRoot(), "scripts", "merge-derived.mjs")} %A %O %B %P`,
+    `node ${driverScript()} %A %O %B %P`,
+    `${process.execPath} ${driverScript()} %A %O %B %P`,
   ];
 }
 
@@ -485,7 +503,7 @@ export function mergeDriverCommand() {
   // when waypost is not installed on PATH.
   const onPath = spawnSync("command -v waypost", { encoding: "utf8", shell: true });
   if (onPath.status === 0 && (onPath.stdout || "").trim()) return "waypost merge-derived %A %O %B %P";
-  return `node ${join(pluginRoot(), "scripts", "merge-derived.mjs")} %A %O %B %P`;
+  return `node ${driverScript()} %A %O %B %P`;
 }
 
 export function checkVaultGit(cfg, proj = projectRoot()) {
@@ -495,7 +513,7 @@ export function checkVaultGit(cfg, proj = projectRoot()) {
   // start seeing a gitlink where files used to be, and the vault's own history
   // would live in a directory nobody clones. The whole point of the check is
   // "this knowledge has history" — inside the repo, it does.
-  if (String(cfg.vault_path || "").startsWith(proj + "/") && existsSync(join(proj, ".git"))) return [];
+  if (pathUnder(cfg.vault_path, proj) && existsSync(join(proj, ".git"))) return [];
   return [finding("install", "warn", "vault-git",
     "Vault is not a git repository — the knowledge has no history/blame/review. Consider `git init` (doctor --fix offers it).")];
 }
@@ -1950,7 +1968,7 @@ export function applyFixes(cfg, proj, findings) {
   }
 
   if (has("merge-driver") && cfg && cfg.vault_path) {
-    const rel = cfg.vault_path.startsWith(proj + "/") ? cfg.vault_path.slice(proj.length + 1) : null;
+    const rel = pathUnder(cfg.vault_path, proj);
     if (rel) {
       const p = join(proj, ".gitattributes");
       let text = "";

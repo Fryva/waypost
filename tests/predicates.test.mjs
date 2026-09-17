@@ -42,6 +42,8 @@ import {
   buildNodeIndex,
   resolveLinkTarget,
   sessionId,
+  pathUnder,
+  isInsideVault,
 } from "../scripts/lib.mjs";
 import {
   checkLayoutTemplates,
@@ -1469,4 +1471,54 @@ test("sessionId: --id after a `--` terminator is not the flag; env wins instead"
 test("sessionId: a path-shaped WAYPOST_SESSION_ID sanitises with no slash", () => {
   const id = sessionId([], { WAYPOST_SESSION_ID: "2026-09-02/abc" });
   assert.equal(id.includes("/"), false);
+});
+
+// ─── paths: one question, two separators (WP-18, the Windows pass) ─────
+
+// The same path as Windows spells it. `\` is built here rather than typed as
+// a literal so that what these tests are about survives every quoting layer
+// between an editor and the file.
+const BACKSLASH = String.fromCharCode(92);
+const win = (p) => p.split("/").join(BACKSLASH);
+
+test("pathUnder: inside, the same path, and outside", () => {
+  assert.equal(pathUnder("/proj/docs/vault/adr/x.md", "/proj/docs/vault"), "adr/x.md");
+  assert.equal(pathUnder("/proj/docs/vault", "/proj/docs/vault"), "",
+    "a path is under itself, at distance zero — which is not the same answer as `null`");
+  assert.equal(pathUnder("/proj/src/x.rs", "/proj/docs/vault"), null);
+  assert.equal(pathUnder("/proj/docs/vaultish/x.md", "/proj/docs/vault"), null,
+    "a sibling that merely starts with the same letters is not inside it");
+  assert.equal(pathUnder("/proj/docs/vault/adr/x.md", "/proj/docs/vault/"), "adr/x.md",
+    "a trailing separator on the base changes nothing");
+  assert.equal(pathUnder("", "/proj"), null);
+  assert.equal(pathUnder("/proj/x", ""), null);
+});
+
+test("pathUnder: Windows spells those same paths with a backslash (WP-18)", () => {
+  // Measured on a Windows 11 VM: under the old `startsWith(base + "/")` every
+  // one of these read as "outside", which is what took `waypost story plan
+  // --write`, `doctor` and the merge driver down on that machine.
+  assert.equal(pathUnder(win("Y:/proj/docs/vault/epics/WP-18/epic.md"), win("Y:/proj/docs/vault")),
+    "epics/WP-18/epic.md",
+    "and the answer comes back `/`-spelled, the way every vault-relative path is written");
+  assert.equal(pathUnder(win("Y:/proj/docs/vault"), win("Y:/proj/docs/vault")), "");
+  assert.equal(pathUnder(win("Y:/other/x.md"), win("Y:/proj/docs/vault")), null);
+  assert.equal(pathUnder(win("Y:/proj/docs/vault/x.md"), "Y:/proj/docs/vault"), "x.md",
+    "the two spellings mixed: a config read one way, a path resolved the other");
+});
+
+test("pathUnder: case folds where the filesystem folds it, and nowhere else", () => {
+  assert.equal(pathUnder(win("Y:/Proj/Docs/Vault/x.md"), win("y:/proj/docs/vault"), { platform: "win32" }),
+    "x.md", "one path on Windows, however either side happens to be spelled");
+  assert.equal(pathUnder("/Proj/Docs/Vault/x.md", "/proj/docs/vault", { platform: "linux" }), null,
+    "…and two different directories on Linux, which must stay two");
+});
+
+test("isInsideVault: the guard `story plan|close --write` writes behind (WP-18)", () => {
+  assert.equal(isInsideVault("/proj/vault/epics/E/stories/s.md", "/proj/vault"), true);
+  assert.equal(isInsideVault(win("Y:/proj/vault/epics/E/stories/s.md"), win("Y:/proj/vault")), true,
+    "on Windows this answered false for every story in the vault, so the gates refused to write");
+  assert.equal(isInsideVault(win("Y:/proj/src/x.rs"), win("Y:/proj/vault")), false,
+    "…and the refusal itself still works: outside is still outside");
+  assert.equal(isInsideVault(win("Y:/proj/vault"), win("Y:/proj/vault")), true);
 });

@@ -32,6 +32,7 @@ import {
   parseFrontmatter,
   loadLayout,
   ignoreEpipe,
+  pathUnder,
 } from "./lib.mjs";
 import { harnessProcess } from "./presence.mjs";
 
@@ -845,7 +846,7 @@ export function uninstall(harnesses, { proj = projectRoot() } = {}) {
     // directory leaves three. Deepest first, so the parent is tried after the
     // last child that could still be holding it.
     for (const start of [...emptied].sort((a, b) => b.length - a.length)) {
-      for (let d = start; d.startsWith(proj + "/"); d = dirname(d)) {
+      for (let d = start; pathUnder(d, proj); d = dirname(d)) {
         try { rmdirSync(d); out.push({ harness: id, path: d, action: "removed (empty)" }); }
         catch { break; }
       }

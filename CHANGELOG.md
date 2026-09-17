@@ -111,6 +111,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays in the vault (ADR-0004).
 
 ### Fixed
+- Windows: "is this path inside that directory?" is now asked on both
+  separators. Five checks spelled it `p.startsWith(base + "/")`, which no path
+  on Windows answers yes to, and each broke in its own way on the owner's
+  Windows VM: `waypost story plan|close --write` refused every story in the
+  vault with "refusing to write outside the vault"; `doctor` warned that a
+  vault the repository already versions had no history of its own, and `--fix`
+  would have answered that warning with `git init`, making a nested repository
+  of it; the merge driver called the vault's own `kanban.md` "not a derived
+  view" and left git's conflict markers in a file ADR-0006 exists to keep out
+  of conflict resolution; `doctor` never ran the merge-driver check there at
+  all; and `waypost commit` stopped seeing a lease another session held over a
+  staged vault file. One predicate, `pathUnder()`, now answers for all of them
+  — comparing on `/`, and folding case only where the filesystem itself does
+  — and `merge-derived` no longer splits a path on `/` to identify a folder
+  index either (WP-18).
 - Inside a container, `waypost capacity` sizes a heavy job to the container.
   A job's share is a quarter of the machine, and a cgroup memory limit is the
   machine as far as anything inside it is concerned — but the total came from

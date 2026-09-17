@@ -10,7 +10,7 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { composeMessage, storyRef, detectSessionHarness } from "../scripts/commit.mjs";
+import { composeMessage, storyRef, detectSessionHarness, leasesOverStaged } from "../scripts/commit.mjs";
 import { storyRefOf, storyPathOf } from "../scripts/lib.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
@@ -402,4 +402,56 @@ test("the merge driver refuses rather than guessing when it cannot re-derive", (
   });
   assert.notEqual(r.status, 0, "a file that is not a derived view leaves the conflict for a human");
   assert.match(r.stderr, /not a derived view/);
+});
+
+// ─── WP-18: the vault path as Windows spells it ────────────────────────
+
+// The fixtures are real directories; what changes is only how the vault path
+// is spelled — with `/` as POSIX hands it over, and with `\` as Windows does.
+const winSpelled = (p) => p.split("/").join(String.fromCharCode(92));
+
+function withProject(proj, fn) {
+  const prev = process.env.WAYPOST_PROJECT_DIR;
+  process.env.WAYPOST_PROJECT_DIR = proj;
+  try { return fn(); } finally {
+    if (prev === undefined) delete process.env.WAYPOST_PROJECT_DIR; else process.env.WAYPOST_PROJECT_DIR = prev;
+  }
+}
+
+test("a lease another session holds is found over a staged vault file, on either spelling of the vault path (WP-18)", () => {
+  const proj = repo();
+  const vault = join(proj, "vault");
+  waypost(proj, ["lease", join(vault, "epics", "PS-1", "epic.md")], { harness: "codex", session: "other" });
+  // Staged paths come from `git diff --cached --name-only`: repo-relative,
+  // always with "/". Leases are vault-relative. Mapping one onto the other is
+  // what the vault's own prefix is for — and on Windows that prefix never
+  // matched, so `waypost commit` stopped seeing any collision at all.
+  const staged = ["vault/epics/PS-1/epic.md"];
+  withProject(proj, () => {
+    for (const vault_path of [vault, winSpelled(vault)]) {
+      const hits = leasesOverStaged(staged, { vault_path }, "me");
+      assert.equal(hits.length, 1, `a live lease from another session must surface for ${vault_path}`);
+      assert.equal(hits[0].session, "other");
+    }
+  });
+});
+
+test("the merge driver re-derives a view rather than merging it, board and folder index alike (WP-18)", () => {
+  const proj = repo();
+  const tmp = mkdtempSync(join(tmpdir(), "waypost-md-"));
+  // %A %O %B %P, as git calls it: the first is the file git wants the result
+  // in, the last is the path in the worktree.
+  for (const [view, marker] of [["kanban.md", /kanban-plugin: board/], [join("epics", "README.md"), /PS-1/]]) {
+    const a = join(tmp, "A");
+    for (const [f, text] of [["A", "ours"], ["O", "base"], ["B", "theirs"]]) writeFileSync(join(tmp, f), text + "\n", "utf8");
+    const r = spawnSync(process.execPath,
+      [join(REPO, "scripts", "merge-derived.mjs"), a, join(tmp, "O"), join(tmp, "B"), join("vault", view)],
+      { encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO } });
+    // On Windows this exited 1 with "not a derived view" for every one of
+    // them, and git kept the conflict markers in a file ADR-0006 says is
+    // never merged in the first place.
+    assert.equal(r.status, 0, `${view}: ${r.stderr}${r.stdout}`);
+    assert.match(r.stderr, /regenerated/);
+    assert.match(readFileSync(a, "utf8"), marker, `${view} was re-derived into the file git asked for`);
+  }
 });

@@ -1260,6 +1260,65 @@ test("doctor: a driver that is not this fork's merge-derived shape is still flag
   assert.ok(out.some((f) => f.check === "merge-driver" && /different command/.test(f.message)));
 });
 
+// ─── WP-18: "inside the repository" on a machine that spells it with \ ─
+
+// Both checks ask the same question — is the vault versioned by the project's
+// own repository? — and both used to ask it with `startsWith(proj + "/")`,
+// which no path on Windows answers yes to. The fixture is a real directory;
+// only the SPELLING of the vault path is the one Windows hands over.
+const winSpelled = (p) => p.split("/").join(String.fromCharCode(92));
+
+test("doctor: a vault inside the repository needs no git init of its own — on either spelling of that path (WP-18)", async () => {
+  const { checkVaultGit } = await import("../scripts/doctor.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-vaultgit-"));
+  mkdirSync(join(proj, "vault"), { recursive: true });
+  mkdirSync(join(proj, ".git"), { recursive: true });
+  assert.deepEqual(checkVaultGit({ vault_path: join(proj, "vault") }, proj), []);
+  // The Windows spelling of the very same directory. Left broken, doctor
+  // warned that an in-repo vault had no history and `--fix` acted on it with
+  // `git init` — a nested repository inside the project's own.
+  assert.deepEqual(checkVaultGit({ vault_path: winSpelled(join(proj, "vault")) }, proj), [],
+    "a backslash in the path is not evidence that the vault lives outside the repo");
+});
+
+test("doctor: the merge-driver check still runs when the vault path is spelled with a backslash (WP-18)", async () => {
+  const { checkMergeDriver } = await import("../scripts/doctor.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-mergedrv3-"));
+  const vault = join(proj, "vault");
+  mkdirSync(vault, { recursive: true });
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  writeFileSync(join(proj, ".gitattributes"), "*.md merge=waypost-derived\n", "utf8");
+  spawnSync("git", ["config", "merge.waypost-derived.driver", "some-old-command %A"], { cwd: proj });
+  const out = checkMergeDriver({ vault_path: winSpelled(vault) }, proj);
+  assert.ok(out.some((f) => f.check === "merge-driver" && /different command/.test(f.message)),
+    "the check must not go silent — a Windows session was never told its driver had drifted");
+});
+
+test("the merge driver command in .git/config carries no backslash — the shell git runs it through would eat it (WP-18)", async () => {
+  const { mergeDriverCommand } = await import("../scripts/doctor.mjs");
+  const cmd = mergeDriverCommand();
+  assert.ok(!cmd.includes(String.fromCharCode(92)),
+    `git hands this line to a shell (its own sh on Windows), where a backslash escapes what follows it: ${cmd}`);
+});
+
+test("doctor: a driver whose separators a shell has already eaten is drift, not another machine's path (WP-18)", async () => {
+  const { checkMergeDriver } = await import("../scripts/doctor.mjs");
+  const proj = mkdtempSync(join(tmpdir(), "wp-mergedrv4-"));
+  const vault = join(proj, "vault");
+  mkdirSync(vault, { recursive: true });
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  writeFileSync(join(proj, ".gitattributes"), "*.md merge=waypost-derived\n", "utf8");
+  // Exactly what git ran on Windows once `doctor --fix` had written a
+  // backslash-spelled path and git's sh had escaped its way through it: node
+  // was handed a filename with no directories left in it (MODULE_NOT_FOUND),
+  // and the merge handed back a conflict in a generated file.
+  spawnSync("git", ["config", "merge.waypost-derived.driver",
+    "node Y:DocumentsSwiftProjectsWaypostscriptsmerge-derived.mjs %A %O %B %P"], { cwd: proj });
+  const out = checkMergeDriver({ vault_path: vault }, proj);
+  assert.ok(out.some((f) => f.check === "merge-driver" && /different command/.test(f.message)),
+    "a path with no separator left in it names nothing on any machine: repair it, do not respect it");
+});
+
 // ─── WP-17: discovery — `waypost profile`, the setup step, `size --global`
 //     with a profile ─────────────────────────────────────────────────────
 //

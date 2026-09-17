@@ -29,7 +29,7 @@ import { existsSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { readConfig, pluginRoot, ignoreEpipe, realPath } from "./lib.mjs";
+import { readConfig, pluginRoot, ignoreEpipe, realPath, pathUnder } from "./lib.mjs";
 import { join } from "node:path";
 
 // Which selector regenerates which file. A folder README is an index, and
@@ -61,7 +61,7 @@ function main() {
   const view = resolve(name);
   // Inside the vault, or it is not a derived view whatever it is called: the
   // project's own README.md is not an index of anything waypost generates.
-  const inVault = realPath(view).startsWith(realPath(cfg.vault_path) + "/");
+  const inVault = pathUnder(realPath(view), realPath(cfg.vault_path)) !== null;
   const selector = inVault ? selectorFor(basename(view), cfg) : null;
   if (!selector) {
     process.stderr.write(`waypost merge-derived: ${basename(view)} is not a derived view; leaving the conflict\n`);
@@ -83,7 +83,7 @@ function main() {
     const parsed = JSON.parse(r.stdout || "{}");
     const targets = [parsed.kanban, parsed.codemap, parsed.graph, ...(parsed.indexes || [])].filter(Boolean);
     const hit = targets.find((t) => t.path && basename(t.path) === basename(view)
-      && (selector !== "indexes" || t.path.endsWith(relOf(view))));
+      && (selector !== "indexes" || relOf(t.path) === relOf(view)));
     out = hit && hit.path;
   } catch { /* fall through */ }
   if (!out || !existsSync(out)) {
@@ -97,7 +97,7 @@ function main() {
 // For an index README the basename is not unique, so match on the last two
 // segments (<folder>/README.md) — which is exactly what makes it identifiable.
 function relOf(abs) {
-  const parts = abs.split("/");
+  const parts = String(abs).replace(/\\/g, "/").split("/");
   return parts.slice(-2).join("/");
 }
 

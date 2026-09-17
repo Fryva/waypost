@@ -784,18 +784,14 @@ export function listEpicStories(epicDir) {
   return out;
 }
 
-// A path inside the vault, relative to it, or null when it is not. Normalises
-// `\`→`/` and accepts either a lexical prefix match or a realpath one (macOS
-// /var → /private/var, the same duality isInsideVault resolves) — a bare
-// `startsWith(vault + "/")` gets both of those wrong.
+// A path inside the vault, relative to it, or null when it is not. Lexically
+// or through the filesystem (macOS /var → /private/var, the same duality
+// isInsideVault resolves); pathUnder() carries the separator and case rules.
 function vaultRelPath(absPath, vaultPath) {
   if (!absPath || !vaultPath) return null;
-  const norm = (p) => String(p).replace(/\\/g, "/");
-  const trim = (p) => (p.endsWith("/") ? p.slice(0, -1) : p);
-  const under = (p, v) => (p === v ? "" : p.startsWith(v + "/") ? p.slice(v.length + 1) : null);
-  const lexical = under(trim(norm(absPath)), trim(norm(vaultPath)));
+  const lexical = pathUnder(absPath, vaultPath);
   if (lexical !== null) return lexical;
-  return under(trim(norm(realPath(absPath))), trim(norm(realPath(vaultPath))));
+  return pathUnder(realPath(absPath), realPath(vaultPath));
 }
 
 // A story reference is stable across harnesses and machines: <epic>/<stem>.
@@ -1239,7 +1235,7 @@ export async function gatherVaultFacts(cfg, opts = {}) {
       }
       const fm = parseFrontmatter(String(text)).data;
       if (!fm || fm.status !== "in-progress") continue;
-      const rel = abs.startsWith(vault + "/") ? abs.slice(vault.length + 1) : abs;
+      const rel = pathUnder(abs, vault) ?? abs;
       const seg = rel.split("/");
       const epic = epicFolder && seg[0] === epicFolder.path && seg[1] ? seg[1] : seg[0];
       found.push({ epic, title: String(fm.title || seg[seg.length - 1]), startedAt: fm.started_at || "" });
@@ -1553,16 +1549,39 @@ export function realPath(p) {
   try { return realpathSync(resolve(p)); } catch { return resolve(p); }
 }
 
+// ─── is this path inside that directory? ───────────────────────────────
+//
+// The path from `base` to `p`: "" when they are the same path, null when `p`
+// is somewhere else. Every caller used to spell this `p.startsWith(base + "/")`,
+// which is false for EVERY path on Windows, where the same paths are spelled
+// with `\`. Measured on a Windows 11 VM during WP-18's verification pass:
+// `waypost story plan --write` refused to write a story plainly inside the
+// vault, `doctor` offered to `git init` a vault the repository already
+// versions (and `--fix` would have made a nested repository of it), and the
+// merge driver called the vault's own kanban.md "not a derived view", leaving
+// exactly the conflict markers ADR-0006 exists to remove.
+//
+// So: compare on `/`, and fold case where the filesystem itself does — `Y:\x`
+// and `y:\x` are one path on Windows and two on Linux. What comes back is
+// always `/`-spelled, which is how every path relative to the vault is written.
+export function pathUnder(p, base, { platform = process.platform } = {}) {
+  if (!p || !base) return null;
+  const norm = (s) => String(s).replace(/\\/g, "/").replace(/\/+$/, "");
+  const a = norm(p);
+  const b = norm(base);
+  const fold = platform === "win32" ? (s) => s.toLowerCase() : (s) => s;
+  if (fold(a) === fold(b)) return "";
+  return fold(a).startsWith(fold(b) + "/") ? a.slice(b.length + 1) : null;
+}
+
 export function isInsideVault(filePath, vaultPath) {
   if (!filePath || !vaultPath) return false;
-  const trim = (p) => (p.endsWith("/") ? p.slice(0, -1) : p);
-  const under = (p, v) => p === v || p.startsWith(v + "/");
   // Lexically OR through the filesystem: a path that does not exist (a deleted
   // file in an activity log) cannot be realpath'd, and a path that does can be
   // spelled two ways (macOS /var → /private/var). Accepting either answer is
   // the only form that is right in both cases.
-  return under(trim(filePath), trim(vaultPath))
-    || under(realPath(trim(filePath)), realPath(trim(vaultPath)));
+  return pathUnder(filePath, vaultPath) !== null
+    || pathUnder(realPath(filePath), realPath(vaultPath)) !== null;
 }
 
 // ─── Source-path classification ────────────────────────────────────────

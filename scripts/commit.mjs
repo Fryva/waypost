@@ -44,7 +44,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   readConfig, projectRoot, ignoreEpipe, listVaultStoryFiles, parseFrontmatter,
-  storyRefOf, storyPathOf as storyPathOfLib,
+  storyRefOf, storyPathOf as storyPathOfLib, pathUnder,
 } from "./lib.mjs";
 import { detectProvider } from "./agents.mjs";
 import { sessionId, claimsOf, CLAIM_WINDOW_MS } from "./sessions.mjs";
@@ -131,11 +131,12 @@ export function conflicts(story, cfg, self) {
 export function leasesOverStaged(staged, cfg, self) {
   if (!cfg || !cfg.vault_path) return [];
   const proj = projectRoot();
-  const inRepoVault = cfg.vault_path.startsWith(proj + "/") ? cfg.vault_path.slice(proj.length + 1) : null;
+  const inRepoVault = pathUnder(cfg.vault_path, proj) || null;
   const stagedRel = new Set();
   for (const f of staged) {
     stagedRel.add(f);
-    if (inRepoVault && f.startsWith(inRepoVault + "/")) stagedRel.add(f.slice(inRepoVault.length + 1));
+    const inVault = inRepoVault ? pathUnder(f, inRepoVault) : null;
+    if (inVault) stagedRel.add(inVault);
   }
   return readLeases(cfg.vault_path, { self })
     .filter((l) => l.live && !l.mine && stagedRel.has(l.path));
@@ -299,7 +300,7 @@ function merge(argv, mi) {
     const written = [out.kanban, out.codemap, out.graph, ...out.indexes]
       // Only paths inside THIS repo are ours to stage — a vault that lives
       // outside it (leasesOverStaged reasons about the same split) is not.
-      .filter((t) => t && t.written && t.path && t.path.startsWith(proj + "/"))
+      .filter((t) => t && t.written && t.path && pathUnder(t.path, proj))
       .map((t) => t.path);
     if (written.length) git(["add", "--", ...written]);
   }
