@@ -111,16 +111,15 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
         is the better evidence: this story's own test run waited for the slot
         while an unrelated Claude session on this machine held it for
         `./packaging/native/build-packages.sh DEB`.
-      - [x] Linux, after a restart — **met by construction, not by a
-        reboot**: the record was given a boot identity from another boot by
-        hand, rather than the VM being restarted under a live holder. The
-        mechanism behind it is real (`machineStateDir()` is
-        `~/.local/state/waypost`, so records do outlive a reboot, and
-        `/proc/sys/kernel/random/boot_id` is re-randomised by one) and the
-        record is ignored even while the pid it names is alive, then pruned by
-        the next claim. A SIGKILLed holder and a reused pid (same pid, other
-        start time) are ignored too; a genuinely live holder still refuses. A
-        real reboot would cost one restart of this VM and is worth doing.
+      - [x] Linux, after a restart — **by a real reboot**, 2026-09-17: the VM
+        was restarted with the slot held, `boot_id` went from
+        `a3bb45b2-…` to `d0bb28f8-…`, and on the other side `waypost capacity`
+        reported "can start 1 heavy job" with the pre-reboot record still on
+        disk; the next claim pruned it. Two things the reboot taught that the
+        constructed version could not — see "What a real reboot showed" under
+        Technical Notes. Constructed cases still cover what a reboot cannot
+        stage: a SIGKILLed holder and a reused pid (same pid, other start
+        time) are ignored, a genuinely live holder still refuses.
       - [ ] Windows.
 - [ ] After sleep and wake, a live holder stays a holder.
       - [x] Linux — **passes after the fix**, evidence: the VM was suspended
@@ -310,6 +309,33 @@ across sleep and wake" — which the Linux pass cannot discharge, since `boot_id
 never reaches the epoch path. The macOS and Windows passes should read
 `sysctl -n kern.boottime` and `now − os.uptime()` before and after a suspend,
 not only re-run `capacity`.
+
+### What a real reboot showed
+
+Two things, 2026-09-17, with a live holder (`run --heavy -- sleep 7200`) and a
+record planted on pid 1 beside it.
+
+**A clean reboot leaves no record at all.** The holder's own record was gone
+after the restart: shutdown signals the wrapper, and it releases on exit like
+any other end. So the case this criterion is really about — a record outliving
+the machine that wrote it — needs an unclean stop, which is why the planted
+record was there.
+
+**The boot identity is carrying this alone, and now it is measured.** The
+planted record named pid 1 with the tick count `/proc` gave it before the
+reboot: 0. After the reboot systemd is pid 1 again, and its tick count is 0
+again. Asked directly:
+
+    processGone() → false   (alive: pid 1 is there, 0 === 0)
+    sameBoot()    → false
+    slotLive()    → false   (stale, and the slot is free)
+
+So the process half of liveness says "alive" about a process from a previous
+boot, and `sameBoot()` is the only thing between that record and a phantom
+holder pinning the machine's only slot. On Linux that is fine — `boot_id` is a
+real identifier. It is also the sharpest argument for the open item above: on
+macOS and Windows that sole guard is the drifting kind, and there is nothing
+behind it.
 
 ### The suite is not reliably green on this machine, and that is the machine
 
