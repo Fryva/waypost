@@ -21,7 +21,7 @@
 //   ASK_TIMEOUT_MS
 
 import { readFileSync, readdirSync, lstatSync } from "node:fs";
-import { join, sep, win32 as pathWin32, posix as pathPosix } from "node:path";
+import { join, sep, normalize, win32 as pathWin32, posix as pathPosix } from "node:path";
 import { spawnSync } from "node:child_process";
 import { pluginRoot } from "./lib.mjs";
 
@@ -451,7 +451,7 @@ export function resolveCachePaths(entries, { home, env = process.env, platform =
         if (bin) {
           const result = askCache(c.ask, { bin, env, home, platform, timeoutMs });
           if (result.ok) {
-            for (const p of result.value) raw.push({ ...base, path: p, source: "asked" });
+            for (const p of result.value) raw.push({ ...base, path: normalize(p), source: "asked" });
             continue; // resolved by asking; no env/default fallback needed for this item
           }
           askNote = result.note;
@@ -461,8 +461,12 @@ export function resolveCachePaths(entries, { home, env = process.env, platform =
       const sub = substitute(c.path, tokens);
       if (sub == null) continue;
       const candidates = sub.path.endsWith("*") ? expandTrailingStar(sub.path) : [sub.path];
+      // normalize(): a template is written `$HOME/.cargo/registry`, and
+      // substituting a Windows home into it leaves `C:\Users\x/.cargo/registry`
+      // — one path in two spellings, which then fails to dedupe against the
+      // same path asked from the tool, and is printed to the user like that.
       for (const p of candidates) {
-        raw.push({ ...base, path: p, source: sub.source, ...(askNote ? { ask_note: askNote } : {}) });
+        raw.push({ ...base, path: normalize(p), source: sub.source, ...(askNote ? { ask_note: askNote } : {}) });
       }
     }
   }

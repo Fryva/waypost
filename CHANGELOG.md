@@ -111,6 +111,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays in the vault (ADR-0004).
 
 ### Fixed
+- `waypost doctor` no longer counts the vault's own artifacts as untracked work
+  on Windows. "Is this file inside the vault?" was spelled
+  ``vaultAbs.startsWith(`${resolve(proj)}/`)`` — a template-literal spelling of the
+  same question fixed everywhere else, and one no path on Windows answers yes
+  to, so every file the vault owns was classified as source work with no story
+  behind it (WP-18).
+- A cache path is reported in the platform's own spelling. A registry template
+  is written `$HOME/.cargo/registry`, and substituting a Windows home into it
+  left `C:\Users\x/.cargo/registry`: one path in two spellings, which then
+  failed to dedupe against the same path asked from the tool itself, and was
+  printed to the user like that (WP-18).
 - A heavy job's slot survives the machine sleeping on Windows too. The boot
   identity there is `now − os.uptime()`, and a host suspending the VM freezes
   the tick count while the wall clock is corrected forward on resume: 534 s of

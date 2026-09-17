@@ -1037,7 +1037,8 @@ test("listVaultStoryFiles: sees flat, folder-shape and standalone stories (contr
     "PS-A/stories/story-folder/README.md": "planned",
     "PS-B/story-standalone.md": "planned",
   });
-  const found = listVaultStoryFiles(vault).map((p) => p.replace(vault + "/", ""));
+  const slashed = (p) => String(p).replace(/[\\]/g, "/");
+  const found = listVaultStoryFiles(vault).map((p) => slashed(p).replace(slashed(vault) + "/", ""));
   assert.equal(found.length, 3, "all three shapes, none missed");
   assert.ok(found.some((f) => f.endsWith("story-flat.md")));
   assert.ok(found.some((f) => f.endsWith("story-folder/README.md")), "folder-shape story");
@@ -1114,9 +1115,16 @@ test("checkWorkWithoutStory: fires on dirty tree with no open story, silent othe
     writeFileSync(join(vault, "epics", "PS-A", "stories", "story-b.md"),
       "---\ntype: story\nstatus: planned\n---\n", "utf8");
     spawnSync("chmod", ["000", unreadable]);
+    // chmod restricts nothing on Windows, and nothing for root either, so
+    // what the assertion needs is not "chmod ran" but "the file is in fact
+    // unreadable" — otherwise the finding that comes back is the ordinary
+    // work-without-story one, and asserting on it tests nothing.
+    let stillReadable = true;
+    try { readFileSync(unreadable, "utf8"); } catch { stillReadable = false; }
     const inconclusive = checkWorkWithoutStory(cfg, proj);
     spawnSync("chmod", ["644", unreadable]);
-    if (inconclusive.length) {
+    if (!stillReadable) {
+      assert.equal(inconclusive.length, 1, "an unreadable story file is not a clean vault");
       assert.match(inconclusive[0].message, /inconclusive rather than clean/,
         "a diagnostic that cannot read must say so, not go quiet");
     }
@@ -1371,7 +1379,7 @@ test("gather contract 13: a family that finished before expiry keeps its result"
     stories: [{ epic: "E1", slug: "story-a", title: "A", status: "in-progress", startedAt: "2026-08-01" }],
   });
   // READMEs resolve; anything under epics/ hangs. Partial is the normal outcome.
-  const readFile = (p) => (p.includes("/epics/") ? NEVER() : readFileSync(p, "utf8"));
+  const readFile = (p) => (/[\\/]epics[\\/]/.test(p) ? NEVER() : readFileSync(p, "utf8"));
   const facts = await gatherVaultFacts(cfgFor(vault), { budgetMs: 30, readFile });
   assert.equal(facts.inFlight.status, "timeout", "the scan that hung degrades");
   assert.ok(facts.folders.find((f) => f.path === "adr").readme.includes("The adr folder"),

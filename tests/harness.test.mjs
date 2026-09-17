@@ -5,10 +5,10 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { detectHarnesses, detectHarness } from "../scripts/agents.mjs";
 import { storedVaultPath, resolveVaultPath } from "../scripts/lib.mjs";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
@@ -23,6 +23,13 @@ const mkdtempSync = (prefix) => { const p = fsMkdtemp(prefix); TMP_DIRS.push(p);
 after(() => { for (const p of TMP_DIRS) rmSync(p, { recursive: true, force: true }); });
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
+
+// A module path for `node -e "import(...)"`. It has to be a file:// URL:
+// on Windows a bare absolute path starts "Y:", which an ESM import reads as
+// an unsupported URL scheme, and the child then prints nothing at all.
+const moduleUrl = (...parts) => JSON.stringify(pathToFileURL(join(...parts)).href);
+
+
 const Waypost = join(REPO, "bin", "waypost");
 
 function project() {
@@ -77,7 +84,7 @@ test("every bundled role is neutral: no harness-specific paths or slash commands
   const roles = listRoles();
   assert.ok(roles.length >= 3, "the roster ships");
   for (const r of roles) {
-    assert.equal(r.name, r.path.split("/").pop().replace(/\.md$/, ""), "name matches filename");
+    assert.equal(r.name, basename(r.path, ".md"), "name matches filename");
     assert.ok(r.description.length > 40, `${r.name} describes when to invoke it`);
     assert.ok(["reasoning", "balanced", "fast"].includes(r.tier),
       `${r.name} declares a neutral model tier, not a vendor model id: ${r.tier}`);
@@ -183,7 +190,7 @@ test("a role naming a tool outside the neutral vocabulary is rejected at read ti
   writeFileSync(join(dir, "agents", "bogus.md"),
     "---\nname: bogus\ndescription: x\ntools: [read, telepathy]\n---\nbody\n", "utf8");
   const r = spawnSync(process.execPath, ["-e",
-    `import(${JSON.stringify(join(REPO, "scripts", "agents.mjs"))}).then(m => m.readRole("bogus")).catch(e => { console.log(e.message); })`],
+    `import(${moduleUrl(REPO, "scripts", "agents.mjs")}).then(m => m.readRole("bogus")).catch(e => { console.log(e.message); })`],
     { encoding: "utf8", env: { ...process.env, WAYPOST_HOME: dir } });
   assert.match(r.stdout, /unknown tool\(s\) telepathy/, "the error names the tool and the file");
 });
@@ -304,7 +311,7 @@ test("a harness that declares no frontmatter fields gets no empty block", () => 
     roles: { shape: "prompt-md", dir: ".bare", file: "{prefix}{role}.md", model: false },
   }), "utf8");
   const r = spawnSync(process.execPath, ["-e",
-    `import(${JSON.stringify(join(REPO, "scripts", "agents.mjs"))}).then(m => {` +
+    `import(${moduleUrl(REPO, "scripts", "agents.mjs")}).then(m => {` +
     `  const t = m.renderFor("bare", m.readRole("solo"), null);` +
     `  console.log(JSON.stringify(t.slice(0, 40)));` +
     `})`], { encoding: "utf8", env: { ...process.env, WAYPOST_HOME: dir } });
@@ -450,8 +457,8 @@ test("install: idempotent, per-harness, and detected harnesses are the default",
   mkdirSync(join(proj, ".opencode"), { recursive: true });
 
   const first = waypost(proj, ["agents", "install"]).stdout;
-  assert.ok(/\.opencode\/agents\/waypost-critic\.md/.test(first), "the harness in use is installed");
-  assert.ok(!/\.codex\/prompts/.test(first), "a harness this project does not use is left alone");
+  assert.ok(/\.opencode[\\/]agents[\\/]waypost-critic\.md/.test(first), "the harness in use is installed");
+  assert.ok(!/\.codex[\\/]prompts/.test(first), "a harness this project does not use is left alone");
   assert.ok(!existsSync(join(proj, ".codex")), "no directory is conjured for an unused harness");
 
   const second = waypost(proj, ["agents", "install"]).stdout;
@@ -622,7 +629,7 @@ test("a role declaring a vendor model id instead of a tier is rejected", () => {
   writeFileSync(join(dir, "agents", "upstreamish.md"),
     "---\nname: upstreamish\ndescription: x\nmodel: opus\ntools: [read]\n---\nbody\n", "utf8");
   const r = spawnSync(process.execPath, ["-e",
-    `import(${JSON.stringify(join(REPO, "scripts", "agents.mjs"))}).then(m => m.readRole("upstreamish")).catch(e => console.log(e.message))`],
+    `import(${moduleUrl(REPO, "scripts", "agents.mjs")}).then(m => m.readRole("upstreamish")).catch(e => console.log(e.message))`],
     { encoding: "utf8", env: { ...process.env, WAYPOST_HOME: dir } });
   assert.match(r.stdout, /not a neutral tier/,
     "an upstream role file must fail loudly, not render with the model silently dropped");
@@ -1005,7 +1012,7 @@ test("draft --write creates the artifact and reconciles the derived views", () =
 test("draft without --write previews cheaply, and --json still gives everything", () => {
   const { proj, vault } = bound();
   const preview = waypost(proj, ["draft", "adr", "Only a draft"]).stdout;
-  assert.match(preview, /^would create .*adr\/only-a-draft\.md$/m);
+  assert.match(preview, /^would create .*adr[\\/]only-a-draft\.md$/m);
   assert.ok(preview.length < 900, `a preview is a decision aid, not a copy of the file:\n${preview}`);
   assert.ok(!preview.includes("## Consequences"),
     "the whole rendered template in a preview is several hundred tokens of what is about to be on disk");

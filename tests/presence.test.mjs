@@ -26,6 +26,13 @@ const mkdtempSync = (prefix) => { const p = fsMkdtemp(prefix); TMP_DIRS.push(p);
 after(() => { for (const p of TMP_DIRS) rmSync(p, { recursive: true, force: true }); });
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
+
+// A path spelled the way POSIX spells it. These assertions are about the
+// SHAPE of a path — which directory it ends up in — and Windows spells that
+// same shape with a backslash, so the separator is normalised before the
+// comparison rather than asserted (WP-18, the Windows pass).
+const slashed = (p) => String(p).replace(/[\\]/g, "/");
+
 const Waypost = join(REPO, "bin", "waypost");
 
 function project() {
@@ -544,8 +551,8 @@ test("inside a repository presence and leases live in the git common dir, and bo
   const { proj, vault } = project();
   withProject(proj, () => {
     const c = coordinationDirs(vault);
-    assert.ok(c.primary.endsWith("/.git/waypost/vault"), c.primary);
-    assert.ok(c.legacy.endsWith("/vault/.projectstore"), c.legacy);
+    assert.ok(slashed(c.primary).endsWith("/.git/waypost/vault"), c.primary);
+    assert.ok(slashed(c.legacy).endsWith("/vault/.projectstore"), c.legacy);
     beat(vault, "me", {});
     assert.ok(existsSync(join(c.primary, "presence", "me.json")));
     assert.ok(existsSync(join(c.legacy, "presence", "me.json")), "dual write: a peer on the previous version still sees us");
@@ -570,7 +577,7 @@ test("a vault outside any repository, or a project without git, keeps the ADR-00
   const vault = join(away, "vault"); mkdirSync(vault);
   withProject(proj, () => {
     const c = coordinationDirs(vault);
-    assert.ok(c.primary.endsWith("/vault/.projectstore"), c.primary);
+    assert.ok(slashed(c.primary).endsWith("/vault/.projectstore"), c.primary);
     assert.equal(c.legacy, null, "one place only, nothing to migrate");
     assert.equal(c.common, null);
   });
@@ -645,11 +652,15 @@ test("the git common dir answers what ADR-0010 assumes, from the root, a subdire
   const wt = join(base, "wt");
   g(["worktree", "add", "-q", wt, "-b", "wt"], main);
   assert.equal(common(wt), mainGit, "a linked worktree names the main repository's .git");
-  assert.match(readFileSync(join(wt, ".git"), "utf8"), /^gitdir: \//, "a linked worktree's .git is a file holding an absolute gitdir");
-  assert.equal(dirname(common(wt)), main, "so the main worktree, and its .waypost/ binding, is dirname(common dir)");
+  assert.match(readFileSync(join(wt, ".git"), "utf8"), /^gitdir: (\/|[A-Za-z]:\/)/,
+    "a linked worktree's .git is a file holding an absolute gitdir — which on Windows starts with a drive letter");
+  // git answers with "/" on every OS, including Windows, where join() builds
+  // the same path with a backslash: one path, two spellings.
+  assert.equal(slashed(dirname(common(wt))), slashed(main),
+    "so the main worktree, and its .waypost/ binding, is dirname(common dir)");
   const bare = join(base, "bare.git");
   g(["init", "-q", "--bare", bare], base);
-  assert.equal(common(bare), bare, "a bare repository answers its own path, not '.'");
+  assert.equal(slashed(common(bare)), slashed(bare), "a bare repository answers its own path, not '.'");
   assert.equal(g(["rev-parse", "--is-bare-repository"], bare).stdout.trim(), "true");
   const outer = join(base, "outer"); const inner = join(outer, "inner");
   g(["init", "-q", outer], base); g(["init", "-q", inner], outer);

@@ -1414,7 +1414,10 @@ test("bin/waypost profile --json: writes both profiles; a second run keeps gener
   assert.notEqual(p3.project.generated_at, p1.project.generated_at);
 });
 
-test("bin/waypost profile --json: a fake tool on PATH that reports a moved cache puts that path in the profile with source 'asked' (WP-17, AC1)", () => {
+// The ask fixture is a POSIX executable; on win32 waypost refuses to run a
+// shim's ask at all, which tests/discovery.test.mjs covers directly.
+test("bin/waypost profile --json: a fake tool on PATH that reports a moved cache puts that path in the profile with source 'asked' (WP-17, AC1)",
+  { skip: process.platform === "win32" ? "POSIX tool fixture: on win32 the ask is refused by design" : false }, () => {
   const proj = mkdtempSync(join(tmpdir(), "wp-profile-asked-proj-"));
   const home = mkdtempSync(join(tmpdir(), "wp-profile-asked-home-"));
   const bin = mkdtempSync(join(tmpdir(), "wp-profile-asked-bin-"));
@@ -1587,7 +1590,9 @@ test("bin/waypost setup: a discovery failure (unwritable machine-state dir) does
 test("bin/waypost profile: outside a project (projectRoot === HOME) builds no project profile and writes nothing under it (item 6)", () => {
   const home = mkdtempSync(join(tmpdir(), "wp-profile-athome-"));
   const bin = emptyBinDir();
-  const env = { ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: home, WAYPOST_NO_BEAT: "1" };
+  // USERPROFILE too: os.homedir() reads it on Windows, and this test is
+  // about the project root BEING the home directory.
+  const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: home, WAYPOST_NO_BEAT: "1" };
   const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile", "--json"],
     { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
   assert.equal(r.status, 0, r.stderr);

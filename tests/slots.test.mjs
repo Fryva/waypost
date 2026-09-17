@@ -440,7 +440,8 @@ test("run --heavy: the exit code passes through, including a crash", () => {
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-test("run --heavy: a signal exits 128 + the signal number", () => {
+test("run --heavy: a signal exits 128 + the signal number",
+  { skip: process.platform === "win32" ? "POSIX signals: Windows terminates a process, it does not signal it" : false }, () => {
   const home = tmpHome();
   try {
     const r = runCli(["run", "--heavy", "--", "node", "-e", "process.kill(process.pid, 'SIGTERM')"], heavyEnv(home));

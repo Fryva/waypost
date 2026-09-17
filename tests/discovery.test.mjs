@@ -29,6 +29,16 @@ process.on("exit", () => { for (const p of ROOTS) { try { rmSync(p, { recursive:
 // fixtures are written directly where needed — a .cmd's content is never
 // run in this suite (the batch-shim guard, tested below, refuses before
 // spawning it).
+// An ask fixture is a POSIX executable: a `#!/bin/sh` file with the exec bit,
+// found by that bit and spawned directly. Windows can do neither — and is not
+// asked to: waypost refuses to run a .cmd/.bat shim's ask at all (the
+// batch-shim guard), so what Windows owes here is to FIND the tool through
+// PATHEXT and decline to ask it, which its own tests do cover. Skipped with
+// the reason rather than left red (WP-18, the Windows pass).
+const POSIX_TOOL_FIXTURE = process.platform === "win32"
+  ? "POSIX tool fixture: on win32 the ask is refused by design (see the PATHEXT and batch-shim tests)"
+  : false;
+
 function fakeTool(dir, name, script) {
   const p = join(dir, name);
   writeFileSync(p, script, "utf8");
@@ -52,7 +62,8 @@ function fakeEntry(id, { detectBin, askArgv, askEnv, path = "$XDG_CACHE_HOME/" +
 
 // ─── findOnPath ───────────────────────────────────────────────────────────
 
-test("findOnPath (POSIX): finds an executable file on PATH, skips a non-executable file and a directory of the same name", () => {
+test("findOnPath (POSIX): finds an executable file on PATH, skips a non-executable file and a directory of the same name",
+  { skip: process.platform === "win32" ? "the exec bit is POSIX; the win32 case is its own test below" : false }, () => {
   const dir = tmpRoot("waypost-disc-path-");
   fakeTool(dir, "runnable", "#!/bin/sh\necho hi\n");
   writeFileSync(join(dir, "notexec"), "#!/bin/sh\necho hi\n", "utf8"); // no chmod: not executable
@@ -78,7 +89,8 @@ test("findOnPath (win32): PATHEXT search is case-insensitive on both the extensi
 // relative PATH entry that happened to exist relative to the lookup site
 // could resolve to (and run) an entirely different file once actually
 // spawned relative to home.
-test("findOnPath: a relative PATH entry is skipped — never resolved even when it WOULD match the caller's own cwd", () => {
+test("findOnPath: a relative PATH entry is skipped — never resolved even when it WOULD match the caller's own cwd",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const root = tmpRoot("waypost-disc-relpath-");
   const relDir = "rel-bin";
   mkdirSync(join(root, relDir), { recursive: true });
@@ -253,7 +265,8 @@ test("buildMachineProfile: an entry whose detect.bins are declared but none is f
 
 // ─── buildMachineProfile: asking ─────────────────────────────────────────
 
-test("buildMachineProfile: a fake tool that reports a moved cache is asked, and the path carries source 'asked'", () => {
+test("buildMachineProfile: a fake tool that reports a moved cache is asked, and the path carries source 'asked'",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-disc-bin-");
   const moved = tmpRoot("waypost-disc-moved-cache-");
   fakeTool(bin, "faketool", `#!/bin/sh\necho "${moved}"\n`);
@@ -289,7 +302,8 @@ test("buildMachineProfile: when the ask's own binary is not found (though the to
   assert.equal(cacheDefault.path, join(home, ".cache", "fake3"));
 });
 
-test("buildMachineProfile: a fake tool that hangs is reported with a note, and discovery continues within its timeout", () => {
+test("buildMachineProfile: a fake tool that hangs is reported with a note, and discovery continues within its timeout",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-disc-bin3-");
   // A builtin-only busy loop, not `sleep`: the ask's own env is deliberately
   // restricted to this one fake-tool PATH entry (no /bin, no /usr/bin), so
@@ -312,7 +326,8 @@ test("buildMachineProfile: a fake tool that hangs is reported with a note, and d
   assert.match(cache.ask_note, /timed out/);
 });
 
-test("buildMachineProfile: a fake tool that fails (non-zero exit) is reported with a note, discovery continues", () => {
+test("buildMachineProfile: a fake tool that fails (non-zero exit) is reported with a note, discovery continues",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-disc-bin4-");
   fakeTool(bin, "faketool-fail", "#!/bin/sh\nexit 3\n");
   const home = tmpRoot("waypost-disc-home4-");
@@ -323,7 +338,8 @@ test("buildMachineProfile: a fake tool that fails (non-zero exit) is reported wi
   assert.match(cache.ask_note, /exit 3/);
 });
 
-test("buildMachineProfile: an asked value that is not an absolute path is ignored, falling back to env/default with a note", () => {
+test("buildMachineProfile: an asked value that is not an absolute path is ignored, falling back to env/default with a note",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-disc-bin5-");
   fakeTool(bin, "faketool-rel", "#!/bin/sh\necho relative/cache/path\n");
   const home = tmpRoot("waypost-disc-home5-");
@@ -354,7 +370,9 @@ test("buildMachineProfile (win32): the tool is found through PATHEXT, and a .cmd
   assert.equal(profile.tools[0].bin, join(bin, "faketool.CMD"));
   const cache = profile.caches.find((c) => c.tool === "fakewin");
   assert.equal(cache.source, "env", "the $LOCALAPPDATA token itself came from the environment");
-  assert.equal(cache.path, `${localAppData}/fakewin`);
+  // join(): a substituted cache path comes back in the platform's own
+  // spelling now, not the template's `$LOCALAPPDATA` + "/" concatenation.
+  assert.equal(cache.path, join(localAppData, "fakewin"));
   assert.match(cache.ask_note, /batch shim skipped/);
 });
 

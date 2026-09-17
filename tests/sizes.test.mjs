@@ -43,6 +43,11 @@ function heavyEnv(home, extra = {}) {
   return {
     ...process.env,
     HOME: home,
+    // os.homedir() reads HOME on POSIX and USERPROFILE on Windows: without
+    // both, a fixture home redirects nothing there and the test scans the
+    // real machine's caches (measured: 7.6 s, and someone's actual cargo
+    // registry in the assertion).
+    USERPROFILE: home,
     XDG_STATE_HOME: home,
     LOCALAPPDATA: home,
     WAYPOST_NO_BEAT: "1",

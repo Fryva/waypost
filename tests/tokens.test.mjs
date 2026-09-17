@@ -87,7 +87,9 @@ function fixture() {
 
 function run(home, args) {
   return spawnSync(process.execPath, [TOKENS, ...args], {
-    encoding: "utf8", env: { ...process.env, HOME: home }, timeout: 15000,
+    // HOME and USERPROFILE both: os.homedir() reads the first on POSIX and
+    // the second on Windows, and tokens.mjs finds transcripts under it.
+    encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home }, timeout: 15000,
   });
 }
 

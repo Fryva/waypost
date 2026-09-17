@@ -1308,7 +1308,10 @@ export function checkWorkWithoutStory(cfg, proj) {
   // a session that by construction has no story, and counted every one (G-6).
   const under = (f, p) => f === p || f.startsWith(`${p}/`);
   const vaultAbs = resolve(cfg.vault_path);
-  const vaultRel = vaultAbs.startsWith(`${resolve(proj)}/`) ? vaultAbs.slice(resolve(proj).length + 1) : null;
+  // pathUnder, not a `${proj}/` prefix: this one spelling of the question
+  // survived the WP-18 sweep because it is a template literal, and on
+  // Windows it made every file the vault owns read as untracked source work.
+  const vaultRel = pathUnder(vaultAbs, resolve(proj)) || null;
   let owned = [];
   try { owned = harnessOwnedPaths(); } catch { /* an unreadable registry is doctor's own finding, not this check's */ }
   const dirty = all.filter((f) => !(vaultRel && under(f, vaultRel)) && !owned.some((p) => under(f, p)));

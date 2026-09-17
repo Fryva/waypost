@@ -603,15 +603,44 @@ The remaining 41 are a different job, and mostly not the code:
 |---|---|---|
 | `toolchains`, `discovery`, `scripts` (profile), `sizes` | 23 | the fixtures are a POSIX machine: fake tools are shell scripts with a shebang, and a path like `/home/x/.nuget` is not absolute on Windows, so the code correctly refuses it |
 | `tokens` | 4 | the fixture points HOME at a temp directory; Windows reads USERPROFILE, so the transcripts it wrote are not where the code looks |
-| `harness` | 6 | role install and rendering — not diagnosed; could be real |
-| `presence` | 3 | git common dir assertions — not diagnosed; could be real |
+| `harness` | 6 | diagnosed and fixed, below: the test's side, both causes |
+| `presence` | 3 | the same, below |
 | `predicates` | 4 | one `endsWith("…/README.md")` in the assertion itself; a `chmod` that does not restrict on Windows; a hang staged by POSIX means |
 | `slots` | 1 | `run --heavy: a signal exits 128 + the signal number` — POSIX signals |
 
 The first two groups and the `predicates` three are the tests describing a
-machine they are not running on, and fixing them is editing tests. The
-`harness` six and the `presence` three have not been read yet: they may be the
-same thing, and they may be another `startsWith`. Neither should be assumed.
+machine they are not running on, and fixing them is editing tests.
+
+### The `harness` six and the `presence` three, read
+
+They were the nine that could have been code, so they were read rather than
+assumed. All nine are the test's own side, from two causes, and in every one of
+them the code under test was right.
+
+**A path asserted with a `/` in it.** `r.path.split("/").pop()` for a role's
+filename (`basename()` now); `/\.opencode\/agents\/waypost-critic\.md/` against
+the CLI's own output, which is native; `adr\/only-a-draft\.md` in the draft
+preview; and three `endsWith("/.git/waypost/vault")`-shaped assertions on the
+coordination directories. Each is about the SHAPE of a path — which directory
+it lands in — so the separator is now normalised before the comparison
+instead of being asserted.
+
+**A dynamic `import()` of a bare absolute path.** Three tests run
+`node -e "import(<path>).then(...)"` against `scripts/agents.mjs`. On Windows
+that path begins `Y:`, which an ESM import reads as an unsupported URL scheme:
+the child printed nothing at all, and the assertions were left matching an
+empty string (one of them parsed it as JSON and threw). They take a `file://`
+URL now, like the production code always has.
+
+One of them was worth the reading on its own. `git rev-parse --git-common-dir`
+answers with forward slashes on every OS, Windows included, while `join()`
+there builds the same path with backslashes — so `dirname(commonDir)` and the
+project root are one path in two spellings, and a plain `===` between them is
+false. Nothing was broken by it, because `pathUnder()` (committed earlier the
+same day) normalises both sides wherever that comparison actually decides
+something. It is a good example of the class: the mixed spellings are real and
+they are everywhere, and what matters is that no decision is taken by comparing
+them raw.
 
 ### Sleep and wake, Windows, 2026-09-17: the predicted failure, measured
 
@@ -772,6 +801,46 @@ names the recovery. One of them earned its keep immediately — `Number("")` is
 0, so an empty stdout from a PowerShell that exited 0 would have produced an
 authority of zero, matching no record and deleting every one of them. The probe
 now takes digits or nothing.
+
+### Green on Windows, and what is skipped there
+
+**582 tests, 558 passing, 0 failing, 24 skipped**, against 561/500/54/7 that
+morning. The remaining thirty-two were worked through after the nine, and they
+held two more defects in the code rather than in the tests:
+
+- `checkWorkWithoutStory` asked "is this file inside the vault?" as
+  ``vaultAbs.startsWith(`${resolve(proj)}/`)`` — the same question `pathUnder`
+  answers everywhere else, written as a template literal, which is why the
+  morning's sweep (a grep for `+ "/"`) never saw it. On Windows every file the
+  vault owns was therefore reported as untracked source work with no story
+  behind it: `doctor` accusing the project of exactly what the vault is for.
+- A substituted cache path kept the template's separator: `$HOME/.cargo/registry`
+  with a Windows home became `C:\Users\x/.cargo/registry`. One path in two
+  spellings, so it failed to dedupe against the same path asked from the tool,
+  and was printed to the user that way. It is normalised now — and a test that
+  had encoded the mixed spelling as the expected value came with it, which is
+  the tidier half of the same lesson.
+
+Twelve were the tests asserting the wrong platform's arrangement: eight of them
+`HOME` where Windows reads `USERPROFILE` (`os.homedir()` reads one on each), so
+a fixture home redirected nothing — `size --global` was scanning the real
+machine's caches for 7.6 s and asserting against someone's actual cargo
+registry; two were separators inside an assertion; and one was a `chmod` that
+restricts nothing on Windows, where the test then asserted against whatever
+finding came back instead. That one now asserts only when the file is in fact
+unreadable, and proves it by trying to read it.
+
+Seventeen are skipped, each with its reason in the run's own output rather than
+a bare `skip: true`. Sixteen are the ask fixtures: a `#!/bin/sh` file with the
+exec bit, found by that bit and spawned directly, which Windows can do neither
+of — and does not have to, since waypost refuses to run a `.cmd`/`.bat` shim's
+ask at all. What Windows owes there is to find the tool through PATHEXT and
+decline to ask it, and that has its own tests, which pass. The seventeenth is
+POSIX signals.
+
+So the honest summary of what a green run on this machine means: the parse
+kinds of the ask path (`json`, `kv`, the array shape, the dedup ranking) are
+exercised on POSIX only, and everything else in this suite is exercised here.
 
 ## Dependencies
 

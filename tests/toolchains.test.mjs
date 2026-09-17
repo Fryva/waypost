@@ -338,6 +338,16 @@ test("scanProject: a project's own toolchain artifact with match:generic still n
 
 // ─── askCache / resolveCachePaths: parse kinds and dedup ranking ────────
 
+// An ask fixture is a POSIX executable: a `#!/bin/sh` file with the exec bit,
+// found by that bit and spawned directly. Windows can do neither — and is not
+// asked to: waypost refuses to run a .cmd/.bat shim's ask at all (the
+// batch-shim guard), so what Windows owes here is to FIND the tool through
+// PATHEXT and decline to ask it, which its own tests do cover. Skipped with
+// the reason rather than left red (WP-18, the Windows pass).
+const POSIX_TOOL_FIXTURE = process.platform === "win32"
+  ? "POSIX tool fixture: on win32 the ask is refused by design (see the PATHEXT and batch-shim tests)"
+  : false;
+
 function fakeTool(dir, name, script) {
   const p = join(dir, name);
   writeFileSync(p, script, "utf8");
@@ -345,7 +355,8 @@ function fakeTool(dir, name, script) {
   return p;
 }
 
-test("askCache: parse 'json' reads a string key, and a 'kv' key's text after it on the matching line", () => {
+test("askCache: parse 'json' reads a string key, and a 'kv' key's text after it on the matching line",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-toolchains-askbin-");
   const jsonTool = fakeTool(bin, "jsontool", '#!/bin/sh\necho \'{"cacheDir": "/abs/from/json"}\'\n');
   const jr = askCache({ argv: ["jsontool"], parse: "json", key: "cacheDir" }, { bin: jsonTool, home: bin, platform: "darwin" });
@@ -356,7 +367,8 @@ test("askCache: parse 'json' reads a string key, and a 'kv' key's text after it 
   assert.deepEqual(kr, { ok: true, value: ["/abs/from/kv"] });
 });
 
-test("askCache: parse 'json' with an array key (conda's pkgs_dirs shape) keeps every absolute string entry as its own value", () => {
+test("askCache: parse 'json' with an array key (conda's pkgs_dirs shape) keeps every absolute string entry as its own value",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-toolchains-askbin2-");
   const tool = fakeTool(bin, "condatool", '#!/bin/sh\necho \'{"pkgs_dirs": ["/abs/one", "/abs/two", "relative/three"]}\'\n');
   const r = askCache({ argv: ["condatool"], parse: "json", key: "pkgs_dirs" }, { bin: tool, home: bin, platform: "darwin" });
@@ -365,7 +377,8 @@ test("askCache: parse 'json' with an array key (conda's pkgs_dirs shape) keeps e
   assert.deepEqual(r, { ok: true, value: ["/abs/one", "/abs/two"] });
 });
 
-test("askCache: a non-zero exit, unparseable JSON, and a missing kv line are all reported, never thrown", () => {
+test("askCache: a non-zero exit, unparseable JSON, and a missing kv line are all reported, never thrown",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-toolchains-askbin3-");
   const failTool = fakeTool(bin, "failtool", "#!/bin/sh\nexit 2\n");
   assert.equal(askCache({ argv: ["failtool"], parse: "line" }, { bin: failTool, home: bin, platform: "darwin" }).ok, false);
@@ -407,14 +420,16 @@ test("askCache: a relative bin is refused before ever spawning it", () => {
 // tool's own trailing separator (dotnet's `dotnet nuget locals … --list`
 // really does print "…/packages/", trailing slash included) must not stop
 // the SAME directory reported two ways from deduplicating.
-test("askCache: a trailing separator is stripped so two spellings of the same path dedupe", () => {
+test("askCache: a trailing separator is stripped so two spellings of the same path dedupe",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-toolchains-normbin-");
   const tool = fakeTool(bin, "trailingslash", "#!/bin/sh\necho /home/x/.nuget/packages/\n");
   const r = askCache({ argv: ["trailingslash"], parse: "line" }, { bin: tool, home: bin, platform: "darwin" });
   assert.deepEqual(r, { ok: true, value: ["/home/x/.nuget/packages"] });
 });
 
-test("resolveCachePaths: an asked path with a trailing separator dedupes against the SAME item's own env/default template with none", () => {
+test("resolveCachePaths: an asked path with a trailing separator dedupes against the SAME item's own env/default template with none",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-toolchains-normbin2-");
   const home = tmpRoot("waypost-toolchains-normhome2-");
   const tool = fakeTool(bin, "trailingslash2", `#!/bin/sh\necho "${join(home, ".nuget", "packages")}/"\n`);
@@ -435,7 +450,8 @@ test("resolveCachePaths: an asked path with a trailing separator dedupes against
 // spawned tool literally, never expanded — spawnSync's own shell:false
 // already guarantees this; this proves it end to end through askCache with
 // a token containing real shell metacharacters.
-test("askCache: no shell — an argv token containing shell metacharacters like $(...) arrives at the fake tool literally, never expanded", () => {
+test("askCache: no shell — an argv token containing shell metacharacters like $(...) arrives at the fake tool literally, never expanded",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-toolchains-noshell-");
   const marker = join(bin, "marker.txt");
   const tool = fakeTool(bin, "noshelltool", `#!/bin/sh\nprintf '%s' "$1" > "${marker}"\necho /abs/path\n`);
@@ -449,7 +465,8 @@ test("askCache: no shell — an argv token containing shell metacharacters like 
 // builtin, `pwd` — no external binary, per the sleep-flake lesson above).
 // realpathSync on both sides absorbs a symlinked tmpdir (macOS's /tmp ->
 // /private/tmp) without which this could spuriously fail on some hosts.
-test("askCache: the ask runs with cwd = home, not the caller's own cwd", () => {
+test("askCache: the ask runs with cwd = home, not the caller's own cwd",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-toolchains-cwdbin-");
   const home = tmpRoot("waypost-toolchains-cwdhome-");
   const tool = fakeTool(bin, "pwdtool", "#!/bin/sh\npwd\n");
@@ -463,7 +480,8 @@ test("askCache: the ask runs with cwd = home, not the caller's own cwd", () => {
 // really is closed (stdio: ["ignore", …]), since an inherited, still-open
 // stdin with nothing written to it would leave `read` blocked until the
 // timeout, and this completes well under it.
-test("askCache: stdin is closed — a fake tool that tries to read from it gets EOF at once, not a hang", () => {
+test("askCache: stdin is closed — a fake tool that tries to read from it gets EOF at once, not a hang",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-toolchains-stdinbin-");
   const tool = fakeTool(bin, "readtool", "#!/bin/sh\nread x\necho /abs/answered\n");
   const started = Date.now();
@@ -474,7 +492,8 @@ test("askCache: stdin is closed — a fake tool that tries to read from it gets 
   assert.ok(elapsed < 2000, `expected read to fail at once on closed stdin, took ${elapsed}ms`);
 });
 
-test("resolveCachePaths: a duplicate path across cache items keeps the best-sourced one (asked > env > default)", () => {
+test("resolveCachePaths: a duplicate path across cache items keeps the best-sourced one (asked > env > default)",
+  { skip: POSIX_TOOL_FIXTURE }, () => {
   const bin = tmpRoot("waypost-toolchains-dedupbin-");
   const home = tmpRoot("waypost-toolchains-deduphome-");
   const askedPath = join(home, ".cache", "dup"); // matches the second entry's own DEFAULT resolution
