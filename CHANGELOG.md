@@ -130,7 +130,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which does not move, and that decides wherever both sides have it. Linux
   only: macOS keeps a real per-process start timestamp, Windows never used
   this path, and records written by an older version still read (WP-18).
-- An explicit `--id` outranks an inherited `WAYPOST_SESSION_ID` again. Under a
+- An explicit `--id` outranks an inherited `WAYPOST_SESSION_ID` again, and one
+  reader of the flag decides everywhere: the worktree qualification that skips
+  a session named by `--id` (ADR-0010) now honours the `--` terminator too, so
+  `run --heavy -- cmd --id X` no longer looks like a session id to it. Under a
   harness that exports its own session id — which this project's protocol asks
   for — `waypost sessions --touch --id X` registered two live sessions: X, and
   the ambient one beaten on top of it, because `main()` kept a pre-set

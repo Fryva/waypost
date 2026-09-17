@@ -757,6 +757,27 @@ test("brief and sessions name a shared checkout, and commit --all refuses to swe
 
 // ─── the harness process, on this host ─────────────────────────────────
 
+// The beat is the second of the three writers of that tick count (the slot
+// record is covered in slots.test.mjs) and the one that decides whether a
+// session still looks alive to everyone else after the machine has slept.
+test("a beat records the tick count beside the string, so a sleeping machine does not end the session", { skip: platform() !== "linux" }, () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    const mine = beat(vault, "ticky", { harness: "claude" });
+    assert.ok(mine.proc, "our own ancestor, alive right now");
+    assert.equal(typeof mine.proc.ticks, "number", "a beat must record what a sleep cannot move");
+    assert.equal(mine.proc.ticks, startTicks(mine.proc.pid));
+
+    // What another session actually reads is the file, not the return value.
+    const onDisk = JSON.parse(readFileSync(join(pdir(vault), "ticky.json"), "utf8"));
+    assert.equal(onDisk.proc.ticks, mine.proc.ticks);
+
+    const table = processTable();
+    const slept = new Map([...table].map(([pid, p]) => [pid, { ...p, started: shiftLstart(p.started, 368) }]));
+    assert.equal(processGone(onDisk, slept), false, "the machine slept; the session did not end");
+  });
+});
+
 test("a beat records the harness process; on this host a gone process ends the session at once", () => {
   const { proj, vault } = project();
   const me = hostname().split(".")[0];

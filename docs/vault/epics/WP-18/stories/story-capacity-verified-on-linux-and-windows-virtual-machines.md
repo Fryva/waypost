@@ -61,8 +61,12 @@ share this checkout, and the macOS host.
       - Linux, 2026-09-16: **failed, fixed, and confirmed by a second real
         suspend on the same machine.** Details and both measurements under
         Technical Notes.
-      - The macOS host and Windows are still to do — and are worth doing only
-        after the fix, since the same evidence is compared on all three.
+      - The macOS host and Windows are still to do, and what has to be
+        watched there is not what was watched here: the evidence differs per
+        platform (`boot_id` + ticks on Linux, `kern.boottime` + `lstart` on
+        macOS, the epoch identity + `tasklist` on Windows). See "Still open
+        after the Linux pass" — the boot identity, not the process, is what
+        those two passes have to prove.
 - [ ] Record the evidence. Fix what breaks, each fix with a hermetic test.
 
 ## Implementation Plan
@@ -79,9 +83,15 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
 2. **Windows — not started.** Needs the Windows VM: the `os.cpus()` sample
    against Task Manager, `tasklist` liveness, PowerShell and Git Bash sharing
    one slot, and the lowered priority visible in Task Manager.
-3. **Sleep and wake — not started on any machine.** It cannot be driven from
-   inside a session: the owner suspends each machine while a holder is live.
-4. Each fix lands with a hermetic test. One so far — see Technical Notes.
+3. **Sleep and wake — done on Linux 2026-09-16, and the reason this story
+   exists.** It cannot be driven from inside a session: the owner suspends the
+   machine while a holder is live. Two suspends from the host, 368 s and
+   429 s: the first found the defect, the second confirmed the fix. Neither the
+   macOS host nor Windows has been through it, and the boot identity they use
+   is still unverified across a sleep — the open item below.
+4. Each fix lands with a hermetic test. Three so far: `--id` precedence, the
+   sleeping machine, and a job's share inside a container — all under
+   Technical Notes.
 
 ## Acceptance Criteria
 
@@ -101,11 +111,16 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
         is the better evidence: this story's own test run waited for the slot
         while an unrelated Claude session on this machine held it for
         `./packaging/native/build-packages.sh DEB`.
-      - [x] Linux, after a restart — evidence: the identity is
-        `/proc/sys/kernel/random/boot_id`, so a record carrying another boot's
-        value is ignored even while the pid it names is alive, and the next
-        claim prunes it. A SIGKILLed holder and a reused pid (same pid, other
-        start time) are ignored too; a genuinely live holder still refuses.
+      - [x] Linux, after a restart — **met by construction, not by a
+        reboot**: the record was given a boot identity from another boot by
+        hand, rather than the VM being restarted under a live holder. The
+        mechanism behind it is real (`machineStateDir()` is
+        `~/.local/state/waypost`, so records do outlive a reboot, and
+        `/proc/sys/kernel/random/boot_id` is re-randomised by one) and the
+        record is ignored even while the pid it names is alive, then pruned by
+        the next claim. A SIGKILLed holder and a reused pid (same pid, other
+        start time) are ignored too; a genuinely live holder still refuses. A
+        real reboot would cost one restart of this VM and is worth doing.
       - [ ] Windows.
 - [ ] After sleep and wake, a live holder stays a holder.
       - [x] Linux — **passes after the fix**, evidence: the VM was suspended
@@ -203,16 +218,25 @@ frozen without counting the frozen time (`CLOCK_BOOTTIME` equals
 `CLOCK_MONOTONIC` throughout, so the kernel never saw a suspend), and then the
 wall clock is corrected forward by the frozen duration. `ps -o lstart` is
 btime + starttime, so every live process on the machine appears to have started
-368 s later than it did. `processGone()` (`scripts/presence.mjs:217`) compares
-that string for equality, so every one of them reads as a reused pid.
+368 s later than it did. `processGone()` compares that string for
+equality (`processGone()`'s fallback branch, `scripts/presence.mjs:258`), so every one of
+them reads as a reused pid.
 
 Two consequences, and the second is the wider one:
 
 - the heavy-work slot is freed under a running job, and the next `run --heavy`
   is let through — demonstrated, not inferred;
-- the same comparison decides presence and leases, so after a sleep every live
-  session on the machine looks dead to `sessions` and any lease it holds can
-  be taken from it.
+- the same comparison decides presence, so after a sleep every live session on
+  the machine looked dead to `sessions` — that part the fix closes.
+
+Leases are a third thing, and the fix does **not** close them. A lease is live
+while its holder is live *and* its record has been touched inside
+`LIVE_WINDOW_MS` (150 s, plus the storage lag); the fix changes the first
+condition, not the second, and both measured suspends were longer than the
+window. So a lease can still be taken over after a sleep — the same as if the
+session had genuinely been quiet that long, which is the design. If that should
+change, the field to consult in the lease decision is `process_alive`, and it
+wants its own decision rather than being smuggled in here.
 
 The fix compares something that does not move: the start time in clock ticks
 from `/proc/<pid>/stat` (field 22), which is measured from boot and survived
@@ -220,10 +244,18 @@ this test unchanged, paired with `boot_id`, which already does its job. It
 landed the same day — `scripts/presence.mjs` gained `startTicks()`, every
 record that names a process now carries the number beside the old string (slot
 records, the slot lock's owner, presence through `harnessProcess()`), and
-`processGone()` lets it decide wherever both sides have one. macOS keeps a real
-start timestamp per process, so `lstart` is safe there, and Windows never uses
-this path — the change is Linux-only, and a record written by an older version
-still reads, on the string, exactly as before.
+`processGone()` lets it decide wherever both sides have one — reading it from
+the process table it was handed, so the whole verdict comes from one snapshot
+and stays injectable in tests. Where either side has no tick count — a record
+written before the field existed, a platform without `/proc`, a `/proc` this
+process may not read (`hidepid`, a foreign pid namespace) — the old string is
+still the only evidence there is, and it still moves when the machine sleeps.
+
+The change itself is Linux-only: macOS keeps a real start timestamp per
+process, and Windows never uses this path. That is a statement about
+`processGone()`, and **not** a statement that the other two machines are safe
+across a sleep — see the open item below, which this pass's own numbers are
+enough to predict.
 
 The same machine then produced the pass. A second host suspend, 429 s, a live
 holder, and the verdict taken only after the clock correction had landed:
@@ -239,9 +271,64 @@ holder, and the verdict taken only after the clock correction had landed:
 Releasing still works on the ordinary path: the wrapper was stopped and took
 its record with it.
 
+Three writers record the tick count — the slot record, the slot lock's owner,
+and every presence beat. Tests guard the slot record and the beat directly, and
+the lock through its reader (an owner whose string has moved and whose ticks
+have not must keep the lock); the lock's own writer is not asserted anywhere,
+because the lock exists only for the microseconds of a claim.
+
 One procedural note for whoever repeats this: the check must run *after* the
 clock has been corrected, not right after the wake. Twenty-two seconds after
 the resume everything still looked perfect.
+
+### Still open after the Linux pass: the boot identity on the other two machines
+
+The fix above is the process half of liveness. The other half is checked first
+and was not touched: `slotLive()` (`scripts/capacity.mjs:327`, first line of its body) returns false on
+`sameBoot()` before it ever looks at the process — and on the two machines this
+story still has open, that identity is the very quantity this pass measured
+moving.
+
+- **Windows**, and any platform without a real boot identifier, falls back to
+  `epoch = round(now − os.uptime())` with a 120 s tolerance
+  (`bootIdentity()`, `scripts/capacity.mjs:268`). That expression *is* Linux's `btime` — the
+  number measured at +368 s and +429 s across the two suspends here. A host
+  suspend longer than two minutes therefore invalidates every slot record on a
+  Windows guest. (A native Windows S3 sleep is a different case:
+  `GetTickCount64` is biased and includes sleep.)
+- **macOS** uses `kern.boottime`, compared for exact equality. That value is
+  boot time relative to the current system clock, so a clock step on wake moves
+  it; one second is enough.
+
+The consequence is the one just fixed, and worse than being ignored: a claim
+*deletes* records it judges stale (`claimSlot()`, `bin/waypost:1173`), so a live holder's
+record is gone for good and the second heavy job starts.
+
+This is also an obligation the ADR hands to this story — the epoch identity is
+"compared with a tolerance of two minutes, and the verification runs check it
+across sleep and wake" — which the Linux pass cannot discharge, since `boot_id`
+never reaches the epoch path. The macOS and Windows passes should read
+`sysctl -n kern.boottime` and `now − os.uptime()` before and after a suspend,
+not only re-run `capacity`.
+
+### The suite is not reliably green on this machine, and that is the machine
+
+Worth knowing before the next pass reads a red run as a regression. The suite
+spawns the CLI per assertion with a per-command timeout — 15 s in
+`tests/slots.test.mjs` and `tests/sizes.test.mjs`, 30 s in
+`tests/harness.test.mjs` — which is generous on a quiet machine with a local
+disk. This VM is neither: the checkout is on a Parallels share, and two Claude
+sessions plus the desktop app produce bursts of 14–23 runnable processes on
+4 cores while the CPU still reads 35–85% idle. Four full runs of this story's
+work produced 0, 1, 6 and 1 failures, every one of them a killed child
+(`status: null`, or an empty stdout that `JSON.parse` chokes on), in a
+different test each time, and every single one green when re-run alone.
+
+Note also that `capacity`'s own `busy` probe is the load average, and on this
+VM the load average sits at 7–12 while the CPU is mostly idle. `can_start`
+refuses for CPU on evidence the CPU does not support. That is not wrong — a
+queue of runnable processes is real contention — but it is worth measuring
+against `vmstat` on the other two machines before trusting the number.
 
 ### Open, from this Linux pass
 

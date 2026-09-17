@@ -1615,7 +1615,7 @@ async function main() {
   // would make two live worktrees write one presence record and one lease
   // name; qualify it by the worktree, once, deterministically (ADR-0010).
   // An explicit --id means what it says.
-  if (!args.includes("--id") && isLinkedWorktree()) {
+  if (!idFromFlag && isLinkedWorktree()) {
     const tag = `-wt${worktreeTag()}`;
     if (!process.env.WAYPOST_SESSION_ID.endsWith(tag)) process.env.WAYPOST_SESSION_ID += tag;
   }

@@ -444,6 +444,35 @@ test("the lock: a live owner is kept — a refused claim never starts the comman
   }
 });
 
+// The same machine-slept case, one level down: the slot lock's owner record.
+// Its wall-clock string no longer matches what `ps` reports, its tick count
+// does, and the owner is alive — the lock must hold.
+test("the lock: a live owner survives the machine sleeping", { skip: process.platform !== "linux" }, async () => {
+  const home = tmpHome();
+  const helper = spawn(process.execPath, ["-e", "setTimeout(()=>{}, 4000)"]);
+  try {
+    const dir = slotsDirFor(home);
+    mkdirSync(dir, { recursive: true });
+    await new Promise((r) => setTimeout(r, 300)); // let the helper appear in the process table
+    const lockDir = join(dir, ".lock");
+    mkdirSync(lockDir);
+    writeFileSync(join(lockDir, "owner.json"), JSON.stringify({
+      pid: helper.pid,
+      started: "Thu Sep 3 00:00:00 2026", // the string the sleep moved out from under it
+      ticks: startTicks(helper.pid),      // the number it did not
+    }), "utf8");
+
+    const marker = join(home, "marker");
+    const r = runCli(["run", "--heavy", "--", "node", "-e", `require('fs').writeFileSync(${JSON.stringify(marker)}, 'x')`], heavyEnv(home));
+    assert.equal(r.status, 75, r.stderr);
+    assert.match(r.stderr, /lock is busy/);
+    assert.equal(existsSync(marker), false, "a lock whose owner is alive must not be broken by a sleep");
+  } finally {
+    helper.kill();
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test("the lock: older than five minutes is broken even with a live owner", async () => {
   const home = tmpHome();
   const helper = spawn(process.execPath, ["-e", "setTimeout(()=>{}, 4000)"]);

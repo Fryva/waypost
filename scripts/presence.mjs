@@ -182,7 +182,14 @@ export function processTable() {
   const table = new Map();
   for (const line of r.stdout.split("\n")) {
     const m = line.match(/^\s*(\d+)\s+(\d+)\s+(\w{3}\s+\w{3}\s+\d+\s+[\d:]+\s+\d{4})\s+(.*)$/);
-    if (m) table.set(Number(m[1]), { pid: Number(m[1]), ppid: Number(m[2]), started: m[3].replace(/\s+/g, " "), comm: m[4].trim() });
+    if (m) {
+      const pid = Number(m[1]);
+      // `ticks` beside `started` — the same row, one snapshot, and injectable
+      // with the rest of the table. Reading /proc for every pid costs about a
+      // third of the `ps` spawn already paid above (4 ms for 266 processes on
+      // the Linux VM), and null everywhere but Linux.
+      table.set(pid, { pid, ppid: Number(m[2]), started: m[3].replace(/\s+/g, " "), ticks: startTicks(pid), comm: m[4].trim() });
+    }
   }
   return table.size ? table : null;
 }
@@ -200,7 +207,7 @@ export function harnessProcess(table) {
   for (let depth = 0; depth < 32 && pid > 1; depth++) {
     const p = table.get(pid);
     if (!p) return null;
-    if (!SHELLS.test(p.comm)) return { pid: p.pid, started: p.started, ticks: startTicks(p.pid), comm: basename(p.comm) };
+    if (!SHELLS.test(p.comm)) return { pid: p.pid, started: p.started, ticks: p.ticks ?? null, comm: basename(p.comm) };
     pid = p.ppid;
   }
   return null;
@@ -214,6 +221,9 @@ export function harnessProcess(table) {
 // Linux VM (WP-18): 368 s of suspend moved every live process's `lstart` by
 // 368 s while this number did not move at all. The comm field can hold spaces
 // and parentheses, so fields are counted from the last ')'.
+//
+// Never converted to seconds: USER_HZ does not matter to an equality test, and
+// dividing by it is exactly how this number would be made to drift again.
 //
 // Linux only. macOS records a real start timestamp per process, which a sleep
 // does not touch, and Windows never reaches this path.
@@ -240,10 +250,11 @@ export function processGone(rec, table) {
   // before and after a sleep, while the two wall-clock strings would differ by
   // the whole suspend and read every live process as a reused pid. A record
   // written before this field existed still has the string, and so does macOS.
-  if (proc.ticks != null) {
-    const ticks = startTicks(proc.pid);
-    if (ticks != null) return proc.ticks !== ticks;
-  }
+  if (proc.ticks != null && p.ticks != null) return proc.ticks !== p.ticks;
+  // No tick count on one side or the other — a record written before the field
+  // existed, a platform without /proc, or a /proc this process may not read
+  // (hidepid, a foreign pid namespace). The string is then the only evidence
+  // there is, and it is the evidence a sleeping machine moves.
   return Boolean(proc.started && p.started !== proc.started);
 }
 

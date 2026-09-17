@@ -279,10 +279,12 @@ export function sameBoot(a, b) {
 
 // ─── slot liveness ───────────────────────────────────────────────────────
 //
-// A slot record names the `waypost run --heavy` process itself (its pid and
-// process start time), so on POSIX processGone() — the same start-time
-// comparison presence.mjs uses for a session's harness process — decides
-// unchanged: a reused pid is not mistaken for the holder. Windows has no
+// A slot record names the `waypost run --heavy` process itself (its pid, its
+// start time in clock ticks since boot where there is one, and the wall-clock
+// string otherwise), so on POSIX processGone() — the same comparison
+// presence.mjs uses for a session's harness process — decides: a reused pid is
+// not mistaken for the holder, and a machine that slept between the two
+// readings does not turn the holder into one. Windows has no
 // process table, so signal-0 plus the image name `tasklist` reports (run
 // without a shell, a 3-second timeout) and a 24-hour cap are the only
 // evidence there.
