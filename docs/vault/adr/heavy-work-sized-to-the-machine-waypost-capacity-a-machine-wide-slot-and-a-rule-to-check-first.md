@@ -120,7 +120,9 @@ Decision drivers:
      boot time, host, session, harness, command and start. Then it releases
      the lock. Two processes starting in the same second cannot both pass
      the cap.
-   - **Liveness.** A record from an earlier boot is stale on every OS. The
+   - **Liveness.** A record from an earlier boot is stale on every OS
+     (amended 2026-09-17, below: stale, but only a *confirmed* earlier boot
+     may have its record deleted). The
      boot is identified by what the OS offers: Linux's
      `/proc/sys/kernel/random/boot_id`, macOS's `kern.boottime`. Elsewhere
      it is now minus `os.uptime()`, compared with a tolerance of two
@@ -133,6 +135,98 @@ Decision drivers:
        shell), compared with the recorded command. A record older than 24
        hours is released regardless. If `tasklist` fails, or takes longer
        than a few seconds, the signal-0 probe and that 24-hour cap decide.
+
+     **Amendment 2026-09-17: a boot identity that is not evidence, and a
+     rule about deleting.** The verification this decision asked for — "the
+     verification runs check it across sleep and wake" — was done on the
+     owner's Windows VM, and the fallback failed it. A 534-second host
+     suspend with a live holder moved `now − os.uptime()` by 535 seconds:
+     `GetTickCount64` does not advance while a guest is frozen, and the host
+     corrects the wall clock on resume, so every record written before the
+     suspend read as a different boot. `waypost capacity` then reported the
+     slot free while a three-hour heavy job was still running on it, and the
+     next claim both started a second job and **deleted the first one's
+     record** — `claimSlot()` prunes what it judges stale before it measures.
+     The machine was left running heavy work with nothing on disk that said
+     so.
+
+     **What is and is not a second opinion, measured on the same machine
+     after that suspend.** `Win32_OperatingSystem.LastBootUpTime` is not one:
+     read six minutes after the resume it still gave the true boot second,
+     and read twenty minutes after the resume it gave the drifted value
+     (+535 s) and stayed there. It is the same biased tick count behind a
+     cache, and a check that trusted it would have passed on the first read
+     and failed later for reasons nobody could see. Two sources did survive
+     the suspend, because the kernel stores them as absolute times and never
+     recomputes them: the System process's creation time (pid 4 — boot + 2 s,
+     unmoved, read in ~310 ms through CIM, five reads agreeing), and the
+     kernel's own boot event in the System log (Kernel-General, id 12 — the
+     true boot second exactly, but the event log is the slower read). The
+     first is the authority this decision names on Windows. `wmic` is not an
+     option: it is absent from Windows 11 26200, the machine measured.
+
+     **The rule.** On the `epoch` path only, **a mismatch is a reason to ask,
+     never a reason to delete.** A record whose epoch does not match may not
+     be pruned, may not release a lock, and may not be treated as absent
+     until an authority has been asked and has answered. What is compared is
+     not the epoch: a claim records the authoritative boot value beside the
+     epoch (one spawn per heavy job, against a job that runs for minutes),
+     and the mismatch path compares those two authoritative values for exact
+     equality. Comparing the drifted epoch against the authority would
+     re-create the same deletion for any record written after a first
+     suspend — which is what a record's epoch is, once the machine has slept
+     once. This is the write-side of the "carry it in the record" option
+     together with the read-side ask, and the epoch stays exactly what it is:
+     a cheap first answer that is allowed to be wrong in the safe direction.
+
+     **When no authority answers** — the read fails, times out, PowerShell is
+     absent, the platform has none — the record is **kept and counted as a
+     holder**: the machine is protected from a second heavy job, which is
+     what this ADR is for, and nothing is destroyed. The bound on that is the
+     24-hour cap, which this amendment extends from Windows to any
+     unconfirmable record on any platform, and the recovery is `waypost
+     capacity --release <id> --force`, which the refusal message must now
+     name, since the only other way out is waiting a day.
+
+     **Cost, so that "cheap" stays true.** The authority is asked last, after
+     the free checks (signal-0, the image name, the 24-hour cap) have had
+     their chance to settle a record for nothing; asked at most once per
+     command invocation and memoised across every record and every `--wait`
+     retry; with argv and no shell, and a hard two-second timeout, whose
+     expiry means unconfirmable rather than gone — the same discipline the
+     other probes in `scripts/capacity.mjs` already have. The lock path
+     (`lockOwnerGone()`) uses that memoised answer rather than its own: its
+     retry budget is two seconds in total, and breaking a live claimant's
+     lock is worse than keeping a stale record, since it puts two processes
+     in the critical section.
+
+     **What this does not cover.** macOS: `bootIdentity()` never returns
+     `epoch` there, and `kern.boottime` cannot be its own second opinion —
+     libuv computes `os.uptime()` on darwin as `time(NULL) −
+     kern.boottime.tv_sec`, so the cheap answer and the "authority" are one
+     number by construction. A clock correction on wake moves both, and this
+     amendment does not help. `sysctl -n kern.bootsessionuuid` is the
+     candidate — an identifier with no relation to the clock — and it must be
+     measured across a real sleep on the host before it is written down as
+     the answer. Linux is unaffected while `/proc/sys/kernel/random/boot_id`
+     is readable; where it is not (a masked `/proc`, a hardened container)
+     the epoch path is reached with no authority behind it, and the rule
+     degrades to "keep, never prune", bounded by the cap above.
+
+     **Residual risk.** On a machine where no authority can be read, a record
+     from a genuinely previous boot pins the machine's only slot until the
+     24-hour cap or a human runs `--release --force`. That is the direction
+     this amendment deliberately chooses: a blocked machine announces itself
+     and can be released, an overloaded one does not, and a deleted record
+     cannot be got back.
+
+     Decision 5's promise that tests inject the boot time extends to the
+     authority probe: three hermetic cases — it confirms the same boot (keep),
+     it confirms another boot (prune), it does not answer (keep) — and none
+     of them spawns anything. `tests/slots.test.mjs`'s "capacity --release: a
+     stale record (another boot) releases without --force" encodes the old
+     rule on the epoch path and moves with it. The work is carried by WP-18's
+     verification story, which measured all of this.
 
      `waypost capacity --release <id>` is the recovery path. It runs the
      same liveness check first and refuses a record that still looks alive,
@@ -354,4 +448,4 @@ passed.
 
 ---
 
-*Last updated: 2026-09-14*
+*Last updated: 2026-09-17*

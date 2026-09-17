@@ -15,7 +15,7 @@ specs: []
 blocked_by: ["WP-18/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work"]
 started_at: "2026-09-17T00:18:14.608Z"
 closed_at: null
-plan_updated_at: "2026-09-17T00:18:14.608Z"
+plan_updated_at: "2026-09-17T13:19:05.603Z"
 ---
 
 # Capacity verified on Linux and Windows virtual machines
@@ -51,16 +51,30 @@ share this checkout, and the macOS host.
         between two unrelated Claude sessions on this machine;
       - a restart leaves no stale holder: `boot_id` is the identity, and a
         record carrying a foreign one is ignored even while its pid is alive.
-- [ ] Windows:
-      - the CPU sample against Task Manager;
-      - `tasklist` liveness;
-      - two sessions (PowerShell and Git Bash) share one slot;
-      - the lowered priority is visible in Task Manager.
+- [x] Windows (`FROSTBEBE`, Windows 11 Pro 26200, 4 cores, 6.0 GB),
+      2026-09-17:
+      - the CPU sample read against Windows' own processor counters — the
+        ones Task Manager draws — under a load of 0, 1, 2 and 3 spinning
+        cores, rather than against whatever the machine happened to be doing;
+      - `tasklist` liveness: twelve cases against the real machine, every
+        probe the real one;
+      - two sessions share one slot: PowerShell held it, Git Bash exited 75;
+      - the lowered priority, read back through the Win32 priority class
+        Task Manager displays, for the wrapper AND the command it started.
+      - Capacity and the slot needed no fix here. What this pass found
+        instead was a family of path checks that no path on Windows can
+        satisfy — see "What the Windows pass actually broke on".
 - [ ] Sleep and wake on each machine, the macOS host included: a live holder
       stays a holder.
       - Linux, 2026-09-16: **failed, fixed, and confirmed by a second real
         suspend on the same machine.** Details and both measurements under
         Technical Notes.
+      - Windows, 2026-09-17: **failed, as this story predicted it would.**
+        The owner suspended the VM from the host for 534 s with a live
+        holder; the boot epoch moved +535 s, the record went stale, and a
+        second heavy job was let through and deleted the first one's record
+        while it was still running. Numbers under Technical Notes, "Sleep and
+        wake, Windows". Not yet fixed — the fix is a decision, not a patch.
       - The macOS host and Windows are still to do, and what has to be
         watched there is not what was watched here: the evidence differs per
         platform (`boot_id` + ticks on Linux, `kern.boottime` + `lstart` on
@@ -100,7 +114,12 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
       - [x] Linux — evidence: the table under Technical Notes. Read in the
         same second as `/proc/meminfo`, `/proc/loadavg` and `nproc`, the four
         figures are not within a margin of the OS's own, they are equal.
-      - [ ] Windows. - [ ] macOS host.
+      - [x] Windows — evidence: "Windows figures, 2026-09-17" under
+        Technical Notes. `total` is exact against `TotalVisibleMemorySize`;
+        `available` sits a steady −15 MB from WMI's own figure, which is the
+        measuring process's own footprint; and `busy` tracks
+        `% Processor Time` within 1–5 points under a held load.
+      - [ ] macOS host.
 - [ ] On each OS, a slot held in one session refuses the second session.
       After a restart the slot is free.
       - [x] Linux — evidence: session A (`harness claude-code`) held the slot
@@ -120,7 +139,19 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
         Technical Notes. Constructed cases still cover what a reboot cannot
         stage: a SIGKILLed holder and a reused pid (same pid, other start
         time) are ignored, a genuinely live holder still refuses.
-      - [ ] Windows.
+      - [x] Windows, the refusal — evidence: PowerShell held the slot
+        (`run --heavy -- node -e "setTimeout(…,45000)"`, session
+        `ps-holder-1`, harness `powershell`); Git Bash was refused with
+        "slots: 1 of 1 heavy job slot(s) already held" and **exit 75**; a
+        third reader listed the holder with its session, harness and command;
+        the record was gone from `%LOCALAPPDATA%\Waypost\slots.FROSTBEBE\`
+        the moment the holder exited.
+      - [ ] Windows, after a restart — **constructed only.** A record naming
+        a live process (explorer.exe, its own image name) with an epoch 600 s
+        before this boot's reads stale, `capacity` says the slot is free, and
+        the next claim prunes it and runs. The real reboot this criterion
+        asks for has not happened on this machine: it needs the owner, since
+        the session doing the verifying dies with the machine.
 - [ ] After sleep and wake, a live holder stays a holder.
       - [x] Linux — **passes after the fix**, evidence: the VM was suspended
         from the host a second time, 429 s with a live holder (pid 110031,
@@ -132,7 +163,14 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
         refused. Before the fix the same sleep gave the opposite result: pid
         64336 alive, record pruned as stale, "can start 1 heavy job", and a
         second heavy job let through.
-      - [ ] Windows, [ ] macOS host — not attempted; worth doing after the fix.
+      - [ ] Windows — **measured and failed**, 2026-09-17: 534 s of host
+        suspend, a live holder (pid 5728, `run --heavy -- node -e
+        "setTimeout(…,10800000)"`), and afterwards `waypost capacity` said
+        "can start 1 heavy job" while that job was still running. The second
+        `run --heavy` then ran AND deleted the live holder's record: the
+        machine was left running heavy work with no record of it at all.
+        Evidence: "Sleep and wake, Windows" under Technical Notes.
+      - [ ] macOS host — not attempted.
 - [ ] Fixes land with hermetic tests, and `waypost doctor` reports 0 issues.
       - [x] The container's memory share (Technical Notes, "Open") — evidence:
         `tests/capacity.test.mjs`, the four `readMemory` total cases and
@@ -149,6 +187,19 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
         inherited WAYPOST_SESSION_ID: one session, not two"; red with the fix
         stashed, green with it applied.
       - [x] Linux — evidence: `waypost doctor` — 0 issues, 0 warnings.
+      - [x] Windows — evidence: `waypost doctor` on this machine, 0 issues
+        and 0 warnings, where before the fix it carried a standing `vault-git`
+        warning it was wrong about.
+      - [x] The path family (`pathUnder`) — evidence: ten cases in
+        `tests/predicates.test.mjs` ("pathUnder: inside, the same path, and
+        outside", "…Windows spells those same paths with a backslash",
+        "…case folds where the filesystem folds it", "isInsideVault: the
+        guard `story plan|close --write` writes behind"), two in
+        `tests/scripts.test.mjs` for doctor's pair, two in
+        `tests/commits.test.mjs` for the lease guard and the merge driver
+        (board and folder index), and two more in `tests/scripts.test.mjs`
+        for the driver's own spelling. Every one of them red with the fix
+        reverted and the tests kept — checked, not assumed.
 
 ## Final Summary
 
@@ -377,6 +428,301 @@ against `vmstat` on the other two machines before trusting the number.
   own suite cannot start here at all without closing something first. That is
   the rule working, not failing — but it belongs in Decision 1 of the ADR as a
   known consequence rather than as a surprise on a 4 GB machine.
+
+### Windows figures, 2026-09-17
+
+`FROSTBEBE`, Windows 11 Pro 26200, x64, 4 cores, 6.0 GB, Node 24.19.0, booted
+09:51:19 local (UTC−3). The checkout is the same one the Mac host and the
+Linux VM share, reached as `Y:` — a Parallels share that `waypost storage`
+reads as a UNC network path with a 3 s lag budget.
+
+**Memory.** `os.freemem()` against `Win32_OperatingSystem.FreePhysicalMemory`,
+read immediately before and after each node call and interpolated to the
+instant node took its own reading (five rounds):
+
+| round | OS at node's instant | node `os.freemem()` | difference |
+|---|---|---|---|
+| 1 | 1258.3 MB | 1242.1 MB | −16.2 MB |
+| 2 | 1262.4 MB | 1248.9 MB | −13.4 MB |
+| 3 | 1259.9 MB | 1244.0 MB | −15.9 MB |
+| 4 | 1257.2 MB | 1240.9 MB | −16.4 MB |
+| 5 | 1257.2 MB | 1242.6 MB | −14.7 MB |
+
+A steady −15 MB, which is the measuring node process's own footprint: the
+figure is read from inside the process whose existence lowers it. `total`
+is exact — 6435831808 B both sides (`TotalVisibleMemorySize` 6284992 kB ×
+1024).
+
+**CPU.** Not "compared to whatever the machine happened to be doing" but
+against a known load: N spinning cores, then `capacity --json` read at the
+same moment as `\Processor(_Total)\% Processor Time` and `\Processor
+Information(_Total)\% Processor Utility` (the counter Task Manager draws).
+
+| spinners | capacity busy | capacity % | `% Processor Time` | `% Processor Utility` |
+|---|---|---|---|---|
+| 0 | 0.54 cores | 13.6 | 14.7 | 14.7 |
+| 1 | 1.26 cores | 31.5 | 32.0 | 33.5 |
+| 2 | 2.27 cores | 56.7 | 58.5 | 58.6 |
+| 3 | 3.06 cores | 76.6 | 90.3 | 90.3 |
+
+The 3-spinner row is the sample catching a load still ramping, not a
+systematic under-read: held steady at 3 spinners and read five times, the
+250 ms `os.cpus()` sample tracks the counter within 1–5 points —
+92.1/93.9/100/88.6/100 against 93.4/94.9/99.2/94.1/100 — and `can_start`
+refused all five times with "cpu: 0.0–0.5 idle core(s) available, a heavy job
+needs 1.0". Unlike Linux's load average, this probe is a true busy share: it
+refuses on the evidence the CPU itself shows.
+
+**Boot identity.** `bootIdentity()` returns `{kind: "epoch", value: 1789649479}`
+— the same second as `Win32_OperatingSystem.LastBootUpTime` converted to Unix
+time (1789649479, 09:51:19 local). Eight reads 400 ms apart spread by 1 s,
+which is `os.uptime()`'s integer truncation, against a tolerance of 120.
+
+**Slot liveness**, twelve cases against the real machine — real `tasklist`,
+real signal-0, real boot identity, only the record constructed:
+
+    ok  live node holder, same boot, under 24h            true
+    ok  live pid, other image (reused pid)                false
+    ok  live pid, image matches its own                   true
+    ok  foreign boot epoch (+500s)                        false
+    ok  epoch within the 120s tolerance (+119)            true
+    ok  epoch just outside it (+121)                      false
+    ok  a Linux boot_id on a Windows machine              false
+    ok  live holder, record 25h old                       false
+    ok  live holder, record 23h old                       true
+    ok  tasklist fails, pid alive                         true
+    ok  holder killed: signal-0 and tasklist agree        false
+    ok  killed holder, tasklist unavailable               false
+
+One thing the fakes could not have told us: on a localized Windows
+`tasklist /FI "PID eq <dead pid>" /FO CSV /NH` exits **0** and prints a
+localized "no tasks" sentence (here Russian), not an empty output. It does not
+start with a quote, so the parse returns null and the caller falls back to
+signal-0 and the 24-hour cap — the documented fallback, reached on this
+machine for a reason the English-locale reading of that code would not
+predict. The consequence is worth stating plainly: on Windows `tasklist` can
+only ever *reject* a holder by naming a different image; it never confirms
+one is gone.
+
+**Two sessions, one slot.** PowerShell (`WAYPOST_SESSION_ID=ps-holder-1`,
+harness `powershell`) held it with `run --heavy -- node -e "setTimeout(…,45000)"`.
+Git Bash (harness `claude-code`) was refused: `slots: 1 of 1 heavy job slot(s)
+already held`, exit **75**, with the retry line quoted for cmd. A third reader
+listed the holder with its session, harness and command. The record —
+`{"proc":{"pid":5420,"started":null,"ticks":null,"comm":"node.exe"},
+"boot":{"kind":"epoch","value":1789649479}}` — was gone from
+`%LOCALAPPDATA%\Waypost\slots.FROSTBEBE\` the moment the holder exited.
+
+**Lowered priority.** Both the wrapper and the command it starts read
+`BelowNormal` / base priority 6 through `Get-Process` — the value Task
+Manager shows in its Details tab — so the Windows half of "Node maps
+PRIORITY_BELOW_NORMAL to below-normal" is measured, not assumed. The
+inheritance is real: the child was never set, it was started by a wrapper that
+already was. `tests/slots.test.mjs` skips its priority assertion on win32;
+this is the machine evidence that skip was waiting for.
+
+**A previous boot's record.** With the slot free, a record naming a genuinely
+live process (explorer.exe, its own image name, so the process half says
+"alive") and an epoch 600 s before this boot's: `slotLive()` false,
+`readHolders()` live=0 stale=1, `waypost capacity` "can start 1 heavy job",
+and the next `run --heavy` pruned it and ran. The constructed case only —
+this machine has not been restarted with a record on disk yet.
+
+### What the Windows pass actually broke on, and it was not capacity
+
+The capacity and slot machinery came through this pass without a single fix.
+What the pass found instead is a family none of its own checks are about: five
+places that ask "is this path inside that directory?" and spell the question
+`p.startsWith(base + "/")`. No path on Windows answers yes to that. The five,
+each measured on this machine with its own real values before anything was
+changed:
+
+| Where | What it decides | What Windows got |
+|---|---|---|
+| `isInsideVault()` (`scripts/lib.mjs`) | the guard `story plan\|close --write` writes behind | `waypost: refusing to write outside the vault: Y:\…\docs\vault\epics\WP-18\stories\story-capacity-verified….md` — the lifecycle gates could not run at all |
+| `checkVaultGit()` (`scripts/doctor.mjs`) | is the vault already versioned by the repo around it | a standing `vault-git` warning, and `doctor --fix` answers that warning with `git init docs/vault` — a nested repository inside the project's own |
+| `checkMergeDriver()` (same) | is the vault versioned WITH the code | returns `[]` before it looks at anything: a Windows session is never told its merge driver is missing or has drifted |
+| `merge-derived.mjs` | is this file a derived view | `waypost merge-derived: kanban.md is not a derived view; leaving the conflict`, exit 1 — git keeps the conflict markers in exactly the file ADR-0006 exists to keep out of conflict resolution |
+| `leasesOverStaged()` (`scripts/commit.mjs`) | is a staged file one another session has leased | the repo-relative prefix never matches, so `waypost commit` stops seeing lease collisions on this OS |
+
+Two more of the same shape, found by reading rather than by a symptom: the
+empty-directory cleanup in `agents uninstall` (`scripts/agents.mjs`) never
+walks up, and `relOf()` in `merge-derived.mjs` splits an absolute path on `/`
+to identify a folder index.
+
+The fix is one predicate — `pathUnder(p, base)` in `scripts/lib.mjs` — that
+compares on `/` and folds case only where the filesystem itself does, and
+returns the path from `base` to `p` (`""` for the same path, `null` for
+outside) so the callers that need the relative form get it `/`-spelled. The
+two that were already right (`vaultRelPath`, presence's `vaultRel`) had each
+grown their own private copy of the normalisation; `vaultRelPath` now uses the
+shared one.
+
+Afterwards, on the same machine: `story plan --write` stamps and claims,
+`doctor` reports 0 issues and 0 warnings, and the merge driver answers
+`regenerated kanban.md from the vault instead of merging it`.
+
+**This was never a Windows-only risk that Windows happened to expose.** Every
+one of these is a `startsWith` on an absolute path, and the suite that would
+have caught them has only ever been run where that spelling is correct.
+
+### The merge driver's own path, and the shell git runs it through
+
+Found by the suite, not by reading: two merge tests failed with
+
+    Error: Cannot find module 'Y:\DocumentsSwiftProjectsWaypostscriptsmerge-derived.mjs'
+
+git does not run a merge driver itself — it hands the command line to a shell,
+and on Windows that is git's own `sh`, where a backslash escapes whatever
+follows it. Measured directly: `sh -c` turns
+`node Y:\Documents\Swift\x.mjs %A` into `node Y:DocumentsSwiftx.mjs %A`, and the
+same line spelled with `/` arrives intact. (`git config` itself is innocent: it
+escapes the value on the way in and returns it byte-for-byte.)
+
+So on Windows `waypost doctor --fix` wrote a driver git could never run, and
+the failure surfaces only during a merge — as a conflict in a generated file,
+which is the one thing ADR-0006 asks this driver to prevent. `doctor` could not
+notice either: with its separators eaten the value still ends in
+`merge-derived.mjs %A %O %B %P`, which the "another machine's own path" rule
+accepted. The path written into `.git/config` is now `/`-spelled, and that rule
+now requires the value to LOOK like a path — one with no separator left in it
+names nothing on any machine and is drift to repair.
+
+### The suite on Windows, 2026-09-17: 54 failures, and what they were
+
+This is the first time this project's own suite has been run on a Windows
+machine, and the number to keep is the one before anything was touched:
+**561 tests, 500 passing, 54 failing, 7 skipped** (344 s at concurrency 1,
+through the slot like any heavy job). After the path family was fixed and its
+tests added: **571 tests, 523 passing, 41 failing** — 13 of the 54 flipped
+red to green, ten new tests, and nothing that had been passing broke.
+
+The remaining 41 are a different job, and mostly not the code:
+
+| Where | How many | What they are |
+|---|---|---|
+| `toolchains`, `discovery`, `scripts` (profile), `sizes` | 23 | the fixtures are a POSIX machine: fake tools are shell scripts with a shebang, and a path like `/home/x/.nuget` is not absolute on Windows, so the code correctly refuses it |
+| `tokens` | 4 | the fixture points HOME at a temp directory; Windows reads USERPROFILE, so the transcripts it wrote are not where the code looks |
+| `harness` | 6 | role install and rendering — not diagnosed; could be real |
+| `presence` | 3 | git common dir assertions — not diagnosed; could be real |
+| `predicates` | 4 | one `endsWith("…/README.md")` in the assertion itself; a `chmod` that does not restrict on Windows; a hang staged by POSIX means |
+| `slots` | 1 | `run --heavy: a signal exits 128 + the signal number` — POSIX signals |
+
+The first two groups and the `predicates` three are the tests describing a
+machine they are not running on, and fixing them is editing tests. The
+`harness` six and the `presence` three have not been read yet: they may be the
+same thing, and they may be another `startsWith`. Neither should be assumed.
+
+### Sleep and wake, Windows, 2026-09-17: the predicted failure, measured
+
+This story predicted it in "Still open after the Linux pass" — "a host suspend
+longer than two minutes therefore invalidates every slot record on a Windows
+guest" — and the ADR asked for it to be checked rather than assumed. Checked:
+the owner suspended the VM from the Mac host with a live holder on the slot.
+
+| | before the suspend | after the resume |
+|---|---|---|
+| wall clock (unix s) | 1789652936 | 1789653563 (+627 s) |
+| `os.uptime()` | 3456.8 s | 3549.4 s (+93 s) |
+| `bootIdentity()` → `epoch` | 1789649479 | 1789650014 (**+535 s**) |
+| `Win32_OperatingSystem.LastBootUpTime` | 1789649479 | 1789649479 at +6 min, **1789650014 at +20 min** |
+| the holder (pid 5728, child 8928) | running | **still running** |
+| `readHolders()` | live 1, stale 0 | **live 0, stale 1** |
+| `waypost capacity` | "slots: 1 of 1 already held" | **"can start 1 heavy job"** |
+| a second `run --heavy` | exit 75, refused | **exit 0, it ran** |
+| the holder's record on disk | there | **deleted by that claim** |
+
+The machine was frozen for 534 s — 627 s of wall clock minus 93 s of uptime,
+the two measured from the same process. `GetTickCount64`, which is what
+`os.uptime()` reads on Windows, does not advance while the guest is frozen; the
+wall clock is corrected forward by the host on resume; and `now − uptime` is the
+difference between the two. A native Windows S3 sleep is a different case (that
+tick count is biased and includes sleep) — what was measured here is the case
+the owner's machines actually live in.
+
+The step is permanent for the rest of the boot, not a settling transient: two
+readings 82 s apart both show +534/535 (the ±1 s is `os.uptime()`'s integer
+truncation). So one suspend invalidates **every** slot record written before it,
+for as long as the machine stays up.
+
+Two things this pass adds that the Linux one could not.
+
+**Windows looked as though it had kept the answer, and it had not.** Six
+minutes after the resume `LastBootUpTime` still read the true boot second and
+`epoch_vs_wmi` was 0 — which is what the first version of this section, and
+the first version of the ADR amendment, were written on. Read again twenty
+minutes after the resume it gave **1789650014**, the drifted value, and stayed
+there. It is the same biased tick count behind a cache. A check built on it
+would have passed every test taken right after a wake and failed later, for a
+reason no test was looking at. Worth stating plainly: the first reading was
+not wrong, it was early, and early is the more dangerous kind of wrong.
+
+Two sources did survive the same suspend, because the kernel stores them as
+absolute times and never recomputes them from the tick count:
+
+| source | read ~20 min after the resume | vs the true boot |
+|---|---|---|
+| System process (pid 4) creation time, via CIM | 1789649481, five reads agreeing | **+2 s** (the process starts just after boot) |
+| kernel boot event (System log, Kernel-General id 12) | 1789649479 | **+0 s** |
+| `LastBootUpTime` | 1789650014 | +535 s |
+
+The pid-4 read costs ~310 ms (median of five). `wmic` is not an alternative:
+it is absent from this Windows 11 26200. So an authority exists on Windows,
+it is just not the obvious one — and the obvious one lies for the first
+handful of minutes, which is exactly when someone verifying a fix would look.
+
+**The damage is not "a holder is ignored", it is a record destroyed.**
+`claimSlot()` prunes what it judges stale before it measures, so the second
+heavy job did not merely start alongside the first — it removed the first one's
+record on the way in. The slot directory was left empty with a 3-hour heavy job
+still running on the machine: nothing to prune later, nothing to report, and
+the slot advertised as free to every session from here on.
+
+### What the fix has to do, and what the critic pass changed about it
+
+Three options, differing in what they cost on every `capacity` call:
+
+1. **Ask the OS every time.** Correct, and a process spawn (~310 ms measured
+   here) on a command whose whole point is to be cheap enough to run before
+   every heavy job.
+2. **Confirm only on mismatch.** Keep `now − uptime` as the cheap answer, and
+   when it says "different boot" — rare, and the only case where a record is
+   deleted — pay for the authoritative read before acting on it.
+3. **Carry something non-drifting in the record** and compare that instead of
+   a boot time computed at read time.
+
+**Decided 2026-09-17: option 2**, and then **revised the same day after a
+fresh-context critic pass**, which found two holes in it. Both were real, and
+one of them was mine to have caught:
+
+- The named authority was wrong. The amendment said "ask
+  `LastBootUpTime`" on the strength of a reading taken six minutes after the
+  resume. Re-measured at twenty minutes it had drifted to the biased value
+  (table above). The authority is the System process's creation time (pid 4),
+  or the kernel's boot event; not that.
+- Option 2 alone does not survive the *second* suspend. The record carries the
+  epoch, which is already drifted once the machine has slept, so comparing it
+  against a true boot time reproduces exactly the deletion this is meant to
+  stop. The record has to carry the authoritative value, written at claim time
+  — which is option 3's write side. What landed is 2 and 3 together: the epoch
+  stays the cheap first answer, the record carries the authority, and the
+  mismatch path compares the two authoritative values.
+
+The critic also asked what "kept rather than pruned" means for the cap (it
+counts as a holder, bounded by the 24-hour cap, released with `--release
+--force`, which the refusal message must name), where the spawn must not land
+(the lock path, whose whole retry budget is two seconds), and what the rule
+degrades to where no authority exists (keep, never prune). All of that is in
+the amendment now.
+
+The rule itself survived unchanged: **a mismatch on the epoch is a reason to
+ask, never a reason to delete.**
+
+The code is not written yet — the decision is. macOS is not covered by it
+either: `os.uptime()` there is computed from `kern.boottime`, so the cheap
+answer and the authority are one number, and `kern.bootsessionuuid` has to be
+measured across a real sleep on the host before it can be written down as the
+answer.
 
 ## Dependencies
 
