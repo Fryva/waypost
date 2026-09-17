@@ -258,6 +258,58 @@ test("readMemory: linux, MemAvailable capped by cgroup v2 memory.max - memory.cu
   assert.equal(r.available, 1 * GB);
 });
 
+// WP-18, measured inside a 256 MB cgroup on the Linux VM: the share a heavy job
+// needs is a quarter of the machine, and inside a container the container IS the
+// machine. Reporting the host's total there made a job "need" 1.0 GB of a 256 MB
+// box, so nothing could ever start.
+test("readMemory: linux, a cgroup v2 limit is the total a job's share is computed from", () => {
+  const os = fakeOs({ totalBytes: 16 * GB });
+  const readFile = readFileFrom({
+    "/proc/meminfo": "MemAvailable:    8000000 kB\n",
+    "/sys/fs/cgroup/memory.max": String(2 * GB) + "\n",
+    "/sys/fs/cgroup/memory.current": String(1 * GB) + "\n",
+  });
+  const r = readMemory({ platform: "linux", os, readFile, run: () => null });
+  assert.equal(r.total, 2 * GB, "the limit is the box");
+  assert.equal(r.available, 1 * GB);
+});
+
+test("readMemory: linux, a cgroup v2 limit bounds the total even when the host's MemAvailable is what binds", () => {
+  const os = fakeOs({ totalBytes: 16 * GB });
+  const readFile = readFileFrom({
+    "/proc/meminfo": "MemAvailable:     100000 kB\n", // the host is tighter than the box
+    "/sys/fs/cgroup/memory.max": String(2 * GB) + "\n",
+    "/sys/fs/cgroup/memory.current": "0\n",
+  });
+  const r = readMemory({ platform: "linux", os, readFile, run: () => null });
+  assert.equal(r.total, 2 * GB);
+  assert.equal(r.available, 100000 * 1024);
+  assert.equal(r.probe, "MemAvailable", "the probe names where the available figure came from");
+});
+
+test("readMemory: linux, a cgroup v1 limit is the total too", () => {
+  const os = fakeOs({ totalBytes: 16 * GB });
+  const readFile = readFileFrom({
+    "/proc/meminfo": "MemAvailable:    8000000 kB\n",
+    "/sys/fs/cgroup/memory/memory.limit_in_bytes": String(2 * GB) + "\n",
+    "/sys/fs/cgroup/memory/memory.usage_in_bytes": String(1.5 * GB) + "\n",
+  });
+  const r = readMemory({ platform: "linux", os, readFile, run: () => null });
+  assert.equal(r.total, 2 * GB);
+  assert.equal(r.available, 0.5 * GB);
+});
+
+test("readMemory: linux, a limit above the host's own total is not a box", () => {
+  const os = fakeOs({ totalBytes: 16 * GB });
+  const readFile = readFileFrom({
+    "/proc/meminfo": "MemAvailable:    8000000 kB\n",
+    "/sys/fs/cgroup/memory.max": String(32 * GB) + "\n",
+    "/sys/fs/cgroup/memory.current": "0\n",
+  });
+  const r = readMemory({ platform: "linux", os, readFile, run: () => null });
+  assert.equal(r.total, 16 * GB);
+});
+
 test("readMemory: linux, cgroup v2 'max' is unlimited and does not fall through to v1", () => {
   const os = fakeOs({ totalBytes: 16 * GB });
   const readFile = readFileFrom({
@@ -294,6 +346,21 @@ test("readMemory: linux, cgroup v1 limit above total memory means unlimited", ()
   const r = readMemory({ platform: "linux", os, readFile, run: () => null });
   assert.equal(r.probe, "MemAvailable");
   assert.equal(r.available, 8000000 * 1024);
+});
+
+test("measure: inside a small container a job is sized to the container, and can start", async () => {
+  const os = fakeOs({ cores: 8, load: 0, totalBytes: 16 * GB });
+  const readFile = readFileFrom({
+    "/proc/meminfo": "MemAvailable:    8000000 kB\n",
+    "/sys/fs/cgroup/cpu.max": "200000 100000\n",          // 2 cores
+    "/sys/fs/cgroup/memory.max": String(256 * 1024 * 1024) + "\n",
+    "/sys/fs/cgroup/memory.current": String(6 * 1024 * 1024) + "\n",
+  });
+  const r = await measure({ platform: "linux", os, readFile, run: () => null, env: {} });
+  assert.equal(r.cores, 2);
+  assert.equal(r.memory.total, 256 * 1024 * 1024, "the container is the machine");
+  assert.equal(r.memory.available, 250 * 1024 * 1024);
+  assert.ok(r.can_start >= 1, `a job sized to this box must fit in it: ${r.reason}`);
 });
 
 test("readMemory: linux, no MemAvailable falls back to freemem (labelled lower bound)", () => {

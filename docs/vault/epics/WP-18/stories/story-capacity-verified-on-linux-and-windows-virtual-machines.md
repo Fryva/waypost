@@ -10,7 +10,7 @@ created: 2026-09-15
 updated: 2026-09-17
 external_refs: {}
 tags: []
-code_refs: ["scripts/capacity.mjs", "bin/waypost", "scripts/lib.mjs", "scripts/presence.mjs", "tests/presence.test.mjs", "tests/slots.test.mjs", "CHANGELOG.md"]
+code_refs: ["scripts/capacity.mjs", "bin/waypost", "scripts/lib.mjs", "scripts/presence.mjs", "tests/capacity.test.mjs", "tests/presence.test.mjs", "tests/slots.test.mjs", "CHANGELOG.md"]
 specs: []
 blocked_by: ["WP-18/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work"]
 started_at: "2026-09-17T00:18:14.608Z"
@@ -120,6 +120,10 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
         second heavy job let through.
       - [ ] Windows, [ ] macOS host — not attempted; worth doing after the fix.
 - [ ] Fixes land with hermetic tests, and `waypost doctor` reports 0 issues.
+      - [x] The container's memory share (Technical Notes, "Open") — evidence:
+        `tests/capacity.test.mjs`, the four `readMemory` total cases and
+        "measure: inside a small container a job is sized to the container,
+        and can start".
       - [x] The sleep defect — evidence: `tests/presence.test.mjs`, "a live
         process is not gone because the machine slept: lstart moves, the tick
         count does not" (red against the old comparison, with the very
@@ -241,10 +245,20 @@ the resume everything still looked perfect.
 
 ### Open, from this Linux pass
 
-- `capacity`'s `total` is not capped by a cgroup memory limit: inside a 256 MB
-  scope a heavy job was still reported to need 1.0 GB, a quarter of the host's
-  3.8 GB. It errs towards refusing, so nothing starts that should not, but the
-  sentence is wrong inside a container.
+- ~~`capacity`'s `total` is not capped by a cgroup memory limit~~ — fixed the
+  same day. A job's share is a quarter of the machine, and inside a container
+  the container is the machine: a cgroup limit (v2 `memory.max`, v1
+  `memory.limit_in_bytes`) below the host's own total is now the `total` the
+  share is computed from, so the 256 MB scope reports "0.2 of 0.3 GB available"
+  and a job sized to it may start, where before it reported the host's 3.8 GB,
+  claimed a job needed 1.0 GB of a 256 MB box, and could never start anything.
+  The host's total still decides whether a v1 limit is the "unlimited"
+  sentinel, and a limit above it is not a box. Evidence:
+  `tests/capacity.test.mjs` — four cases pinning the total (v2, v1, a limit
+  that bounds the box while the host's MemAvailable binds, and a limit above
+  the host's total), plus "measure: inside a small container a job is sized to
+  the container, and can start"; all four are red without the change. Confirmed
+  on the machine in the same systemd scope the failure was measured in.
 - The numbers meet a small machine awkwardly. 1.0 GB per job against the
   0.9 GB this VM has free under the owner's ordinary desktop means waypost's
   own suite cannot start here at all without closing something first. That is

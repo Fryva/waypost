@@ -111,6 +111,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays in the vault (ADR-0004).
 
 ### Fixed
+- Inside a container, `waypost capacity` sizes a heavy job to the container.
+  A job's share is a quarter of the machine, and a cgroup memory limit is the
+  machine as far as anything inside it is concerned — but the total came from
+  the host, so inside a 256 MB container a job was said to need 1.0 GB (a
+  quarter of the host's 3.8 GB) and nothing could ever start. A v2
+  `memory.max` or v1 `memory.limit_in_bytes` below the host's own total is now
+  the total the share is computed from; a limit above it still is not (WP-18).
 - A sleeping machine no longer kills every live session and frees the heavy
   slot under a running job. Liveness compared `ps -o lstart`, a wall-clock
   start time that is the machine's estimate of its boot time plus the

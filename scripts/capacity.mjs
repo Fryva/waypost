@@ -197,6 +197,15 @@ export function readMemory({ platform = process.platform, os = defaultOs(), read
     let available = Number(match[1]) * 1024;
     let probe = "MemAvailable";
 
+    // The box we are actually in — what a job's share is computed from, since
+    // a cgroup limit is the whole machine as far as anything inside it is
+    // concerned. Without this a job inside a 256 MB container was told it
+    // needed 1.0 GB, a quarter of the host's 3.8 GB, and nothing could ever
+    // start (WP-18, measured on the Linux VM). `total` itself stays the host's
+    // own figure below, because that is what decides whether a v1 limit is the
+    // "unlimited" sentinel.
+    let box = total;
+
     // A cgroup is exclusively v1 or v2 on a real system, so v1 is checked
     // only when v2's file is absent — not merely when v2 reports "max".
     const v2max = readFile(CGROUP_V2_MEM_MAX);
@@ -208,6 +217,7 @@ export function readMemory({ platform = process.platform, os = defaultOs(), read
         if (Number.isFinite(max) && Number.isFinite(current)) {
           const cap = Math.max(0, max - current);
           if (cap < available) { available = cap; probe = "cgroup v2 memory.max"; }
+          if (max < box) box = max;
         }
       }
     } else {
@@ -221,10 +231,14 @@ export function readMemory({ platform = process.platform, os = defaultOs(), read
         if (Number.isFinite(limit) && Number.isFinite(usage) && limit <= total) {
           const cap = Math.max(0, limit - usage);
           if (cap < available) { available = cap; probe = "cgroup v1 memory.limit_in_bytes"; }
+          if (limit < box) box = limit;
         }
       }
     }
-    return { available, total, probe };
+    // `probe` names where the AVAILABLE figure came from, which is not always
+    // where the total came from: a limit can bound the box while the host's own
+    // MemAvailable is the smaller of the two and still binds.
+    return { available, total: box, probe };
   }
 
   if (platform === "win32") return { available: os.freemem(), total, probe: "os.freemem()" };
