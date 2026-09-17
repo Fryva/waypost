@@ -43,14 +43,14 @@ function defaultReadFile(path) {
 // or vm_stat call that hangs must never hang capacity measurement with it.
 // Returns stdout on a clean exit, null on any failure (missing binary,
 // non-zero exit, timeout, signal).
-function defaultRun(cmd, args) {
+function defaultRun(cmd, args, timeoutMs = 2000) {
   let r;
   try {
     r = spawnSync(cmd, args, {
       shell: false,
       stdio: ["ignore", "pipe", "ignore"],
       encoding: "utf8",
-      timeout: 2000,
+      timeout: timeoutMs,
     });
   } catch {
     return null;
@@ -303,10 +303,23 @@ const WIN_SYSTEM_PID = 4;
 const WIN_BOOT_QUERY =
   `([DateTimeOffset](Get-CimInstance Win32_Process -Filter 'ProcessId=${WIN_SYSTEM_PID}').CreationDate).ToUnixTimeSeconds()`;
 
-export function bootAuthority({ platform = process.platform, run = defaultRun } = {}) {
+// Two budgets, because the two paths ask for different reasons and neither may
+// hold anything up. A report (`capacity`, `--release`) gets 2 s: a no-answer
+// there is safe, since unconfirmable keeps the record. A claim writes its own
+// record after the lock is released and gets **less** — one second,
+// best-effort: the field is worth having when it is cheap, and worth nothing
+// if a heavy job waits for it. Measured on this Windows VM: ~0.4 s when the
+// machine is quiet, 4–9 s under load (one call 74 s), and a 10 s budget on the
+// claim path stretched a five-way stress test from 3 s to 52 s. What the
+// record is guaranteed to carry is `uptime`, which costs nothing; the
+// authority is the extra that settles the one case uptime cannot.
+export const AUTHORITY_TIMEOUT_MS = 2000;
+export const AUTHORITY_WRITE_TIMEOUT_MS = 1000;
+
+export function bootAuthority({ platform = process.platform, run = defaultRun, timeoutMs = AUTHORITY_TIMEOUT_MS } = {}) {
   // Linux has boot_id; macOS is not covered at all (the ADR says why).
   if (platform !== "win32") return null;
-  const out = run("powershell", ["-NoProfile", "-NonInteractive", "-Command", WIN_BOOT_QUERY]);
+  const out = run("powershell", ["-NoProfile", "-NonInteractive", "-Command", WIN_BOOT_QUERY], timeoutMs);
   // Digits or nothing: Number("") and Number("   ") are 0, and a boot identity
   // of zero would match no record and so delete every one of them. An empty
   // stdout from a command that exited 0 is no answer, like any other.
@@ -331,6 +344,23 @@ export function authorityOnce(probes = {}) {
 // true: the authority says this record belongs to the current boot. false: it
 // says it does not. null: it could not say — no answer, no recorded value,
 // or two values that cannot be compared. Only `false` may destroy anything.
+// Uptime never decreases within one boot: it pauses while a guest is frozen
+// and resumes, and it resets on a restart. So a record claimed at an uptime
+// above the one read now is from another boot — with certainty, and for free,
+// which matters most in the minutes after a restart, when previous-boot records
+// exist and the authority is slowest (4" + "–" + "9 s measured on Windows, against a
+// 2 s timeout). The converse proves nothing — a new boot can have been up longer
+// than the record's own claim was — so this only ever answers "another boot"
+// or "cannot say" (WP-18, second amendment). The margin is there because this
+// is the direction that deletes.
+export const UPTIME_MARGIN_S = 5;
+
+export function uptimeSaysOtherBoot(rec, uptimeNow) {
+  if (!rec || typeof rec.uptime !== "number" || !Number.isFinite(rec.uptime)) return false;
+  if (typeof uptimeNow !== "number" || !Number.isFinite(uptimeNow)) return false;
+  return uptimeNow < rec.uptime - UPTIME_MARGIN_S;
+}
+
 export function confirmBoot(rec, asked) {
   if (!asked || !rec || !rec.authority) return null;
   if (asked.kind !== rec.authority.kind) return null;
@@ -406,6 +436,7 @@ export function slotLive(rec, {
   now = Date.now(),
   kill = defaultKill,
   authority = null,
+  uptimeNow = defaultOs().uptime(),
 } = {}) {
   // The free checks first (WP-18 amendment): a holder whose process is gone is
   // gone whatever boot it names, and settling a record here costs nothing.
@@ -415,6 +446,11 @@ export function slotLive(rec, {
   // A mismatch. On anything but the epoch fallback that is a real identifier
   // disagreeing, and it decides on its own, as it always has.
   if (!isEpoch(rec.boot) || !isEpoch(bootNow)) return false;
+
+  // Free, and certain in the one direction it answers: a record claimed at a
+  // higher uptime than now's is from another boot, whatever the authority is
+  // doing (second amendment).
+  if (uptimeSaysOtherBoot(rec, uptimeNow)) return false;
 
   // On the epoch path a mismatch is a reason to ask, never a reason to delete.
   // Unconfirmable keeps the record — bounded by the same 24-hour cap, which
@@ -443,6 +479,7 @@ export function readHolders({ dir, ...probes } = {}) {
   // One thunk for the whole directory: at most one authority read per command,
   // and none at all unless some record's epoch disagrees (WP-18 amendment).
   const authority = probes.authority ?? authorityOnce(probes);
+  const uptimeNow = probes.uptimeNow ?? (probes.os || defaultOs()).uptime();
   const live = [];
   const stale = [];
   for (const name of names) {
@@ -452,7 +489,7 @@ export function readHolders({ dir, ...probes } = {}) {
     try { rec = JSON.parse(readFileSync(file, "utf8")); } catch { continue; }
     if (!rec || !rec.id || !rec.proc) continue;
     const entry = { ...rec, file };
-    (slotLive(rec, { ...probes, platform, table, bootNow, authority }) ? live : stale).push(entry);
+    (slotLive(rec, { ...probes, platform, table, bootNow, authority, uptimeNow }) ? live : stale).push(entry);
   }
   return { live, stale };
 }

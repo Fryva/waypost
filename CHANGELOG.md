@@ -111,6 +111,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays in the vault (ADR-0004).
 
 ### Fixed
+- A record from a previous boot is recognised for free, which matters most in
+  the minutes right after a restart. A slot record now carries the
+  `os.uptime()` it was claimed at, and a later reading below that (less a
+  five-second margin) confirms another boot with certainty and no subprocess:
+  uptime never decreases within one boot, pausing and resuming across a
+  suspend and resetting only on a restart. It answers in that one direction
+  only — a boot that has been up longer than the claim proves nothing — so
+  it never keeps a record by itself, and where it cannot answer the authority
+  is asked as before. Measured by a real Windows restart: in the first minutes
+  after boot that read takes 4–9 s (one call 74 s) against a two-second
+  timeout, so every read there came back "unconfirmable" and kept the record —
+  which is exactly the window where previous-boot records exist, and on
+  Windows always, since a restart there does not let a running holder release
+  its own record (WP-18).
 - `waypost doctor` no longer counts the vault's own artifacts as untracked work
   on Windows. "Is this file inside the vault?" was spelled
   ``vaultAbs.startsWith(`${resolve(proj)}/`)`` — a template-literal spelling of the

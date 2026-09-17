@@ -24,7 +24,7 @@ import {
 
 import {
   bootIdentity, sameBoot, slotLive, readHolders, measure,
-  bootAuthority, authorityOnce, confirmBoot,
+  bootAuthority, authorityOnce, confirmBoot, uptimeSaysOtherBoot, UPTIME_MARGIN_S,
 } from "../scripts/capacity.mjs";
 import { machineStateDir } from "../scripts/lib.mjs";
 import { hostSlug, processTable, startTicks } from "../scripts/presence.mjs";
@@ -302,6 +302,74 @@ test("slotLive: the authority is asked only when something actually needs it", (
     "a real boot identifier disagreeing is evidence on its own, as it always was");
 });
 
+// ─── uptime confirms another boot for free (WP-18, second amendment) ─────
+//
+// Measured by a real Windows restart: in the minutes after boot the authority
+// read takes 4–9 s against a 2 s timeout, so every read there comes back
+// unconfirmable and keeps the record — which is exactly the window where
+// previous-boot records exist. Uptime never decreases within one boot, so a
+// record claimed above the current reading is from another boot with no spawn
+// at all. One direction only: it never says "same boot".
+
+const PREV_UPTIME = 13530;   // what the restart's records carried
+const NOW_UPTIME = 2034;     // what the machine read afterwards
+
+test("uptimeSaysOtherBoot: below the claim confirms, at or above it never does", () => {
+  assert.equal(uptimeSaysOtherBoot({ uptime: PREV_UPTIME }, NOW_UPTIME), true, "the restart, as measured");
+  assert.equal(uptimeSaysOtherBoot({ uptime: 100 }, 5000), false,
+    "a boot that has been up longer than the claim proves nothing: this may not answer");
+  assert.equal(uptimeSaysOtherBoot({ uptime: 5000 }, 5000), false, "the same reading is the same boot");
+  assert.equal(uptimeSaysOtherBoot({ uptime: 5000 }, 5000 - UPTIME_MARGIN_S), false,
+    "inside the margin: two readings of one monotonic clock must not round into a deletion");
+  assert.equal(uptimeSaysOtherBoot({ uptime: 5000 }, 5000 - UPTIME_MARGIN_S - 1), true, "outside it, they may");
+  assert.equal(uptimeSaysOtherBoot({}, NOW_UPTIME), false, "a record written before the field existed");
+  assert.equal(uptimeSaysOtherBoot({ uptime: "13530" }, NOW_UPTIME), false, "a string is not a reading");
+  assert.equal(uptimeSaysOtherBoot({ uptime: PREV_UPTIME }, NaN), false, "nor is NaN");
+});
+
+test("slotLive: a previous boot settled by uptime alone, with the authority forbidden (WP-18)", () => {
+  const never = () => { throw new Error("the authority must not be asked here"); };
+  const rec = winRec({ boot: REC_BOOT, uptime: PREV_UPTIME });
+  assert.equal(slotLive(rec, winProbes({ bootNow: AFTER_SUSPEND, uptimeNow: NOW_UPTIME, authority: never })), false,
+    "no spawn, no timeout, and certain: this is the post-restart window");
+});
+
+test("slotLive: a suspend is not a restart — uptime declines to confirm, and the authority keeps the holder", () => {
+  // The machine slept: the epoch moved, and uptime paused and resumed, so it
+  // is ABOVE the claim. Nothing may be pruned on uptime here.
+  const rec = winRec({ boot: REC_BOOT, uptime: 11274 });
+  assert.equal(uptimeSaysOtherBoot(rec, 11420), false);
+  assert.equal(slotLive(rec, winProbes({ bootNow: AFTER_SUSPEND, uptimeNow: 11420, authority: () => TRUTH })), true);
+});
+
+test("slotLive: uptime is asked before the authority, and only falls through when it cannot answer", () => {
+  const asks = [];
+  const counting = () => { asks.push(1); return TRUTH; };
+  // settled by uptime: not one ask
+  slotLive(winRec({ uptime: PREV_UPTIME }), winProbes({ bootNow: AFTER_SUSPEND, uptimeNow: NOW_UPTIME, authority: counting }));
+  assert.equal(asks.length, 0);
+  // uptime cannot answer (no field): the authority decides, as before
+  assert.equal(slotLive(winRec(), winProbes({ bootNow: AFTER_SUSPEND, uptimeNow: NOW_UPTIME, authority: counting })), true);
+  assert.equal(asks.length, 1);
+});
+
+test("readHolders: twenty previous-boot records and not one authority read", () => {
+  const dir = mkdtempSync(join(tmpdir(), "waypost-uptime-"));
+  try {
+    for (let i = 0; i < 20; i++) {
+      writeRecord(dir, { id: "h" + i, host: MY_HOST, proc: { pid: 1, comm: "node.exe" },
+        boot: REC_BOOT, authority: TRUTH, uptime: PREV_UPTIME, started_at: new Date().toISOString() });
+    }
+    const out = readHolders({
+      dir, platform: "win32", bootNow: AFTER_SUSPEND, uptimeNow: NOW_UPTIME,
+      kill: () => true, tasklist: () => "node.exe",
+      run: () => { throw new Error("nothing may be spawned: uptime settles every one of these"); },
+    });
+    assert.equal(out.live.length, 0);
+    assert.equal(out.stale.length, 20);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("readHolders: twenty records from a drifted epoch cost one authority read, not twenty", () => {
   const dir = mkdtempSync(join(tmpdir(), "waypost-auth-"));
   try {
@@ -420,9 +488,15 @@ test("run --heavy: the record carries the value a later epoch mismatch is checke
     assert.equal(r.status, 0, r.stderr);
     const rec = JSON.parse(r.stdout);
     assert.ok("authority" in rec, "the field is always written, even where it is null");
+    assert.ok(Number.isFinite(rec.uptime), "and the uptime at claim, which needs no platform to be readable");
     if (process.platform === "win32") {
-      assert.equal(rec.authority.kind, "win-system-process");
-      assert.ok(Number.isFinite(rec.authority.value));
+      // Best-effort by design: the read gets one second after the lock is
+      // released, so a loaded machine legitimately records null and leans on
+      // uptime instead. What is asserted is the shape when there is one.
+      if (rec.authority !== null) {
+        assert.equal(rec.authority.kind, "win-system-process");
+        assert.ok(Number.isFinite(rec.authority.value));
+      }
     } else {
       assert.equal(rec.authority, null,
         "no authority on this platform: such a record can only ever be kept, never pruned");

@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { spawnSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { homedir, hostname, setPriority, constants as osConstants } from "node:os";
+import { homedir, hostname, setPriority, uptime as osUptime, constants as osConstants } from "node:os";
 import {
   parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, sessionIdFlag, storyRefOf, expandHome,
   storedVaultPath, resolveVaultPath, bindingInfo, readConfig as readConfigLib, isLinkedWorktree, worktreeTag,
@@ -879,6 +879,9 @@ async function handleSize(args) {
       process.exitCode = EX_TEMPFAIL;
       return;
     }
+    // Same as run --heavy: the authority goes into the record after the lock
+    // is released, never before it (third amendment).
+    recordAuthority(claim.file, capacity);
     let out, reg, error, usedProfile = false;
     try {
       reg = toolchains.loadRegistry({ projectRoot: projectRoot(), platform: process.platform });
@@ -1117,7 +1120,13 @@ function lockOwnerGone(owner, presence, table, capacity) {
     const bootNow = capacity.bootIdentity();
     if (!capacity.sameBoot(owner.boot, bootNow)) {
       const drifting = owner.boot.kind === "epoch" && bootNow.kind === "epoch";
-      if (!drifting || capacity.confirmBoot(owner, bootAuthority(capacity)()) === false) return true;
+      if (!drifting) return true;
+      // uptime settles "another boot" for free; nothing here may spawn, so an
+      // owner uptime cannot settle is KEPT, and the lock's own five-minute
+      // mtime cap is what bounds that. Breaking a live claimant's lock puts
+      // two processes in the critical section: the worst thing this can get
+      // wrong (WP-18, second and third amendments).
+      if (capacity.uptimeSaysOtherBoot(owner, osUptime())) return true;
     }
   }
   if (process.platform === "win32") {
@@ -1167,7 +1176,9 @@ async function acquireLock(dir, presence, capacity) {
         JSON.stringify({
           pid: process.pid, started: self ? self.started : null, ticks: presence.startTicks(process.pid),
           boot: capacity ? capacity.bootIdentity() : null,
-          authority: capacity ? bootAuthority(capacity)() : null,
+          // uptime and nothing that spawns: this runs INSIDE the lock, where
+          // the other claimants are waiting on a two-second budget.
+          uptime: osUptime(),
         }) + "\n", "utf8");
       return lockDir;
     } catch (e) {
@@ -1188,13 +1199,6 @@ function releaseLock(lockDir) {
 // either write our own record or report why not. Two processes starting in
 // the same second cannot both pass the cap.
 async function claimSlot(dir, argv, capacity, presence) {
-  // The one authority read a claim makes (WP-18 amendment) happens HERE, before
-  // the lock. Inside it, other claimants are waiting on a two-second budget,
-  // and a half-second spawn in the critical section serialises five of them so
-  // slowly that the first job finishes before the last is admitted — and then
-  // two run. The stress test caught exactly that; every later call hits the
-  // memo and spawns nothing.
-  bootAuthority(capacity)();
   const lockDir = await acquireLock(dir, presence, capacity);
   if (!lockDir) {
     return { ok: false, reason: "the slot lock is busy — another `waypost run --heavy` is claiming right now" };
@@ -1219,17 +1223,46 @@ async function claimSlot(dir, argv, capacity, presence) {
       // comparing THAT against a true boot time would delete live records.
       // null where the platform has no authority — such a record can then
       // only ever be kept, never pruned, which is the safe half.
-      authority: bootAuthority(capacity)(),
+      // The uptime at claim: a later reading below it confirms another boot
+      // with no spawn at all (second amendment). Free on every platform.
+      uptime: osUptime(),
+      // Filled in by recordAuthority() once the lock is released (third
+      // amendment): reading it here cost a refusal 2486 ms against a 2000 ms
+      // budget, came back null under load anyway, and moved the timings enough
+      // that a claim slipped past a live lock owner in the suite.
+      authority: null,
       session: process.env.WAYPOST_SESSION_ID || null,
       harness: process.env.WAYPOST_HARNESS || null,
       command: argv.map(shellQuote).join(" "),
       started_at: new Date().toISOString(),
     };
-    writeFileSync(join(dir, `${id}.json`), JSON.stringify(rec, null, 2) + "\n", "utf8");
-    return { ok: true, release: () => { try { unlinkSync(join(dir, `${id}.json`)); } catch {} } };
+    const file = join(dir, `${id}.json`);
+    writeFileSync(file, JSON.stringify(rec, null, 2) + "\n", "utf8");
+    return { ok: true, file, release: () => { try { unlinkSync(file); } catch {} } };
   } finally {
     releaseLock(lockDir);
   }
+}
+
+// The authority is read AFTER the slot is claimed and the lock released, and
+// its answer is written into the record we already own. Not before: a refusal
+// must stay immediate (Decision 2's "exits at once", and the test that pins it
+// under two seconds), and a spawn inside the lock serialises the other
+// claimants. Atomically, because a reader that finds a half-written record
+// skips it, and a skipped record is an unheld slot. No answer is not a
+// failure: uptime carries the common case on its own (WP-18, third
+// amendment).
+function recordAuthority(file, capacity) {
+  let asked;
+  // Its own patient read, not the report path's memo: this is the one place
+  // whose answer every later decision about this record depends on, and the
+  // only cost of waiting is the start of a job that will run for minutes.
+  try { asked = capacity.bootAuthority({ timeoutMs: capacity.AUTHORITY_WRITE_TIMEOUT_MS }); } catch { return; }
+  if (!asked || !file) return;
+  let rec;
+  try { rec = JSON.parse(readFileSync(file, "utf8")); } catch { return; }
+  if (!rec || rec.authority) return;
+  try { writeFileAtomic(file, JSON.stringify({ ...rec, authority: asked }, null, 2) + "\n"); } catch {}
 }
 
 // <N>s or <N>m only, the ADR's own examples (30s, 10m) — anything else fails
@@ -1331,7 +1364,11 @@ async function handleRun(args) {
 
   for (;;) {
     const claim = await claimSlot(dir, argv, capacity, presence);
-    if (claim.ok) { await runHeavy(argv, claim.release); return; }
+    if (claim.ok) {
+      recordAuthority(claim.file, capacity);
+      await runHeavy(argv, claim.release);
+      return;
+    }
 
     const now = Date.now();
     if (deadline == null || now >= deadline) {

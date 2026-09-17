@@ -69,12 +69,14 @@ share this checkout, and the macOS host.
       - Linux, 2026-09-16: **failed, fixed, and confirmed by a second real
         suspend on the same machine.** Details and both measurements under
         Technical Notes.
-      - Windows, 2026-09-17: **failed, as this story predicted it would.**
-        The owner suspended the VM from the host for 534 s with a live
-        holder; the boot epoch moved +535 s, the record went stale, and a
-        second heavy job was let through and deleted the first one's record
-        while it was still running. Numbers under Technical Notes, "Sleep and
-        wake, Windows". Not yet fixed — the fix is a decision, not a patch.
+      - Windows, 2026-09-17: **failed, fixed, and confirmed by a second
+        real suspend on the same machine** — the same shape the Linux pass
+        took. First suspend, 534 s, before the fix: the boot epoch moved
+        +535 s, the record went stale, and a second heavy job was let through
+        and deleted the first one's record while it was still running.
+        Second suspend, 1603 s, after it: the epoch moved +1603 s and the
+        authority did not move at all, so the holder stayed a holder and the
+        second job was refused. Both under Technical Notes.
       - The macOS host and Windows are still to do, and what has to be
         watched there is not what was watched here: the evidence differs per
         platform (`boot_id` + ticks on Linux, `kern.boottime` + `lstart` on
@@ -146,12 +148,17 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
         third reader listed the holder with its session, harness and command;
         the record was gone from `%LOCALAPPDATA%\Waypost\slots.FROSTBEBE\`
         the moment the holder exited.
-      - [ ] Windows, after a restart — **constructed only.** A record naming
-        a live process (explorer.exe, its own image name) with an epoch 600 s
-        before this boot's reads stale, `capacity` says the slot is free, and
-        the next claim prunes it and runs. The real reboot this criterion
-        asks for has not happened on this machine: it needs the owner, since
-        the session doing the verifying dies with the machine.
+      - [ ] Windows, after a restart — **by a real restart, 2026-09-17, and
+        not yet a pass.** A running holder's record survived the restart
+        (unlike Linux, a clean Windows restart does not let the wrapper
+        release it) and was pruned correctly, its pid being dead. A planted
+        previous-boot record naming a process that exists again (pid 4) was
+        judged stale once the authority answered — but for the first
+        minutes after boot that read takes 4–9 s against a 2 s timeout, so
+        it came back unconfirmable and pinned the slot until the machine
+        calmed down. The one written without an authority field needed
+        `--release --force`, as designed. Details, and the change they argue
+        for, under Technical Notes: "A real Windows restart".
 - [ ] After sleep and wake, a live holder stays a holder.
       - [x] Linux — **passes after the fix**, evidence: the VM was suspended
         from the host a second time, 429 s with a live holder (pid 110031,
@@ -163,13 +170,16 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
         refused. Before the fix the same sleep gave the opposite result: pid
         64336 alive, record pruned as stale, "can start 1 heavy job", and a
         second heavy job let through.
-      - [ ] Windows — **measured and failed**, 2026-09-17: 534 s of host
-        suspend, a live holder (pid 5728, `run --heavy -- node -e
-        "setTimeout(…,10800000)"`), and afterwards `waypost capacity` said
-        "can start 1 heavy job" while that job was still running. The second
-        `run --heavy` then ran AND deleted the live holder's record: the
-        machine was left running heavy work with no record of it at all.
-        Evidence: "Sleep and wake, Windows" under Technical Notes.
+      - [x] Windows — **failed, then passed after the fix**, both by real
+        host suspends on 2026-09-17. Before: 534 s of suspend, a live holder
+        (pid 5728), `waypost capacity` reporting "can start 1 heavy job"
+        while that job ran, and the second `run --heavy` starting AND
+        deleting the live holder's record. After: 1603 s of suspend, a live
+        holder (pid 2328), the epoch moved +1603 s while the authority moved
+        0, `capacity` still "can start 0 — slots: 1 of 1 already held" with
+        the holder listed, the second `run --heavy` refused with exit 75, and
+        the record still on disk. Evidence: both tables under Technical
+        Notes.
       - [ ] macOS host — not attempted.
 - [ ] Fixes land with hermetic tests, and `waypost doctor` reports 0 issues.
       - [x] The container's memory share (Technical Notes, "Open") — evidence:
@@ -841,6 +851,175 @@ POSIX signals.
 So the honest summary of what a green run on this machine means: the parse
 kinds of the ask path (`json`, `kv`, the array shape, the dedup ranking) are
 exercised on POSIX only, and everything else in this suite is exercised here.
+
+### Sleep and wake, Windows: the fix, by a second real suspend
+
+The first suspend found the defect; this one was run against the fix, on the
+same machine, the same way: the owner suspended the VM from the host with a
+live holder on the slot. 1603 seconds frozen this time, three times the first.
+
+| | before the suspend | after the resume | moved |
+|---|---|---|---|
+| wall clock (unix s) | 1789661289 | 1789663037 | +1748 |
+| `os.uptime()` | 11274.9 s | 11420.1 s | +145 |
+| `bootIdentity()` — `epoch` | 1789650014 | 1789651617 | **+1603** |
+| the authority (pid 4's creation) | 1789649481 | 1789649481 | **0** |
+| `sameBoot()` — the cheap answer | true | **false** | |
+| `confirmBoot()` — the authority | true | **true** | |
+| `slotLive()` | true | **true** | |
+| `waypost capacity` | 1 of 1 held | **1 of 1 held**, holder listed | |
+| a second `run --heavy` | exit 75 | **exit 75** | |
+| the record on disk | there | **there** | |
+
+1603 s frozen = 1748 s of wall clock minus 145 s of uptime, both read from one
+process. The cheap answer said "another boot", exactly as it did in the morning
+— and exactly as it is now allowed to, because it no longer decides anything
+on its own.
+
+One number is worth more than the table. The holder's record was written
+*after* the morning's suspend, so its own epoch was already 533 s adrift from
+the true boot before this test began, and 2136 s adrift after it — 35 minutes
+of error accumulated over two sleeps in one uptime. That is the critic's second
+blocker as a measurement rather than an argument: comparing a record's epoch
+against a true boot time would have called this holder dead on both counts.
+Comparing authority against authority was exact both times, because the number
+the kernel stores is the only one here that does not move.
+
+**The cache behind `LastBootUpTime`, measured a second time.** The morning's
+suspend is what showed that value drifting late; this one was watched on
+purpose, and it behaved identically. 2.1 minutes after the resume it still read
+1789650014, the pre-suspend value; 27.4 minutes after it, 1789651617 — drifted
+by 1603, exactly the frozen duration and exactly what the epoch had done
+immediately. pid 4's creation time was 1789649481 at both readings, and at
+every reading all day, across both suspends.
+
+Two independent suspends, then, for the sentence this decision rests on: the
+value that looks like an authority is a derived one behind a cache, and in the
+first minutes after a resume it is wrong in the flattering direction — it reads
+correct exactly when someone verifying a fix would look at it. The value that
+is an authority is the one the kernel stores once and never recomputes.
+
+**And keeping a record is not keeping it for ever.** Cleaning up, the holder
+was stopped with `Stop-Process -Force`, which is an unclean stop: the wrapper
+never released its record, so a record naming a dead pid was left on disk with
+the same "another boot" epoch. `slotLive()` read it stale — for the right
+reason, the free process check (`alive: false`) settling it before the boot
+question arose at all — `capacity` reported the slot free, and the next claim
+pruned it and ran. The rule keeps what it cannot disprove; it does not keep
+what the process table has already answered.
+
+### A real Windows restart, 2026-09-17: four answers, and a timeout that is wrong
+
+Staged before the restart: a live holder (`run --heavy`, pid 1492), and two
+records planted as a previous boot would leave them, both naming pid 4 — the
+System process, which exists on every boot, so signal-0 and `tasklist` say
+"alive" about them afterwards and only the boot identity is left to decide
+(the Windows equivalent of the Linux pass's planted pid 1). One carried the
+authority; one did not, as a version before today would have written it. Then
+an ordinary Restart from Windows, and a read-only check before anything else.
+
+| | before | after the restart |
+|---|---|---|
+| `epoch` | 1789651617 | 1789665359 |
+| the authority (pid 4's creation) | 1789649481 | **1789665361** |
+| `os.uptime()` | ~13 530 s | 2 034 s (a while after logging in) |
+
+**1. The authority does change across a restart.** +15 880 s. The rule has a
+real signal to decide with — measured, where until now it was only assumed.
+The new boot's epoch and authority agree to 2 s, as they did this morning.
+
+**2. A clean Windows restart does not release a running holder.** Its record
+was still on disk afterwards. On Linux shutdown signals the wrapper and it
+releases like any other exit; on Windows the restart ends node without its exit
+path. So on this platform every restart with a heavy job running leaves a
+record behind: the boot identity is not an edge case here, it is the ordinary
+path. That record was pruned correctly, and for free — its pid was dead, so the
+process check settled it before the boot question arose.
+
+**3. The record whose process exists again, with the authority: stale, but not
+at first.** The read-only check (run first, on a quiet machine) got the
+authority in time and called it a confirmed other boot. `waypost capacity`, a
+minute later, called it a holder — "slots: 2 of 1 already held" — and a claim
+was refused. Measured straight after: the authority read was taking **2.0" + "–" + "9.6 s**,
+one call **74 s**, against the 2 s timeout the amendment specifies, while the
+machine was busy finishing its boot (load 1.18). Every read in that window came
+back as "unconfirmable", and unconfirmable keeps the record. A few minutes
+later (load 0.70) the same `capacity --release` released it without `--force`,
+because the read now fit.
+
+**4. The record without an authority field: a phantom, as designed.** Kept,
+counted, refused a heavy job, and released only by `--release --force` — the
+residual risk the ADR names, measured rather than asserted, and the recovery
+the refusal message names works.
+
+**What 2 and 3 together mean.** The window right after a restart is exactly
+when previous-boot records exist — on Windows, always, if a job was running —
+and it is exactly when the authority is slowest. A timeout short enough to keep
+`capacity` fast turns that window into one where any previous-boot record whose
+pid happens to be alive again pins the slot. The pid-4 plant makes that certain
+on purpose; in real use it needs a reused pid with the same image name, which
+is rare, but "rare, and right after every restart" is not a property a slot
+should have.
+
+**The change this argues for: uptime as a free confirmation of another boot.**
+`os.uptime()` never decreases within one boot. Across both of today's suspends
+it paused and resumed (3456.8 " + "→" + " 3549.4, 11274.9 " + "→" + " 11420.1) and never
+went back; across the restart it went from ~13 530 s to 2 034 s. So a record
+that carries the uptime it was claimed at, read back when `uptime_now <
+uptime_at_claim`, is from another boot with certainty — no spawn, no timeout,
+unmoved by any suspend. The converse proves nothing (a new boot can have been
+up longer than the record's claim was), so it only ever confirms "another
+boot", which is the one direction that is allowed to prune. Every record in
+this restart — the holder and both plants, all claimed at ~13 530 s — would
+have been settled at once. Only a record claimed very early in its own boot
+would still fall through to the authority, and by the time a machine has been
+up longer than that, the authority is no longer in its slow first minutes.
+
+This was the critic's option 3, and it was set aside as "needs care about a
+reboot that has been up longer than the record's own uptime was". The care is
+real, and it is exactly why uptime is proposed only as the confirming half.
+Not built: it changes a decision recorded today, so it is the owner's call.
+
+### The uptime rule, as built
+
+Decided and recorded as the ADR second amendment, then built the same day.
+`uptimeSaysOtherBoot(rec, uptimeNow)` in `scripts/capacity.mjs` is the whole
+rule: a record whose claimed uptime is above the current reading, by more than
+a five-second margin, is from another boot. It answers `true` or nothing — there
+is no "same boot" answer to give, since a new boot can have been up longer than
+the record claim was. `slotLive()` asks it after the free process checks and
+the epoch and before the authority; `lockOwnerGone()` takes the same order,
+because breaking a live claimant lock is the worst thing either can get wrong.
+A claim records `uptime` beside `authority`, on every platform.
+
+Against the real machine, with the restart own numbers (records claimed at
+uptime 13 530 in the previous boot, read back in a boot at 2 444 s) and the
+authority thunk rigged to throw if anything reached it: a previous boot record
+is stale with no spawn; a record from this boot after a suspend is kept,
+because uptime declines to confirm and the authority answers; a claim inside
+the margin is not confirmed; a record with no uptime field falls through to the
+authority; one with neither field is kept. Twenty previous-boot records cost
+zero authority reads.
+
+Five hermetic tests carry it (eight assertions in the first alone), and two
+directions in them matter most: the restart (settled by uptime, the authority
+forbidden) and the suspend (uptime must NOT confirm, and the holder survives).
+The margin has its own cases on both sides.
+
+Where the authority is read had to be measured twice more before it was right,
+and the suite priced each attempt. Before the lock: a refusal took 2486 ms
+against the 2000 ms budget that pins "exits at once", the field came back null
+under load anyway, and a claim slipped past a live lock owner. Ten seconds
+after the lock: a five-way stress test went from 3 s to 52 s. One second after
+the lock, best-effort: the refusal is back to 356 ms and the field is there
+whenever the read is cheap. The guarantee is `uptime`; the authority is the
+extra. The ADR third amendment carries the reasoning, and the suite is green
+at 587 tests, 563 passing, 24 skipped.
+
+What this does not yet have: a second real restart, to watch the rule work on
+records the machine itself wrote rather than on the same numbers replayed
+through real probes. That is one restart away, and it is what would let the
+"after a restart the slot is free" criterion be ticked for Windows.
 
 ## Dependencies
 

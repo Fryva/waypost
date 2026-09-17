@@ -222,7 +222,8 @@ Decision drivers:
 
      **Residual risk.** On a machine where no authority can be read, a record
      from a genuinely previous boot pins the machine's only slot until the
-     24-hour cap or a human runs `--release --force`. That is the direction
+     24-hour cap or a human runs `--release --force` (narrowed by the second
+     amendment below, to records uptime cannot settle). That is the direction
      this amendment deliberately chooses: a blocked machine announces itself
      and can be released, an overloaded one does not, and a deleted record
      cannot be got back.
@@ -234,6 +235,91 @@ Decision drivers:
      stale record (another boot) releases without --force" encodes the old
      rule on the epoch path and moves with it. The work is carried by WP-18's
      verification story, which measured all of this.
+
+     **Amendment 2026-09-17, later the same day: uptime confirms another
+     boot for free.** The first amendment was checked by a real Windows
+     restart, and it held where it was built to hold and failed where the
+     timeout it specifies meets a machine still finishing its boot. Staged: a
+     running holder, and two previous-boot records naming pid 4 (the System
+     process, alive on every boot, so only the boot identity can decide about
+     them), one with the authority recorded and one without. Measured:
+
+     - the authority does change across a restart (+15 880 s) — the rule has
+       a real signal;
+     - a clean Windows restart does **not** release a running holder, unlike
+       a clean Linux shutdown, so on Windows every restart with a heavy job
+       running leaves a record. That record was pruned correctly and for
+       free: its pid was dead;
+     - the record whose process exists again, carrying the authority, was
+       judged a holder by `waypost capacity` for the first minutes after
+       boot, because the authority read was taking 4–9 s (one call 74 s)
+       against the two-second timeout, and every expiry means
+       "unconfirmable", which keeps the record. Minutes later the same read
+       fit, and `--release` took it without `--force`;
+     - the record without the authority field was the designed phantom, and
+       `--release --force` cleared it.
+
+     The window right after a restart is exactly when previous-boot records
+     exist, and exactly when the authority is slowest. So a free signal is
+     added in front of it: **a record carries the `os.uptime()` it was claimed
+     at, and `uptime_now` below that (less a five-second margin) confirms
+     another boot.** Uptime never decreases within one boot — measured across
+     both of the day's host suspends, where it paused and resumed (3456.8 →
+     3549.4, 11274.9 → 11420.1), and across the restart, where it went from
+     about 13 530 s to 2 034 s. It needs no spawn, no timeout, and no suspend
+     moves it. Every record in that restart would have been settled at once.
+
+     It is used in one direction only. `uptime_now` at or above the claim's
+     proves nothing — a new boot can have been up longer than the record's own
+     claim was — so it never says "same boot" and never keeps a record by
+     itself; it only confirms the direction that is allowed to prune, and when
+     it cannot, the authority is asked as before. The order on the epoch path
+     is therefore: the free process checks, the epoch, uptime, and only then
+     the authority. The margin exists because this is the destructive
+     direction: two readings of the same monotonic clock in two processes
+     must never be allowed to disagree by rounding into a deletion.
+     `lockOwnerGone()` follows the same order.
+
+     What still reaches the authority, and so can still be unconfirmable in a
+     slow post-boot window: a record claimed in the very first minutes of its
+     own boot, and any record written before either field existed. The
+     residual risk above narrows to those, and its recovery is unchanged.
+     macOS is still not covered; its drifting `kern.boottime` would be served
+     by the same rule, and it has to be measured there before it is written
+     down as covering it.
+
+     **Amendment 2026-09-17, third: the authority is read after the claim, and
+     only as long as it is cheap.** The first amendment had a claim record the
+     authoritative value before writing its record, which put a subprocess on
+     the path of every claim — including the ones that are refused. The suite
+     priced it: a refusal took 2486 ms against the 2000 ms this decision's own
+     "exits at once" is pinned at; the field came back `null` anyway under the
+     load a heavy claim happens in; and the extra seconds moved the timings
+     enough that a claim slipped past a live lock owner in a mutual-exclusion
+     test. A ten-second budget, tried next, stretched a five-way stress test
+     from 3 s to 52 s.
+
+     So: a claim writes `uptime` (free) and `authority: null`, releases the
+     lock, and only then reads the authority and patches its own record —
+     atomically, because a reader that finds a half-written record skips it,
+     and a skipped record is an unheld slot. That read gets **one second,
+     best-effort**: worth having when it is cheap (~0.4 s on a quiet machine),
+     worth nothing if a heavy job waits for it. A report (`capacity`,
+     `--release`) keeps the two-second budget, where a no-answer is safe
+     because unconfirmable keeps the record.
+
+     The lock records `uptime` and asks nothing at all. Nothing inside the
+     critical section may spawn, so an owner uptime cannot settle is kept, and
+     the lock's own five-minute mtime cap is what bounds that — breaking a
+     live claimant's lock puts two processes in the critical section, which is
+     the worst thing either half can get wrong.
+
+     What the record is guaranteed to carry is therefore `uptime`, and the
+     authority is the extra that settles the one case uptime cannot: a restart
+     whose new boot has been up longer than the record's own claim was. Where
+     that extra is missing, such a record is kept, reported, and released by
+     `--release --force` — the residual risk, unchanged in kind and narrower
+     in reach than it was this morning.
 
      `waypost capacity --release <id>` is the recovery path. It runs the
      same liveness check first and refuses a record that still looks alive,
