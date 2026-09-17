@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-17T00:18:24.018Z
+generated_at: 2026-09-17T18:40:01.638Z
 
 ---
 
@@ -44,6 +44,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive.md | Measure the git common dir and worktree binding on macOS, Windows and a cloud drive | story | in-progress |
 | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md | Runtime coordination moves to the git common dir; old records read for one version | story | done |
 | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md | Shared-checkout detection covers sibling worktrees of one repository | story | done |
+| epics/WP-15/stories/story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit.md | The command on PATH survives a checkout that loses its executable bit | story | planned |
 | epics/WP-16/epic.md | Decisions that check themselves | epic | planned |
 | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md | ADR-0011 accepted: guards and drafted_by in ADR frontmatter | story | done |
 | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md | check guards name the project's own fitness command; doctor prints it and never runs it | story | done |
@@ -61,6 +62,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os.md | waypost capacity: the machine's real free resources, measured by each OS | story | done |
 | epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work.md | waypost run --heavy: a machine-wide slot for heavy work | story | done |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
+| ops/run-waypost-from-a-checkout-another-operating-system-edits.md | Run waypost from a checkout another operating system edits | runbook | draft |
 | ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
 
@@ -93,6 +95,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive.md |
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md |
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md |
+| epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit.md |
 | epics/WP-15/epic.md | mdlink | adr/0010-coordination-follows-the-repository.md |
 | epics/WP-15/epic.md | mdlink | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md |
 | epics/WP-15/stories/story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir.md | mdlink | epics/WP-15/epic.md |
@@ -101,6 +104,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md | mdlink | epics/WP-15/epic.md |
+| epics/WP-15/stories/story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md |
