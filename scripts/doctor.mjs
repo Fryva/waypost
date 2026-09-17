@@ -78,6 +78,7 @@ import {
 } from "./agents.mjs";
 import { status as skillsStatus, skillNames } from "./skills.mjs";
 import { stories as vaultStories } from "./ready.mjs";
+import { inspect as inspectLauncher } from "./launcher.mjs";
 
 function finding(group, level, check, message, file) {
   const f = { group, level, check, message };
@@ -335,6 +336,26 @@ export function checkAgentRoles(proj, cfg) {
       `No harness detected in this project — \`waypost agents install --harness <${HARNESSES.join("|")}>\` when you pick one.`));
   }
   return out;
+}
+
+// The command on PATH, when it is npm's symlink into a checkout another operating
+// system edits (scripts/launcher.mjs has the whole story). Two levels, because
+// "it will break on the next save from the other machine" is worth saying BEFORE
+// it breaks: once the bit is gone, `waypost doctor` itself answers "permission
+// denied" and this check can only be reached through `node bin/waypost doctor`.
+// Never a --fix repair: it writes outside the project, into a directory on PATH.
+export function checkLauncher(report = null) {
+  let r = report;
+  if (!r) { try { r = inspectLauncher(); } catch { return []; } }
+  if (r.risk === "none") return [];
+  const names = r.linked.map((l) => l.file).join(", ");
+  const repair = `node "${r.checkout.toolRoot}/scripts/launcher.mjs" --write`;
+  if (r.risk === "broken") {
+    return [finding("install", "issue", "launcher",
+      `${names}: a symlink to ${r.checkout.entry}, which has lost its executable bit — the command fails with "permission denied". \`${repair}\` replaces the symlink with a shim that does not need the bit.`)];
+  }
+  return [finding("install", "warn", "launcher",
+    `${names}: a symlink to ${r.checkout.entry}, and core.fileMode=false says this checkout is shared with a system that has no executable bit. The next save of bin/waypost from there breaks the command, and git will not restore the bit. \`${repair}\` replaces the symlink with a shim.`)];
 }
 
 // Derived views are regenerated, never merged (ADR-0006). Two sessions in two
@@ -1813,6 +1834,7 @@ export function runInstallChecks(cfg, proj) {
     ...checkVaultGit(cfg, proj),
     ...checkMergeDriver(cfg, proj),
     ...checkLineEndings(cfg, proj),
+    ...checkLauncher(),
   );
   return out;
 }

@@ -46,6 +46,17 @@ npm install -g waypost
 Make sure `~/.local/bin` is on your `PATH` (on Ubuntu it is, from `~/.profile`,
 after the next login). Or skip the install altogether: `npx waypost@latest …`.
 
+### Running from a checkout that another system edits
+
+If `waypost` runs from a checkout (`npm link`) and a Windows or Linux VM edits that checkout over a
+network share, every save from there drops the executable bit of `bin/waypost`, and the command
+starts answering `permission denied`. `waypost doctor` warns about this setup before it bites.
+The repair replaces npm's symlink with a small shim that does not need the bit:
+
+```bash
+node <checkout>/scripts/launcher.mjs --write
+```
+
 ## Quick start
 
 From inside your project:
