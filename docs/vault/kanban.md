@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-15T19:45:21.456Z
+generated_at: 2026-09-17T00:18:22.108Z
 
 ---
 
@@ -12,7 +12,6 @@ generated_at: 2026-09-15T19:45:21.456Z
 - [ ] [[epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt|WP-17: doctor and next surface build artifacts]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines|WP-17: Verified on Linux and Windows virtual machines]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit|WP-17: waypost clean: a classified plan, removal after a yes, the setup audit]] #p2
-- [ ] [[epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines|WP-18: Capacity verified on Linux and Windows virtual machines]] #p1
 
 ## ToDo
 
@@ -22,6 +21,7 @@ generated_at: 2026-09-15T19:45:21.456Z
 
 - [ ] [[epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop|WP-14: Live verification: Codex and OpenCode run the whole loop]] #p1
 - [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
+- [ ] [[epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines|WP-18: Capacity verified on Linux and Windows virtual machines]] #p1
 
 ## Review
 

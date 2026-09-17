@@ -1409,14 +1409,21 @@ const TERMINAL_ENV = ["WAYPOST_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SE
 // mistaken for the flag.
 const sanitiseSessionId = (v) => String(v).replace(/[^\w.-]+/g, "_").replace(/^\.+/, "").slice(0, 64);
 
-export function sessionId(argv = process.argv, env = process.env) {
+// The `--id` half of that precedence on its own, so bin/waypost can weigh it
+// against an ALREADY-set WAYPOST_SESSION_ID — which sessionId() never gets to
+// see, being called only when the variable is unset. null when the flag is
+// absent, or when its value sanitises away to nothing.
+export function sessionIdFlag(argv = process.argv) {
   const stop = argv.indexOf("--");
   const scope = stop === -1 ? argv : argv.slice(0, stop);
   const i = scope.indexOf("--id");
-  if (i !== -1 && scope[i + 1]) {
-    const id = sanitiseSessionId(scope[i + 1]);
-    if (id) return id;
-  }
+  if (i === -1 || !scope[i + 1]) return null;
+  return sanitiseSessionId(scope[i + 1]) || null;
+}
+
+export function sessionId(argv = process.argv, env = process.env) {
+  const flag = sessionIdFlag(argv);
+  if (flag) return flag;
   if (env.WAYPOST_SESSION_ID) {
     const id = sanitiseSessionId(env.WAYPOST_SESSION_ID);
     if (id) return id;

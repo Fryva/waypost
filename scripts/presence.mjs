@@ -200,10 +200,31 @@ export function harnessProcess(table) {
   for (let depth = 0; depth < 32 && pid > 1; depth++) {
     const p = table.get(pid);
     if (!p) return null;
-    if (!SHELLS.test(p.comm)) return { pid: p.pid, started: p.started, comm: basename(p.comm) };
+    if (!SHELLS.test(p.comm)) return { pid: p.pid, started: p.started, ticks: startTicks(p.pid), comm: basename(p.comm) };
     pid = p.ppid;
   }
   return null;
+}
+
+// The one part of a process's identity a sleeping machine cannot move: its
+// start time in clock ticks since boot, /proc/<pid>/stat field 22. A wall-clock
+// start time (`ps -o lstart`) is btime plus this, and btime is the machine's
+// own estimate of when it booted — re-estimated after time the kernel did not
+// count, which is exactly what a host suspending a VM does. Measured on the
+// Linux VM (WP-18): 368 s of suspend moved every live process's `lstart` by
+// 368 s while this number did not move at all. The comm field can hold spaces
+// and parentheses, so fields are counted from the last ')'.
+//
+// Linux only. macOS records a real start timestamp per process, which a sleep
+// does not touch, and Windows never reaches this path.
+export function startTicks(pid) {
+  if (platform() !== "linux") return null;
+  let stat;
+  try { stat = readFileSync(`/proc/${Number(pid)}/stat`, "utf8"); } catch { return null; }
+  const close = stat.lastIndexOf(")");
+  if (close === -1) return null;
+  const ticks = Number(stat.slice(close + 2).split(" ")[19]);
+  return Number.isFinite(ticks) ? ticks : null;
 }
 
 // true: gone; false: alive; null: not decidable here (another host, no
@@ -214,7 +235,16 @@ export function processGone(rec, table) {
   if (table === undefined) table = processTable();
   if (!table) return null;
   const p = table.get(Number(proc.pid));
-  return !p || Boolean(proc.started && p.started !== proc.started);
+  if (!p) return true;
+  // Where both sides have a tick count, it decides: it is the same number
+  // before and after a sleep, while the two wall-clock strings would differ by
+  // the whole suspend and read every live process as a reused pid. A record
+  // written before this field existed still has the string, and so does macOS.
+  if (proc.ticks != null) {
+    const ticks = startTicks(proc.pid);
+    if (ticks != null) return proc.ticks !== ticks;
+  }
+  return Boolean(proc.started && p.started !== proc.started);
 }
 
 // ─── Heartbeat ─────────────────────────────────────────────────────────

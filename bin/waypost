@@ -15,7 +15,7 @@ import { spawnSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { homedir, hostname, setPriority, constants as osConstants } from "node:os";
 import {
-  parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, storyRefOf, expandHome,
+  parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, sessionIdFlag, storyRefOf, expandHome,
   storedVaultPath, resolveVaultPath, bindingInfo, readConfig as readConfigLib, isLinkedWorktree, worktreeTag,
   machineStateDir,
 } from "../scripts/lib.mjs";
@@ -1104,7 +1104,7 @@ function lockOwnerGone(owner, presence, table, capacity) {
     try { process.kill(owner.pid, 0); return false; }
     catch (e) { return e.code === "ESRCH"; }
   }
-  const rec = { host: hostname().split(".")[0], proc: { pid: owner.pid, started: owner.started || null } };
+  const rec = { host: hostname().split(".")[0], proc: { pid: owner.pid, started: owner.started || null, ticks: owner.ticks ?? null } };
   const gone = presence.processGone(rec, table);
   if (gone !== null) return gone;
   try { process.kill(owner.pid, 0); return false; }
@@ -1144,7 +1144,7 @@ async function acquireLock(dir, presence, capacity) {
       const table = process.platform === "win32" ? null : presence.processTable();
       const self = table ? table.get(process.pid) : null;
       writeFileSync(join(lockDir, "owner.json"),
-        JSON.stringify({ pid: process.pid, started: self ? self.started : null, boot: capacity ? capacity.bootIdentity() : null }) + "\n", "utf8");
+        JSON.stringify({ pid: process.pid, started: self ? self.started : null, ticks: presence.startTicks(process.pid), boot: capacity ? capacity.bootIdentity() : null }) + "\n", "utf8");
       return lockDir;
     } catch (e) {
       if (e.code !== "EEXIST") throw e;
@@ -1181,7 +1181,7 @@ async function claimSlot(dir, argv, capacity, presence) {
     const rec = {
       id,
       host: hostname().split(".")[0],
-      proc: { pid: process.pid, started: self ? self.started : null, comm: basename(process.execPath) },
+      proc: { pid: process.pid, started: self ? self.started : null, ticks: presence.startTicks(process.pid), comm: basename(process.execPath) },
       boot: capacity.bootIdentity(),
       session: process.env.WAYPOST_SESSION_ID || null,
       harness: process.env.WAYPOST_HARNESS || null,
@@ -1602,7 +1602,14 @@ async function main() {
       if (h && h !== "unknown") process.env.WAYPOST_HARNESS = h;
     } catch { /* detection is best-effort; a null harness is still valid */ }
   }
-  if (!process.env.WAYPOST_SESSION_ID) process.env.WAYPOST_SESSION_ID = sessionId(process.argv);
+  // An explicit `--id` outranks an id inherited from the environment — the
+  // precedence sessionId() documents, and which a pre-set WAYPOST_SESSION_ID
+  // used to win against here: under a harness that exports its own id,
+  // `sessions --touch --id X` wrote a record for X and beat another one for
+  // the ambient session, so one command registered two live sessions.
+  const idFromFlag = sessionIdFlag(process.argv);
+  if (idFromFlag) process.env.WAYPOST_SESSION_ID = idFromFlag;
+  else if (!process.env.WAYPOST_SESSION_ID) process.env.WAYPOST_SESSION_ID = sessionId(process.argv);
   // In a linked worktree an id that came from the environment (a wrapper's
   // constant WAYPOST_SESSION_ID, a Claude session driving two worktrees)
   // would make two live worktrees write one presence record and one lease

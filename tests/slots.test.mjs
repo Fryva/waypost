@@ -24,7 +24,7 @@ import {
 
 import { bootIdentity, sameBoot, slotLive, readHolders, measure } from "../scripts/capacity.mjs";
 import { machineStateDir } from "../scripts/lib.mjs";
-import { hostSlug, processTable } from "../scripts/presence.mjs";
+import { hostSlug, processTable, startTicks } from "../scripts/presence.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
@@ -72,7 +72,7 @@ function selfRecord(id, extra = {}) {
   return {
     id,
     host: MY_HOST,
-    proc: { pid: process.pid, started: self ? self.started : null, comm: basename(process.execPath) },
+    proc: { pid: process.pid, started: self ? self.started : null, ticks: startTicks(process.pid), comm: basename(process.execPath) },
     boot: bootIdentity(),
     session: "slots-test",
     harness: "test",
@@ -297,6 +297,29 @@ test("run --heavy: a signal exits 128 + the signal number", () => {
   try {
     const r = runCli(["run", "--heavy", "--", "node", "-e", "process.kill(process.pid, 'SIGTERM')"], heavyEnv(home));
     assert.equal(r.status, 128 + 15);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+// WP-18: the holder's identity has to survive the machine sleeping, so the
+// record names the start time in clock ticks since boot, which a re-estimated
+// boot time cannot move — unlike the wall-clock string beside it. Read back
+// from /proc by the very command holding the slot, while its wrapper is alive.
+test("run --heavy: the slot record names a start time a sleep cannot move", { skip: process.platform !== "linux" }, () => {
+  const home = tmpHome();
+  try {
+    const dir = slotsDirFor(home);
+    const script = [
+      'const {readdirSync,readFileSync}=require("fs");const {join}=require("path");',
+      `const d=${JSON.stringify(dir)};`,
+      'const rec=JSON.parse(readFileSync(join(d,readdirSync(d).find(n=>n.endsWith(".json"))),"utf8"));',
+      'const stat=readFileSync("/proc/"+rec.proc.pid+"/stat","utf8");',
+      'console.log(JSON.stringify({recorded:rec.proc.ticks,fromProc:Number(stat.slice(stat.lastIndexOf(")")+2).split(" ")[19])}));',
+    ].join("");
+    const r = runCli(["run", "--heavy", "--", "node", "-e", script], heavyEnv(home));
+    assert.equal(r.status, 0, r.stderr);
+    const { recorded, fromProc } = JSON.parse(r.stdout);
+    assert.equal(typeof recorded, "number");
+    assert.equal(recorded, fromProc, "the record must carry the wrapper's own tick count");
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 

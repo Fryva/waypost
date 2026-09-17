@@ -111,6 +111,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays in the vault (ADR-0004).
 
 ### Fixed
+- A sleeping machine no longer kills every live session and frees the heavy
+  slot under a running job. Liveness compared `ps -o lstart`, a wall-clock
+  start time that is the machine's estimate of its boot time plus the
+  process's own offset — and that estimate moves when the machine is suspended
+  without the kernel counting the time, as a host suspending a VM does.
+  Measured on the Linux VM: 368 s of suspend moved every live process's
+  `lstart` by 368 s, `waypost capacity` dropped a holder whose job was still
+  running, and a second `run --heavy` was let through. Records now also carry
+  the start time in clock ticks since boot (`/proc/<pid>/stat` field 22),
+  which does not move, and that decides wherever both sides have it. Linux
+  only: macOS keeps a real per-process start timestamp, Windows never used
+  this path, and records written by an older version still read (WP-18).
+- An explicit `--id` outranks an inherited `WAYPOST_SESSION_ID` again. Under a
+  harness that exports its own session id — which this project's protocol asks
+  for — `waypost sessions --touch --id X` registered two live sessions: X, and
+  the ambient one beaten on top of it, because `main()` kept a pre-set
+  variable instead of letting the flag win. The documented precedence
+  (`--id`, then the variable) now holds in both places. Found verifying the
+  heavy-work slot on the Linux VM (WP-18).
 - `waypost commit --dry-run` no longer stages anything. The preview ran the
   same `git add` as a real commit against the real index, and left the files
   staged: a later plain `git commit` would take them, and a plain `git diff`

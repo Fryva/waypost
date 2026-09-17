@@ -13,7 +13,7 @@ import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   beat, peers, acquire, release, readLeases, winnerOf, storageOf, presenceDir, leaseDir, vaultRel,
-  prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset, processGone, coordinationDirs,
+  prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset, processGone, processTable, startTicks, coordinationDirs,
 } from "../scripts/presence.mjs";
 import { claimsOf, parseDuration } from "../scripts/sessions.mjs";
 import { gitCommonDir } from "../scripts/lib.mjs";
@@ -849,6 +849,68 @@ test("`waypost sessions --touch --id ../../evil` writes inside presence/, nothin
   assert.equal(names[0].includes("/"), false);
   assert.equal(existsSync(join(proj, "evil.json")), false);
   assert.equal(existsSync(join(vault, "evil.json")), false);
+});
+
+// A-1, the other half: under a harness that exports its own WAYPOST_SESSION_ID
+// (which this project's own protocol asks for), an explicit --id must still
+// name THE session. It used to lose to the inherited variable in main(), so one
+// `--touch --id X` registered two live sessions — X, and the ambient one beaten
+// on top of it — and the test above went red purely from the ambient env.
+test("`sessions --touch --id` outranks an inherited WAYPOST_SESSION_ID: one session, not two", () => {
+  const { proj, vault } = project();
+  const r = spawnSync(process.execPath, [Waypost, "sessions", "--touch", "--id", "alpha", "--json"], {
+    encoding: "utf8",
+    env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "ambient" },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).session_id, "alpha");
+  assert.deepEqual(readdirSync(pdir(vault)), ["alpha.json"]);
+});
+
+// ─── sleep and wake (WP-18) ────────────────────────────────────────────
+//
+// Measured on the Linux VM, not imagined: the host suspended it for 368 s with
+// a live holder, the guest did not count that time, and the wall clock was
+// corrected forward afterwards. `ps -o lstart` for every live process moved by
+// 368 s while nothing had restarted, the slot's holder was dropped under a
+// running job, and a second heavy job was let through.
+
+// `ps -o lstart` spelling, moved the way a re-estimated boot time moves it:
+// the same fields, a later wall clock.
+const LSTART_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const LSTART_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function shiftLstart(started, seconds) {
+  const d = new Date(started);
+  if (Number.isNaN(d.getTime())) return `${started}+${seconds}`;
+  d.setSeconds(d.getSeconds() + seconds);
+  const p2 = (n) => String(n).padStart(2, "0");
+  return `${LSTART_DAYS[d.getDay()]} ${LSTART_MONTHS[d.getMonth()]} ${d.getDate()} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${d.getFullYear()}`;
+}
+
+test("a live process is not gone because the machine slept: lstart moves, the tick count does not", { skip: platform() !== "linux" }, () => {
+  const table = processTable();
+  const me = table.get(process.pid);
+  assert.ok(me, "this very process must be in its own process table");
+
+  const rec = { host: hostname().split(".")[0], proc: { pid: process.pid, started: me.started, ticks: startTicks(process.pid) } };
+  assert.equal(typeof rec.proc.ticks, "number");
+  assert.equal(processGone(rec, table), false);
+
+  // The sleep: every wall-clock start time in the table is 368 s later than
+  // the records say, and not one process restarted.
+  const slept = new Map([...table].map(([pid, p]) => [pid, { ...p, started: shiftLstart(p.started, 368) }]));
+  assert.notEqual(slept.get(process.pid).started, me.started, "the shifted table must actually differ");
+  assert.equal(processGone(rec, slept), false, "a live process must not read as gone because the machine slept");
+
+  // A pid genuinely handed to another process is still gone: ticks differ.
+  const reused = { ...rec, proc: { ...rec.proc, ticks: rec.proc.ticks + 5000 } };
+  assert.equal(processGone(reused, slept), true);
+
+  // A record written before this field existed keeps the old evidence — which
+  // is right while the clock holds, and is exactly what the sleep breaks.
+  const legacy = { host: rec.host, proc: { pid: process.pid, started: me.started } };
+  assert.equal(processGone(legacy, table), false);
+  assert.equal(processGone(legacy, slept), true);
 });
 
 // ─── cross-OS safety ───────────────────────────────────────────────────
