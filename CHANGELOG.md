@@ -111,6 +111,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays in the vault (ADR-0004).
 
 ### Fixed
+- A heavy job's slot survives the machine sleeping on Windows too. The boot
+  identity there is `now − os.uptime()`, and a host suspending the VM freezes
+  the tick count while the wall clock is corrected forward on resume: 534 s of
+  measured suspend moved it 535 s, every record written before it read as
+  another boot, `waypost capacity` reported the slot free while a three-hour
+  job still held it, and the next claim deleted that record on its way in. On
+  the epoch path a mismatch is now a reason to ask, never a reason to delete
+  (an amendment to the heavy-work ADR): a claim records the boot value the
+  kernel keeps as an absolute time — the System process's creation time, which
+  survives a suspend where `LastBootUpTime` does not — and only a confirmed
+  other boot may prune a record. One nobody can confirm is kept and counted
+  rather than pruned, bounded by the 24-hour cap on every platform now, with
+  `waypost capacity --release <id> --force` named in the refusal itself. The
+  authority is read at most once per command, only when an epoch actually
+  disagrees, with a two-second timeout whose expiry means "unconfirmable",
+  never "gone" (WP-18).
 - Windows: "is this path inside that directory?" is now asked on both
   separators. Five checks spelled it `p.startsWith(base + "/")`, which no path
   on Windows answers yes to, and each broke in its own way on the owner's

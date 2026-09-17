@@ -22,7 +22,10 @@ import {
   mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, utimesSync,
 } from "node:fs";
 
-import { bootIdentity, sameBoot, slotLive, readHolders, measure } from "../scripts/capacity.mjs";
+import {
+  bootIdentity, sameBoot, slotLive, readHolders, measure,
+  bootAuthority, authorityOnce, confirmBoot,
+} from "../scripts/capacity.mjs";
 import { machineStateDir } from "../scripts/lib.mjs";
 import { hostSlug, processTable, startTicks } from "../scripts/presence.mjs";
 
@@ -199,6 +202,125 @@ test("slotLive: win32, alive, matching image, under 24h -> live", () => {
   assert.equal(slotLive(rec, { platform: "win32", bootNow: SAME_BOOT, kill: () => true, tasklist: () => "node.exe" }), true);
 });
 
+// ─── the boot authority: a mismatch asks, it does not delete ───────────
+//
+// WP-18's amendment of 2026-09-17, measured on the owner's Windows VM: 534 s
+// of host suspend moved `now — os.uptime()` by 535 s, so a live holder's
+// record read as another boot, `capacity` called the slot free while the job
+// ran, and the next claim deleted the record on its way in. The epoch is kept
+// as the cheap answer; what changes is that it may no longer destroy anything
+// on its own. Nothing here spawns: `run` is injected everywhere.
+
+const T = 1_700_000_000;
+const REC_BOOT = { kind: "epoch", value: T };                 // written before the suspend
+const AFTER_SUSPEND = { kind: "epoch", value: T + 600 };      // 600 s of frozen guest later
+const TRUTH = { kind: "win-system-process", value: T };        // what the kernel still says
+const AUTH = (v) => ({ kind: "win-system-process", value: v });
+
+const winRec = (over = {}) => ({
+  id: "x", host: MY_HOST, proc: { pid: 1, comm: "node.exe" },
+  boot: REC_BOOT, authority: TRUTH, started_at: new Date().toISOString(), ...over,
+});
+const winProbes = (over = {}) => ({ platform: "win32", kill: () => true, tasklist: () => "node.exe", ...over });
+
+test("bootAuthority: win32 asks the System process for its creation time; nowhere else has one", () => {
+  const calls = [];
+  const run = (cmd, args) => { calls.push({ cmd, args }); return "1700000000\n"; };
+  assert.deepEqual(bootAuthority({ platform: "win32", run }), { kind: "win-system-process", value: T });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].cmd, "powershell", "argv, no shell");
+  assert.match(calls[0].args.join(" "), /ProcessId=4/, "pid 4 is the System process, created at boot and never recomputed");
+  assert.match(calls[0].args.join(" "), /ToUnixTimeSeconds/,
+    "the conversion happens inside PowerShell: a formatted local date is a locale trap this project has already been bitten by");
+  assert.equal(bootAuthority({ platform: "linux", run }), null, "Linux has boot_id");
+  assert.equal(bootAuthority({ platform: "darwin", run }), null, "macOS is not covered at all: os.uptime() there IS kern.boottime");
+  assert.equal(calls.length, 1, "and neither of those asked anything");
+});
+
+test("bootAuthority: anything but a number is no answer, never a boot time", () => {
+  for (const out of [null, "", "   ", "INFO: nothing here", "NaN"]) {
+    assert.equal(bootAuthority({ platform: "win32", run: () => out }), null, JSON.stringify(out));
+  }
+});
+
+test("authorityOnce: one read per command, however many records ask — including a failed one", () => {
+  let reads = 0;
+  const ask = authorityOnce({ platform: "win32", run: () => { reads++; return "1700000000"; } });
+  for (let i = 0; i < 20; i++) ask();
+  assert.equal(reads, 1);
+  assert.deepEqual(ask(), TRUTH);
+
+  let failed = 0;
+  const askBad = authorityOnce({ platform: "win32", run: () => { failed++; return null; } });
+  assert.equal(askBad(), null);
+  assert.equal(askBad(), null);
+  assert.equal(failed, 1, "a read that failed is not retried once per record either");
+});
+
+test("confirmBoot: same, other, or it could not say — and only 'other' may destroy anything", () => {
+  assert.equal(confirmBoot({ authority: AUTH(T) }, TRUTH), true);
+  assert.equal(confirmBoot({ authority: AUTH(T - 3600) }, TRUTH), false, "a real restart");
+  assert.equal(confirmBoot({ authority: AUTH(T) }, null), null, "no answer");
+  assert.equal(confirmBoot({}, TRUTH), null, "a record written before the field existed");
+  assert.equal(confirmBoot({ authority: { kind: "kern.boottime", value: T } }, TRUTH), null, "two values that cannot be compared");
+});
+
+test("slotLive: the epoch moved under a host suspend, the authority says one boot -> live (WP-18)", () => {
+  // The whole point. Before the amendment this returned false, capacity
+  // reported a free slot, and the next claim deleted the record.
+  assert.equal(slotLive(winRec(), winProbes({ bootNow: AFTER_SUSPEND, authority: () => TRUTH })), true);
+});
+
+test("slotLive: a real restart — the authority says another boot -> stale", () => {
+  assert.equal(slotLive(winRec(), winProbes({ bootNow: AFTER_SUSPEND, authority: () => AUTH(T + 500) })), false);
+});
+
+test("slotLive: what no answer means is 'keep', not 'gone'", () => {
+  assert.equal(slotLive(winRec(), winProbes({ bootNow: AFTER_SUSPEND, authority: () => null })), true,
+    "being ignored for one call is recoverable; being pruned is not");
+  assert.equal(slotLive(winRec({ authority: null }), winProbes({ bootNow: AFTER_SUSPEND, authority: () => TRUTH })), true,
+    "a record written before the field existed is kept for the same reason");
+});
+
+test("slotLive: an unconfirmable record is kept on POSIX too, and the 24-hour cap is what bounds it there now", () => {
+  const table = new Map([[42, { pid: 42, ppid: 1, started: "T", comm: "node" }]]);
+  const rec = { host: MY_HOST, proc: { pid: 42, started: "T" }, boot: REC_BOOT, authority: null, started_at: new Date().toISOString() };
+  const probes = { table, platform: "linux", bootNow: AFTER_SUSPEND, authority: () => null };
+  assert.equal(slotLive(rec, probes), true);
+  const old = { ...rec, started_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString() };
+  assert.equal(slotLive(old, probes), false, "the cap was Windows-only; for a record nobody can confirm it is every platform now");
+});
+
+test("slotLive: the authority is asked only when something actually needs it", () => {
+  const never = () => { throw new Error("the authority must not be asked here"); };
+  assert.equal(slotLive(winRec(), winProbes({ bootNow: REC_BOOT, authority: never })), true,
+    "the epoch agrees: nothing to ask about");
+  assert.equal(slotLive(winRec(), winProbes({ bootNow: AFTER_SUSPEND, kill: () => false, authority: never })), false,
+    "the process is gone: settled for free, before the boot is ever in question");
+  const other = { host: MY_HOST, proc: { pid: 1, comm: "node.exe" }, boot: OTHER_BOOT, started_at: new Date().toISOString() };
+  assert.equal(slotLive(other, winProbes({ bootNow: SAME_BOOT, authority: never })), false,
+    "a real boot identifier disagreeing is evidence on its own, as it always was");
+});
+
+test("readHolders: twenty records from a drifted epoch cost one authority read, not twenty", () => {
+  const dir = mkdtempSync(join(tmpdir(), "waypost-auth-"));
+  try {
+    for (let i = 0; i < 20; i++) {
+      writeRecord(dir, { id: "h" + i, host: MY_HOST, proc: { pid: 1, comm: "node.exe" },
+        boot: REC_BOOT, authority: TRUTH, started_at: new Date().toISOString() });
+    }
+    let reads = 0;
+    const out = readHolders({
+      dir, platform: "win32", bootNow: AFTER_SUSPEND,
+      kill: () => true, tasklist: () => "node.exe",
+      run: () => { reads++; return String(T); },
+    });
+    assert.equal(out.live.length, 20, "every one of them survived the suspend");
+    assert.equal(out.stale.length, 0);
+    assert.equal(reads, 1, "one PowerShell for the whole directory");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 // ─── readHolders ────────────────────────────────────────────────────────────
 
 test("readHolders: partitions live/stale, skips .lock and non-json entries", () => {
@@ -252,6 +374,9 @@ test("run --heavy: refused at once when the only slot is already held", () => {
     assert.equal(r.status, 75);
     assert.match(r.stderr, /refused — slots: 1 of 1/);
     assert.match(r.stderr, /retry: waypost run --heavy -- node -e 1/);
+    // A holder nobody can confirm is kept rather than pruned (WP-18
+    // amendment), so the way out has to be in the refusal itself.
+    assert.match(r.stderr, /capacity --release <id>/);
     assert.ok(elapsed < 2000, `refusal took ${elapsed}ms`);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -281,6 +406,29 @@ test("run --heavy --wait 2s: retries until the deadline, then gives up", () => {
 });
 
 // ─── the command runs: exit codes, priority, cleanup ──────────────────────
+
+test("run --heavy: the record carries the value a later epoch mismatch is checked against (WP-18)", () => {
+  const home = tmpHome();
+  try {
+    const dir = slotsDirFor(home);
+    // The command prints the record that exists while it is running: the only
+    // moment it is on disk, and no race with the wrapper's own cleanup.
+    const code = "const fs=require('fs'),p=require('path'),d=process.env.WP_SLOTS;"
+      + "const f=fs.readdirSync(d).filter(n=>n.endsWith('.json'))[0];"
+      + "process.stdout.write(fs.readFileSync(p.join(d,f),'utf8'));";
+    const r = runCli(["run", "--heavy", "--", "node", "-e", code], heavyEnv(home, { WP_SLOTS: dir }));
+    assert.equal(r.status, 0, r.stderr);
+    const rec = JSON.parse(r.stdout);
+    assert.ok("authority" in rec, "the field is always written, even where it is null");
+    if (process.platform === "win32") {
+      assert.equal(rec.authority.kind, "win-system-process");
+      assert.ok(Number.isFinite(rec.authority.value));
+    } else {
+      assert.equal(rec.authority, null,
+        "no authority on this platform: such a record can only ever be kept, never pruned");
+    }
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
 
 test("run --heavy: the exit code passes through, including a crash", () => {
   const home = tmpHome();

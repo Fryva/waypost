@@ -999,7 +999,8 @@ async function handleCapacity(args) {
 
   const dir = slotsDir(presence);
   let holders;
-  try { holders = capacity.readHolders({ dir }); } catch { holders = { live: [], stale: [] }; }
+  try { holders = capacity.readHolders({ dir, authority: bootAuthority(capacity) }); }
+  catch { holders = { live: [], stale: [] }; }
 
   let m;
   try {
@@ -1048,7 +1049,7 @@ async function handleCapacityRelease(capacity, presence, id, force, json) {
   try { rec = JSON.parse(readFileSync(file, "utf8")); }
   catch (e) { fail(`capacity --release: ${file}: ${e.message}`); }
   if (!rec || rec.id !== id || !rec.proc) fail(`capacity --release: ${file} is not a slot record for "${id}"`);
-  const live = capacity.slotLive(rec, {});
+  const live = capacity.slotLive(rec, { authority: bootAuthority(capacity) });
   if (live && !force) {
     fail(`capacity --release: ${id} still looks alive (${rec.session || "?"} on ${rec.host}, pid ${rec.proc && rec.proc.pid}) — pass --force to release it anyway`);
   }
@@ -1091,6 +1092,16 @@ function warnIfProbed(m) {
   process.stderr.write("waypost: WAYPOST_CAPACITY_PROBE is set — the real machine is not being measured (tests only)\n");
 }
 
+// The boot authority (WP-18 amendment) is read at most once per `waypost`
+// invocation, and only when something actually needs it: an epoch that
+// disagrees. The claim, the lock and `--release` all share this one thunk, so
+// a command that reads twenty records still spawns at most one PowerShell.
+let BOOT_AUTHORITY = null;
+function bootAuthority(capacity) {
+  if (!BOOT_AUTHORITY) BOOT_AUTHORITY = capacity.authorityOnce();
+  return BOOT_AUTHORITY;
+}
+
 // Is the lock's owner gone? The same evidence slotLive() uses for a slot
 // record: the boot identity first, then on POSIX the process table and start
 // time (a reused pid is not mistaken for the owner), on win32 signal-0. The
@@ -1099,7 +1110,16 @@ function lockOwnerGone(owner, presence, table, capacity) {
   if (!owner || !owner.pid) return true;
   // An owner from an earlier boot is gone whatever its pid names now, so a
   // pid reused after an unclean restart never holds the lock for five minutes.
-  if (owner.boot && capacity && !capacity.sameBoot(owner.boot, capacity.bootIdentity())) return true;
+  // On the epoch path that identity drifts across a host suspend, and here
+  // being wrong breaks a live claimant's lock — two processes in the critical
+  // section — so a mismatch has to be confirmed before it counts as death.
+  if (owner.boot && capacity) {
+    const bootNow = capacity.bootIdentity();
+    if (!capacity.sameBoot(owner.boot, bootNow)) {
+      const drifting = owner.boot.kind === "epoch" && bootNow.kind === "epoch";
+      if (!drifting || capacity.confirmBoot(owner, bootAuthority(capacity)()) === false) return true;
+    }
+  }
   if (process.platform === "win32") {
     try { process.kill(owner.pid, 0); return false; }
     catch (e) { return e.code === "ESRCH"; }
@@ -1144,7 +1164,11 @@ async function acquireLock(dir, presence, capacity) {
       const table = process.platform === "win32" ? null : presence.processTable();
       const self = table ? table.get(process.pid) : null;
       writeFileSync(join(lockDir, "owner.json"),
-        JSON.stringify({ pid: process.pid, started: self ? self.started : null, ticks: presence.startTicks(process.pid), boot: capacity ? capacity.bootIdentity() : null }) + "\n", "utf8");
+        JSON.stringify({
+          pid: process.pid, started: self ? self.started : null, ticks: presence.startTicks(process.pid),
+          boot: capacity ? capacity.bootIdentity() : null,
+          authority: capacity ? bootAuthority(capacity)() : null,
+        }) + "\n", "utf8");
       return lockDir;
     } catch (e) {
       if (e.code !== "EEXIST") throw e;
@@ -1164,12 +1188,19 @@ function releaseLock(lockDir) {
 // either write our own record or report why not. Two processes starting in
 // the same second cannot both pass the cap.
 async function claimSlot(dir, argv, capacity, presence) {
+  // The one authority read a claim makes (WP-18 amendment) happens HERE, before
+  // the lock. Inside it, other claimants are waiting on a two-second budget,
+  // and a half-second spawn in the critical section serialises five of them so
+  // slowly that the first job finishes before the last is admitted — and then
+  // two run. The stress test caught exactly that; every later call hits the
+  // memo and spawns nothing.
+  bootAuthority(capacity)();
   const lockDir = await acquireLock(dir, presence, capacity);
   if (!lockDir) {
     return { ok: false, reason: "the slot lock is busy — another `waypost run --heavy` is claiming right now" };
   }
   try {
-    const holders = capacity.readHolders({ dir });
+    const holders = capacity.readHolders({ dir, authority: bootAuthority(capacity) });
     for (const rec of holders.stale) { try { unlinkSync(rec.file); } catch {} }
     const m = await capacity.measure({ holders: holders.live, env: process.env });
     warnIfProbed(m);
@@ -1183,6 +1214,12 @@ async function claimSlot(dir, argv, capacity, presence) {
       host: hostname().split(".")[0],
       proc: { pid: process.pid, started: self ? self.started : null, ticks: presence.startTicks(process.pid), comm: basename(process.execPath) },
       boot: capacity.bootIdentity(),
+      // What an epoch mismatch is checked against later (WP-18 amendment):
+      // the epoch in `boot` is itself drifted once the machine has slept, so
+      // comparing THAT against a true boot time would delete live records.
+      // null where the platform has no authority — such a record can then
+      // only ever be kept, never pruned, which is the safe half.
+      authority: bootAuthority(capacity)(),
       session: process.env.WAYPOST_SESSION_ID || null,
       harness: process.env.WAYPOST_HARNESS || null,
       command: argv.map(shellQuote).join(" "),
@@ -1299,6 +1336,13 @@ async function handleRun(args) {
     const now = Date.now();
     if (deadline == null || now >= deadline) {
       process.stderr.write(`waypost run --heavy: refused — ${claim.reason}\n  retry: ${retryCmd}\n`);
+      // A holder whose boot could not be confirmed is kept rather than pruned
+      // (WP-18 amendment), so the way out of a phantom has to be said out
+      // loud: the only other one is waiting for the 24-hour cap.
+      if (/^slots:/.test(String(claim.reason || ""))) {
+        process.stderr.write("  who holds it: waypost capacity"
+          + "     (a holder that is not really there: waypost capacity --release <id> --force)\n");
+      }
       process.exitCode = EX_TEMPFAIL;
       return;
     }

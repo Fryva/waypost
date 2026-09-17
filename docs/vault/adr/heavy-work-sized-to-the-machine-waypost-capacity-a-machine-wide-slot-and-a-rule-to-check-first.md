@@ -159,7 +159,10 @@ Decision drivers:
      and failed later for reasons nobody could see. Two sources did survive
      the suspend, because the kernel stores them as absolute times and never
      recomputes them: the System process's creation time (pid 4 — boot + 2 s,
-     unmoved, read in ~310 ms through CIM, five reads agreeing), and the
+     unmoved, and read for ~0.4 s through CIM as node actually spawns it —
+     409 ms median of five, 850 ms for the first call in a cold process,
+     against the ~60 ms `tasklist` this command already pays per record),
+     and the
      kernel's own boot event in the System log (Kernel-General, id 12 — the
      true boot second exactly, but the event log is the slower read). The
      first is the authority this decision names on Windows. `wmic` is not an
@@ -194,11 +197,15 @@ Decision drivers:
      command invocation and memoised across every record and every `--wait`
      retry; with argv and no shell, and a hard two-second timeout, whose
      expiry means unconfirmable rather than gone — the same discipline the
-     other probes in `scripts/capacity.mjs` already have. The lock path
-     (`lockOwnerGone()`) uses that memoised answer rather than its own: its
-     retry budget is two seconds in total, and breaking a live claimant's
-     lock is worse than keeping a stale record, since it puts two processes
-     in the critical section.
+     other probes in `scripts/capacity.mjs` already have. And it is read
+     BEFORE the lock is taken, never inside it: a claim's own read sitting in
+     the critical section serialised five parallel claims so slowly that the
+     first job finished before the last was admitted, and two ran at once
+     — measured, by the stress test, the day this was built. The lock path
+     (`lockOwnerGone()`) therefore uses that same memoised answer rather than
+     its own, which also keeps its two-second retry budget intact; and
+     breaking a live claimant's lock is worse than keeping a stale record,
+     since it puts two processes in the critical section.
 
      **What this does not cover.** macOS: `bootIdentity()` never returns
      `epoch` there, and `kern.boottime` cannot be its own second opinion —

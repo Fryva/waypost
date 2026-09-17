@@ -277,17 +277,76 @@ export function sameBoot(a, b) {
   return a.value === b.value;
 }
 
-// ─── slot liveness ───────────────────────────────────────────────────────
+// ─── the boot identity's second opinion (WP-18 amendment, 2026-09-17) ───
+//
+// The epoch fallback drifts. A host suspending a VM freezes the tick count
+// that os.uptime() reads, and the wall clock is corrected forward on resume,
+// so `now - uptime` steps by the frozen duration and every record written
+// before it reads as another boot. Measured on the owner's Windows VM: 534 s
+// of suspend moved it 535 s, a live holder's record was judged stale,
+// `capacity` reported the slot free while that job was still running, and the
+// next claim deleted the record on its way in.
+//
+// Windows keeps one answer that survives that, because the kernel stores it
+// as an absolute time and never recomputes it: the System process's creation
+// time (pid 4). `Win32_OperatingSystem.LastBootUpTime` does NOT survive it —
+// read six minutes after the resume it still gave the true boot second, read
+// at twenty it gave the drifted one and stayed there, being the same biased
+// tick count behind a cache. `wmic` is absent from current Windows, so this
+// goes through PowerShell's CIM, with the conversion done inside PowerShell:
+// a formatted local date parses differently on every locale, and this machine
+// prints Russian.
+//
+// null means "no answer", never "another boot": nothing may be deleted on the
+// strength of a probe that did not answer.
+const WIN_SYSTEM_PID = 4;
+const WIN_BOOT_QUERY =
+  `([DateTimeOffset](Get-CimInstance Win32_Process -Filter 'ProcessId=${WIN_SYSTEM_PID}').CreationDate).ToUnixTimeSeconds()`;
+
+export function bootAuthority({ platform = process.platform, run = defaultRun } = {}) {
+  // Linux has boot_id; macOS is not covered at all (the ADR says why).
+  if (platform !== "win32") return null;
+  const out = run("powershell", ["-NoProfile", "-NonInteractive", "-Command", WIN_BOOT_QUERY]);
+  // Digits or nothing: Number("") and Number("   ") are 0, and a boot identity
+  // of zero would match no record and so delete every one of them. An empty
+  // stdout from a command that exited 0 is no answer, like any other.
+  const text = out == null ? "" : String(out).trim();
+  if (!/^[0-9]+$/.test(text)) return null;
+  return { kind: "win-system-process", value: Number(text) };
+}
+
+// One answer per command invocation: a thunk that asks at most once, and only
+// when a record actually needs it. readHolders() makes one and hands it to
+// every slotLive() call it makes; bin/waypost makes one for the whole process,
+// so the claim, the lock and `--release` share the single read.
+export function authorityOnce(probes = {}) {
+  let asked = false;
+  let answer = null;
+  return () => {
+    if (!asked) { asked = true; answer = bootAuthority(probes); }
+    return answer;
+  };
+}
+
+// true: the authority says this record belongs to the current boot. false: it
+// says it does not. null: it could not say — no answer, no recorded value,
+// or two values that cannot be compared. Only `false` may destroy anything.
+export function confirmBoot(rec, asked) {
+  if (!asked || !rec || !rec.authority) return null;
+  if (asked.kind !== rec.authority.kind) return null;
+  return asked.value === rec.authority.value;
+}
+
+// ─── slot liveness ─────────────────────────────────────────────────────
 //
 // A slot record names the `waypost run --heavy` process itself (its pid, its
 // start time in clock ticks since boot where there is one, and the wall-clock
 // string otherwise), so on POSIX processGone() — the same comparison
-// presence.mjs uses for a session's harness process — decides: a reused pid is
-// not mistaken for the holder, and a machine that slept between the two
-// readings does not turn the holder into one. Windows has no
-// process table, so signal-0 plus the image name `tasklist` reports (run
-// without a shell, a 3-second timeout) and a 24-hour cap are the only
-// evidence there.
+// presence.mjs uses for a session's harness process — decides: a reused pid
+// is not mistaken for the holder, and a machine that slept between the two
+// readings does not turn the holder into one. Windows has no process table, so
+// signal-0 plus the image name `tasklist` reports (run without a shell, a
+// 3-second timeout) and a 24-hour cap are the only evidence there.
 const WIN_SLOT_STALE_MS = 24 * 60 * 60 * 1000;
 
 function defaultKill(pid) {
@@ -312,10 +371,33 @@ function defaultTasklist(pid) {
   return m ? m[1] : null;
 }
 
-// Every probe is injectable — table, tasklist, kill, bootNow, now — so these
-// tests never depend on the host's own process table or clock. Read-only:
-// nothing here removes a stale record, which is bin/waypost's job, under
-// the lock.
+const isEpoch = (b) => Boolean(b) && b.kind === "epoch";
+
+function pastCap(rec, now) {
+  const started = Date.parse(rec.started_at);
+  return Number.isFinite(started) && now - started > WIN_SLOT_STALE_MS;
+}
+
+// Is the process the record names still there? The free evidence: the process
+// table on POSIX (already in hand), and on win32 signal-0, the 24-hour cap and
+// the one `tasklist` call the ADR names.
+function processStillThere(rec, { table, platform, tasklist, now, kill }) {
+  if (platform !== "win32") {
+    const gone = processGone(rec, table);
+    if (gone !== null) return !gone;
+    return kill(rec.proc.pid); // undecidable via the table: signal-0 decides
+  }
+  if (!kill(rec.proc.pid)) return false;
+  if (pastCap(rec, now)) return false;
+  const image = tasklist(rec.proc.pid);
+  if (image != null && image !== rec.proc.comm) return false;
+  return true;
+}
+
+// Every probe is injectable — table, tasklist, kill, bootNow, now, authority
+// — so these tests never depend on the host's own process table, clock or
+// boot. Read-only: nothing here removes a stale record, which is
+// bin/waypost's job, under the lock.
 export function slotLive(rec, {
   table,
   platform = process.platform,
@@ -323,24 +405,23 @@ export function slotLive(rec, {
   tasklist = defaultTasklist,
   now = Date.now(),
   kill = defaultKill,
+  authority = null,
 } = {}) {
-  if (!sameBoot(rec.boot, bootNow)) return false;
+  // The free checks first (WP-18 amendment): a holder whose process is gone is
+  // gone whatever boot it names, and settling a record here costs nothing.
+  if (!processStillThere(rec, { table, platform, tasklist, now, kill })) return false;
+  if (sameBoot(rec.boot, bootNow)) return true;
 
-  if (platform !== "win32") {
-    const gone = processGone(rec, table);
-    if (gone !== null) return !gone;
-    return kill(rec.proc.pid); // undecidable via the table: signal-0 decides
-  }
+  // A mismatch. On anything but the epoch fallback that is a real identifier
+  // disagreeing, and it decides on its own, as it always has.
+  if (!isEpoch(rec.boot) || !isEpoch(bootNow)) return false;
 
-  // win32: signal-0, the image name, and the 24-hour cap are the only
-  // evidence. Any one finding it stale is enough; when tasklist itself
-  // fails, signal-0 and the cap decide alone.
-  if (!kill(rec.proc.pid)) return false;
-  const started = Date.parse(rec.started_at);
-  if (Number.isFinite(started) && now - started > WIN_SLOT_STALE_MS) return false;
-  const image = tasklist(rec.proc.pid);
-  if (image != null && image !== rec.proc.comm) return false;
-  return true;
+  // On the epoch path a mismatch is a reason to ask, never a reason to delete.
+  // Unconfirmable keeps the record — bounded by the same 24-hour cap, which
+  // this rule extends from Windows to every platform for this case.
+  const verdict = confirmBoot(rec, typeof authority === "function" ? authority() : authority);
+  if (verdict !== null) return verdict;
+  return !pastCap(rec, now);
 }
 
 // ─── holders ─────────────────────────────────────────────────────────────
@@ -359,6 +440,9 @@ export function readHolders({ dir, ...probes } = {}) {
   const table = platform === "win32" ? undefined
     : (probes.table !== undefined ? probes.table : processTable());
   const bootNow = probes.bootNow ?? bootIdentity(probes);
+  // One thunk for the whole directory: at most one authority read per command,
+  // and none at all unless some record's epoch disagrees (WP-18 amendment).
+  const authority = probes.authority ?? authorityOnce(probes);
   const live = [];
   const stale = [];
   for (const name of names) {
@@ -368,7 +452,7 @@ export function readHolders({ dir, ...probes } = {}) {
     try { rec = JSON.parse(readFileSync(file, "utf8")); } catch { continue; }
     if (!rec || !rec.id || !rec.proc) continue;
     const entry = { ...rec, file };
-    (slotLive(rec, { ...probes, platform, table, bootNow }) ? live : stale).push(entry);
+    (slotLive(rec, { ...probes, platform, table, bootNow, authority }) ? live : stale).push(entry);
   }
   return { live, stale };
 }

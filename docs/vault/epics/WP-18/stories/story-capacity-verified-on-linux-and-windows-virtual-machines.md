@@ -666,7 +666,11 @@ absolute times and never recomputes them from the tick count:
 | kernel boot event (System log, Kernel-General id 12) | 1789649479 | **+0 s** |
 | `LastBootUpTime` | 1789650014 | +535 s |
 
-The pid-4 read costs ~310 ms (median of five). `wmic` is not an alternative:
+The pid-4 read costs ~0.4 s as node actually spawns it (409 ms median of
+five; 850 ms for the first call in a cold process; the ~310 ms first
+measured was PowerShell calling PowerShell, which is not what runs). For
+scale, the `tasklist` call this command already makes per record on Windows
+is ~60 ms. `wmic` is not an alternative:
 it is absent from this Windows 11 26200. So an authority exists on Windows,
 it is just not the obvious one — and the obvious one lies for the first
 handful of minutes, which is exactly when someone verifying a fix would look.
@@ -682,7 +686,7 @@ the slot advertised as free to every session from here on.
 
 Three options, differing in what they cost on every `capacity` call:
 
-1. **Ask the OS every time.** Correct, and a process spawn (~310 ms measured
+1. **Ask the OS every time.** Correct, and a process spawn (~0.4 s measured
    here) on a command whose whole point is to be cheap enough to run before
    every heavy job.
 2. **Confirm only on mismatch.** Keep `now − uptime` as the cheap answer, and
@@ -718,11 +722,56 @@ the amendment now.
 The rule itself survived unchanged: **a mismatch on the epoch is a reason to
 ask, never a reason to delete.**
 
-The code is not written yet — the decision is. macOS is not covered by it
-either: `os.uptime()` there is computed from `kern.boottime`, so the cheap
+**The code landed the same day** — see "The fix, as built" below. macOS is
+still not covered by it: `os.uptime()` there is computed from `kern.boottime`, so the cheap
 answer and the authority are one number, and `kern.bootsessionuuid` has to be
 measured across a real sleep on the host before it can be written down as the
 answer.
+
+### The fix, as built, 2026-09-17
+
+`bootAuthority()` in `scripts/capacity.mjs` asks the one question that survived
+the suspend — pid 4's creation time, through PowerShell's CIM, argv and no
+shell, the 2 s timeout every probe in that file already has — and returns
+null for anything that is not a run of digits. `authorityOnce()` wraps it in a
+thunk that asks at most once and only when asked at all; `readHolders()` makes
+one per directory and `bin/waypost` one per invocation, so the claim, the lock
+and `--release` share a single read. `confirmBoot()` is the whole rule in three
+lines: true, false, or null, and only false may destroy anything.
+
+`slotLive()` was rebuilt around the order the amendment asks for: the free
+checks first (a holder whose process is gone is gone whatever boot it names),
+then the cheap epoch, then — on the epoch path only — the authority. A real
+boot identifier disagreeing still decides on its own, exactly as before, so
+Linux's `boot_id` behaviour is untouched. `claimSlot()` records the
+authoritative value beside the epoch, and `lockOwnerGone()` takes the same
+route, because breaking a live claimant's lock is worse than keeping a stale
+record. The refusal now names `waypost capacity --release <id> --force`.
+
+Against the real machine, with the epoch 600 s out (what the suspend did) and
+only the record constructed: a suspended-then-resumed holder reads live, a
+record from another boot reads stale, an unanswered authority keeps the record,
+a record with no authority field keeps it too until the 24-hour cap, and
+neither an agreeing epoch nor a dead process asks the authority at all. Twenty
+mismatching records cost one read.
+
+The full suite caught one thing none of that did. The first build read the
+authority inside the lock, because that is where the record and the lock's own
+owner file are written. Five parallel claims against a cap of one then produced
+`[0,75,75,0,75]` — **two** winners: a half-second spawn in the critical section
+serialises the claimants so slowly that the first job's 1.5 s command finishes
+before the last of them is admitted, and the slot is genuinely free by the time
+it looks. Mutual exclusion was never broken; the window it defends just got
+wider than the job. The read now happens before the lock is taken, where the
+five pay it in parallel, and every later call in that process hits the memo.
+The stress test the ADR asks for is what found it, three green runs after.
+
+Ten hermetic tests in `tests/slots.test.mjs` cover the same ground with nothing
+spawned, plus two CLI tests: the record carries the field, and the refusal
+names the recovery. One of them earned its keep immediately — `Number("")` is
+0, so an empty stdout from a PowerShell that exited 0 would have produced an
+authority of zero, matching no record and deleting every one of them. The probe
+now takes digits or nothing.
 
 ## Dependencies
 
