@@ -350,7 +350,7 @@ function repairFor(f) {
     "line-endings": "waypost doctor --fix", config: "waypost setup",
     "claude-bridge": "waypost doctor --fix", "instructions-size": "waypost doctor",
     "story-deps": "waypost ready --all", "adr-number": "waypost doctor", "adr-guard": "waypost doctor",
-    "agent-skills": "waypost skills install",
+    "agent-skills": "waypost skills install", launcher: "waypost launcher --write",
   };
   return map[f.check] || null;
 }
@@ -1517,6 +1517,8 @@ PROCEDURES
   prompt [name]            print a workflow procedure (the verified loop's steps)
   skill [name]             print a bundled skill (waypost-<name> or <name>)
   skills …                 Agent Skills in this project: install [--harness <id,…>|all], list, uninstall, validate
+  launcher [--write]       the command on PATH: is it npm's symlink into a checkout that loses its
+                           executable bit (one another OS edits)? --write replaces it with a shim
   ready [--all] [--json]   stories that are planned, unblocked (blocked_by) and unclaimed, with the claim command
   sessions [--touch]       active-session registry (--claim/--release/--prune [--older-than 6h])
   tokens [flags]           what the loop cost, from Claude Code transcripts
@@ -1740,6 +1742,7 @@ async function main() {
     case "prompt": printDoc("prompts", positionals(rest)[0]); break;
     case "skill": printDoc("skills", positionals(rest)[0], "SKILL.md"); break;
     case "skills": run("skills", rest); break;
+    case "launcher": run("launcher", rest); break;
     case "status": handleStatus(); break;
     case "version": case "--version": case "-v": process.stdout.write(`${VERSION}\n`); break;
     case "help": case "--help": case "-h": help(); break;

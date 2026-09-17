@@ -35,16 +35,17 @@ issue once the bit is gone. It never repairs it on its own: the repair writes in
 ### 1. See what is on PATH
 
 ```bash
+waypost launcher
+# or, once the command refuses to start:
 node <checkout>/scripts/launcher.mjs
 ```
-
-Through `node`, because `waypost` itself may already be refusing to start. `exposed` means the
+`exposed` means the
 next save from the other machine breaks the command; `broken` means it already has.
 
 ### 2. Replace the symlinks with shims
 
 ```bash
-node <checkout>/scripts/launcher.mjs --write
+waypost launcher --write        # node <checkout>/scripts/launcher.mjs --write when broken
 ```
 
 Only symlinks that resolve to this checkout's `bin/waypost` are replaced. A regular file named
@@ -54,7 +55,7 @@ up at once.
 
 ## Verification
 
-- [ ] `node <checkout>/scripts/launcher.mjs` says "nothing on PATH depends on the entry point's executable bit".
+- [ ] `waypost launcher` says "nothing on PATH depends on the entry point's executable bit".
 - [ ] `chmod -x <checkout>/bin/waypost && waypost --version` still prints the version.
 
 ## Rollback

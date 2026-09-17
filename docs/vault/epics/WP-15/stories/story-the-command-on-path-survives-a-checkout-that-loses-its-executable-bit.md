@@ -15,8 +15,8 @@ code_refs:
   - scripts/doctor.mjs
   - tests/launcher.test.mjs
   - README.md
-  - bin/waypost (waiting)
-  - CHANGELOG.md (waiting)
+  - bin/waypost
+  - CHANGELOG.md
 specs: []
 started_at: null
 closed_at: null
@@ -48,8 +48,8 @@ The user is anyone who runs waypost from a shared checkout: exactly the multi-OS
 - [x] `checkLauncher` in `scripts/doctor.mjs`: a warning while exposed, an issue once broken; never a `--fix` repair
 - [x] `tests/launcher.test.mjs`
 - [x] Runbook in `ops/`, a paragraph in README
-- [ ] `waypost launcher [--write]` routed in `bin/waypost` — waits until the WP-18 session's uncommitted edits to that file are committed
-- [ ] CHANGELOG entry — same reason
+- [x] `waypost launcher [--write]` routed in `bin/waypost`, listed in help, README and `waypost next`. Not in AGENTS.md: the file sits at its own 300-line cap, which the suite enforces
+- [x] CHANGELOG entry
 
 ## Implementation Plan
 
@@ -68,7 +68,7 @@ to reach it once the command itself refuses to start.
 - [x] `--write` replaces only symlinks that resolve to this checkout, and the shim runs with the bit off, arguments intact — confirmed by: `tests/launcher.test.mjs`; live on macOS 2026-09-17 (`waypost --version`, `wyp --version` with `bin/waypost` at mode 0664)
 - [x] A regular file on PATH and a symlink into another checkout are never touched — confirmed by: `tests/launcher.test.mjs`
 - [ ] Verified on Linux (`~/.local/bin` symlink layout of the Debian VM)
-- [ ] `waypost launcher` works as a routed command
+- [x] `waypost launcher` works as a routed command — confirmed by: `tests/launcher.test.mjs` (routed through `bin/waypost`); live on macOS 2026-09-17
 
 ## Final Summary
 

@@ -78,7 +78,7 @@ import {
 } from "./agents.mjs";
 import { status as skillsStatus, skillNames } from "./skills.mjs";
 import { stories as vaultStories } from "./ready.mjs";
-import { inspect as inspectLauncher } from "./launcher.mjs";
+import { inspect as inspectLauncher, repairCommand as launcherRepair } from "./launcher.mjs";
 
 function finding(group, level, check, message, file) {
   const f = { group, level, check, message };
@@ -349,7 +349,7 @@ export function checkLauncher(report = null) {
   if (!r) { try { r = inspectLauncher(); } catch { return []; } }
   if (r.risk === "none") return [];
   const names = r.linked.map((l) => l.file).join(", ");
-  const repair = `node "${r.checkout.toolRoot}/scripts/launcher.mjs" --write`;
+  const repair = launcherRepair(r);
   if (r.risk === "broken") {
     return [finding("install", "issue", "launcher",
       `${names}: a symlink to ${r.checkout.entry}, which has lost its executable bit — the command fails with "permission denied". \`${repair}\` replaces the symlink with a shim that does not need the bit.`)];

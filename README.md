@@ -54,6 +54,8 @@ starts answering `permission denied`. `waypost doctor` warns about this setup be
 The repair replaces npm's symlink with a small shim that does not need the bit:
 
 ```bash
+waypost launcher --write
+# once the command already refuses to start:
 node <checkout>/scripts/launcher.mjs --write
 ```
 

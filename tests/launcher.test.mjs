@@ -55,7 +55,7 @@ test("core.fileMode=false makes the same symlink exposed, and doctor warns", { s
   assert.equal(findings.length, 1);
   assert.equal(findings[0].level, "warn");
   assert.equal(findings[0].check, "launcher");
-  assert.match(findings[0].message, /launcher\.mjs" --write/);
+  assert.match(findings[0].message, /`waypost launcher --write`/);
 });
 
 test("a lost executable bit is broken, and doctor calls it an issue", { skip: !POSIX }, () => {
@@ -63,6 +63,8 @@ test("a lost executable bit is broken, and doctor calls it an issue", { skip: !P
   const r = inspect({ toolRoot: f.toolRoot, pathEnv: f.pathEnv });
   assert.equal(r.risk, "broken");
   assert.equal(checkLauncher(r)[0].level, "issue");
+  // Broken names the node form: `waypost launcher` would not start either.
+  assert.match(checkLauncher(r)[0].message, /node '.*scripts\/launcher\.mjs' --write/);
   // The failure this whole file is about: the symlink cannot be executed.
   const viaSymlink = spawnSync(join(f.binDir, "waypost"), ["x"], { encoding: "utf8" });
   assert.notEqual(viaSymlink.status, 0);
@@ -109,6 +111,17 @@ test("a symlink to some other checkout is not ours to replace", { skip: !POSIX }
 test("paths with spaces and quotes survive the shim", { skip: !POSIX }, () => {
   const text = shimText({ node: "/opt/my node/bin/node", entry: "/Users/o'brien/check out/bin/waypost" });
   assert.match(text, /exec '\/opt\/my node\/bin\/node' '\/Users\/o'\\''brien\/check out\/bin\/waypost' "\$@"/);
+});
+
+test("`waypost launcher` is routed through bin/waypost", { skip: !POSIX }, () => {
+  const REPO = dirname(dirname(new URL(import.meta.url).pathname));
+  // A PATH with node and nothing else: no launcher of ours on it, so no risk, whatever the machine.
+  const env = { ...process.env, PATH: dirname(process.execPath) };
+  const run = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "launcher", "--json"], { encoding: "utf8", env });
+  assert.equal(run.status, 0, run.stderr);
+  const report = JSON.parse(run.stdout);
+  assert.equal(report.risk, "none");
+  assert.deepEqual(report.launchers.map((l) => l.kind), ["missing", "missing"]);
 });
 
 test("Windows is out of scope: no launchers, no risk", () => {

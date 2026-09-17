@@ -13,9 +13,12 @@
 // runs the entry point through node needs no bit on the entry point at all.
 // The checkout's edits are still picked up at once, exactly as with the symlink.
 //
-//   node scripts/launcher.mjs            report what is on PATH and whether it is exposed
-//   node scripts/launcher.mjs --write    replace the exposed symlinks with shims
-//   node scripts/launcher.mjs --json     the same report, as JSON
+//   waypost launcher            report what is on PATH and whether it is exposed
+//   waypost launcher --write    replace the exposed symlinks with shims
+//   waypost launcher --json     the same report, as JSON
+//
+// Once the bit is gone `waypost` itself cannot start, so the same three work as
+// `node scripts/launcher.mjs …`, and that is the form every "broken" message names.
 //
 // Windows is out of scope: npm writes .cmd/.ps1 shims there already, never a symlink.
 
@@ -111,7 +114,7 @@ export function shimText({ node, entry }) {
     "# A shim instead of npm's symlink, because this checkout is edited from another operating",
     "# system and every save from there drops the executable bit of bin/waypost. Running the entry",
     "# point through node does not need the bit. `npm link` puts the symlink back; re-run",
-    "# `node scripts/launcher.mjs --write` after it.",
+    "# `waypost launcher --write` after it.",
     `exec ${shQuote(node)} ${shQuote(entry)} "$@"`,
     "",
   ].join("\n");
@@ -130,6 +133,13 @@ export function installShims({ toolRoot = SELF_ROOT, pathEnv = process.env.PATH 
     written.push(l.file);
   }
   return { written, before: report };
+}
+
+// "broken" names the node form: the command this would otherwise name does not start.
+export function repairCommand(report) {
+  return report.risk === "broken"
+    ? `node ${shQuote(join(report.checkout.toolRoot, "scripts", "launcher.mjs"))} --write`
+    : "waypost launcher --write";
 }
 
 export function describe(report) {
@@ -151,7 +161,7 @@ export function describe(report) {
   } else {
     lines.push("", "nothing on PATH depends on the entry point's executable bit.");
   }
-  if (report.risk !== "none") lines.push(`repair: node ${shQuote(join(c.toolRoot, "scripts", "launcher.mjs"))} --write`);
+  if (report.risk !== "none") lines.push(`repair: ${repairCommand(report)}`);
   return lines.join("\n");
 }
 

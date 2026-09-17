@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `waypost launcher [--write]`: the command on `PATH`, when it is npm's symlink
+  into a checkout that another operating system edits. Every save from a system
+  without an executable bit (a Windows VM over a network share) writes
+  `bin/waypost` back without one, and `waypost` answers "permission denied"
+  until someone runs `chmod` again — `core.fileMode=false`, which such a
+  checkout needs anyway, means git never restores it. The command reports the
+  setup (`none` / `exposed` / `broken`); `--write` replaces the symlinks with
+  node shims that do not need the bit, touching only symlinks that resolve to
+  this checkout. `doctor` warns while the setup is exposed and reports an issue
+  once it is broken; it never repairs it, because the repair writes into a
+  directory on `PATH`. Runbook: `ops/run-waypost-from-a-checkout-another-operating-system-edits.md`.
 - Decisions that check themselves (ADR-0011): an ADR may carry `guards`
   (`forbid`/`require` regexes over `in`/`not_in` globs, with a mandatory
   `why`); `doctor` evaluates them over the project's files — issue for an
