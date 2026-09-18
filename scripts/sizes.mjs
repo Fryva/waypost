@@ -84,12 +84,6 @@ export function metadataNamesOf(entries) {
 // item never has to ask which kind of match it was to read its owner. Pure
 // data assembly, no tool named.
 function compileArtifacts(entries) {
-  const sureNames = new Set();
-  const surePrefixes = [];
-  const genericNames = new Set();
-  const genericPrefixes = [];
-  const surePatterns = [];
-  const genericPatterns = [];
   const skip = new Set(CORE_SKIP);
   const ownerByName = new Map();
   const ownerByPrefix = [];
@@ -100,43 +94,57 @@ function compileArtifacts(entries) {
   // scripts/toolchains.mjs) even when merged into an otherwise-shipped
   // entry that extends a shipped id — `a.origin` always wins over the
   // entry's own `e.origin` when set, so that one glued-on artifact is never
-  // mistaken for the shipped definition around it. Matching (which names
-  // count as a candidate at all) never depends on origin; only OWNERSHIP —
-  // whose policy (regenerable/clean/clean_argv) governs a matched name —
-  // does, resolved in two passes below. A project artifact never carries a
-  // `pattern` (the allowlist excludes it), so patterns are shipped-only.
+  // mistaken for the shipped definition around it. A project artifact never
+  // carries a `pattern` (the allowlist excludes it), so patterns are
+  // shipped-only.
+  //
+  // Blocker 1, second round (independent review, 2026-09-18): whether a
+  // matched name counts as "sure" (walked and counted at once) or
+  // "generic" (needs a confirmed git-ignore first) used to be tracked in
+  // FLAT sets built from every artifact regardless of origin or ownership —
+  // a project artifact reusing a name, prefix, OR pattern a shipped entry
+  // already owns as "generic" could flip it to "sure" project-wide, simply
+  // by declaring the SAME name/prefix `match: "sure"` itself (a brand-new
+  // id, an extension of the very entry that owns it, or an unrelated
+  // prefix like "b" that happens to also match "build"). An un-ignored
+  // "sure" match skips the git-ignore check the walk would otherwise
+  // require, and — once its OWNER still resolves to the shipped entry
+  // (ownership itself was already fixed the first round) — routeFor's own
+  // shipped-sure bypass would remove it outright with no tracked-file
+  // check at all; an ignored one would escape the generic cap (never
+  // "should", never counted for a machine-wide limit) it was supposed to
+  // stay under. The fix: `match` is now read from the SAME owner object
+  // ownership already resolves with shipped priority (see below) — there
+  // is no separate flat set left to flip.
   const pairs = [];
   for (const e of entries) {
     for (const name of e.skip || []) skip.add(name);
     for (const a of e.artifacts || []) {
       const origin = a.origin ?? e.origin ?? "shipped";
-      const sure = a.match === "sure";
       const owner = {
-        tool: e.id, origin, regenerable: a.regenerable,
+        tool: e.id, origin, match: a.match, regenerable: a.regenerable,
         stale_days: Number.isFinite(a.stale_days) ? a.stale_days : null,
         clean: a.clean ?? null,
         clean_argv: Array.isArray(a.clean_argv) ? a.clean_argv : null,
       };
       let re = null;
-      if (typeof a.name === "string") (sure ? sureNames : genericNames).add(a.name);
-      else if (typeof a.prefix === "string") (sure ? surePrefixes : genericPrefixes).push(a.prefix);
-      else if (typeof a.pattern === "string") {
+      if (typeof a.pattern === "string") {
         try { re = new RegExp(a.pattern, a.flags || undefined); } catch { continue; }
-        (sure ? surePatterns : genericPatterns).push(re);
-      } else continue;
+      } else if (typeof a.name !== "string" && typeof a.prefix !== "string") continue;
       pairs.push({ a, owner, origin, re });
     }
   }
 
-  // Ownership decides which entry's policy governs a matched name/prefix/
-  // pattern — a shipped artifact always claims its own key outright (last
-  // one in `entries` order wins among shipped artifacts, same as before);
-  // a project artifact only ever ADDS a key nothing shipped already owns.
-  // Without this, a project's own toolchains data — sorted by id, so
-  // ordering is not something a project file controls — could shadow or
-  // downgrade a shipped owner's policy for a name it already governs
-  // (ADR: a project's own data can only extend the registry, never change
-  // what an outside name means).
+  // Ownership decides which entry's policy AND match kind govern a matched
+  // name/prefix/pattern — a shipped artifact always claims its own key
+  // outright (last one in `entries` order wins among shipped artifacts,
+  // same as before); a project artifact only ever ADDS a key nothing
+  // shipped already owns. Without this, a project's own toolchains data —
+  // sorted by id, so ordering is not something a project file controls —
+  // could shadow or downgrade a shipped owner's policy (or, per the note
+  // above, its match kind) for a name it already governs (ADR: a project's
+  // own data can only extend the registry, never change what an outside
+  // name means).
   for (const { a, owner, origin, re } of pairs) {
     if (origin === "project") continue;
     if (typeof a.name === "string") ownerByName.set(a.name, owner);
@@ -149,10 +157,7 @@ function compileArtifacts(entries) {
     else if (typeof a.prefix === "string") { if (!ownerByPrefix.some((x) => x.prefix === a.prefix)) ownerByPrefix.push({ prefix: a.prefix, owner }); }
   }
 
-  return {
-    sureNames, surePrefixes, genericNames, genericPrefixes, surePatterns, genericPatterns, skip,
-    ownerByName, ownerByPrefix, ownerByPattern,
-  };
+  return { skip, ownerByName, ownerByPrefix, ownerByPattern };
 }
 
 function ownerOf(name, c) {
@@ -184,16 +189,17 @@ function compileLocatorOwners(entries) {
   return map;
 }
 
+// Both read the SAME owner ownership already resolved (shipped priority,
+// see compileArtifacts above) — the match kind is the owner's own `match`,
+// never a separate signal a project artifact could flip on its own.
 function isSureName(name, c) {
-  if (c.sureNames.has(name)) return true;
-  if (c.surePrefixes.some((p) => name.startsWith(p))) return true;
-  return c.surePatterns.some((re) => re.test(name));
+  const owner = ownerOf(name, c);
+  return owner != null && owner.match === "sure";
 }
 
 function isMaybeName(name, c) {
-  if (c.genericNames.has(name)) return true;
-  if (c.genericPrefixes.some((p) => name.startsWith(p))) return true;
-  return c.genericPatterns.some((re) => re.test(name));
+  const owner = ownerOf(name, c);
+  return owner != null && owner.match === "generic";
 }
 
 // The walk stops after this many filesystem entries (lstat calls), covering

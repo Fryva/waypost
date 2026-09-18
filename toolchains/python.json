@@ -173,8 +173,9 @@
         "darwin": "inferred"
       },
       "docs": "https://python-poetry.org/docs/cache/",
-      "notes": "Documented Poetry macOS cache location; not present on this machine.",
+      "notes": "Documented Poetry macOS cache location; not present on this machine. Poetry's own virtualenvs.path defaults to {cache-dir}/virtualenvs — a project's actual, in-use virtual environment can live inside this same directory, not only downloaded package metadata.",
       "regenerable": true,
+      "manual": true,
       "clean": "poetry cache clear --all PyPI",
       "ask": {
         "argv": ["poetry", "config", "cache-dir"],
@@ -191,7 +192,9 @@
         "linux": "documented"
       },
       "docs": "https://python-poetry.org/docs/cache/",
+      "notes": "Poetry's own virtualenvs.path defaults to {cache-dir}/virtualenvs — a project's actual, in-use virtual environment can live inside this same directory, not only downloaded package metadata.",
       "regenerable": true,
+      "manual": true,
       "clean": "poetry cache clear --all PyPI",
       "ask": {
         "argv": ["poetry", "config", "cache-dir"],
@@ -208,7 +211,9 @@
         "win32": "documented"
       },
       "docs": "https://python-poetry.org/docs/cache/",
+      "notes": "Poetry's own virtualenvs.path defaults to {cache-dir}/virtualenvs — a project's actual, in-use virtual environment can live inside this same directory, not only downloaded package metadata.",
       "regenerable": true,
+      "manual": true,
       "clean": "poetry cache clear --all PyPI",
       "ask": {
         "argv": ["poetry", "config", "cache-dir"],

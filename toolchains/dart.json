@@ -36,8 +36,9 @@
         "linux": "inferred"
       },
       "docs": "https://dart.dev/tools/pub/glossary#system-cache",
-      "notes": "Documented default on Unix; not present on this machine.",
+      "notes": "Documented default on Unix; not present on this machine. Also holds globally-activated tools (`dart pub global activate`) and, on older SDKs, a pub.dev credentials.json — not only a download cache.",
       "regenerable": true,
+      "manual": true,
       "clean": "dart pub cache clean"
     },
     {
@@ -49,7 +50,9 @@
         "win32": "documented"
       },
       "docs": "https://dart.dev/tools/pub/glossary#system-cache",
+      "notes": "Also holds globally-activated tools (`dart pub global activate`) and, on older SDKs, a pub.dev credentials.json — not only a download cache.",
       "regenerable": true,
+      "manual": true,
       "clean": "dart pub cache clean"
     }
   ],

@@ -1070,10 +1070,16 @@ async function handleSize(args) {
 // with a warning on stderr instead. Warned at most once either way, the
 // same way WAYPOST_CAPACITY_PROBE is (warnIfProbed above).
 let warnedCleanNowProbed = false;
+// Whether the last cleanNow() call actually used WAYPOST_CLEAN_NOW (never
+// set, no NODE_TEST_CONTEXT, or unparseable all leave this false) — read by
+// every log-writing call site below so the log's own `clock` field never
+// claims an override that was silently ignored.
+let lastCleanNowHonored = false;
 function cleanNow() {
   const raw = process.env.WAYPOST_CLEAN_NOW;
-  if (!raw) return Date.now();
+  if (!raw) { lastCleanNowHonored = false; return Date.now(); }
   if (!process.env.NODE_TEST_CONTEXT) {
+    lastCleanNowHonored = false;
     if (!warnedCleanNowProbed) {
       warnedCleanNowProbed = true;
       process.stderr.write("waypost: WAYPOST_CLEAN_NOW is set but NODE_TEST_CONTEXT is not — ignored (tests only)\n");
@@ -1082,7 +1088,8 @@ function cleanNow() {
   }
   const n = Number(raw);
   const ms = Number.isFinite(n) ? n : Date.parse(raw);
-  if (!Number.isFinite(ms)) return Date.now();
+  if (!Number.isFinite(ms)) { lastCleanNowHonored = false; return Date.now(); }
+  lastCleanNowHonored = true;
   if (!warnedCleanNowProbed) {
     warnedCleanNowProbed = true;
     process.stderr.write("waypost: WAYPOST_CLEAN_NOW is set — the clock is not the real one (tests only)\n");
@@ -1199,6 +1206,10 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery },
       && Array.isArray(machine.caches) && !discovery.needsRefresh(machine, {});
     const profileCaches = freshProfile ? sizes.scanGlobal({ profile: machine, registry: reg, platform }) : [];
     const covered = new Set(profileCaches.map((c) => c.path));
+    // Same (tool, item) key as a profile cache, covered at ITS path above —
+    // used below to tell a genuinely separate static candidate apart from a
+    // leftover at a tool's OLD default location after its cache moved.
+    const coveredKeys = new Set(profileCaches.map((c) => `${c.tool}::${c.item}`));
     const staticCandidates = sizes.cacheCandidates({ home, env: process.env, platform, registry: reg })
       .filter((c) => !covered.has(c.path));
     const extraCaches = sizes.measureCaches(staticCandidates, { metadata: metadataNames });
@@ -1215,7 +1226,15 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery },
       if (!defaultPathsByKey.has(key)) defaultPathsByKey.set(key, new Set());
       defaultPathsByKey.get(key).add(c.path);
     }
-    for (const c of [...profileCaches, ...extraCaches]) {
+    // `staleLeftover`: this candidate's own (tool, item) key is ALSO
+    // resolved by the fresh profile, but at a DIFFERENT path — the tool's
+    // cache moved, and this is what is left at the OLD default location.
+    // Its own clean_argv would clean the tool's CURRENT (active) location,
+    // never this one, so a route built from it would always be shown in
+    // the plan and always skipped or fail at apply — clean_argv is
+    // stripped here instead, so routeFor falls through to waypost's own
+    // removal, the one route that actually reaches this specific path.
+    const pushMachineItem = (c, { staleLeftover = false } = {}) => {
       const key = `${c.tool}::${c.item}`;
       const askedNonDefault = c.source === "asked" && !(defaultPathsByKey.get(key) || new Set()).has(c.path);
       machineItems.push({
@@ -1229,9 +1248,12 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery },
         bytes: c.bytes, newest_ms: c.newest_ms,
         nested_git: false, in_nested_repo: false, unreadable: c.unreadable, other_fs: c.other_fs, partial: false, match: null,
         tool: c.tool, origin: null, regenerable: c.regenerable, stale_days: c.stale_days,
-        clean: c.clean, clean_argv: c.clean_argv, clean_docs: c.clean_docs ?? null, manual: c.manual, dev: c.dev, ino: c.ino,
+        clean: c.clean, clean_argv: staleLeftover ? null : c.clean_argv, clean_docs: c.clean_docs ?? null,
+        manual: c.manual, dev: c.dev, ino: c.ino,
       });
-    }
+    };
+    for (const c of profileCaches) pushMachineItem(c);
+    for (const c of extraCaches) pushMachineItem(c, { staleLeftover: coveredKeys.has(`${c.tool}::${c.item}`) });
   }
 
   // Facts outside the walk: the live process table (never on win32; null
@@ -1262,7 +1284,7 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery },
   return {
     root, home, stateDir, platform, vault, reg, metadataNames, host,
     projectItems, machineItems, runningTools, leases, sharedProject,
-    projectEcosystemRunning, inUseSignal,
+    projectEcosystems, projectEcosystemRunning, inUseSignal,
   };
 }
 
@@ -1445,6 +1467,11 @@ function freshFactsFor(item, ctx, mods, now) {
   const table = ctx.platform === "win32" ? null : presence.processTable();
   const comms = table ? [...table.values()].map((p) => p.comm).filter(Boolean) : [];
   const runningTools = cleanup.runningTools(ctx.reg.entries, comms);
+  // Recomputed against this FRESH runningTools, not carried over from the
+  // plan's own ctx.projectEcosystemRunning — a project ecosystem tool can
+  // have started or stopped since the plan was built, and a tag/generic
+  // match's only in-use signal (classifyItem) must reflect that.
+  const projectEcosystemRunning = (ctx.projectEcosystems || []).some((e) => runningTools.has(e.id));
   let leases = [];
   let sharedProject = false;
   if (ctx.vault) {
@@ -1454,7 +1481,7 @@ function freshFactsFor(item, ctx, mods, now) {
     sharedProject = presence.sharedTree(ctx.vault, { self: sess }).shared;
   }
   const fresh = { ...inspected, ...(ignored !== undefined ? { ignored } : {}), ...(tracked !== undefined ? { tracked } : {}) };
-  return { fresh, facts: factsFrom({ ...ctx, runningTools, leases, sharedProject }, now) };
+  return { fresh, facts: factsFrom({ ...ctx, runningTools, leases, sharedProject, projectEcosystemRunning }, now) };
 }
 
 function recheckItem(item, ctx, mods, now) {
@@ -1631,11 +1658,15 @@ async function applyClean(sel, consent, mods, now, { source = "clean", prebuilt 
     const line = cleanup.logLine({
       at: new Date(now).toISOString(), host, session: process.env.WAYPOST_SESSION_ID || null,
       harness: process.env.WAYPOST_HARNESS || null, source, root,
-      clock: process.env.WAYPOST_CLEAN_NOW || null,
+      clock: lastCleanNowHonored ? process.env.WAYPOST_CLEAN_NOW : null,
       yes: yesField, selection, items, filesystems: [], exit: exitCode,
     });
-    appendCleanLog(host, line);
-    return exitCode;
+    // Same reasoning as the final log write below: nothing was removed here
+    // either way (a decline), but a log-write failure must still surface
+    // rather than silently claim the decline was recorded when it was not.
+    let logError = null;
+    try { appendCleanLog(host, line); } catch (e) { logError = e.message; }
+    return { exitCode: logError ? 1 : exitCode, logError };
   };
 
   // Build the plan fresh, right now, unless the caller already did: "should"
@@ -1650,8 +1681,8 @@ async function applyClean(sel, consent, mods, now, { source = "clean", prebuilt 
     const answered = await askYesNo(`Remove ${toApply.length} item(s)? [y/N] `, { timeoutMs: 60000 });
     if (!answered) {
       const items = [...refused.map(refusedLogItem), ...toApply.map((it) => ({ ...baseLogItem(it), result: "declined", reason: "not confirmed", freed_bytes: 0, kept: null }))];
-      const exitCode = logAndReturn({ by: null, declined: true }, items, 1);
-      return { exitCode, declined: true, message: "not confirmed — nothing removed" };
+      const { exitCode, logError } = logAndReturn({ by: null, declined: true }, items, 1);
+      return { exitCode, declined: true, message: "not confirmed — nothing removed", ...(logError ? { log_error: logError } : {}) };
     }
   }
 
@@ -1737,7 +1768,7 @@ async function applyClean(sel, consent, mods, now, { source = "clean", prebuilt 
   const line = cleanup.logLine({
     at: new Date(now).toISOString(), host, session: process.env.WAYPOST_SESSION_ID || null,
     harness: process.env.WAYPOST_HARNESS || null, source, root,
-    clock: process.env.WAYPOST_CLEAN_NOW || null,
+    clock: lastCleanNowHonored ? process.env.WAYPOST_CLEAN_NOW : null,
     yes: yesField, selection, items: allItems, filesystems, exit: exitCode,
   });
   // The report above is real work already done (removals, verified,
@@ -1761,6 +1792,7 @@ function printApplyResult(result) {
   // takes this early return here.
   if (result.declined) {
     process.stderr.write(`waypost clean --apply: ${result.message}\n`);
+    if (result.log_error) process.stderr.write(`  log not written: ${result.log_error}\n`);
     return;
   }
   for (const it of result.items) {
@@ -1815,13 +1847,21 @@ async function handleClean(args) {
       const line = cleanup.logLine({
         at: new Date(now).toISOString(), host, session: process.env.WAYPOST_SESSION_ID || null,
         harness: process.env.WAYPOST_HARNESS || null, source: "clean", root,
-        clock: process.env.WAYPOST_CLEAN_NOW || null,
+        clock: lastCleanNowHonored ? process.env.WAYPOST_CLEAN_NOW : null,
         yes: { by: null, declined: false }, selection: selectionDescriptorOf(applySel), items: [], filesystems: [], exit: 1,
       });
-      appendCleanLog(host, line);
+      // Nothing was ever going to be removed on this path either way (a
+      // refusal, exit 1 regardless) — but a log-write failure (ENOSPC, a
+      // read-only state dir) must still be reported, not swallowed.
+      let logError = null;
+      try { appendCleanLog(host, line); } catch (e) { logError = e.message; }
       const message = `${consentDecision.reason} — pass --yes --reason "<who agreed, when>" or run \`waypost prompt cleanup\``;
-      if (json) process.stdout.write(JSON.stringify({ exitCode: 1, refusedEarly: true, message }, null, 2) + "\n");
-      else process.stderr.write(`waypost clean --apply: ${message}\n`);
+      if (json) {
+        process.stdout.write(JSON.stringify({ exitCode: 1, refusedEarly: true, message, ...(logError ? { log_error: logError } : {}) }, null, 2) + "\n");
+      } else {
+        process.stderr.write(`waypost clean --apply: ${message}\n`);
+        if (logError) process.stderr.write(`  log not written: ${logError}\n`);
+      }
       process.exitCode = 1;
       return;
     }

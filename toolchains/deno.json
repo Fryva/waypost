@@ -25,8 +25,9 @@
       "confidence": {
         "darwin": "inferred"
       },
-      "notes": "Deno's OS cache-dir convention for macOS; not present on this machine. ask.env sets DENO_NO_UPDATE_CHECK=1 so being asked never checks for a newer Deno release (https://docs.deno.com/runtime/reference/env_variables/).",
+      "notes": "Deno's OS cache-dir convention for macOS; not present on this machine. Also holds location_data/<hash>/kv.sqlite3 and localStorage — persistent Deno.Kv/localStorage state, not only a module download cache. ask.env sets DENO_NO_UPDATE_CHECK=1 so being asked never checks for a newer Deno release (https://docs.deno.com/runtime/reference/env_variables/).",
       "regenerable": true,
+      "manual": true,
       "clean": "deno clean",
       "ask": {
         "argv": ["deno", "info", "--json"],
@@ -44,8 +45,9 @@
       "confidence": {
         "linux": "inferred"
       },
-      "notes": "Deno's OS cache-dir convention for Linux; not verifiable from macOS. ask.env sets DENO_NO_UPDATE_CHECK=1 so being asked never checks for a newer Deno release (https://docs.deno.com/runtime/reference/env_variables/).",
+      "notes": "Deno's OS cache-dir convention for Linux; not verifiable from macOS. Also holds location_data/<hash>/kv.sqlite3 and localStorage — persistent Deno.Kv/localStorage state, not only a module download cache. ask.env sets DENO_NO_UPDATE_CHECK=1 so being asked never checks for a newer Deno release (https://docs.deno.com/runtime/reference/env_variables/).",
       "regenerable": true,
+      "manual": true,
       "clean": "deno clean",
       "ask": {
         "argv": ["deno", "info", "--json"],
@@ -63,8 +65,9 @@
       "confidence": {
         "win32": "inferred"
       },
-      "notes": "Deno's OS cache-dir convention for Windows; not verifiable from macOS. ask.env sets DENO_NO_UPDATE_CHECK=1 so being asked never checks for a newer Deno release (https://docs.deno.com/runtime/reference/env_variables/).",
+      "notes": "Deno's OS cache-dir convention for Windows; not verifiable from macOS. Also holds location_data/<hash>/kv.sqlite3 and localStorage — persistent Deno.Kv/localStorage state, not only a module download cache. ask.env sets DENO_NO_UPDATE_CHECK=1 so being asked never checks for a newer Deno release (https://docs.deno.com/runtime/reference/env_variables/).",
       "regenerable": true,
+      "manual": true,
       "clean": "deno clean",
       "ask": {
         "argv": ["deno", "info", "--json"],

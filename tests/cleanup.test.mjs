@@ -530,6 +530,20 @@ test("recheck: replaced by a plain file (not a symlink) is reported changed and 
   assert.match(r.reason, /no longer a directory/);
 });
 
+// S3, second round (independent review, 2026-09-18): other_fs must come
+// from the FRESH facts — a filesystem mounted inside the item after the
+// plan was built is exactly the case a re-check exists for.
+test("recheck: a mount point that appeared after the plan (fresh other_fs: true) is kept, even though the plan's own item never saw one", () => {
+  const item = baseItem({ match: "tag", other_fs: false, newest_ms: Date.now() - 40 * DAY_MS });
+  const fresh = {
+    exists: true, is_directory: true, is_symlink: false, other_fs: true,
+    newest_ms: item.newest_ms, nested_git: false, unreadable: false,
+  };
+  const r = recheck(item, fresh, { now: Date.now() });
+  assert.equal(r.class, "keep");
+  assert.match(r.reason, /mount point/);
+});
+
 // ─── consent / logLine ─────────────────────────────────────────────────────
 
 test("consent: --yes with a reason is a final yes; a terminal with no harness needs an actual prompt; otherwise refused, naming the escape hatch", () => {
@@ -1189,6 +1203,118 @@ test("B1: a project artifact reusing a shipped artifact's own name never takes o
   assert.ok(!existsSync(join(root, ".build")), "the shipped artifact's own item was removed on its own policy");
 });
 
+// Blocker 1, second round (independent review, 2026-09-18): a project's own
+// toolchains data must never promote a shipped GENERIC name (or prefix) to
+// a "sure" match — by declaring the same name itself, by extending the very
+// shipped entry that owns it, or through an unrelated prefix that happens
+// to match — since a "sure" match skips the git-ignore check a generic one
+// needs (an un-ignored, ordinary directory would be matched and counted at
+// once), and once ignored, a "sure" match escapes the generic cap that
+// keeps it at "can" forever and out of a machine-wide limit's own count.
+// Each fixture below carries a "src/build" (un-ignored, ordinary content —
+// never a real build artifact) and an "out/build" (ignored, no tracked
+// content — a real, if generically-named, build artifact) under the SAME
+// name "build" at two different paths, so both properties are checked
+// against the one hijack attempt at once.
+
+test("B1 (round 2): a project artifact cannot promote a shipped generic NAME to sure by declaring the same name itself", () => {
+  const root = tmpRoot("waypost-cleanup-b1mk-name-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  mkdirSync(join(root, ".waypost", "toolchains"), { recursive: true });
+  writeFileSync(join(root, ".waypost", "toolchains", "mine.json"), JSON.stringify({
+    id: "mine", name: "hijack attempt", artifacts: [{ name: "build", match: "sure", regenerable: true }],
+  }), "utf8");
+  mkdirSync(join(root, "src", "build"), { recursive: true });
+  writeFileSync(join(root, "src", "build", "notes.md"), "ordinary content\n", "utf8");
+  writeFileSync(join(root, ".gitignore"), "/out/build/\n", "utf8");
+  mkdirSync(join(root, "out", "build"), { recursive: true });
+  writeFileSync(join(root, "out", "build", "obj.bin"), Buffer.alloc(2000, 1));
+  git(root, ["add", ".waypost", ".gitignore"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+
+  const home = tmpRoot("waypost-cleanup-b1mk-name-home-");
+  const fakeHome = fakeToolchainsHome([{ id: "generic", artifacts: [{ name: "build", match: "generic", regenerable: true }] }]);
+  const now = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+
+  const unignored = plan.items.find((i) => i.rel === "src/build");
+  if (unignored) assert.equal(unignored.class, "keep", `an un-ignored "sure"-promoted match must never be should/can: ${JSON.stringify(unignored)}`);
+
+  const ignored = plan.items.find((i) => i.rel === "out/build");
+  assert.ok(ignored, JSON.stringify(plan.items));
+  assert.equal(ignored.match, "generic", "never promoted to sure");
+  assert.equal(ignored.class, "can", "the generic cap still applies — never should, so never counted for a machine-wide limit either");
+});
+
+test("B1 (round 2): extending the SAME shipped id that owns \"build\" cannot promote it to sure either", () => {
+  const root = tmpRoot("waypost-cleanup-b1mk-ext-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  mkdirSync(join(root, ".waypost", "toolchains"), { recursive: true });
+  writeFileSync(join(root, ".waypost", "toolchains", "generic.json"), JSON.stringify({
+    id: "generic", name: "extends the shipped owner of build", artifacts: [{ name: "build", match: "sure", regenerable: true }],
+  }), "utf8");
+  mkdirSync(join(root, "src", "build"), { recursive: true });
+  writeFileSync(join(root, "src", "build", "notes.md"), "ordinary content\n", "utf8");
+  writeFileSync(join(root, ".gitignore"), "/out/build/\n", "utf8");
+  mkdirSync(join(root, "out", "build"), { recursive: true });
+  writeFileSync(join(root, "out", "build", "obj.bin"), Buffer.alloc(2000, 1));
+  git(root, ["add", ".waypost", ".gitignore"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+
+  const home = tmpRoot("waypost-cleanup-b1mk-ext-home-");
+  const fakeHome = fakeToolchainsHome([{ id: "generic", artifacts: [{ name: "build", match: "generic", regenerable: true }] }]);
+  const now = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+
+  const unignored = plan.items.find((i) => i.rel === "src/build");
+  if (unignored) assert.equal(unignored.class, "keep", `an un-ignored "sure"-promoted match must never be should/can: ${JSON.stringify(unignored)}`);
+
+  const ignored = plan.items.find((i) => i.rel === "out/build");
+  assert.ok(ignored, JSON.stringify(plan.items));
+  assert.equal(ignored.match, "generic", "never promoted to sure, even by extending the entry that owns it");
+  assert.equal(ignored.class, "can", "the generic cap still applies");
+});
+
+test("B1 (round 2): an unrelated prefix cannot promote a shipped generic NAME to sure either", () => {
+  const root = tmpRoot("waypost-cleanup-b1mk-prefix-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  mkdirSync(join(root, ".waypost", "toolchains"), { recursive: true });
+  // "b" is not itself the owned name — it is a PREFIX that happens to match
+  // "build" too, from a brand-new, unrelated project id.
+  writeFileSync(join(root, ".waypost", "toolchains", "mine2.json"), JSON.stringify({
+    id: "mine2", name: "prefix hijack attempt", artifacts: [{ prefix: "b", match: "sure", regenerable: true }],
+  }), "utf8");
+  mkdirSync(join(root, "src", "build"), { recursive: true });
+  writeFileSync(join(root, "src", "build", "notes.md"), "ordinary content\n", "utf8");
+  writeFileSync(join(root, ".gitignore"), "/out/build/\n", "utf8");
+  mkdirSync(join(root, "out", "build"), { recursive: true });
+  writeFileSync(join(root, "out", "build", "obj.bin"), Buffer.alloc(2000, 1));
+  git(root, ["add", ".waypost", ".gitignore"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+
+  const home = tmpRoot("waypost-cleanup-b1mk-prefix-home-");
+  // "build" is owned by an exact NAME here — ownerOf checks ownerByName
+  // before any prefix, so the shipped exact-name owner wins regardless of
+  // the project's own unrelated "b" prefix.
+  const fakeHome = fakeToolchainsHome([{ id: "generic", artifacts: [{ name: "build", match: "generic", regenerable: true }] }]);
+  const now = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+
+  const unignored = plan.items.find((i) => i.rel === "src/build");
+  if (unignored) assert.equal(unignored.class, "keep", `an un-ignored "sure"-promoted match must never be should/can: ${JSON.stringify(unignored)}`);
+
+  const ignored = plan.items.find((i) => i.rel === "out/build");
+  assert.ok(ignored, JSON.stringify(plan.items));
+  assert.equal(ignored.match, "generic", "an unrelated prefix never promotes an exact-name-owned match to sure");
+  assert.equal(ignored.class, "can", "the generic cap still applies");
+});
+
 // ─── AC 5: a machine cache without clean_argv, and a manual one ────────────
 
 test("AC 5 (apply): a machine cache with no clean_argv is removed by Waypost itself; its own prose clean text is shown, never run", () => {
@@ -1256,6 +1382,67 @@ test("AC 5 (apply): a manual machine cache is refused by id, and its own clean t
   assert.equal(applied.result, "refused");
   assert.match(applied.reason, /prune/);
   assert.ok(existsSync(cacheDir), "a manual cache is never touched");
+});
+
+// S5 (independent review, 2026-09-18): after a tool's cache moves (its own
+// `ask` now reports a different path than the registry's env/default
+// template), the OLD default location can still hold real leftover data —
+// surfaced here as its own plan item (via the existing covered-set-minus-
+// staticCandidates logic), but its route must be Waypost's own removal, not
+// the tool's clean_argv — that command cleans the tool's CURRENT (active)
+// location, never this abandoned one, so a tool-clean-argv route here would
+// always be shown in the plan and always fail or be skipped at apply.
+test("S5: a leftover at a tool's OLD default location (after its cache moved) is removed by Waypost itself, not the tool's own clean_argv", async () => {
+  const { machineProfilePath } = await import("../scripts/discovery.mjs");
+  const { hostSlug } = await import("../scripts/presence.mjs");
+
+  const home = tmpRoot("waypost-cleanup-s5-home-");
+  const root = tmpRoot("waypost-cleanup-s5-proj-");
+  git(root, ["init", "-q"]);
+
+  const fakeHome = fakeToolchainsHome([{
+    id: "faketool5", name: "Fake Tool 5", detect: { bins: [], manifests: [] },
+    caches: [{
+      path: "$HOME/fake-cache-template", os: ["darwin", "linux", "win32"],
+      confidence: { darwin: "verified", linux: "verified", win32: "verified" },
+      regenerable: true, clean: "faketool5 clean", clean_argv: ["faketool5", "clean"],
+      clean_docs: "https://example.com/faketool5",
+    }],
+  }]);
+
+  // The OLD default location — still on disk, holding data nobody measures
+  // through the "asked" path any more.
+  const oldPath = join(home, "fake-cache-template");
+  mkdirSync(oldPath, { recursive: true });
+  writeFileSync(join(oldPath, "leftover.bin"), Buffer.alloc(2000, 1));
+  // The NEW (asked) location, per the machine profile written directly
+  // below — a real `ask` round trip is not needed to reproduce this: the
+  // profile is data either way (scanGlobal({ profile }) re-attaches policy
+  // from the CURRENT registry, never trusts the profile's own).
+  const newPath = join(home, "moved-cache");
+  mkdirSync(newPath, { recursive: true });
+  writeFileSync(join(newPath, "active.bin"), Buffer.alloc(2000, 1));
+
+  const host = hostSlug();
+  const profilePath = machineProfilePath({ home, host });
+  mkdirSync(dirname(profilePath), { recursive: true });
+  writeFileSync(profilePath, JSON.stringify({
+    generated_at: new Date().toISOString(), platform: process.platform, tools: [],
+    caches: [{ tool: "faketool5", item: "$HOME/fake-cache-template", path: newPath, source: "asked" }],
+  }), "utf8");
+
+  const now = futureClock();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+
+  const leftover = plan.items.find((i) => i.path === oldPath);
+  assert.ok(leftover, JSON.stringify(plan.items));
+  assert.deepEqual(leftover.route, { kind: "waypost-remove" },
+    "clean_argv would clean the NEW location, not this leftover — stripped, so Waypost removes it directly");
+
+  const active = plan.items.find((i) => i.path === newPath);
+  assert.ok(active, JSON.stringify(plan.items));
+  assert.deepEqual(active.route, { kind: "tool-clean-argv", argv: ["faketool5", "clean"] },
+    "the active (asked) location still uses the tool's own clean_argv");
 });
 
 // ─── AC 6: one item's own failure never stops the rest ─────────────────────
@@ -1446,10 +1633,44 @@ test("AC 13: each --apply appends exactly one new log line naming the reason and
   assert.equal(entry.items.length, 1);
   assert.equal(entry.items[0].id, item.id);
   assert.equal(entry.items[0].result, "removed");
+  // Item 7 (independent review, 2026-09-18): WAYPOST_CLEAN_NOW really was
+  // honored here (NODE_TEST_CONTEXT is set, inherited from this very test
+  // runner) — the log's own `clock` field says so.
+  assert.equal(entry.clock, now);
 
   assert.ok(Array.isArray(out.filesystems) && out.filesystems.length >= 1, JSON.stringify(out.filesystems));
   const fsEntry = out.filesystems[0];
   assert.ok("freed" in fsEntry && "free_before" in fsEntry && "free_after" in fsEntry);
+});
+
+// Item 7 (independent review, 2026-09-18): when WAYPOST_CLEAN_NOW is set
+// but NOT honored (no NODE_TEST_CONTEXT in the child's own env, simulated
+// here by explicitly unsetting it), the log's `clock` field must stay null
+// — never claim an override that was silently ignored.
+test("item 7: the log's clock field is null when WAYPOST_CLEAN_NOW was set but ignored (no NODE_TEST_CONTEXT)", () => {
+  const root = tmpRoot("waypost-cleanup-clockfield-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, "tgt"), { recursive: true });
+  writeFileSync(join(root, "tgt", "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+  writeFileSync(join(root, "tgt", "o.bin"), Buffer.alloc(2000, 1));
+
+  const home = tmpRoot("waypost-cleanup-clockfield-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  // With NODE_TEST_CONTEXT unset, WAYPOST_CLEAN_NOW is ignored, so the real
+  // clock applies — this item stays "can" (created moments ago), never
+  // "should", so --apply <id> is refused: exactly what the "not honored"
+  // path looks like end to end, and the refusal log itself is the one
+  // whose clock field this test checks.
+  const r = runClean(root, home, fakeHome, ["--apply", "p-doesnotmatter", "--yes", "--reason", "clock check", "--json"],
+    { WAYPOST_CLEAN_NOW: futureClock(), NODE_TEST_CONTEXT: undefined });
+  assert.equal(r.status, 1, r.stderr);
+
+  const stateDir = join(home, "Library", "Application Support", "Waypost");
+  const names = readdirSync(stateDir).filter((n) => n.startsWith("cleanup.") && n.endsWith(".jsonl"));
+  assert.equal(names.length, 1);
+  const lines = readFileSync(join(stateDir, names[0]), "utf8").trim().split("\n").filter(Boolean);
+  const entry = JSON.parse(lines[lines.length - 1]);
+  assert.equal(entry.clock, null, "WAYPOST_CLEAN_NOW was ignored (no NODE_TEST_CONTEXT) — the log must not claim it was used");
 });
 
 test("waypost help lists clean", () => {

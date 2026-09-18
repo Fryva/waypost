@@ -369,9 +369,13 @@ export function recheck(item, fresh, facts = {}) {
   // Caught here explicitly instead, before that check ever runs.
   if (fresh.is_directory === false) return { class: "keep", reason: "no longer a directory", route: null, changed: true };
   const identityChanged = item.dev != null && item.ino != null && (fresh.dev !== item.dev || fresh.ino !== item.ino);
+  // other_fs (a mount point) must come from `fresh` too — a filesystem
+  // mounted inside this item AFTER the plan was built is exactly the case
+  // this re-check exists for; carrying over the plan's own (stale) value
+  // would let a recursive removal cross into it.
   const merged = {
     ...item, newest_ms: fresh.newest_ms, nested_git: fresh.nested_git, unreadable: fresh.unreadable,
-    dev: fresh.dev, ino: fresh.ino,
+    other_fs: fresh.other_fs, dev: fresh.dev, ino: fresh.ino,
     ...(fresh.ignored !== undefined ? { ignored: fresh.ignored } : {}),
     ...(fresh.tracked !== undefined ? { tracked: fresh.tracked } : {}),
   };
