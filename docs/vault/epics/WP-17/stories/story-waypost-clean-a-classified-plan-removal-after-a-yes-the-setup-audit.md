@@ -3,18 +3,18 @@ type: story
 id: "story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit"
 epic: "WP-17"
 title: "waypost clean: a classified plan, removal after a yes, the setup audit"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-14
 updated: 2026-09-18
 external_refs: {}
 tags: []
-code_refs: ["scripts/cleanup.mjs", "scripts/sizes.mjs", "scripts/presence.mjs", "bin/waypost", "prompts/cleanup.md", "skills/waypost-doctor/SKILL.md", "tests/cleanup.test.mjs"]
+code_refs: ["bin/waypost", "scripts/cleanup.mjs", "scripts/sizes.mjs", "scripts/toolchains.mjs", "scripts/lib.mjs", "toolchains/", "prompts/cleanup.md", "skills/waypost-doctor/SKILL.md", "docs/toolchains.md", "tests/cleanup.test.mjs", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "CHANGELOG.md"]
 specs: []
 blocked_by: ["WP-17/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with"]
 started_at: "2026-09-18T16:41:47.645Z"
-closed_at: null
+closed_at: "2026-09-18T20:41:47.258Z"
 plan_updated_at: "2026-09-18T16:41:47.645Z"
 ---
 
@@ -23,7 +23,7 @@ plan_updated_at: "2026-09-18T16:41:47.645Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-17](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -43,12 +43,12 @@ decides (Decisions 4–6), as amended by
 
 ## Decomposition
 
-- [ ] `scripts/sizes.mjs`: a read-only age per item — the newest of `mtime`
+- [x] `scripts/sizes.mjs`: a read-only age per item — the newest of `mtime`
       and `ctime` over its entries, ignoring the OS metadata names of the
       `system` entry, ties by path.
 - [ ] ~~Tool versions in the machine profile~~ — deferred with the detectors
       to a follow-up story (planning pass, 2026-09-18).
-- [ ] `scripts/cleanup.mjs` computes keep / should / can, each with a reason:
+- [x] `scripts/cleanup.mjs` computes keep / should / can, each with a reason:
       - in use — the registry's process names, plus 10-minute recency (recency
         alone where the process table is unavailable);
       - leases and live peers;
@@ -59,7 +59,7 @@ decides (Decisions 4–6), as amended by
 
       The project root is never an item. Machine-wide garbage collection is at
       most `can`, and manual only.
-- [ ] `bin/waypost clean`:
+- [x] `bin/waypost clean`:
       - the plan, `--json`, and `--apply <id…>|should`;
       - the yes: on a terminal without a harness, `[y/N]`, answering no after
         60 s; otherwise `--yes --reason`;
@@ -70,12 +70,12 @@ decides (Decisions 4–6), as amended by
         non-zero exit if any failed;
       - free space per filesystem;
       - the log in the machine state directory.
-- [ ] `waypost setup`: the audit as its last step, under the same rules for
+- [x] `waypost setup`: the audit as its last step, under the same rules for
       the yes.
-- [ ] `prompts/cleanup.md`, and one body line in the `waypost-doctor` skill
+- [x] `prompts/cleanup.md`, and one body line in the `waypost-doctor` skill
       pointing to `waypost prompt cleanup`; its `description` stays as it is.
-- [ ] The ADR's guards on `scripts/cleanup.mjs` select it and pass.
-- [ ] Tests for each acceptance criterion below, removing only inside
+- [x] The ADR's guards on `scripts/cleanup.mjs` select it and pass.
+- [x] Tests for each acceptance criterion below, removing only inside
       temporary directories.
 
 ## Implementation Plan
@@ -168,43 +168,90 @@ sources need a live run on each OS.
 
 ## Acceptance Criteria
 
-- [ ] A non-ignored `CACHEDIR.TAG` directory with no tracked file is removed
+- [x] A non-ignored `CACHEDIR.TAG` directory with no tracked file is removed
       by `--apply <id> --yes --reason "…"`; one that holds a tracked file or a
-      nested repository is not, and the report says why.
-- [ ] An ignored build directory inside git is removed, and a tracked file
-      inside it survives.
-- [ ] A tool's output directory holding a force-added tracked file is not
-      removed by the tool's clean command either, and the report says why.
-- [ ] A project entry's artifact that git does not ignore is never removed,
-      even when it holds no tracked file.
-- [ ] A machine cache without `clean_argv` is removed by Waypost itself; one
-      whose clean text is prose is shown as manual and never run.
-- [ ] When one item fails (a locked or unreadable file), the rest are still
-      removed and the exit status is non-zero.
-- [ ] With a harness detected, `--apply` without `--yes --reason` removes
+      nested repository is not, and the report says why. — evidence: test "AC 1 (apply)…" tests/cleanup.test.mjs:880, "AC 1…" tests/cleanup.test.mjs:679
+- [x] An ignored build directory inside git is removed, and a tracked file
+      inside it survives. — evidence: test "AC 2 (apply)…" tests/cleanup.test.mjs:946 (removal through `git clean -X`), "AC 2: git clean -X -d -f itself never removes a tracked file…" tests/cleanup.test.mjs:983; through Waypost a directory holding a tracked file is not an item at all, so it is left whole
+- [x] A tool's output directory holding a force-added tracked file is not
+      removed by the tool's clean command either, and the report says why. — evidence: test "AC 3 (apply)…" tests/cleanup.test.mjs:1013 (fake registry; no shipped project artifact carries `clean_argv`)
+- [x] A project entry's artifact that git does not ignore is never removed,
+      even when it holds no tracked file. — evidence: tests "AC 4 (apply)…" tests/cleanup.test.mjs:1083 and the B1 extension, name, prefix and pattern cases tests/cleanup.test.mjs:1125–1355
+- [x] A machine cache without `clean_argv` is removed by Waypost itself; one
+      whose clean text is prose is shown as manual and never run. — evidence: tests "AC 5 (apply)…" tests/cleanup.test.mjs:1356, :1386
+- [x] When one item fails (a locked or unreadable file), the rest are still
+      removed and the exit status is non-zero. — evidence: test "AC 6 (apply)…" tests/cleanup.test.mjs:1488 (POSIX, not as root)
+- [x] With a harness detected, `--apply` without `--yes --reason` removes
       nothing and exits non-zero; on a terminal with no answer before the
-      timeout, nothing is removed.
-- [ ] An entry that does not state `regenerable: true` is `keep` and refused
-      by id.
-- [ ] An item modified within 10 minutes, or leased by another session, is
+      timeout, nothing is removed. — evidence: tests "AC 7…" tests/cleanup.test.mjs:801, :815; `askYesNo` timeout/EOF tests/cleanup.test.mjs:831, :839; `consent` units tests/cleanup.test.mjs:549–571 (the terminal path is covered as units, not end to end)
+- [x] An entry that does not state `regenerable: true` is `keep` and refused
+      by id. — evidence: test "AC 8…" tests/cleanup.test.mjs:194; refusal by id through the shared keep path, e.g. "AC 4 (apply)…" tests/cleanup.test.mjs:1083
+- [x] An item modified within 10 minutes, or leased by another session, is
       `keep`; with a live peer on the project, project artifacts are at most
-      `can`.
-- [ ] A project root carrying `CACHEDIR.TAG` never appears in the plan.
-- [ ] Given a limit, the plan picks from the idle (`should`) items, oldest
+      `can`. — evidence: tests "AC 9…" tests/cleanup.test.mjs:207, :213, :252, :264, "AC 9 (e2e)…" :741 (a peer is another host sharing the checkout)
+- [x] A project root carrying `CACHEDIR.TAG` never appears in the plan. — evidence: test "AC 10…" tests/cleanup.test.mjs:705
+- [x] Given a limit, the plan picks from the idle (`should`) items, oldest
       first, those that bring the counted total under it; items used within
-      `stale_days` stay `can` and are never picked.
-- [ ] An item that changed between plan and apply (now in use, now tracked,
-      replaced by a symlink) is skipped with the reason.
-- [ ] Each apply appends one log line with the reason given, the items and
-      their results; the report gives the space freed per filesystem.
-- [ ] `waypost setup` with no terminal, or under a harness, names
-      `waypost clean` and removes nothing.
-- [ ] `npm test` is green and `waypost doctor` reports 0 issues.
+      `stale_days` stay `can` and are never picked. — evidence: tests "AC 11…" tests/cleanup.test.mjs:402, `qualifiesForLimit` tests/cleanup.test.mjs:448–493 (pure; the CLI passes a limit with the next story)
+- [x] An item that changed between plan and apply (now in use, now tracked,
+      replaced by a symlink) is skipped with the reason. — evidence: tests "AC 12…" tests/cleanup.test.mjs:1540, :1569, :1601; `recheck` units tests/cleanup.test.mjs:494–548
+- [x] Each apply appends one log line with the reason given, the items and
+      their results; the report gives the space freed per filesystem. — evidence: test "AC 13…" tests/cleanup.test.mjs:1636
+- [x] `waypost setup` with no terminal, or under a harness, names
+      `waypost clean` and removes nothing. — evidence: tests "AC 14…" tests/cleanup.test.mjs:1720, :1742, :1765, :1778
+- [x] `npm test` is green and `waypost doctor` reports 0 issues. — evidence: command `WAYPOST_HEAVY_WAIT=30m npm test` at 4660794: 707 tests, 703 pass, 0 fail, 4 skipped; `waypost doctor`: 0 issues
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+**What changed.** `waypost clean [--json]` classifies every project artifact
+and machine cache as `keep` / `should` / `can`, with its reason and route;
+`--apply <ids…>|should` removes exactly that after a yes (`--yes --reason`, or
+a `[y/N]` on a terminal with no harness), re-checking each item right before
+its removal, verifying the result, measuring free space per filesystem and
+logging every apply to `cleanup.<host>.jsonl`. `waypost setup` audits last.
+`scripts/cleanup.mjs` is pure and carries the ADR's removal guards; removal
+lives in `bin/waypost` only. The registry gained `processes`,
+`metadata_names`, `manual` and documented `clean_argv`. Commits 3baa526,
+0478c74, 9dc3a1c, then three review rounds (df30032, 1e3b8ba, 4660794).
+
+**Review.** A fresh-context reviewer found, over three rounds, two blocker
+classes — a project toolchain entry reaching Waypost's own removal for a
+non-ignored directory (by extending a shipped id, reusing a name, promoting a
+generic name or taking over a pattern), and registry caches holding
+non-regenerable data (SwiftPM configuration, Stack, gems, Maven, Conan, Bazel,
+Deno, Poetry, pub-cache) — plus a git failure read as "no repository",
+tests writing the owner's real log, and tests not hermetic across OSes. All
+fixed; ownership and match kind now come from the shipped owner first, a
+failing git inside a repository reads as "everything tracked".
+
+**Tests.** `WAYPOST_HEAVY_WAIT=30m npm test`: 707 tests, 703 pass, 0 fail,
+4 skipped. One earlier full run had a single unidentified failure; reruns
+were clean.
+
+**Not covered.**
+- Detectors and tool versions (a follow-up story).
+- No shipped project artifact has `clean_argv`; that route is tested through
+  a fake registry only, and a tool's own clean can reach beyond the item.
+- Generic names are removed only by id; only another host's live session
+  caps project items.
+- In use: per-tool process names only where unambiguous; tag and generic
+  items fall back to any live process of an ecosystem found at the project
+  root's top level; Node, Python, Gradle, Maven and Windows rely on the
+  10-minute rule; a build that writes nothing for 10 minutes reads idle.
+- The terminal `[y/N]` path and a harness on a terminal are unit-tested only;
+  the per-item re-check is unit-tested, the end-to-end change tests are
+  caught by the fresh plan at apply start.
+- Windows: `.cmd`/`.bat` shims are refused, so npm's cache cannot be removed
+  there; junctions, long paths and the missing process table belong to the
+  verification story.
+- Age is the last write; `statfs` excludes APFS purgeable space; a removal
+  can hold the machine-wide slot for up to 30 minutes; a leftover at an old
+  default path is routed to Waypost only with a fresh machine profile; mount
+  points are detected by device id (overlay and btrfs can keep more).
+- The limit is not wired into the CLI; `auto: false`, `auto_keep_suffixes`,
+  the walk that stops at `.git` and log rotation belong to the limit story.
+- The owner's real cleanup log holds 21 lines written by tests before the
+  second review round.
 
 ## Technical Notes
 
