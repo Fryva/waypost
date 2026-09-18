@@ -4,7 +4,7 @@ description: Use before finishing a task in a project with a waypost vault, or w
 license: MIT
 metadata:
   waypost-source: skills/waypost-doctor/SKILL.md
-  waypost-hash: 07987af6bb42
+  waypost-hash: 7e56b29800b6
 ---
 
 # Check the project before you stop
@@ -17,6 +17,8 @@ metadata:
   artifact's content.
 - `waypost next` — what this project needs right now, ranked, with the command
   for each.
+- Build output or caches filling the disk: `waypost prompt cleanup` (review
+  with `waypost clean`; removal only after the user's yes).
 
 Run `doctor` before you report a task as done; if it names an artifact, fix
 the artifact, not the check. Procedure: `waypost prompt doctor`.

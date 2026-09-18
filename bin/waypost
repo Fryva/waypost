@@ -184,6 +184,11 @@ async function handleSetup(args) {
   // profiles, if any, and say whether each is due) rather than the generic
   // `step()` one-liner every other step uses — "would discover" alone never
   // says whether a fresh profile would be kept or a stale one rebuilt.
+  // Set inside the discovery step below when it actually refreshes the
+  // machine profile THIS run — the audit step (last, below) reads it to
+  // decide whether the machine is its to audit at all this time.
+  let machineRefreshedThisRun = false;
+
   if (dry) {
     say("would discover tools and ecosystems");
     const discovery = await import(`file://${SCRIPT("discovery")}`);
@@ -216,6 +221,7 @@ async function handleSetup(args) {
       // and the repair step below still matters. Reported inline instead.
       try {
         const r = await refreshProfiles({ force: false });
+        machineRefreshedThisRun = Boolean(r.machineRefreshed);
         say(`  machine  ${r.machineRefreshed ? "refreshed" : "kept"} — ${r.machine.tools.length} tool(s), ${r.machine.caches.length} cache path(s)`);
         if (r.noProject) say("  project  no project here — machine profile only");
         else say(`  project  ${r.projectRefreshed ? "refreshed" : "kept"} — ${r.project.ecosystems.length} ecosystem(s)`);
@@ -239,6 +245,57 @@ async function handleSetup(args) {
     const m = (r.stdout || "").match(/Summary: (\d+) issue/);
     if (m && Number(m[1]) > 0) process.stdout.write(`${m[1]} finding(s) remain — waypost doctor\n`);
   });
+
+  // WP-17, the clean stories (ADR "Disk hygiene by discovery" Decision 6):
+  // the audit as setup's own last step, after repair, before the footer.
+  // Never takes setup down with it — a slot refusal or any other failure is
+  // reported and setup still exits 0; setup itself removes nothing without
+  // the same yes `waypost clean --apply` needs, asked at most once here.
+  await step("audit build output (project, and the machine if its profile was just refreshed)", async () => {
+    try {
+      const capacity = await import(`file://${SCRIPT("capacity")}`);
+      const presence = await import(`file://${SCRIPT("presence")}`);
+      const dir = slotsDir(presence);
+      mkdirSync(dir, { recursive: true });
+      const claim = await claimSlot(dir, ["waypost", "setup", "--audit"], capacity, presence);
+      if (!claim.ok) {
+        say(`  audit skipped: ${claim.reason} — waypost clean`);
+        return;
+      }
+      try {
+        const cleanup = await import(`file://${SCRIPT("cleanup")}`);
+        const sizes = await import(`file://${SCRIPT("sizes")}`);
+        const toolchains = await import(`file://${SCRIPT("toolchains")}`);
+        const discovery = await import(`file://${SCRIPT("discovery")}`);
+        const mods = { cleanup, sizes, toolchains, presence, discovery };
+        const auditNow = cleanNow();
+        const ctx = gatherCleanContext(mods, { budget: sizes.DEFAULT_ENTRY_BUDGET, includeMachine: machineRefreshedThisRun });
+        const classified = planFromContext(ctx, cleanup, auditNow);
+        printAuditSummary(classified, say);
+
+        const shouldItems = classified.filter((it) => it.class === "should");
+        const isTTY = Boolean(process.stdin.isTTY);
+        const harnessDetected = await isHarnessDetected();
+        if (shouldItems.length && isTTY && !harnessDetected) {
+          const consent = cleanup.consent({ yes: false, reason: null, isTTY, harnessDetected });
+          const result = await applyClean({ mode: "should" }, consent, mods, auditNow, { source: "setup", prebuilt: { ctx, classified } });
+          if (result.declined) {
+            say("  not confirmed — nothing removed");
+          } else {
+            const removedCount = result.items.filter((i) => i.result === "removed" || i.result === "partial").length;
+            say(`  removed ${removedCount} item(s) — waypost clean for the rest`);
+          }
+        } else if (shouldItems.length) {
+          say("  review and remove: waypost clean");
+        }
+      } finally {
+        claim.release();
+      }
+    } catch (e) {
+      say(`  audit failed: ${e.message} — waypost clean to retry`);
+    }
+  });
+
   if (!dry) {
     process.stdout.write("\nready. Next:\n");
     process.stdout.write("  waypost next                      what this project needs right now\n");
@@ -1043,10 +1100,17 @@ async function isHarnessDetected() {
 }
 
 // Gathers every project- and machine-scope item, plus every fact
-// classification needs, once — the plan and `--apply` both build from this
-// same context, so "should" always re-plans against the current state
-// rather than a stale earlier run.
-function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery }) {
+// classification needs, once — the plan, `--apply` and `setup`'s own audit
+// all build from this same context, so "should" always re-plans against the
+// current state rather than a stale earlier run. `budget` bounds the
+// project walk the way `waypost size` itself can be bounded (`clean` stays
+// unbounded, its own existing behaviour; `setup`'s audit passes
+// DEFAULT_ENTRY_BUDGET, the same fixed count `doctor` uses, so it stays
+// deterministic there too). `includeMachine: false` skips the machine scope
+// entirely — no profile read, no cache candidates resolved — for a caller
+// that already knows this run has nothing fresh to say about it (`setup`,
+// when discovery did not just refresh the machine profile).
+function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery }, { budget = null, includeMachine = true } = {}) {
   const root = projectRoot();
   const home = homedir();
   const stateDir = machineStateDir();
@@ -1071,7 +1135,7 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery })
   // gives classification the ignored/tracked facts it needs per item. A
   // locator match's own `path` is already absolute (outside the project),
   // so it never enters that batch.
-  const scan = sizes.scanProject(root, { registry: reg, rootItem: false });
+  const scan = sizes.scanProject(root, { registry: reg, rootItem: false, budget });
   const relCandidates = scan.dirs.filter((d) => d.match !== "locator").map((d) => d.path);
   const gf = sizes.gitFacts(root, relCandidates);
   const projectItems = scan.dirs.map((d) => {
@@ -1093,29 +1157,35 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery })
   // registry cache item the profile does not carry — measured directly, the
   // static fallback path `size --global` uses without a profile at all.
   const host = presence.hostSlug();
-  const machinePath = discovery.machineProfilePath({ home, host });
-  let machine = null;
-  if (existsSync(machinePath)) {
-    try { machine = JSON.parse(readFileSync(machinePath, "utf8")); } catch { machine = null; }
+  const machineItems = [];
+  if (includeMachine) {
+    const machinePath = discovery.machineProfilePath({ home, host });
+    let machine = null;
+    if (existsSync(machinePath)) {
+      try { machine = JSON.parse(readFileSync(machinePath, "utf8")); } catch { machine = null; }
+    }
+    const freshProfile = machine && machine.platform === platform
+      && Array.isArray(machine.caches) && !discovery.needsRefresh(machine, {});
+    const profileCaches = freshProfile ? sizes.scanGlobal({ profile: machine, registry: reg, platform }) : [];
+    const covered = new Set(profileCaches.map((c) => c.path));
+    const staticCandidates = sizes.cacheCandidates({ home, env: process.env, platform, registry: reg })
+      .filter((c) => !covered.has(c.path));
+    const extraCaches = sizes.measureCaches(staticCandidates, { metadata: metadataNames });
+    for (const c of [...profileCaches, ...extraCaches]) {
+      machineItems.push({
+        scope: "machine", path: c.path, rel: null,
+        // `item` (the cache's own raw path template) and `source` ("asked"
+        // vs. "env"/"default") are what the removal path re-checks a moved
+        // cache and an asked-only path against — see machinePathStillSafe()
+        // below.
+        item: c.item ?? null, source: c.source ?? null,
+        bytes: c.bytes, newest_ms: c.newest_ms,
+        nested_git: false, in_nested_repo: false, unreadable: c.unreadable, partial: false, match: null,
+        tool: c.tool, origin: null, regenerable: c.regenerable, stale_days: c.stale_days,
+        clean: c.clean, clean_argv: c.clean_argv, manual: c.manual, dev: c.dev, ino: c.ino,
+      });
+    }
   }
-  const freshProfile = machine && machine.platform === platform
-    && Array.isArray(machine.caches) && !discovery.needsRefresh(machine, {});
-  const profileCaches = freshProfile ? sizes.scanGlobal({ profile: machine, registry: reg, platform }) : [];
-  const covered = new Set(profileCaches.map((c) => c.path));
-  const staticCandidates = sizes.cacheCandidates({ home, env: process.env, platform, registry: reg })
-    .filter((c) => !covered.has(c.path));
-  const extraCaches = sizes.measureCaches(staticCandidates, { metadata: metadataNames });
-  const machineItems = [...profileCaches, ...extraCaches].map((c) => ({
-    scope: "machine", path: c.path, rel: null,
-    // `item` (the cache's own raw path template) and `source` ("asked" vs.
-    // "env"/"default") are what the removal path re-checks a moved cache
-    // and an asked-only path against — see machinePathStillSafe() below.
-    item: c.item ?? null, source: c.source ?? null,
-    bytes: c.bytes, newest_ms: c.newest_ms,
-    nested_git: false, in_nested_repo: false, unreadable: c.unreadable, partial: false, match: null,
-    tool: c.tool, origin: null, regenerable: c.regenerable, stale_days: c.stale_days,
-    clean: c.clean, clean_argv: c.clean_argv, manual: c.manual, dev: c.dev, ino: c.ino,
-  }));
 
   // Facts outside the walk: the live process table (never on win32), the
   // other live sessions' leases on a path inside this project, and whether a
@@ -1181,6 +1251,25 @@ function printCleanPlan(result) {
     }
   }
   if (!any) process.stdout.write("\nnothing found\n");
+}
+
+// setup's own audit report: a count and a GB total per class, then the five
+// largest items overall, whatever class they are in — the two things worth
+// knowing before deciding whether to look further with `waypost clean`.
+function printAuditSummary(classified, say) {
+  for (const cls of ["should", "can", "keep"]) {
+    const items = classified.filter((it) => it.class === cls);
+    const gb = items.reduce((sum, it) => sum + (it.bytes || 0), 0) / GB;
+    say(`  ${cls}  ${items.length} item(s), ${gb.toFixed(2)} GB`);
+  }
+  const largest = [...classified].sort((a, b) => b.bytes - a.bytes).slice(0, 5);
+  if (largest.length) {
+    say("  largest:");
+    for (const it of largest) {
+      const where = it.rel || tildeHome(it.path);
+      say(`    ${(it.bytes / GB).toFixed(2)} GB  [${it.class}]  ${where}`);
+    }
+  }
 }
 
 // ─── --apply: parsing and selecting ────────────────────────────────────
@@ -1437,7 +1526,13 @@ function groupByDev(ordered) {
   return groups;
 }
 
-async function applyClean(sel, consent, args, mods, now) {
+// `source` and `prebuilt` let a caller other than `clean` itself (`setup`'s
+// own audit step) reuse this whole removal path: `source` tags the log line
+// ("setup" instead of "clean"), and `prebuilt` — an already-built
+// `{ ctx, classified }`, from the SAME gatherCleanContext/planFromContext
+// this function would otherwise call — skips a second, redundant scan when
+// the caller already built one (setup's own report needs it anyway).
+async function applyClean(sel, consent, mods, now, { source = "clean", prebuilt = null } = {}) {
   const { cleanup, presence } = mods;
   const root = projectRoot();
   const host = presence.hostSlug();
@@ -1446,7 +1541,7 @@ async function applyClean(sel, consent, args, mods, now) {
   const logAndReturn = (yesField, items, exitCode) => {
     const line = cleanup.logLine({
       at: new Date(now).toISOString(), host, session: process.env.WAYPOST_SESSION_ID || null,
-      harness: process.env.WAYPOST_HARNESS || null, source: "clean", root,
+      harness: process.env.WAYPOST_HARNESS || null, source, root,
       clock: process.env.WAYPOST_CLEAN_NOW || null,
       yes: yesField, selection, items, filesystems: [], exit: exitCode,
     });
@@ -1454,11 +1549,11 @@ async function applyClean(sel, consent, args, mods, now) {
     return exitCode;
   };
 
-  // Build the plan fresh, right now: "should" re-plans against the current
-  // state; an id is looked up against this same fresh plan, never a stale
-  // earlier one.
-  const ctx = gatherCleanContext(mods);
-  const classified = planFromContext(ctx, cleanup, now);
+  // Build the plan fresh, right now, unless the caller already did: "should"
+  // re-plans against the current state; an id is looked up against this
+  // same fresh plan, never a stale earlier one.
+  const ctx = prebuilt ? prebuilt.ctx : gatherCleanContext(mods);
+  const classified = prebuilt ? prebuilt.classified : planFromContext(ctx, cleanup, now);
   const { toApply, refused } = resolveApplySelection(classified, sel);
 
   if (consent.method === "prompt" && toApply.length) {
@@ -1536,7 +1631,7 @@ async function applyClean(sel, consent, args, mods, now) {
 
   const line = cleanup.logLine({
     at: new Date(now).toISOString(), host, session: process.env.WAYPOST_SESSION_ID || null,
-    harness: process.env.WAYPOST_HARNESS || null, source: "clean", root,
+    harness: process.env.WAYPOST_HARNESS || null, source, root,
     clock: process.env.WAYPOST_CLEAN_NOW || null,
     yes: yesField, selection, items: allItems, filesystems, exit: exitCode,
   });
@@ -1640,7 +1735,7 @@ async function handleClean(args) {
       result = formatPlan(classified, ctx, now);
     } else {
       applyResult = true;
-      result = await applyClean(applySel, consentDecision, args, mods, now);
+      result = await applyClean(applySel, consentDecision, mods, now);
     }
   } catch (e) {
     error = e;

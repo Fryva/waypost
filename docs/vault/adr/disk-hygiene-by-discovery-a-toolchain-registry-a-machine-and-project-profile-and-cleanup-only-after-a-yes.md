@@ -12,7 +12,7 @@ superseded_by: null
 review_status: reviewed
 reviewed_at: 2026-09-14
 drafted_by: {"harness":"claude","provider":null,"date":"2026-09-14"}
-code_refs: ["toolchains/", "scripts/toolchains.mjs", "scripts/sizes.mjs", "scripts/cleanup.mjs", "scripts/doctor.mjs", "scripts/presence.mjs", "bin/waypost", "prompts/cleanup.md (planned)", "docs/toolchains.md", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "tests/cleanup.test.mjs"]
+code_refs: ["toolchains/", "scripts/toolchains.mjs", "scripts/sizes.mjs", "scripts/cleanup.mjs", "scripts/doctor.mjs", "scripts/presence.mjs", "bin/waypost", "prompts/cleanup.md", "docs/toolchains.md", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "tests/cleanup.test.mjs"]
 related: "ADR-0001, ADR-0004, ADR-0005, ADR-0007, ADR-0008, ADR-0011"
 guards: [{"forbid": "\\b(rmSync|unlinkSync|rmdirSync|rm|unlink|rmdir)\\(", "in": "scripts/sizes.mjs", "why": "the scan only measures"}, {"forbid": "[\"'`](rm|rmdir|rd|del)[\"'` ]", "in": "scripts/sizes.mjs", "why": "no removal shelled out from the scan either"}, {"forbid": "DerivedData|plutil|xcodeproj|Library/Developer", "in": "scripts/sizes.mjs", "why": "tool knowledge lives in toolchains/*.json, never in the scanner core"}, {"forbid": "\\b(rmSync|unlinkSync|rmdirSync|rm|unlink|rmdir)\\(", "in": "scripts/cleanup.mjs", "why": "the plan only classifies — removal lives in bin/waypost alone"}, {"forbid": "[\"'`](rm|rmdir|rd|del)[\"'` ]", "in": "scripts/cleanup.mjs", "why": "no removal shelled out from the plan either"}]
 ---

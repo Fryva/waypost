@@ -14,6 +14,8 @@ license: MIT
   artifact's content.
 - `waypost next` — what this project needs right now, ranked, with the command
   for each.
+- Build output or caches filling the disk: `waypost prompt cleanup` (review
+  with `waypost clean`; removal only after the user's yes).
 
 Run `doctor` before you report a task as done; if it names an artifact, fix
 the artifact, not the check. Procedure: `waypost prompt doctor`.

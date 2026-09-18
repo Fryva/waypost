@@ -10,7 +10,7 @@ created: 2026-09-14
 updated: 2026-09-18
 external_refs: {}
 tags: []
-code_refs: ["scripts/cleanup.mjs", "scripts/sizes.mjs", "scripts/presence.mjs", "bin/waypost", "prompts/cleanup.md (planned)", "skills/waypost-doctor/SKILL.md", "tests/cleanup.test.mjs"]
+code_refs: ["scripts/cleanup.mjs", "scripts/sizes.mjs", "scripts/presence.mjs", "bin/waypost", "prompts/cleanup.md", "skills/waypost-doctor/SKILL.md", "tests/cleanup.test.mjs"]
 specs: []
 blocked_by: ["WP-17/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with"]
 started_at: "2026-09-18T16:41:47.645Z"

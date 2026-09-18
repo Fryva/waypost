@@ -105,6 +105,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tools not on `PATH` are still measured; only the tools found are asked.
   Discovery is a `PATH` stat plus a handful of short subprocess calls, not
   heavy work — it takes no machine-wide slot.
+- Disk hygiene, classified cleanup (WP-17, ADR "Disk hygiene by discovery",
+  Decisions 4–6, amended by "Cleanup to a machine-wide limit"): `waypost
+  clean [--json]` classifies every project and machine item into
+  `keep`/`should`/`can`, with its own reason and route. A project artifact
+  holding a tracked file or a nested repository, leased by another session,
+  or in use (touched in the last 10 minutes, or the registry's own process
+  names running) is always `keep`; a generic name (`build`, `dist`, …) or a
+  machine-wide cache/directory-of-versions (`manual`) never rises above
+  `can`; everything else is `should` once idle past its `stale_days` (7 days
+  for a project artifact, 30 for a machine cache). `waypost clean --apply
+  <id…>|should` removes exactly those — `can` only by id, `keep` and manual
+  always refused — re-checking each item's fresh git status, the live
+  process table and leases right before touching it, one failure never
+  stopping the rest. Consent: `--yes --reason "<who agreed, when>"`
+  anywhere; a terminal with no harness detected asks `[y/N]` (60s, no
+  otherwise, via the new `askYesNo` in `scripts/lib.mjs`); a harness or no
+  terminal refuses and names `waypost prompt cleanup`. Removal itself runs
+  the shipped `clean_argv` when the whole directory is the tool's own
+  output, `git clean -X -d -f` for a confirmed-ignored directory, or
+  waypost's own removal for a tag or a shipped match holding nothing
+  tracked or nested — never a manual machine cache, and never a cache's own
+  prose `clean` text. Every `--apply` is logged to `cleanup.<host>.jsonl`
+  with the reason, every item's result, and the space freed per filesystem.
+  `waypost setup`'s own last step audits the project (and the machine, when
+  discovery just refreshed its profile) the same way and offers the same
+  one `[y/N]` when there is something to remove; a slot refusal or any
+  other audit failure is reported without stopping the rest of setup.
+  `waypost prompt cleanup` is the procedure for an agent driving this.
 
 ### Changed
 - Coordination follows the repository (ADR-0010): inside a git repository,

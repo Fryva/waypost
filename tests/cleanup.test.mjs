@@ -1169,6 +1169,89 @@ test("waypost help lists clean", () => {
   assert.match(r.stdout, /^\s+clean \[--json\]/m);
 });
 
+// ─── AC 14: waypost setup's own audit, its last step ──────────────────────
+
+test("AC 14: waypost setup, with no TTY, names waypost clean for an idle tag directory and leaves it untouched", () => {
+  const root = tmpRoot("waypost-cleanup-ac14-notty-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, "tgt"), { recursive: true });
+  writeFileSync(join(root, "tgt", "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+  writeFileSync(join(root, "tgt", "o.bin"), Buffer.alloc(2000, 1));
+
+  const home = tmpRoot("waypost-cleanup-ac14-notty-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  // Past the 7-day project stale_days window, so the tag directory is
+  // should, not can — the case that actually reaches "review and remove".
+  const eightDaysAhead = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
+
+  const r = spawnSync(process.execPath, [Waypost, "setup", "--vault", join(root, "vault")], {
+    encoding: "utf8", cwd: root, stdio: ["ignore", "pipe", "pipe"], timeout: 30000,
+    env: { ...machineEnv(home, fakeHome, { WAYPOST_CLEAN_NOW: eightDaysAhead }), WAYPOST_PROJECT_DIR: root },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /review and remove: waypost clean/);
+  assert.ok(existsSync(join(root, "tgt")), "nothing was removed without a yes");
+});
+
+test("AC 14: the same idle tag directory, with a harness detected (WAYPOST_HARNESS=claude), also names waypost clean rather than asking", () => {
+  const root = tmpRoot("waypost-cleanup-ac14-harness-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, "tgt"), { recursive: true });
+  writeFileSync(join(root, "tgt", "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+  writeFileSync(join(root, "tgt", "o.bin"), Buffer.alloc(2000, 1));
+
+  const home = tmpRoot("waypost-cleanup-ac14-harness-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const eightDaysAhead = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
+
+  const r = spawnSync(process.execPath, [Waypost, "setup", "--vault", join(root, "vault")], {
+    encoding: "utf8", cwd: root, stdio: ["ignore", "pipe", "pipe"], timeout: 30000,
+    env: {
+      ...machineEnv(home, fakeHome, { WAYPOST_CLEAN_NOW: eightDaysAhead, WAYPOST_HARNESS: "claude" }),
+      WAYPOST_PROJECT_DIR: root,
+    },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /review and remove: waypost clean/);
+  assert.ok(existsSync(join(root, "tgt")), "nothing was removed without a yes");
+});
+
+test("AC 14: waypost setup --dry-run says it would audit, as its own last step", () => {
+  const root = tmpRoot("waypost-cleanup-ac14-dry-");
+  git(root, ["init", "-q"]);
+  const home = tmpRoot("waypost-cleanup-ac14-dry-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const r = spawnSync(process.execPath, [Waypost, "setup", "--dry-run", "--vault", join(root, "vault")], {
+    encoding: "utf8", cwd: root, stdio: ["ignore", "pipe", "pipe"], timeout: 30000,
+    env: { ...machineEnv(home, fakeHome), WAYPOST_PROJECT_DIR: root },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /would audit build output \(project, and the machine if its profile was just refreshed\)/);
+});
+
+test("AC 14: an audit failure (machine state dir blocked by a file) is reported and never aborts setup", async () => {
+  const { machineStateDir } = await import("../scripts/lib.mjs");
+  const root = tmpRoot("waypost-cleanup-ac14-fail-");
+  git(root, ["init", "-q"]);
+  const home = tmpRoot("waypost-cleanup-ac14-fail-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const env = { ...machineEnv(home, fakeHome), WAYPOST_PROJECT_DIR: root };
+  // The machine state directory itself is a plain FILE (the same trick
+  // tests/scripts.test.mjs ~1566 uses for a discovery failure), so every
+  // mkdirSync(..., { recursive: true }) under it — discovery's own, and the
+  // audit step's own slot directory — throws instead of creating anything.
+  const stateDir = machineStateDir({ platform: process.platform, env, home });
+  mkdirSync(dirname(stateDir), { recursive: true });
+  writeFileSync(stateDir, "not a directory", "utf8");
+
+  const r = spawnSync(process.execPath, [Waypost, "setup", "--vault", join(root, "vault")], {
+    encoding: "utf8", cwd: root, stdio: ["ignore", "pipe", "pipe"], timeout: 30000, env,
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /audit failed:.*waypost clean to retry/);
+  assert.match(r.stdout, /ready\. Next:/, "setup still reaches its own footer after an audit failure");
+});
+
 // ─── sanity on this exact checkout ───────────────────────────────────────
 
 test("node --check passes on scripts/cleanup.mjs", () => {
