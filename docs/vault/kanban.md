@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-18T20:42:01.514Z
+generated_at: 2026-09-18T21:10:44.047Z
 
 ---
 
@@ -13,7 +13,6 @@ generated_at: 2026-09-18T20:42:01.514Z
 - [ ] [[epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt|WP-17: doctor and next surface build artifacts]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines|WP-17: Verified on Linux and Windows virtual machines]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains|WP-17: Detectors: superseded device support, unavailable simulators, duplicate toolchains]] #p2
-- [ ] [[epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run|WP-17: The machine-wide limit: automatic cleanup at the end of a heavy run]] #p2
 
 ## ToDo
 
@@ -23,6 +22,7 @@ generated_at: 2026-09-18T20:42:01.514Z
 
 - [ ] [[epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop|WP-14: Live verification: Codex and OpenCode run the whole loop]] #p1
 - [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
+- [ ] [[epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run|WP-17: The machine-wide limit: automatic cleanup at the end of a heavy run]] #p2
 - [ ] [[epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines|WP-18: Capacity verified on Linux and Windows virtual machines]] #p1
 
 ## Review

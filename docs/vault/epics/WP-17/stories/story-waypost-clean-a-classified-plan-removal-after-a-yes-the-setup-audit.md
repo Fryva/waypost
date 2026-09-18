@@ -250,8 +250,8 @@ were clean.
   points are detected by device id (overlay and btrfs can keep more).
 - The limit is not wired into the CLI; `auto: false`, `auto_keep_suffixes`,
   the walk that stops at `.git` and log rotation belong to the limit story.
-- The owner's real cleanup log holds 21 lines written by tests before the
-  second review round.
+- The owner's real cleanup log held 21 lines written by tests before the
+  second review round; removed at the owner's request on 2026-09-18.
 
 ## Technical Notes
 

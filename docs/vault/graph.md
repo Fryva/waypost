@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-18T20:42:13.570Z
+generated_at: 2026-09-18T21:10:44.435Z
 
 ---
 
@@ -55,7 +55,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains.md | Detectors: superseded device support, unavailable simulators, duplicate toolchains | story | planned |
 | epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md | Discovery and the profile: the scheme of what Waypost works with | story | done |
 | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | doctor and next surface build artifacts | story | planned |
-| epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md | The machine-wide limit: automatic cleanup at the end of a heavy run | story | planned |
+| epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md | The machine-wide limit: automatic cleanup at the end of a heavy run | story | in-progress |
 | epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md | Verified on Linux and Windows virtual machines | story | planned |
 | epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | waypost clean: a classified plan, removal after a yes, the setup audit | story | done |
 | epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md | The toolchain registry and a tool-agnostic waypost size | story | done |
