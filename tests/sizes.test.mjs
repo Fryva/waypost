@@ -687,9 +687,15 @@ test("cacheCandidates + measureCaches compose to exactly what scanGlobal returns
   const home = tmpRoot("waypost-sizes-compose-");
   mkdirSync(join(home, ".cargo", "registry"), { recursive: true });
   writeFileSync(join(home, ".cargo", "registry", "f.bin"), Buffer.alloc(5000, 1));
-  const registry = loadRegistry({ projectRoot: home, platform: "darwin" });
+  // Only token-based templates: with env {} every token resolves under the
+  // temp HOME or not at all, while a literal absolute one (/tmp, /var/tmp,
+  // /cores, …) is the real machine's and can change between the two scans.
+  const full = loadRegistry({ projectRoot: home, platform: "darwin" });
+  const registry = { ...full, entries: full.entries.map((e) => ({ ...e, caches: (e.caches || []).filter((c) => c.path.startsWith("$")) })) };
   const composed = measureCaches(cacheCandidates({ home, env: {}, platform: "darwin", registry }), { metadata: metadataNamesOf(registry.entries) });
   const direct = scanGlobal({ home, env: {}, platform: "darwin", registry });
+  assert.ok(direct.some((e) => e.path === join(home, ".cargo", "registry")), "the fixture is measured — the comparison is not vacuous");
+  assert.ok(direct.every((e) => e.path.startsWith(home)), "nothing outside the temp HOME is measured");
   assert.deepEqual(composed, direct);
 });
 
