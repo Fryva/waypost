@@ -45,7 +45,8 @@
         "darwin": "verified"
       },
       "docs": "https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/Usage.md#swift-package-purge-cache",
-      "regenerable": true,
+      "notes": "Configuration and security-scoped bookmark state, not a cache — distinct from Library/Caches/org.swift.swiftpm above.",
+      "regenerable": false,
       "clean": "swift package purge-cache"
     },
     {

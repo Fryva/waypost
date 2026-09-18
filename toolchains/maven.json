@@ -30,7 +30,9 @@
         "win32": "documented"
       },
       "docs": "https://maven.apache.org/settings.html",
+      "notes": "Holds `mvn install`-ed local artifacts alongside downloaded ones — a locally-built or privately-sourced jar may have no remote copy to re-fetch.",
       "regenerable": true,
+      "manual": true,
       "clean": "rm -rf ~/.m2/repository (will re-download)"
     }
   ],

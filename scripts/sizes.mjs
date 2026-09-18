@@ -51,7 +51,7 @@
 // runs this code in-process, never as a subprocess.
 
 import { readdirSync, lstatSync, statSync } from "node:fs";
-import { basename, join, resolve, sep } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -94,30 +94,61 @@ function compileArtifacts(entries) {
   const ownerByName = new Map();
   const ownerByPrefix = [];
   const ownerByPattern = [];
+
+  // Every (entry, artifact) pair, with its OWN origin resolved first: a
+  // project artifact carries its own `origin: "project"` (sanitizeArtifact,
+  // scripts/toolchains.mjs) even when merged into an otherwise-shipped
+  // entry that extends a shipped id — `a.origin` always wins over the
+  // entry's own `e.origin` when set, so that one glued-on artifact is never
+  // mistaken for the shipped definition around it. Matching (which names
+  // count as a candidate at all) never depends on origin; only OWNERSHIP —
+  // whose policy (regenerable/clean/clean_argv) governs a matched name —
+  // does, resolved in two passes below. A project artifact never carries a
+  // `pattern` (the allowlist excludes it), so patterns are shipped-only.
+  const pairs = [];
   for (const e of entries) {
     for (const name of e.skip || []) skip.add(name);
     for (const a of e.artifacts || []) {
+      const origin = a.origin ?? e.origin ?? "shipped";
       const sure = a.match === "sure";
       const owner = {
-        tool: e.id, origin: e.origin || "shipped", regenerable: a.regenerable,
+        tool: e.id, origin, regenerable: a.regenerable,
         stale_days: Number.isFinite(a.stale_days) ? a.stale_days : null,
         clean: a.clean ?? null,
         clean_argv: Array.isArray(a.clean_argv) ? a.clean_argv : null,
       };
-      if (typeof a.name === "string") {
-        (sure ? sureNames : genericNames).add(a.name);
-        ownerByName.set(a.name, owner);
-      } else if (typeof a.prefix === "string") {
-        (sure ? surePrefixes : genericPrefixes).push(a.prefix);
-        ownerByPrefix.push({ prefix: a.prefix, owner });
-      } else if (typeof a.pattern === "string") {
-        let re;
+      let re = null;
+      if (typeof a.name === "string") (sure ? sureNames : genericNames).add(a.name);
+      else if (typeof a.prefix === "string") (sure ? surePrefixes : genericPrefixes).push(a.prefix);
+      else if (typeof a.pattern === "string") {
         try { re = new RegExp(a.pattern, a.flags || undefined); } catch { continue; }
         (sure ? surePatterns : genericPatterns).push(re);
-        ownerByPattern.push({ re, owner });
-      }
+      } else continue;
+      pairs.push({ a, owner, origin, re });
     }
   }
+
+  // Ownership decides which entry's policy governs a matched name/prefix/
+  // pattern — a shipped artifact always claims its own key outright (last
+  // one in `entries` order wins among shipped artifacts, same as before);
+  // a project artifact only ever ADDS a key nothing shipped already owns.
+  // Without this, a project's own toolchains data — sorted by id, so
+  // ordering is not something a project file controls — could shadow or
+  // downgrade a shipped owner's policy for a name it already governs
+  // (ADR: a project's own data can only extend the registry, never change
+  // what an outside name means).
+  for (const { a, owner, origin, re } of pairs) {
+    if (origin === "project") continue;
+    if (typeof a.name === "string") ownerByName.set(a.name, owner);
+    else if (typeof a.prefix === "string") ownerByPrefix.push({ prefix: a.prefix, owner });
+    else if (re) ownerByPattern.push({ re, owner }); // patterns are shipped-only
+  }
+  for (const { a, owner, origin } of pairs) {
+    if (origin !== "project") continue;
+    if (typeof a.name === "string") { if (!ownerByName.has(a.name)) ownerByName.set(a.name, owner); }
+    else if (typeof a.prefix === "string") { if (!ownerByPrefix.some((x) => x.prefix === a.prefix)) ownerByPrefix.push({ prefix: a.prefix, owner }); }
+  }
+
   return {
     sureNames, surePrefixes, genericNames, genericPrefixes, surePatterns, genericPatterns, skip,
     ownerByName, ownerByPrefix, ownerByPattern,
@@ -219,19 +250,22 @@ function entryAgeMs(st) {
 // it); `nested_git` (a `.git` file or directory found directly inside any
 // directory this walk entered — the item's own subtree holds a nested
 // repository or worktree); `unreadable` (a readdir or lstat failure inside
-// the item was swallowed rather than surfaced); and the item's own root
-// identity (`dev`/`ino`), read once, for a re-check to compare against
-// later without re-walking the whole tree.
+// the item was swallowed rather than surfaced); `other_fs` (an entry
+// anywhere inside the item lives on a different device than the item's own
+// root — a filesystem mounted inside it, which a recursive removal would
+// cross); and the item's own root identity (`dev`/`ino`), read once, for a
+// re-check to compare against later without re-walking the whole tree.
 function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET) {
   let bytes = 0;
   let visited = 0;
   let partial = false;
   let unreadable = false;
   let nestedGit = false;
+  let otherFs = false;
   let newestMs = null;
   let rst;
   try { rst = lstatSync(root); }
-  catch { return { bytes: 0, visited: 0, partial: false, unreadable: true, nested_git: false, newest_ms: null, dev: null, ino: null }; }
+  catch { return { bytes: 0, visited: 0, partial: false, unreadable: true, nested_git: false, other_fs: false, newest_ms: null, dev: null, ino: null }; }
   visited++;
   const dev = rst.dev;
   const ino = rst.ino;
@@ -251,7 +285,7 @@ function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET) {
     for (const name of names) {
       if (budgetLeft != null && visited >= budgetLeft) {
         partial = true;
-        return { bytes, visited, partial, unreadable, nested_git: nestedGit, newest_ms: newestMs, dev, ino };
+        return { bytes, visited, partial, unreadable, nested_git: nestedGit, other_fs: otherFs, newest_ms: newestMs, dev, ino };
       }
       const p = join(dir, name);
       let st;
@@ -261,6 +295,7 @@ function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET) {
         const age = entryAgeMs(st);
         if (newestMs == null || age > newestMs) newestMs = age;
       }
+      if (st.dev !== dev) otherFs = true;
       const key = `${st.dev}:${st.ino}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -268,7 +303,7 @@ function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET) {
       if (st.isDirectory() && !st.isSymbolicLink()) stack.push(p);
     }
   }
-  return { bytes, visited, partial, unreadable, nested_git: nestedGit, newest_ms: newestMs, dev, ino };
+  return { bytes, visited, partial, unreadable, nested_git: nestedGit, other_fs: otherFs, newest_ms: newestMs, dev, ino };
 }
 
 // One absolute path, in isolation: the same facts a matched item carries out
@@ -283,7 +318,7 @@ export function inspectDir(abs, { metadata = EMPTY_SET } = {}) {
   const r = dirBytes(abs, new Set(), null, metadata);
   return {
     exists: true, is_directory: true, is_symlink: false,
-    bytes: r.bytes, newest_ms: r.newest_ms, nested_git: r.nested_git,
+    bytes: r.bytes, newest_ms: r.newest_ms, nested_git: r.nested_git, other_fs: r.other_fs,
     unreadable: r.unreadable, dev: r.dev, ino: r.ino,
   };
 }
@@ -363,12 +398,34 @@ function gitTrackedDirs(root, relPaths) {
 // answers conservatively: nothing ignored, EVERY given path tracked. That is
 // the one direction that can never turn real content into something a
 // caller believes is safe to remove.
+//
+// gitCommonDir itself can fail (`git rev-parse` non-zero) for a reason that
+// says nothing about repository membership at all — "dubious ownership"
+// (git's own safe.directory guard), a timeout, a corrupt HEAD — exactly the
+// same way check-ignore/ls-files can below, and its own return value alone
+// cannot tell "not a repository" apart from "cannot tell right now" (S1,
+// independent review, 2026-09-18). A plain filesystem check for `.git` at
+// root or any ancestor settles which: found one — conservative, the same
+// fallback every other git failure here already uses; found none anywhere
+// above — genuinely not a repository, `repo: false` as before.
+function hasGitAnywhereAbove(dir) {
+  let cur = resolve(dir);
+  for (;;) {
+    try { lstatSync(join(cur, ".git")); return true; } catch { /* not here */ }
+    const parent = dirname(cur);
+    if (parent === cur) return false; // reached the filesystem root
+    cur = parent;
+  }
+}
+
 export function gitFacts(root, relPaths) {
   if (!relPaths.length) return { repo: true, ignored: new Set(), tracked: new Set() };
-  if (!gitCommonDir(root)) return { repo: false, ignored: new Set(), tracked: new Set() };
+  const conservative = () => ({ repo: true, ignored: new Set(), tracked: new Set(relPaths) });
+  if (!gitCommonDir(root)) {
+    return hasGitAnywhereAbove(root) ? conservative() : { repo: false, ignored: new Set(), tracked: new Set() };
+  }
 
   const posix = relPaths.map((p) => p.split(sep).join("/"));
-  const conservative = () => ({ repo: true, ignored: new Set(), tracked: new Set(relPaths) });
 
   let r;
   try {
@@ -414,9 +471,10 @@ function hasCachedirTag(dirAbs) {
 //
 // Output: { root, complete, bytes_at_least, entries_visited, entry_budget,
 // subprocess_calls, dirs: [{ path, bytes, partial, newest_ms, nested_git,
-// in_nested_repo, unreadable, dev, ino, match, tool, origin, regenerable,
-// stale_days, clean, clean_argv }] } — the same shape whether the walk ran
-// to completion or was stopped by the budget. `dirs[].path` is root-relative
+// in_nested_repo, unreadable, other_fs, dev, ino, match, tool, origin,
+// regenerable, stale_days, clean, clean_argv }] } — the same shape whether
+// the walk ran to completion or was stopped by the budget. `dirs[].path` is
+// root-relative
 // for directories inside the project, and an absolute path for a match a
 // locator found outside it. `match` is "tag"/"sure"/"generic"/"locator";
 // `tool`/`origin`/… are the owning registry entry's own fields (null for a
@@ -503,7 +561,7 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
       if (budgetHit()) {
         dirs.push({
           path: m.rel, bytes: 0, partial: true,
-          newest_ms: null, nested_git: false, in_nested_repo: inNestedRepo, unreadable: false,
+          newest_ms: null, nested_git: false, in_nested_repo: inNestedRepo, unreadable: false, other_fs: false,
           dev: null, ino: null, match: m.match,
           tool: owner.tool, origin: owner.origin, regenerable: owner.regenerable,
           stale_days: owner.stale_days, clean: owner.clean, clean_argv: owner.clean_argv,
@@ -519,7 +577,7 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
       dirs.push({
         path: m.rel, bytes: r.bytes, partial: r.partial,
         newest_ms: r.newest_ms, nested_git: r.nested_git, in_nested_repo: inNestedRepo, unreadable: r.unreadable,
-        dev: r.dev, ino: r.ino, match: m.match,
+        other_fs: r.other_fs, dev: r.dev, ino: r.ino, match: m.match,
         tool: owner.tool, origin: owner.origin, regenerable: owner.regenerable,
         stale_days: owner.stale_days, clean: owner.clean, clean_argv: owner.clean_argv,
       });
@@ -745,7 +803,8 @@ export function measureCaches(candidates, { metadata = EMPTY_SET } = {}) {
       item: cand.item ?? null,
       confidence: cand.confidence, docs: cand.docs, notes: cand.notes, regenerable: cand.regenerable ?? null,
       manual: cand.manual === true, clean_argv: cand.clean_argv ?? null, clean_docs: cand.clean_docs ?? null,
-      stale_days: cand.stale_days ?? null, newest_ms: r.newest_ms, unreadable: r.unreadable, dev: r.dev, ino: r.ino,
+      stale_days: cand.stale_days ?? null, newest_ms: r.newest_ms, unreadable: r.unreadable, other_fs: r.other_fs,
+      dev: r.dev, ino: r.ino,
     });
   }
   out.dropped = candidates.dropped || 0;

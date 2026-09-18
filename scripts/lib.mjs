@@ -1766,7 +1766,11 @@ export function parseFrontmatter(md) {
 // `input` before resolving, whichever way — an open, non-paused stdin is a
 // handle Node will wait on, and a command that asked once must still be
 // able to exit on its own afterwards.
-export function askYesNo(question, { input = process.stdin, output = process.stdout, timeoutMs = 60000 } = {}) {
+// `output` defaults to stderr, not stdout: a caller piping `--json` (or
+// anything else) reads stdout as data, and an interactive question written
+// there would land inside that stream instead of in front of the person
+// answering it.
+export function askYesNo(question, { input = process.stdin, output = process.stderr, timeoutMs = 60000 } = {}) {
   return new Promise((resolvePromise) => {
     const rl = createInterface({ input, output });
     let settled = false;
@@ -1786,5 +1790,8 @@ export function askYesNo(question, { input = process.stdin, output = process.std
     // EOF before any line was ever entered — the question's own callback
     // never fires in that case, so this is the only way to observe it.
     rl.on("close", () => finish(false));
+    // Ctrl-C at the prompt is "no", not an uncaught readline exit — the
+    // caller's own answer/timeout path is the only other way this settles.
+    rl.on("SIGINT", () => finish(false));
   });
 }

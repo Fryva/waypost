@@ -78,7 +78,16 @@ function sanitizeArtifact(a, i, file, notes) {
   if (!(okName === true || okPrefix === true)) { drop(null, "has no usable name or prefix"); return null; }
   if (a.match !== "sure" && a.match !== "generic") { drop("match", `${JSON.stringify(a.match)} must be "sure" or "generic"`); return null; }
 
-  const out = { match: a.match, regenerable: typeof a.regenerable === "boolean" ? a.regenerable : false };
+  // `origin: "project"` is stamped on the ARTIFACT itself, not only on the
+  // entry that carries it: an entry merged from a project file extending a
+  // shipped id (loadRegistry below) keeps the entry's own origin "shipped"
+  // (it is still fundamentally the shipped definition), but this one
+  // artifact — glued on by a project's own toolchains data — must still be
+  // recognized as project-origin wherever ownership is resolved
+  // (scripts/sizes.mjs's compileArtifacts), or it would silently inherit
+  // the shipped bypass that lets an un-ignored match through without a
+  // tracked-file check (the ADR's own "project data is data only" rule).
+  const out = { match: a.match, regenerable: typeof a.regenerable === "boolean" ? a.regenerable : false, origin: "project" };
   if (okName === true) out.name = a.name;
   if (okPrefix === true) out.prefix = a.prefix;
   if (Number.isFinite(a.stale_days) && a.stale_days > 0) out.stale_days = a.stale_days;

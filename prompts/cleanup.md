@@ -25,12 +25,15 @@ by hand instead of this.
      candidate for removal.
    - **can** — regenerable but recently used, a generic name (`build`,
      `dist`, …), a machine-wide cache, or a directory of tool versions.
-     Removed only by id, one at a time, never in bulk.
+     Removed only by id, never by passing `should`.
    - **keep** — never removed. Held by a lease, in use, not regenerable,
-     holds a tracked file or a nested repository, or a path this project
-     does not own. Do not suggest it, whatever a user asks.
-   - **manual** items name their own clean command in prose. The user runs
-     that themselves; waypost never executes it.
+     holds a tracked file, a nested repository or a mount point, or a path
+     this project does not own. Do not suggest it, whatever a user asks.
+   - a `can` item can also carry `manual: true` in `--json` — not a fourth
+     class, a flag: it names its own clean command in `clean` (and a
+     `clean_docs` URL) instead of a route waypost can run. Show the user
+     that command; they run it themselves. Refused even by id, the same as
+     `keep` — never retry it with `--yes`.
 
 3. **Removal needs the user's own yes, right here in this conversation, for
    exactly what you are about to name.** Not "clean up my disk" in general —
@@ -44,9 +47,9 @@ by hand instead of this.
    `--reason` records who agreed and when, in your own words — it is what
    makes this different from silent automatic removal. `can` items are only
    ever passed by id; never pass `should` meaning to sweep in a `can` item
-   too. `keep` and manual items are refused even by id — do not retry with
-   `--yes` expecting a different answer, and never suggest deleting a manual
-   cache's path directly.
+   too. `keep`, and a `can` item flagged `manual`, are refused even by id —
+   do not retry with `--yes` expecting a different answer, and never suggest
+   deleting a manual cache's path directly.
 
 4. **Report exactly what happened, from the command's own output** — never
    your own guess: which ids were removed, skipped (changed since the plan,

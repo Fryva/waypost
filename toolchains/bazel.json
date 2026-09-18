@@ -26,8 +26,9 @@
         "darwin": "inferred"
       },
       "docs": "https://bazel.build/remote/output-directories",
-      "notes": "Bazel's default output-base root on macOS (TMPDIR-based); not present on this machine.",
+      "notes": "Bazel's default output-base root on macOS (TMPDIR-based); not present on this machine. Read-only build outputs, and a live bazel server may hold it open.",
       "regenerable": true,
+      "manual": true,
       "clean": "bazel clean --expunge in each workspace"
     },
     {
@@ -39,7 +40,9 @@
         "linux": "documented"
       },
       "docs": "https://bazel.build/remote/output-directories",
+      "notes": "Bazel's default output-base root on Linux. Read-only build outputs, and a live bazel server may hold it open.",
       "regenerable": true,
+      "manual": true,
       "clean": "bazel clean --expunge in each workspace"
     }
   ],

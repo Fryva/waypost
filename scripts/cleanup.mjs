@@ -13,16 +13,28 @@
 //
 // An item is { scope: "project"|"machine", path (absolute — the one
 // coordinate system every function here shares, project or machine alike),
-// bytes, newest_ms, nested_git, in_nested_repo, unreadable, partial
-// (project items only — the walk's own budget cut its byte summation
-// short), match ("tag"|"sure"|"generic"|"locator"), tool, origin
-// ("shipped"|"project"|null), regenerable, stale_days, clean, clean_argv,
-// manual (machine caches only), ignored, tracked (both optional — set by
-// the caller from a batched git check when it has one; left unset, a
-// project item is never assumed not-ignored or tracked just because nobody
-// checked) } — the shape scripts/sizes.mjs's scanProject/scanGlobal already
-// report, once the caller resolves each `path` to an absolute one and (for
-// leases) does the same for whatever it compares against.
+// bytes, newest_ms, nested_git, in_nested_repo, unreadable, other_fs (an
+// entry inside it lives on a different device than its own root — a mount
+// point a recursive removal would cross), partial (project items only — the
+// walk's own budget cut its byte summation short), match
+// ("tag"|"sure"|"generic"|"locator"), tool, origin ("shipped"|"project"|
+// null — per-artifact, never inherited from a merged entry's own origin),
+// regenerable, stale_days, clean, clean_argv, manual (machine caches only),
+// source ("asked"|"env"|"default", machine caches only), askedNonDefault
+// (machine caches only — true when an "asked" path actually differs from
+// what env/default resolution alone would give for the same cache item),
+// ignored, tracked (both optional — set by the caller from a batched git
+// check when it has one; left unset, a project item is never assumed
+// not-ignored or tracked just because nobody checked) } — the shape
+// scripts/sizes.mjs's scanProject/scanGlobal already report, once the
+// caller resolves each `path` to an absolute one and (for leases) does the
+// same for whatever it compares against.
+//
+// facts also carries `projectEcosystemRunning: boolean` — whether any of
+// the project's own detected ecosystem tools (scripts/discovery.mjs's
+// detectManifests) has a live process, the only in-use signal a tag or
+// generic match can lean on (its own owner carries no tool to check by
+// name).
 //
 // Exports:
 //   itemId(scope, abs)                          -> "p-"|"m-" + 10 hex chars
@@ -34,7 +46,8 @@
 //                                                        reason, route, picked }]
 //   orderOldestFirst(items)                       -> items, oldest newest_ms first
 //   countedBytes(items)                           -> number
-//   pickUnderLimit(classifiedItems, limitBytes)   -> Set<path> ("should" picks)
+//   qualifiesForLimit(item, now)                  -> boolean (should + kind + 7-day floor)
+//   pickUnderLimit(classifiedItems, limitBytes, now) -> Set<path> ("should" picks)
 //   recheck(item, freshFacts, facts)              -> { class, reason, route, changed }
 //   consent({ yes, reason, isTTY, harnessDetected }) -> { method, ok, reason? }
 //   logLine(entry)                                -> one JSON line, no trailing "\n"
@@ -143,6 +156,14 @@ export function routeFor(item) {
   if (item.scope === "machine") {
     if (item.manual) return null; // shown as manual instructions, never run
     if (Array.isArray(item.clean_argv) && item.clean_argv.length) return { kind: "tool-clean-argv", argv: item.clean_argv };
+    // An asked (non-default) path with no clean_argv of its own is only
+    // ever removed through the tool that reported it — decided HERE, at
+    // plan time, so the plan itself never shows a route that apply would
+    // always skip. `askedNonDefault` is set by the caller only when the
+    // asked path actually differs from what env/default resolution alone
+    // would give for the same cache item — an asked path that happens to
+    // match the default is exactly as safe as any other default path.
+    if (item.source === "asked" && item.askedNonDefault === true) return null;
     return { kind: "waypost-remove" };
   }
   if (item.nested_git || item.in_nested_repo) return null;
@@ -166,6 +187,7 @@ export function classifyItem(item, facts = {}) {
   if (item.regenerable !== true) return { class: "keep", reason: "the owning entry does not declare regenerable: true", route: null };
   if (item.nested_git) return { class: "keep", reason: "holds a nested repository or worktree", route: null };
   if (item.in_nested_repo) return { class: "keep", reason: "found inside a nested repository", route: null };
+  if (item.other_fs) return { class: "keep", reason: "holds a mount point — a recursive removal would cross filesystems", route: null };
   if (item.scope === "project" && item.origin === "project" && item.ignored === false) {
     return { class: "keep", reason: "a project entry's artifact that git does not ignore", route: null };
   }
@@ -186,6 +208,18 @@ export function classifyItem(item, facts = {}) {
   }
   if (item.tool && facts.runningTools && facts.runningTools.has(item.tool)) {
     return { class: "keep", reason: `${item.tool}'s own process is running`, route };
+  }
+  // A tag match (CACHEDIR.TAG) carries no owning tool at all — it is found
+  // by the tag alone, not by name — so the check above can never protect it
+  // (a long-running LTO link that touches no file for over 10 minutes would
+  // otherwise be unprotected). A generic match's own owner can also be
+  // wrong (the same name is claimed by more than one ecosystem). For both,
+  // fall back to whether ANY of the project's own detected ecosystem tools
+  // (facts.projectEcosystemRunning, from scripts/discovery.mjs's
+  // detectManifests) has a live process — coarser than a per-tool check,
+  // but the only signal available once the match itself names no tool.
+  if ((item.match === "tag" || item.match === "generic") && facts.projectEcosystemRunning) {
+    return { class: "keep", reason: "a project ecosystem tool's own process is running", route };
   }
   // A lease is stored the way presence.mjs's own vaultRel spells a path
   // (vault-relative or project-relative — the caller resolves this once,
@@ -241,31 +275,58 @@ export function orderOldestFirst(items) {
   });
 }
 
-// What counts towards a machine-wide limit (the amended ADR, Decision 3):
-// only project-scope items of the qualifying kinds — an outermost
-// CACHEDIR.TAG, or a registry name the walk marked "sure" AND that the
-// caller confirmed git ignores — counted whatever their own class (idle or
-// not). A generic name, a machine cache, or a "sure" match nobody confirmed
-// ignored never counts, so a limit can never hold hostage to output this
-// plan is not allowed to remove automatically anyway.
+// The KIND of item Decision 3 lets a machine-wide limit see at all: a
+// project-scope match only — an outermost CACHEDIR.TAG, or a registry name
+// the walk marked "sure" — BOTH confirmed git-ignored (the ADR's own
+// qualification string requires this for a tag match too, not only "sure":
+// a CACHEDIR.TAG directory nobody's own ignore rules cover yet is not
+// assumed safe for an UNATTENDED sweep, even though a human's `--apply <id>`
+// may still remove it directly). Never a project-origin artifact either — a
+// project's own toolchains data is less trusted than the shipped registry
+// (the same reasoning behind routeFor's own shipped-only bypass) and must
+// never make itself eligible for automatic, no-questions-asked removal. A
+// generic name, a machine cache, or anything nobody confirmed ignored never
+// counts, so a limit can never hold hostage to output this plan is not
+// allowed to remove automatically anyway.
+function qualifiesForLimitKind(item) {
+  return item.scope === "project" && item.origin !== "project"
+    && (item.match === "tag" || item.match === "sure") && item.ignored === true;
+}
+
+// What counts towards a machine-wide limit's OWN total (the amended ADR,
+// Decision 3) — every item of the qualifying kind, counted whatever its own
+// class (idle or not): the limit tracks total footprint, not just what
+// happens to be pickable right now.
 export function countedBytes(items) {
-  return items
-    .filter((it) => it.scope === "project" && (it.match === "tag" || (it.match === "sure" && it.ignored === true)))
-    .reduce((sum, it) => sum + (it.bytes || 0), 0);
+  return items.filter(qualifiesForLimitKind).reduce((sum, it) => sum + (it.bytes || 0), 0);
+}
+
+// Whether an already-classified item is one a machine-wide limit may
+// actually PICK, not merely count towards its total: the same kind
+// qualification as countedBytes, already classified "should", AND idle past
+// whichever is LARGER of the ADR's own 7-day floor or the item's own
+// stale_days — a registry entry's shorter stale_days can still make an item
+// "should" sooner for a human's own `waypost clean`, but must never let an
+// unattended automatic sweep remove it before 7 days.
+export function qualifiesForLimit(item, now = Date.now()) {
+  if (item.class !== "should") return false;
+  if (!qualifiesForLimitKind(item)) return false;
+  if (item.newest_ms == null) return false;
+  const floorDays = Math.max(DEFAULT_PROJECT_STALE_DAYS, Number.isFinite(item.stale_days) ? item.stale_days : 0);
+  return (now - item.newest_ms) / DAY_MS > floorDays;
 }
 
 // Which already-classified items (classify()'s own per-item output, each
-// carrying `class`) a limit would pick: "should" items of the counted kinds,
-// oldest first, only as many as bring the counted total at or under the
-// limit — never a "can" item, whatever the limit. `limitBytes` of null or
-// undefined picks nothing (no limit set).
-export function pickUnderLimit(classifiedItems, limitBytes) {
+// carrying `class`) a limit would pick: qualifying items oldest first, only
+// as many as bring the counted total at or under the limit — never a "can"
+// item, whatever the limit. `limitBytes` of null or undefined picks nothing
+// (no limit set).
+export function pickUnderLimit(classifiedItems, limitBytes, now = Date.now()) {
   const picks = new Set();
   if (limitBytes == null) return picks;
   let total = countedBytes(classifiedItems);
   if (total <= limitBytes) return picks;
-  const eligible = orderOldestFirst(classifiedItems.filter((it) =>
-    it.class === "should" && it.scope === "project" && (it.match === "tag" || (it.match === "sure" && it.ignored === true))));
+  const eligible = orderOldestFirst(classifiedItems.filter((it) => qualifiesForLimit(it, now)));
   for (const it of eligible) {
     if (total <= limitBytes) break;
     picks.add(it.path);
@@ -285,7 +346,7 @@ export function classify(items, facts = {}, { now = Date.now(), limit = null } =
     const r = classifyItem(item, f);
     return { ...item, id: itemId(item.scope, item.path), class: r.class, reason: r.reason, route: r.route };
   });
-  const picks = pickUnderLimit(classified, limit);
+  const picks = pickUnderLimit(classified, limit, now);
   return classified.map((it) => ({ ...it, picked: picks.has(it.path) }));
 }
 
@@ -301,6 +362,12 @@ export function classify(items, facts = {}, { now = Date.now(), limit = null } =
 export function recheck(item, fresh, facts = {}) {
   if (!fresh || fresh.exists === false) return { class: "keep", reason: "no longer exists", route: null, changed: true };
   if (fresh.is_symlink) return { class: "keep", reason: "replaced by a symlink", route: null, changed: true };
+  // A plain file where a directory used to be — inspectDir reports no
+  // bytes/newest_ms/dev/ino for this shape, so relying on the identity
+  // check below alone would miss it whenever the ORIGINAL item never
+  // captured dev/ino either (a budget-cut match, dev: null/ino: null).
+  // Caught here explicitly instead, before that check ever runs.
+  if (fresh.is_directory === false) return { class: "keep", reason: "no longer a directory", route: null, changed: true };
   const identityChanged = item.dev != null && item.ino != null && (fresh.dev !== item.dev || fresh.ino !== item.ino);
   const merged = {
     ...item, newest_ms: fresh.newest_ms, nested_git: fresh.nested_git, unreadable: fresh.unreadable,
@@ -318,7 +385,10 @@ export function recheck(item, fresh, facts = {}) {
 // still has to actually ask (this module has no I/O); everything else is a
 // final answer.
 export function consent({ yes = false, reason = null, isTTY = false, harnessDetected = false } = {}) {
-  if (yes && reason) return { method: "flag", ok: true, reason };
+  // A reason of all whitespace is not a reason — `--reason "   "` must be
+  // refused the same as no --reason at all, not accepted as a truthy string.
+  const trimmedReason = typeof reason === "string" ? reason.trim() : reason;
+  if (yes && trimmedReason) return { method: "flag", ok: true, reason: trimmedReason };
   if (isTTY && !harnessDetected) return { method: "prompt", ok: null };
   return {
     method: "refused", ok: false,

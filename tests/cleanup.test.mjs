@@ -23,7 +23,7 @@ import { PassThrough } from "node:stream";
 import { askYesNo } from "../scripts/lib.mjs";
 import {
   itemId, runningTools, refusePath, routeFor, classifyItem, classify,
-  orderOldestFirst, countedBytes, pickUnderLimit, recheck, consent, logLine,
+  orderOldestFirst, countedBytes, qualifiesForLimit, pickUnderLimit, recheck, consent, logLine,
   TEN_MINUTES_MS, DAY_MS, DEFAULT_PROJECT_STALE_DAYS, DEFAULT_MACHINE_STALE_DAYS,
 } from "../scripts/cleanup.mjs";
 
@@ -131,6 +131,20 @@ test("routeFor: a manual machine cache has no route; one with clean_argv routes 
   assert.deepEqual(routeFor({ scope: "machine" }), { kind: "waypost-remove" });
 });
 
+// S5 (independent review, 2026-09-18): an "asked" path with no clean_argv
+// of its own is only removed through its own clean_argv when it actually
+// differs from the tool's default resolution — decided HERE, at plan time
+// (askedNonDefault, set by gatherCleanContext), not only discovered later
+// when --apply tries to run it.
+test("routeFor: an asked machine path with no clean_argv has no route only when it actually differs from the default — plan time, not apply time", () => {
+  assert.equal(routeFor({ scope: "machine", source: "asked", askedNonDefault: true }), null,
+    "an asked path that truly moved is never waypost-remove — only its own clean_argv, which this item has none of");
+  assert.deepEqual(routeFor({ scope: "machine", source: "asked", askedNonDefault: false }), { kind: "waypost-remove" },
+    "an asked path that merely agrees with the default is exactly as safe as any other default path");
+  assert.deepEqual(routeFor({ scope: "machine", source: "env" }), { kind: "waypost-remove" },
+    "askedNonDefault never applies outside source: asked");
+});
+
 test("routeFor: a project item holding a nested repository, or found inside one, has no route", () => {
   assert.equal(routeFor({ scope: "project", match: "sure", nested_git: true }), null);
   assert.equal(routeFor({ scope: "project", match: "sure", in_nested_repo: true }), null);
@@ -203,6 +217,36 @@ test("AC 9: a running tool's own item is keep", () => {
   );
   assert.equal(r.class, "keep");
   assert.match(r.reason, /process is running/);
+});
+
+// S7 (independent review, 2026-09-18): a tag match carries no owning tool
+// at all (found by the CACHEDIR.TAG alone, not by name), so the check above
+// can never protect it — a long-running LTO link that touches no file for
+// over 10 minutes would otherwise be unprotected. Falls back to whether ANY
+// of the project's own detected ecosystem tools has a live process.
+test("S7: a tag or generic match with no owning tool falls back to the project's own ecosystem processes being live", () => {
+  const tag = classifyItem(baseItem({ match: "tag", tool: null }), { now: Date.now(), projectEcosystemRunning: true });
+  assert.equal(tag.class, "keep");
+  assert.match(tag.reason, /ecosystem tool/);
+
+  // A generic match needs `ignored: true` even to reach a route at all
+  // (routeFor's own rule) — without one, classifyItem bails out "keep, no
+  // removal route" before ever reaching the in-use checks below it, this
+  // one included.
+  const generic = classifyItem(baseItem({ match: "generic", tool: null, ignored: true }), { now: Date.now(), projectEcosystemRunning: true });
+  assert.equal(generic.class, "keep");
+  assert.match(generic.reason, /ecosystem tool/);
+
+  const idleProject = classifyItem(baseItem({ match: "tag", tool: null }), { now: Date.now(), projectEcosystemRunning: false });
+  assert.notEqual(idleProject.class, "keep", "no ecosystem process running — this signal alone never keeps it");
+
+  // A "sure" match still uses its own tool's process directly — this
+  // fallback is scoped to tag/generic only, where no such link exists.
+  const sureNotRunning = classifyItem(
+    baseItem({ match: "sure", origin: "shipped", tool: "rust" }),
+    { now: Date.now(), runningTools: new Set(), projectEcosystemRunning: true },
+  );
+  assert.notEqual(sureNotRunning.reason, "a project ecosystem tool's own process is running");
 });
 
 test("AC 9: leased by another session, overlapping the item's path in either direction, is keep", () => {
@@ -312,6 +356,14 @@ test("a nested repository — holding one, or found inside one — is always kee
   assert.equal(classifyItem(baseItem({ in_nested_repo: true }), { now: Date.now() }).class, "keep");
 });
 
+// NIT (independent review, 2026-09-18): a mount point inside the item —
+// a recursive removal (rmSync, git clean -d) would cross filesystems.
+test("an item holding a mount point (other_fs) is always keep — a recursive removal would cross filesystems", () => {
+  const r = classifyItem(baseItem({ other_fs: true, newest_ms: Date.now() - 40 * DAY_MS }), { now: Date.now() });
+  assert.equal(r.class, "keep");
+  assert.match(r.reason, /mount point/);
+});
+
 // ─── orderOldestFirst / countedBytes / pickUnderLimit ────────────────────
 
 test("orderOldestFirst: oldest newest_ms first, ties broken by path in code-unit order", () => {
@@ -325,12 +377,20 @@ test("orderOldestFirst: oldest newest_ms first, ties broken by path in code-unit
   assert.deepEqual(ordered, ["z", "a", "b", "y"], "unknown age sorts last, ties go by path");
 });
 
-test("countedBytes: only project items that are a tag match, or a sure match confirmed git-ignored, count", () => {
+test("countedBytes: only project items that are a tag or sure match, confirmed git-ignored, and never project-origin, count", () => {
   const items = [
-    { scope: "project", match: "tag", bytes: 100 },
+    { scope: "project", match: "tag", ignored: true, bytes: 100 },
     { scope: "project", match: "sure", ignored: true, bytes: 200 },
     { scope: "project", match: "sure", ignored: false, bytes: 9999 },
     { scope: "project", match: "generic", ignored: true, bytes: 9999 },
+    // S10 (independent review, 2026-09-18): a tag match also needs
+    // ignored === true now, per the ADR's own qualification string — not
+    // exempted the way it used to be.
+    { scope: "project", match: "tag", ignored: false, bytes: 9999 },
+    // A project-origin artifact never counts either, however confirmed
+    // ignored — a project's own toolchains data is less trusted than the
+    // shipped registry (routeFor's own shipped-only bypass).
+    { scope: "project", match: "sure", origin: "project", ignored: true, bytes: 9999 },
     { scope: "machine", match: null, bytes: 9999 },
   ];
   assert.equal(countedBytes(items), 300);
@@ -342,11 +402,11 @@ test("countedBytes: only project items that are a tag match, or a sure match con
 test("AC 11: a limit picks should items of the counted kinds, oldest first, only as many as bring the total under it", () => {
   const now = Date.now();
   const items = [
-    baseItem({ path: "/proj/oldest", match: "tag", bytes: 300 * 1024 * 1024, newest_ms: now - 40 * DAY_MS }),
-    baseItem({ path: "/proj/older", match: "tag", bytes: 300 * 1024 * 1024, newest_ms: now - 30 * DAY_MS }),
-    baseItem({ path: "/proj/recent-but-idle-enough", match: "tag", bytes: 300 * 1024 * 1024, newest_ms: now - 8 * DAY_MS }),
+    baseItem({ path: "/proj/oldest", match: "tag", ignored: true, bytes: 300 * 1024 * 1024, newest_ms: now - 40 * DAY_MS }),
+    baseItem({ path: "/proj/older", match: "tag", ignored: true, bytes: 300 * 1024 * 1024, newest_ms: now - 30 * DAY_MS }),
+    baseItem({ path: "/proj/recent-but-idle-enough", match: "tag", ignored: true, bytes: 300 * 1024 * 1024, newest_ms: now - 8 * DAY_MS }),
     // Within stale_days: can, never picked, however large.
-    baseItem({ path: "/proj/fresh", match: "tag", bytes: 1000 * 1024 * 1024, newest_ms: now - 1 * DAY_MS }),
+    baseItem({ path: "/proj/fresh", match: "tag", ignored: true, bytes: 1000 * 1024 * 1024, newest_ms: now - 1 * DAY_MS }),
   ];
   // The counted total (Decision 3: "idle or not") is all four tag items,
   // 1900 MiB, because a limit's total tracks everything of the qualifying
@@ -372,15 +432,50 @@ test("AC 11: a limit picks should items of the counted kinds, oldest first, only
 
 test("pickUnderLimit: a limit already under the counted total picks nothing", () => {
   const classified = [
-    { path: "a", scope: "project", match: "tag", bytes: 100, class: "should", newest_ms: 1 },
+    { path: "a", scope: "project", match: "tag", ignored: true, bytes: 100, class: "should", newest_ms: 1 },
   ];
   assert.equal(pickUnderLimit(classified, 1000).size, 0);
 });
 
 test("pickUnderLimit: no limit given picks nothing", () => {
-  const classified = [{ path: "a", scope: "project", match: "tag", bytes: 100, class: "should", newest_ms: 1 }];
+  const classified = [{ path: "a", scope: "project", match: "tag", ignored: true, bytes: 100, class: "should", newest_ms: 1 }];
   assert.equal(pickUnderLimit(classified, null).size, 0);
   assert.equal(pickUnderLimit(classified, undefined).size, 0);
+});
+
+// S10 (independent review, 2026-09-18): qualifiesForLimit itself — the
+// stricter bar an automatic sweep needs beyond a plain "should" item.
+test("qualifiesForLimit: a project-origin artifact never qualifies, however confirmed ignored and idle", () => {
+  const now = Date.now();
+  const item = {
+    scope: "project", match: "sure", origin: "project", ignored: true,
+    class: "should", newest_ms: now - 40 * DAY_MS, stale_days: null,
+  };
+  assert.equal(qualifiesForLimit(item, now), false);
+});
+
+test("qualifiesForLimit: idle past a registry's own SHORTER stale_days is still not enough — the ADR's 7-day floor wins", () => {
+  const now = Date.now();
+  // 3 days idle: past this item's own (very short) stale_days of 1, so
+  // classifyItem already calls it "should" — but nowhere near the 7-day
+  // floor a machine-wide sweep needs before it may pick anything.
+  const item = {
+    scope: "project", match: "tag", ignored: true,
+    class: "should", newest_ms: now - 3 * DAY_MS, stale_days: 1,
+  };
+  assert.equal(qualifiesForLimit(item, now), false, "3 days is should, but under the 7-day floor for an automatic sweep");
+  const older = { ...item, newest_ms: now - 8 * DAY_MS };
+  assert.equal(qualifiesForLimit(older, now), true, "past the floor, it qualifies");
+});
+
+test("qualifiesForLimit: a registry's own LONGER stale_days still applies — the floor is a minimum, not a fixed 7 days", () => {
+  const now = Date.now();
+  const base = { scope: "project", match: "tag", ignored: true, class: "should", stale_days: 30 };
+  // 20 days: past a fixed 7-day floor, but not past this item's own longer
+  // 30-day stale_days — max(7, 30) must still refuse it.
+  assert.equal(qualifiesForLimit({ ...base, newest_ms: now - 20 * DAY_MS }, now), false);
+  // 35 days: past both.
+  assert.equal(qualifiesForLimit({ ...base, newest_ms: now - 35 * DAY_MS }, now), true);
 });
 
 // ─── classify() end to end (pure) ─────────────────────────────────────────
@@ -421,6 +516,20 @@ test("recheck: no identity on the original item (never captured) never falsely r
   assert.equal(r.changed, false);
 });
 
+// NIT (independent review, 2026-09-18): replaced by a plain FILE (not a
+// symlink) — inspectDir's own shape for this carries no bytes/dev/ino, so
+// an item whose ORIGINAL dev/ino was never captured (a budget-cut match)
+// would otherwise slip past the identity check with nothing left to catch
+// it.
+test("recheck: replaced by a plain file (not a symlink) is reported changed and kept, even with no original identity to compare", () => {
+  const item = baseItem({ match: "tag", dev: null, ino: null });
+  const fresh = { exists: true, is_directory: false, is_symlink: false };
+  const r = recheck(item, fresh, { now: Date.now() });
+  assert.equal(r.class, "keep");
+  assert.equal(r.changed, true);
+  assert.match(r.reason, /no longer a directory/);
+});
+
 // ─── consent / logLine ─────────────────────────────────────────────────────
 
 test("consent: --yes with a reason is a final yes; a terminal with no harness needs an actual prompt; otherwise refused, naming the escape hatch", () => {
@@ -434,6 +543,16 @@ test("consent: --yes with a reason is a final yes; a terminal with no harness ne
 test("consent: --yes without a reason, or a harness detected even on a terminal, is refused", () => {
   assert.equal(consent({ yes: true }).ok, false);
   assert.equal(consent({ isTTY: true, harnessDetected: true }).ok, false);
+});
+
+// NIT (independent review, 2026-09-18): a reason of all whitespace is not a
+// reason.
+test("consent: --yes with a whitespace-only reason is refused, the same as no --reason at all", () => {
+  assert.equal(consent({ yes: true, reason: "   " }).ok, false);
+  assert.equal(consent({ yes: true, reason: "\t\n" }).ok, false);
+  const trimmed = consent({ yes: true, reason: "  the owner agreed  " });
+  assert.equal(trimmed.ok, true);
+  assert.equal(trimmed.reason, "the owner agreed", "the stored reason is trimmed too");
 });
 
 test("logLine: one JSON object per call, tagged as an apply, with every field passed through", () => {
@@ -517,6 +636,21 @@ test("waypost clean --json: a tagged directory appears with a class and reason, 
   assert.ok(typeof item.reason === "string" && item.reason.length > 0);
 });
 
+// S3 (independent review, 2026-09-18): without a live process table (win32,
+// or `ps` itself unavailable/failing), in-use protection silently fell back
+// to recency alone with nothing in the plan saying so. `in_use_signal` is
+// what the plan says instead — this machine's own real `ps` normally
+// succeeds, so a hermetic pass mainly locks in the FIELD itself.
+test("S3: the plan says whether in-use protection has a live process table to lean on", () => {
+  const root = tagProjectFixture();
+  const home = tmpRoot("waypost-cleanup-s3-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const r = runClean(root, home, fakeHome, ["--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.ok(["process-table", "recency-only"].includes(out.in_use_signal), JSON.stringify(out.in_use_signal));
+});
+
 // AC 1: a non-ignored CACHEDIR.TAG directory holding a tracked file is kept,
 // with the report saying why — the exact scenario the gitFacts fix (all
 // candidates checked for tracked-ness, not only the ignored ones) exists
@@ -564,6 +698,22 @@ test("AC 10: a project root that itself carries CACHEDIR.TAG never appears as an
   const out = JSON.parse(r.stdout);
   assert.ok(!out.items.some((i) => i.path === root || i.rel === ""), JSON.stringify(out.items));
 });
+
+// S9 (independent review, 2026-09-18): scanProject itself throws for $HOME
+// (and "/") as a project root — before the fix, gatherCleanContext called
+// it unconditionally, so `waypost clean` (and setup's own audit) would fail
+// outright whenever there is no project bound (projectRoot() falls back to
+// HOME). The machine scope is still planned; only the project scope is
+// skipped.
+test("S9: a project root that is home itself never throws — the plan is machine-only", () => {
+  const home = tmpRoot("waypost-cleanup-s9-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const r = runClean(home, home, fakeHome, ["--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.ok(!out.items.some((i) => i.scope === "project"), JSON.stringify(out.items));
+});
+
 
 // AC 9 end to end: another live session's lease on a path is honoured by the
 // plan, exactly the way the pure unit test above proves in isolation.
@@ -621,11 +771,19 @@ test("waypost clean --apply can: refused outright — can items are removed only
 
 // ─── AC 7: consent — a detected harness, or no TTY, refuses before scanning ──
 
+// Both AC 7 tests below reach the refusal branch in handleClean that logs
+// BEFORE the machine-wide slot is even claimed — so, unlike most refusals
+// tested above by their message alone, this one really does write a
+// cleanup.<host>.jsonl line. A hermetic HOME (machineEnv, not a raw
+// `...process.env` spread) keeps that write inside a temp directory rather
+// than this machine's own real machine-state directory.
 test("AC 7: a detected harness (WAYPOST_HARNESS=claude), no --yes/--reason, refuses before touching anything — exit non-zero, names the flags and the prompt", () => {
   const root = tagProjectFixture();
+  const home = tmpRoot("waypost-cleanup-ac7-harness-home-");
+  const fakeHome = fakeToolchainsHome([]);
   const r = spawnSync(process.execPath, [Waypost, "clean", "--apply", "p-doesnotmatter"], {
     encoding: "utf8", cwd: root,
-    env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: "1", WAYPOST_HARNESS: "claude" },
+    env: machineEnv(home, fakeHome, { WAYPOST_PROJECT_DIR: root, WAYPOST_HARNESS: "claude" }),
   });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /--yes --reason/);
@@ -635,9 +793,11 @@ test("AC 7: a detected harness (WAYPOST_HARNESS=claude), no --yes/--reason, refu
 
 test("AC 7: no TTY (a spawned process has none) also refuses without --yes --reason, same message", () => {
   const root = tagProjectFixture();
+  const home = tmpRoot("waypost-cleanup-ac7-notty-home-");
+  const fakeHome = fakeToolchainsHome([]);
   const r = spawnSync(process.execPath, [Waypost, "clean", "--apply", "p-doesnotmatter"], {
     encoding: "utf8", cwd: root, stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: "1" },
+    env: machineEnv(home, fakeHome, { WAYPOST_PROJECT_DIR: root }),
   });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /--yes --reason/);
@@ -669,6 +829,29 @@ test("askYesNo: 'y'/'yes' (any case, trimmed) resolve true; every other answer r
     input.write(line);
     assert.equal(await p, expected, `answer ${JSON.stringify(line)}`);
   }
+});
+
+// NIT (independent review, 2026-09-18): the prompt goes to stderr by
+// default, never stdout — a caller piping `--json` reads stdout as data,
+// and an interactive question written there would land inside that stream.
+test("askYesNo: with no output override, the prompt is written to stderr, never stdout", async () => {
+  const input = new PassThrough();
+  const realStderrWrite = process.stderr.write.bind(process.stderr);
+  const realStdoutWrite = process.stdout.write.bind(process.stdout);
+  let stderrChunks = "";
+  let stdoutChunks = "";
+  process.stderr.write = (chunk, ...rest) => { stderrChunks += chunk; return realStderrWrite(chunk, ...rest); };
+  process.stdout.write = (chunk, ...rest) => { stdoutChunks += chunk; return realStdoutWrite(chunk, ...rest); };
+  try {
+    const p = askYesNo("Remove? [y/N] ", { input, timeoutMs: 2000 });
+    input.write("n\n");
+    await p;
+  } finally {
+    process.stderr.write = realStderrWrite;
+    process.stdout.write = realStdoutWrite;
+  }
+  assert.match(stderrChunks, /Remove\? \[y\/N\] /);
+  assert.doesNotMatch(stdoutChunks, /Remove\? \[y\/N\] /);
 });
 
 // ─── AC 1: keep is refused by id, with the real reason, others still apply ──
@@ -907,6 +1090,105 @@ test("AC 4 (apply): a project's own toolchain artifact that git does not ignore 
   assert.ok(existsSync(join(root, "myoutput", "f.bin")));
 });
 
+// ─── B1 (independent review, 2026-09-18): a project entry extending a
+// shipped id, or reusing a shipped artifact's own name, must never inherit
+// or hijack the shipped bypass ────────────────────────────────────────────
+
+// The coordinator's own repro: `.waypost/toolchains/swiftpm.json` extends a
+// (here, fake) shipped "swiftpm" entry with an artifact named "wip",
+// regenerable and a near-zero stale_days — before the fix, the merged
+// entry's own origin ("shipped", unchanged by extension) leaked onto this
+// ADDED artifact too, so an ordinary untracked, un-ignored "wip/" directory
+// (never git's own build output by any rule) got routed straight to
+// waypost-remove with no tracked-file or ignore check at all.
+test("B1: a project entry extending a shipped id's own artifact never inherits the shipped bypass — an un-ignored directory stays keep, refused by id, survives", () => {
+  const root = tmpRoot("waypost-cleanup-b1-extend-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  mkdirSync(join(root, ".waypost", "toolchains"), { recursive: true });
+  writeFileSync(join(root, ".waypost", "toolchains", "swiftpm.json"), JSON.stringify({
+    id: "swiftpm", name: "extends the shipped entry",
+    artifacts: [{ name: "wip", match: "sure", regenerable: true, stale_days: 0.001, clean: "x" }],
+  }), "utf8");
+  mkdirSync(join(root, "wip"), { recursive: true });
+  writeFileSync(join(root, "wip", "notes.md"), "not build output\n", "utf8");
+  git(root, ["add", ".waypost"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+
+  const home = tmpRoot("waypost-cleanup-b1-extend-home-");
+  // A fake SHIPPED "swiftpm" entry, so this project file genuinely extends
+  // a shipped id, exactly the reviewer's own repro shape — never the real
+  // toolchains/swiftpm.json.
+  const fakeHome = fakeToolchainsHome([
+    { id: "swiftpm", artifacts: [{ name: ".build", match: "sure", regenerable: true, clean: "swift package clean" }] },
+  ]);
+  const now = futureClock();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const item = plan.items.find((i) => i.rel === "wip");
+  assert.ok(item, JSON.stringify(plan.items));
+  assert.equal(item.class, "keep", "never should, whatever stale_days the project artifact claims");
+  assert.match(item.reason, /does not ignore/);
+
+  const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "B1", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 1, r.stderr);
+  const out = JSON.parse(r.stdout);
+  const applied = out.items.find((i) => i.id === item.id);
+  assert.equal(applied.result, "refused");
+  assert.ok(existsSync(join(root, "wip", "notes.md")), "nothing was removed");
+});
+
+// A project's own toolchains data can only ADD a name — never take over a
+// name a SHIPPED artifact already claims, whatever the two ids sort as
+// alphabetically. Reusing ".build" (owned by the fake shipped "swiftpm"
+// entry) from an unrelated project-only id must leave the shipped item's
+// own classification exactly as it would be without the hijack attempt.
+test("B1: a project artifact reusing a shipped artifact's own name never takes over its ownership — the shipped item's own policy still governs, survives", () => {
+  const root = tmpRoot("waypost-cleanup-b1-reuse-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  mkdirSync(join(root, ".waypost", "toolchains"), { recursive: true });
+  // "zzz-evil" sorts after "swiftpm" alphabetically — loadRegistry's own
+  // entries are sorted by id, so this is exactly the ordering that would
+  // let a naive "last artifact wins" ownerByName lose to the hijack.
+  writeFileSync(join(root, ".waypost", "toolchains", "zzz-evil.json"), JSON.stringify({
+    id: "zzz-evil", name: "hijack attempt",
+    artifacts: [{ name: ".build", match: "sure", regenerable: false, stale_days: 999 }],
+  }), "utf8");
+  mkdirSync(join(root, ".build"), { recursive: true });
+  writeFileSync(join(root, ".build", "obj.bin"), Buffer.alloc(2000, 1));
+  writeFileSync(join(root, ".gitignore"), ".build/\n", "utf8");
+  git(root, ["add", ".waypost", ".gitignore"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+
+  const home = tmpRoot("waypost-cleanup-b1-reuse-home-");
+  const fakeHome = fakeToolchainsHome([
+    { id: "swiftpm", artifacts: [{ name: ".build", match: "sure", regenerable: true, clean: "swift package clean" }] },
+  ]);
+  // Past the 7-day project stale_days window — proves the shipped entry's
+  // own (unset -> default 7-day) staleness governs, not the hijack's own
+  // stale_days: 999, which would keep this "can" forever if it had won.
+  const now = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const item = plan.items.find((i) => i.rel === ".build");
+  assert.ok(item, JSON.stringify(plan.items));
+  // The shipped swiftpm entry's own policy (regenerable: true) still
+  // governs — confirmed ignored routes through git-clean-x regardless of
+  // origin, exactly as it would with no hijack entry present at all; the
+  // hijack's own regenerable: false, stale_days: 999 never took effect
+  // (regenerable: false would have made this keep forever instead).
+  assert.equal(item.class, "should");
+  assert.deepEqual(item.route, { kind: "git-clean-x" });
+
+  const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "B1", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  const applied = out.items.find((i) => i.id === item.id);
+  assert.equal(applied.result, "removed");
+  assert.ok(!existsSync(join(root, ".build")), "the shipped artifact's own item was removed on its own policy");
+});
+
 // ─── AC 5: a machine cache without clean_argv, and a manual one ────────────
 
 test("AC 5 (apply): a machine cache with no clean_argv is removed by Waypost itself; its own prose clean text is shown, never run", () => {
@@ -950,6 +1232,7 @@ test("AC 5 (apply): a manual machine cache is refused by id, and its own clean t
       path: "$HOME/manual-cache", os: ["darwin", "linux", "win32"],
       confidence: { darwin: "verified", linux: "verified", win32: "verified" },
       regenerable: true, manual: true, clean: "sometool prune --all (machine-wide, never run automatically)",
+      clean_docs: "https://example.com/sometool/prune",
     }],
   }]);
   const root = tmpRoot("waypost-cleanup-ac5b-proj-");
@@ -959,6 +1242,12 @@ test("AC 5 (apply): a manual machine cache is refused by id, and its own clean t
   const item = plan.items.find((i) => i.scope === "machine" && i.path === cacheDir);
   assert.ok(item, JSON.stringify(plan.items));
   assert.equal(item.class, "can");
+  // S4 (independent review, 2026-09-18): the plan itself carries a manual
+  // item's own instructions — manual/clean/clean_docs — not only the
+  // reason it stopped there.
+  assert.equal(item.manual, true);
+  assert.match(item.clean, /prune/);
+  assert.equal(item.clean_docs, "https://example.com/sometool/prune");
 
   const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC5", "--json"], { WAYPOST_CLEAN_NOW: now });
   assert.equal(r.status, 1, r.stderr);

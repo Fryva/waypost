@@ -28,8 +28,9 @@
         "linux": "inferred"
       },
       "docs": "https://guides.rubygems.org/command-reference/#gem-cleanup",
-      "notes": "RubyGems user install directory on Unix; the Windows default is tied to the Ruby installation rather than the home directory, so it is intentionally left off this entry's os list; not present on this machine.",
+      "notes": "RubyGems user install directory on Unix; the Windows default is tied to the Ruby installation rather than the home directory, so it is intentionally left off this entry's os list; not present on this machine. Holds installed gems, not only downloaded ones — some may have no remote source to re-fetch from.",
       "regenerable": true,
+      "manual": true,
       "clean": "gem cleanup"
     }
   ],

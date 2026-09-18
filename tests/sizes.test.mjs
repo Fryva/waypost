@@ -651,6 +651,33 @@ test("gitFacts: any git failure inside a repository (a corrupt index, here) repo
   assert.ok(facts.tracked.has("elsewhere"), "every given candidate is treated as tracked, not only the ones that plausibly could be");
 });
 
+// S1 (independent review, 2026-09-18): `git rev-parse --git-common-dir`
+// itself (gitCommonDir, lib.mjs) can fail for a reason that says nothing
+// about repository membership — "dubious ownership", a timeout, a corrupt
+// HEAD (used here: verified directly against the real git binary that this
+// alone makes rev-parse fail with "not a git repository", while .git itself
+// is untouched) — and its own null return used to read as "repo: false",
+// switching off the tracked-file protection entirely. A `.git` still found
+// on disk must fall back to the same conservative answer every other git
+// failure in this function already gives, not silently no protection.
+test("gitFacts: a gitCommonDir failure (corrupt HEAD, here) with .git still on disk is conservative — every candidate tracked, never repo: false", () => {
+  const root = tmpRoot("waypost-sizes-gitfacts-badhead-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  mkdirSync(join(root, "somedir"), { recursive: true });
+  writeFileSync(join(root, "somedir", "f.txt"), "x", "utf8");
+  git(root, ["add", "somedir/f.txt"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+  writeFileSync(join(root, ".git", "HEAD"), "garbage not a ref\n", "utf8");
+
+  const facts = gitFacts(root, ["somedir", "elsewhere"]);
+  assert.equal(facts.repo, true, "a .git directory is right there — never read as outside git");
+  assert.equal(facts.ignored.size, 0);
+  assert.ok(facts.tracked.has("somedir"));
+  assert.ok(facts.tracked.has("elsewhere"), "conservative for every candidate, the same as any other git failure here");
+});
+
 test("metadataNamesOf: reads the system entry's own list, empty when there is none", () => {
   assert.deepEqual(metadataNamesOf([{ id: "other" }]), new Set());
   assert.deepEqual(metadataNamesOf([{ id: "system", metadata_names: [".DS_Store", "Thumbs.db"] }]), new Set([".DS_Store", "Thumbs.db"]));

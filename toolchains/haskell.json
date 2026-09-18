@@ -43,8 +43,9 @@
         "darwin": "inferred",
         "linux": "inferred"
       },
-      "notes": "Documented default STACK_ROOT on Unix; Windows default differs (commonly %APPDATA%\\stack) so it is intentionally left off this entry's os list; not present on this machine.",
+      "notes": "Documented default STACK_ROOT on Unix; Windows default differs (commonly %APPDATA%\\stack) so it is intentionally left off this entry's os list; not present on this machine. Holds installed GHC versions and snapshots — a directory of versions to choose from, not a plain cache.",
       "regenerable": true,
+      "manual": true,
       "clean": "stack: remove old snapshots and unused GHC installations"
     },
     {

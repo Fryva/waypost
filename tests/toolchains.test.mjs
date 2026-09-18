@@ -172,23 +172,61 @@ test("toolchains/<id>.json: a cache's clean_argv is an array of strings, always 
   }
 });
 
-test("loadRegistry: origin marks a shipped entry \"shipped\", a project-only id \"project\", and stays \"shipped\" once a project extends it", () => {
+// S6 (independent review, 2026-09-18): a cache with clean_argv hands off to
+// the tool itself, which may honor its OWN redirect (ccache's CCACHE_DIR,
+// for one) and clean somewhere other than this entry's own default path —
+// without an `ask`, waypost's own removal path can never re-check that
+// before running the command. Every clean_argv either re-asks, or states in
+// its own data why re-asking does not apply (a fixed, never-redirected
+// location) via `ask_not_needed`.
+test("toolchains/<id>.json: every clean_argv either re-asks (ask) or states in its own data why not (ask_not_needed)", () => {
+  for (const e of shippedOnly()) {
+    for (const c of e.caches || []) {
+      if (!("clean_argv" in c)) continue;
+      const hasAsk = "ask" in c;
+      const hasReason = typeof c.ask_not_needed === "string" && c.ask_not_needed.length > 0;
+      assert.ok(hasAsk || hasReason, `${e.id} ${c.path}: clean_argv needs an ask, or an explicit ask_not_needed reason`);
+    }
+  }
+});
+
+test("loadRegistry: origin marks a shipped entry \"shipped\", a project-only id \"project\" — and, once a project EXTENDS a shipped id, the entry's own origin stays \"shipped\" but the added artifact carries its own origin \"project\", never inherited from the entry around it", () => {
   const shipped = shippedOnly();
   assert.ok(shipped.length > 30);
-  for (const e of shipped) assert.equal(e.origin, "shipped", `${e.id}: a plain shipped-registry load must report origin shipped`);
+  for (const e of shipped) {
+    assert.equal(e.origin, "shipped", `${e.id}: a plain shipped-registry load must report origin shipped`);
+    for (const a of e.artifacts || []) assert.notEqual(a.origin, "project", `${e.id}: a shipped artifact never carries origin project`);
+  }
 
   const root = projectWithToolchain("myorigin.json", {
     id: "myorigin", name: "My Origin Test", artifacts: [{ name: "out", match: "sure", regenerable: true, clean: "x" }],
   });
   const { entries } = loadRegistry({ projectRoot: root });
-  assert.equal(entries.find((e) => e.id === "myorigin").origin, "project", "a brand-new project-only id is origin project");
+  const invented = entries.find((e) => e.id === "myorigin");
+  assert.equal(invented.origin, "project", "a brand-new project-only id is origin project");
+  assert.equal(invented.artifacts[0].origin, "project", "its own artifact carries origin project too");
 
+  // B1 (independent review, 2026-09-18): a project's own toolchains entry
+  // extending a shipped id (here: swiftpm) used to make its ADDED artifact
+  // inherit the ENTRY's own origin "shipped" — through the entry alone, not
+  // the artifact itself — which let an ordinary, un-ignored project
+  // directory (never gitignored, holding no build output at all) get
+  // scripts/sizes.mjs's compileArtifacts to treat it as shipped-verified
+  // and routeFor (scripts/cleanup.mjs) remove it outright, with no
+  // tracked-file or git-ignore check at all — the exact bypass the ADR's
+  // "project data is data only" rule exists to close.
   const extendRoot = projectWithToolchain("swiftpm.json", {
     id: "swiftpm", name: "extends the shipped entry",
     artifacts: [{ name: "MyCustomBuildDir", match: "sure", regenerable: true, clean: "x" }],
   });
   const extended = loadRegistry({ projectRoot: extendRoot }).entries.find((e) => e.id === "swiftpm");
-  assert.equal(extended.origin, "shipped", "extending a shipped entry keeps its own origin — it is not a project invention");
+  assert.equal(extended.origin, "shipped", "the entry itself is still fundamentally the shipped definition");
+  const addedArtifact = extended.artifacts.find((a) => a.name === "MyCustomBuildDir");
+  assert.ok(addedArtifact, JSON.stringify(extended.artifacts));
+  assert.equal(addedArtifact.origin, "project", "the ADDED artifact is never mistaken for a shipped one, whatever the entry's own origin says");
+  const shippedArtifact = extended.artifacts.find((a) => a.name === ".build");
+  assert.ok(shippedArtifact, JSON.stringify(extended.artifacts));
+  assert.notEqual(shippedArtifact.origin, "project", "the entry's own original artifact is unaffected by the project's addition");
 });
 
 test("toolchains/<id>.json: every shipped ask is a well-formed argv+parse, with docs and, for json/kv, a key (WP-17, the discovery story)", () => {

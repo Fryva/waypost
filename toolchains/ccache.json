@@ -87,7 +87,12 @@
       "regenerable": true,
       "clean": "ccache -C",
       "clean_argv": ["ccache", "-C"],
-      "clean_docs": "https://ccache.dev/manual/latest.html#_options_summary"
+      "clean_docs": "https://ccache.dev/manual/latest.html#_options_summary",
+      "ask": {
+        "argv": ["ccache", "--get-config", "cache_dir"],
+        "parse": "line",
+        "docs": "https://ccache.dev/manual/latest.html#_configuration"
+      }
     }
   ],
   "locators": []

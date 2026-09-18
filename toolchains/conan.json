@@ -31,8 +31,9 @@
         "win32": "inferred"
       },
       "docs": "https://docs.conan.io/2/reference/commands/cache.html",
-      "notes": "Conan 2's default CONAN_HOME is the user's home directory on every platform; not installed on this machine.",
+      "notes": "Conan 2's default CONAN_HOME is the user's home directory on every platform; not installed on this machine. Holds locally-exported/built packages alongside downloaded ones — a local export may have no remote copy to re-fetch.",
       "regenerable": true,
+      "manual": true,
       "clean": "conan remove \"*\" -c"
     },
     {
@@ -47,8 +48,9 @@
         "linux": "inferred",
         "win32": "inferred"
       },
-      "notes": "Conan 1.x default cache location; not installed on this machine.",
+      "notes": "Conan 1.x default cache location; not installed on this machine. Holds locally-exported/built packages alongside downloaded ones — a local export may have no remote copy to re-fetch.",
       "regenerable": true,
+      "manual": true,
       "clean": "conan remove \"*\" -f"
     }
   ],
