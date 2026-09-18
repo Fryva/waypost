@@ -20,10 +20,11 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { PassThrough } from "node:stream";
 
-import { askYesNo, machineStateDir } from "../scripts/lib.mjs";
+import { askYesNo, machineStateDir, treesOverlap, REMOVING_DIR, readCleanupSetting, readLastAutoCleanup } from "../scripts/lib.mjs";
 import {
   itemId, runningTools, refusePath, routeFor, classifyItem, classify,
   orderOldestFirst, countedBytes, qualifiesForLimit, pickUnderLimit, recheck, consent, logLine,
+  parseLimit, limitChange, limitDecision, shortfallOf, limitNeed, formatLimit, formatOutcome,
   TEN_MINUTES_MS, DAY_MS, DEFAULT_PROJECT_STALE_DAYS, DEFAULT_MACHINE_STALE_DAYS,
 } from "../scripts/cleanup.mjs";
 
@@ -414,8 +415,8 @@ test("AC 11: a limit picks should items of the counted kinds, oldest first, only
   // 1600, still over a 1300 MiB limit, so the second-oldest is picked too
   // (leaves 1300, at the limit — "at or under" stops there); the third
   // should item and the fresh can item are never touched.
-  const limitBytes = 1300 * 1024 * 1024;
-  const classified = classify(items, { now }, { now, limit: limitBytes });
+  const limit = { kind: "gb", bytes: 1300 * 1024 * 1024 };
+  const classified = classify(items, { now }, { now, limit });
   const oldest = classified.find((i) => i.path === "/proj/oldest");
   const older = classified.find((i) => i.path === "/proj/older");
   const recent = classified.find((i) => i.path === "/proj/recent-but-idle-enough");
@@ -434,7 +435,15 @@ test("pickUnderLimit: a limit already under the counted total picks nothing", ()
   const classified = [
     { path: "a", scope: "project", match: "tag", ignored: true, bytes: 100, class: "should", newest_ms: 1 },
   ];
-  assert.equal(pickUnderLimit(classified, 1000).size, 0);
+  assert.equal(pickUnderLimit(classified, { kind: "gb", bytes: 1000 }).size, 0);
+});
+
+test("pickUnderLimit: kind 'off' picks nothing, whatever the counted total", () => {
+  const now = Date.now();
+  const classified = [
+    { path: "a", scope: "project", match: "tag", ignored: true, bytes: 100, class: "should", newest_ms: now - 40 * DAY_MS },
+  ];
+  assert.equal(pickUnderLimit(classified, { kind: "off" }, now).size, 0);
 });
 
 test("pickUnderLimit: no limit given picks nothing", () => {
@@ -478,6 +487,130 @@ test("qualifiesForLimit: a registry's own LONGER stale_days still applies — th
   assert.equal(qualifiesForLimit({ ...base, newest_ms: now - 35 * DAY_MS }, now), true);
 });
 
+// The lead's own call: an item holding a distributable package, or one
+// whose owning entry opts it out with auto: false, leaves the counted
+// TOTAL too — not merely the picks.
+test("qualifiesForLimit / countedBytes: holds_package or auto: false leaves both the picks and the counted total", () => {
+  const now = Date.now();
+  const base = { scope: "project", match: "tag", ignored: true, class: "should", newest_ms: now - 40 * DAY_MS, bytes: 500 };
+  const withPackage = { ...base, path: "/proj/pkg", holds_package: true };
+  const optedOut = { ...base, path: "/proj/opted-out", auto: false };
+  const ordinary = { ...base, path: "/proj/ordinary" };
+  assert.equal(qualifiesForLimit(withPackage, now), false);
+  assert.equal(qualifiesForLimit(optedOut, now), false);
+  assert.equal(qualifiesForLimit(ordinary, now), true);
+  assert.equal(countedBytes([withPackage, optedOut, ordinary]), 500, "only the ordinary item counts towards the total");
+});
+
+// ─── the machine-wide limit: pure decisions ────────────────────────────────
+
+test("parseLimit: a bare positive number is gigabytes, free:<P>% needs 5-50, off is off, anything else invalid", () => {
+  assert.deepEqual(parseLimit("5"), { kind: "gb", gb: 5, bytes: 5 * GB });
+  assert.deepEqual(parseLimit("0.5"), { kind: "gb", gb: 0.5, bytes: 0.5 * GB });
+  assert.deepEqual(parseLimit("off"), { kind: "off" });
+  assert.deepEqual(parseLimit("free:30%"), { kind: "free", percent: 30 });
+  assert.deepEqual(parseLimit("free:5%"), { kind: "free", percent: 5 }, "5 is the lower bound, accepted");
+  assert.deepEqual(parseLimit("free:50%"), { kind: "free", percent: 50 }, "50 is the upper bound, accepted");
+  assert.equal(parseLimit("free:4%"), null, "below 5% is refused");
+  assert.equal(parseLimit("free:51%"), null, "above 50% is refused");
+  assert.equal(parseLimit("0"), null, "zero is not a positive number");
+  assert.equal(parseLimit("-5"), null);
+  assert.equal(parseLimit("banana"), null);
+  assert.equal(parseLimit(""), null);
+  assert.equal(parseLimit(undefined), null);
+});
+
+test("limitChange: same/set/tighten/loosen/switch/off — gated only for set, tighten and switch", () => {
+  const gb = (n) => parseLimit(String(n));
+  const free = (p) => parseLimit(`free:${p}%`);
+  const off = parseLimit("off");
+
+  assert.deepEqual(limitChange(null, gb(5)), { change: "set", gated: true }, "no limit -> a GB limit");
+  assert.deepEqual(limitChange(off, gb(5)), { change: "set", gated: true }, "off -> a GB limit is also 'set'");
+  assert.deepEqual(limitChange(gb(10), gb(5)), { change: "tighten", gated: true }, "a smaller GB value tightens");
+  assert.deepEqual(limitChange(gb(5), gb(10)), { change: "loosen", gated: false }, "a larger GB value loosens");
+  assert.deepEqual(limitChange(gb(5), gb(5)), { change: "same", gated: false });
+  assert.deepEqual(limitChange(free(30), free(40)), { change: "tighten", gated: true }, "a LARGER percent tightens free:");
+  assert.deepEqual(limitChange(free(40), free(30)), { change: "loosen", gated: false }, "a smaller percent loosens free:");
+  assert.deepEqual(limitChange(free(30), free(30)), { change: "same", gated: false });
+  assert.deepEqual(limitChange(gb(5), free(30)), { change: "switch", gated: true });
+  assert.deepEqual(limitChange(free(30), gb(5)), { change: "switch", gated: true });
+  assert.deepEqual(limitChange(gb(5), off), { change: "off", gated: false });
+  assert.deepEqual(limitChange(null, off), { change: "same", gated: false }, "no limit -> off is a no-op");
+  assert.deepEqual(limitChange(off, off), { change: "same", gated: false });
+});
+
+test("limitDecision: ungated changes need nothing at all; a gated one refuses a harness, a check error or no terminal, and only prompts a clean TTY", () => {
+  assert.deepEqual(limitDecision({ gated: false }), { method: "none", ok: true });
+  assert.deepEqual(limitDecision({ gated: false, harness: "claude", isTTY: false }), { method: "none", ok: true }, "off/loosening never consult the gate at all");
+
+  const withHarness = limitDecision({ gated: true, harness: "claude", isTTY: true });
+  assert.equal(withHarness.ok, false);
+  assert.match(withHarness.reason, /claude/);
+
+  const errored = limitDecision({ gated: true, checkError: true, isTTY: true });
+  assert.equal(errored.ok, false, "the gate itself could not be evaluated — refused, never treated as 'no harness'");
+
+  const noTty = limitDecision({ gated: true, isTTY: false });
+  assert.equal(noTty.ok, false);
+
+  assert.deepEqual(limitDecision({ gated: true, isTTY: true }), { method: "prompt", ok: null }, "no harness, no error, a real terminal — the caller still has to ask");
+});
+
+test("shortfallOf: the bytes still short of the floor, from one statfs-shaped reading, never negative", () => {
+  assert.equal(shortfallOf({ size: 1000, avail: 100 }, 30), 200, "30% of 1000 is 300; 300 - 100 = 200 short");
+  assert.equal(shortfallOf({ size: 1000, avail: 500 }, 30), 0, "already above the floor — never negative");
+  assert.equal(shortfallOf({ size: 0, avail: 0 }, 30), 0);
+});
+
+test("limitNeed: a GB limit's need is the counted total minus the limit; eligible items are oldest first, whatever device they are on", () => {
+  const now = Date.now();
+  const items = [
+    baseItem({ path: "/proj/a", match: "tag", ignored: true, bytes: 100, class: "should", newest_ms: now - 40 * DAY_MS, dev: 1 }),
+    baseItem({ path: "/proj/b", match: "tag", ignored: true, bytes: 100, class: "should", newest_ms: now - 30 * DAY_MS, dev: 2 }),
+  ];
+  const { counted, need, eligible } = limitNeed(items, { kind: "gb", bytes: 50 }, now);
+  assert.equal(counted, 200);
+  assert.equal(need, 150);
+  assert.deepEqual(eligible.map((i) => i.path), ["/proj/a", "/proj/b"], "oldest first — a GB limit is never restricted by device");
+});
+
+test("limitNeed: under free:<P>%, need is the caller's own precomputed shortfall, and eligible items are restricted to the root's own device", () => {
+  const now = Date.now();
+  const items = [
+    baseItem({ path: "/proj/a", match: "tag", ignored: true, bytes: 100, class: "should", newest_ms: now - 40 * DAY_MS, dev: 1 }),
+    baseItem({ path: "/proj/other-device", match: "tag", ignored: true, bytes: 999, class: "should", newest_ms: now - 40 * DAY_MS, dev: 2 }),
+  ];
+  const { need, eligible } = limitNeed(items, { kind: "free", percent: 30 }, now, { shortfall: 42, dev: 1 });
+  assert.equal(need, 42, "never derived from counted bytes — the caller's own single statfs reading");
+  assert.deepEqual(eligible.map((i) => i.path), ["/proj/a"], "only items on the root's own device");
+});
+
+test("pickUnderLimit: free: stops as soon as the precomputed shortfall is covered, even though free space itself never moves in this test", () => {
+  const now = Date.now();
+  const items = [
+    baseItem({ path: "/proj/a", match: "tag", ignored: true, bytes: 100, class: "should", newest_ms: now - 40 * DAY_MS, dev: 1 }),
+    baseItem({ path: "/proj/b", match: "tag", ignored: true, bytes: 100, class: "should", newest_ms: now - 30 * DAY_MS, dev: 1 }),
+    baseItem({ path: "/proj/c", match: "tag", ignored: true, bytes: 100, class: "should", newest_ms: now - 20 * DAY_MS, dev: 1 }),
+  ];
+  const picks = pickUnderLimit(items, { kind: "free", percent: 30 }, now, { shortfall: 150, dev: 1 });
+  assert.deepEqual([...picks].sort(), ["/proj/a", "/proj/b"], "150 bytes short, covered by the two oldest (100+100); the third stays");
+});
+
+test("formatLimit: a short line for each kind, and for no setting at all", () => {
+  assert.equal(formatLimit(null), "no limit set");
+  assert.match(formatLimit(parseLimit("off")), /off/);
+  assert.match(formatLimit(parseLimit("5")), /5 GB/);
+  assert.match(formatLimit(parseLimit("free:30%")), /30%/);
+});
+
+test("formatOutcome: never run, skipped/failed with a reason, and ran with the item counts", () => {
+  assert.match(formatOutcome(null), /never run/);
+  assert.match(formatOutcome({ result: "skipped", reason: "no limit set" }), /skipped/);
+  assert.match(formatOutcome({ result: "skipped", reason: "no limit set" }), /no limit set/);
+  assert.match(formatOutcome({ result: "ran", renamed: 2, stayed: 1 }), /2 item/);
+});
+
 // ─── classify() end to end (pure) ─────────────────────────────────────────
 
 test("classify: every item gets a stable id and a class; picked is false without a limit", () => {
@@ -487,6 +620,17 @@ test("classify: every item gets a stable id and a class; picked is false without
   assert.ok(out.every((i) => typeof i.id === "string" && i.id.startsWith("p-")));
   assert.ok(out.every((i) => i.picked === false));
   assert.equal(out.find((i) => i.path === "/proj/b").class, "keep");
+});
+
+test("classify: limit/shortfall/dev reach pickUnderLimit end to end — a free: limit picks only the root device's own oldest items", () => {
+  const now = Date.now();
+  const items = [
+    baseItem({ path: "/proj/a", match: "tag", ignored: true, bytes: 100, newest_ms: now - 40 * DAY_MS, dev: 1 }),
+    baseItem({ path: "/proj/other-device", match: "tag", ignored: true, bytes: 999, newest_ms: now - 40 * DAY_MS, dev: 2 }),
+  ];
+  const out = classify(items, {}, { now, limit: { kind: "free", percent: 30 }, shortfall: 50, dev: 1 });
+  assert.equal(out.find((i) => i.path === "/proj/a").picked, true);
+  assert.equal(out.find((i) => i.path === "/proj/other-device").picked, false, "a different device is never picked under free:");
 });
 
 // ─── recheck ───────────────────────────────────────────────────────────────
@@ -627,6 +771,63 @@ function runClean(proj, home, fakeHome, args = [], extra = {}) {
     env: { ...machineEnv(home, fakeHome, extra), WAYPOST_PROJECT_DIR: proj },
   });
 }
+
+// ─── lib.mjs: treesOverlap, REMOVING_DIR, the cleanup-limit reads ─────────
+
+test("treesOverlap: equal, ancestor/descendant in either direction, separators normalized, case-folded only on darwin/win32", () => {
+  assert.equal(treesOverlap("/a/b", "/a/b"), true);
+  assert.equal(treesOverlap("/a/b/c", "/a/b"), true, "a descendant overlaps its ancestor");
+  assert.equal(treesOverlap("/a/b", "/a/b/c"), true, "and the other way round");
+  assert.equal(treesOverlap("/a/b", "/a/other"), false, "siblings do not overlap");
+  assert.equal(treesOverlap("/a/B", "/a/b", { platform: "darwin" }), true, "case-folded on darwin");
+  assert.equal(treesOverlap("/a/B", "/a/b", { platform: "win32" }), true, "case-folded on win32");
+  assert.equal(treesOverlap("/a/B", "/a/b", { platform: "linux" }), false, "case-sensitive on linux");
+  assert.equal(treesOverlap("C:\\a\\b", "C:/a/b", { platform: "win32" }), true, "backslashes normalize to /");
+  assert.equal(treesOverlap("", "/a/b"), false, "an empty path never overlaps anything");
+});
+
+test("REMOVING_DIR is the one reserved leaf name", () => {
+  assert.equal(REMOVING_DIR, "waypost-removing");
+});
+
+test("readCleanupSetting / readLastAutoCleanup: null when nothing was ever written or the file is corrupt, host-scoped, reads back what was written", () => {
+  const home = tmpRoot("waypost-cleanup-setting-home-");
+  const opts = { host: "myhost", platform: process.platform, env: { XDG_STATE_HOME: home, LOCALAPPDATA: home }, home };
+  assert.equal(readCleanupSetting(opts), null, "nothing written yet");
+  assert.equal(readLastAutoCleanup(opts), null);
+
+  const dir = stateDirOf(home);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "cleanup-limit.myhost.json"), JSON.stringify({ limit: { kind: "gb", gb: 5 }, set_at: "2026-01-01T00:00:00.000Z" }) + "\n", "utf8");
+  const setting = readCleanupSetting(opts);
+  assert.equal(setting.limit.kind, "gb");
+  assert.equal(setting.limit.gb, 5);
+
+  writeFileSync(join(dir, "cleanup-limit.otherhost.json"), "{ not json", "utf8");
+  assert.equal(readCleanupSetting({ ...opts, host: "otherhost" }), null, "corrupt JSON reads as no setting, never throws");
+  assert.equal(readCleanupSetting({ ...opts, host: "never-set" }), null, "a renamed/never-seen host reads as no limit too");
+
+  const lines = [
+    JSON.stringify({ kind: "apply", time: "t1" }),
+    JSON.stringify({ kind: "auto", time: "t2", result: "ran" }),
+    JSON.stringify({ kind: "limit", time: "t3" }),
+  ];
+  writeFileSync(join(dir, "cleanup.myhost.jsonl"), lines.join("\n") + "\n", "utf8");
+  const last = readLastAutoCleanup(opts);
+  assert.equal(last.time, "t2", "the last kind:auto line, even with a different-kind line written after it");
+});
+
+test("readLastAutoCleanup: falls back to the rotated .1 file when the current one has no auto line at all", () => {
+  const home = tmpRoot("waypost-cleanup-rotated-home-");
+  const opts = { host: "myhost", platform: process.platform, env: { XDG_STATE_HOME: home, LOCALAPPDATA: home }, home };
+  const dir = stateDirOf(home);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "cleanup.myhost.jsonl"), JSON.stringify({ kind: "apply" }) + "\n", "utf8");
+  writeFileSync(join(dir, "cleanup.myhost.jsonl.1"), JSON.stringify({ kind: "auto", time: "old", result: "skipped" }) + "\n", "utf8");
+  const last = readLastAutoCleanup(opts);
+  assert.ok(last, "found in the rotated file");
+  assert.equal(last.time, "old");
+});
 
 function tagProjectFixture() {
   const root = tmpRoot("waypost-cleanup-project-");

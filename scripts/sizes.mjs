@@ -13,16 +13,25 @@
 //   node sizes.mjs --global
 //
 // Two modes:
-//  - scanProject(dir, { budget, registry, rootItem }): walks one project
-//    tree, breadth-first, for directories that are build/cache output by the
-//    walk invariants in the ADR: an outermost CACHEDIR.TAG, a name/prefix/
-//    pattern the registry marks unambiguous ("sure") anywhere, or one it
-//    marks ambiguous ("generic") only where the project's own git rules say
-//    it is output. After the walk, any locator the loaded registry applies
-//    on this platform runs once, generically, against the basenames the
-//    walk collected for it. `rootItem: false` (the clean-plan story) never
-//    reports the root itself as one item even when it carries the tag —
-//    `waypost size` never passes it, so its own output is unchanged.
+//  - scanProject(dir, { budget, registry, rootItem, stopAtGit, deadline,
+//    locators }): walks one project tree, breadth-first, for directories
+//    that are build/cache output by the walk invariants in the ADR: an
+//    outermost CACHEDIR.TAG, a name/prefix/pattern the registry marks
+//    unambiguous ("sure") anywhere, or one it marks ambiguous ("generic")
+//    only where the project's own git rules say it is output. After the
+//    walk, any locator the loaded registry applies on this platform runs
+//    once, generically, against the basenames the walk collected for it.
+//    `rootItem: false` (the clean-plan story) never reports the root itself
+//    as one item even when it carries the tag — `waypost size` never passes
+//    it, so its own output is unchanged. The amended machine-wide-limit ADR
+//    adds three more, every default reproducing today's behaviour exactly
+//    (the automatic path is the only caller that ever sets any of them):
+//    `stopAtGit: true` never even lists a directory that itself holds a
+//    nested repository's own marker (`nested_skipped` counts how many);
+//    `deadline` (an absolute ms clock reading) stops the walk where it
+//    stands, checked every 512 entries (`stopped_by: "deadline"` in the
+//    result); `locators: false` skips every locator entirely, collection
+//    included.
 //  - scanGlobal({ home, env, platform, registry, profile }): measures the
 //    registry's own cache paths for this platform — resolved from an
 //    environment variable, then a per-OS default, with a trailing "*"
@@ -72,6 +81,18 @@ const EMPTY_SET = new Set();
 export function metadataNamesOf(entries) {
   const sys = entries.find((e) => e.id === "system");
   return new Set(Array.isArray(sys && sys.metadata_names) ? sys.metadata_names : []);
+}
+
+// The `system` entry's own list of distributable-package suffixes (the
+// amended ADR, Decision 3) — read once per scan, lower-cased, and compared
+// against an entry's own basename, also lower-cased, during the very same
+// age walk that already visits every entry: an item holding one of these is
+// never counted or picked by an automatic, no-questions-asked sweep. The
+// list itself is registry data, never spelled out in this file.
+export function keepSuffixesOf(entries) {
+  const sys = entries.find((e) => e.id === "system");
+  const list = Array.isArray(sys && sys.auto_keep_suffixes) ? sys.auto_keep_suffixes : [];
+  return new Set(list.map((s) => String(s).toLowerCase()));
 }
 
 // Builds the four lookup shapes the walk needs — sure/generic names,
@@ -125,6 +146,12 @@ function compileArtifacts(entries) {
         tool: e.id, origin, match: a.match, regenerable: a.regenerable,
         stale_days: Number.isFinite(a.stale_days) ? a.stale_days : null,
         clean: a.clean ?? null,
+        // `false` only when this artifact's own origin is "shipped" AND it
+        // carries `auto === false` itself (the amended ADR: read only from
+        // the shipped registry) — never inherited, never true-by-default;
+        // `undefined` (checked upstream as `!== false`, never as `=== true`)
+        // is what every other artifact carries.
+        auto: origin === "shipped" && a.auto === false ? false : undefined,
         clean_argv: Array.isArray(a.clean_argv) ? a.clean_argv : null,
       };
       let re = null;
@@ -269,7 +296,26 @@ function entryAgeMs(st) {
 // root — a filesystem mounted inside it, which a recursive removal would
 // cross); and the item's own root identity (`dev`/`ino`), read once, for a
 // re-check to compare against later without re-walking the whole tree.
-function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET) {
+//
+// Options (the amended ADR, the automatic path only — every default below
+// reproduces today's behaviour exactly, so `waypost size`/`waypost clean`'s
+// own manual plan is untouched): `stopAtGit` never enters a directory that
+// itself holds a nested repository's own marker — its children are not even
+// listed, let alone summed, rather than walked in and merely tagged;
+// `keepSuffixes` reports `holds_package`/`package` — whether any entry this
+// same walk already visits carries a name ending in one of the suffixes the
+// `system` registry entry's own list names (compared case-insensitively),
+// and which one; `deadline` (an absolute ms clock reading, checked every 512
+// entries so the check itself stays cheap) stops the walk where it stands,
+// reported the same way a budget cut already is (`partial: true`).
+function hasKeepSuffix(name, suffixes) {
+  if (!suffixes || !suffixes.size) return false;
+  const lower = String(name).toLowerCase();
+  for (const suf of suffixes) if (lower.endsWith(suf)) return true;
+  return false;
+}
+
+function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET, { stopAtGit = false, keepSuffixes = EMPTY_SET, deadline = null } = {}) {
   let bytes = 0;
   let visited = 0;
   let partial = false;
@@ -277,15 +323,27 @@ function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET) {
   let nestedGit = false;
   let otherFs = false;
   let newestMs = null;
+  let holdsPackage = false;
+  let packageName = null;
   let rst;
   try { rst = lstatSync(root); }
-  catch { return { bytes: 0, visited: 0, partial: false, unreadable: true, nested_git: false, other_fs: false, newest_ms: null, dev: null, ino: null }; }
+  catch {
+    return {
+      bytes: 0, visited: 0, partial: false, unreadable: true, nested_git: false, other_fs: false,
+      newest_ms: null, dev: null, ino: null, holds_package: false, package: null,
+    };
+  }
   visited++;
   const dev = rst.dev;
   const ino = rst.ino;
   const rootKey = `${dev}:${ino}`;
   if (!seen.has(rootKey)) { seen.add(rootKey); bytes += sizeOf(rst); }
   if (!metadataNames.has(basename(root))) newestMs = entryAgeMs(rst);
+
+  const cut = () => ({
+    bytes, visited, partial: true, unreadable, nested_git: nestedGit, other_fs: otherFs,
+    newest_ms: newestMs, dev, ino, holds_package: holdsPackage, package: packageName,
+  });
 
   const stack = [root];
   while (stack.length) {
@@ -295,12 +353,16 @@ function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET) {
     // A .git entry directly inside a visited directory means this item's own
     // subtree holds a nested repository (or a worktree's link back to one) —
     // read for free off the listing the walk below already fetched.
-    if (names.includes(".git")) nestedGit = true;
+    const dirHasGit = names.includes(".git");
+    if (dirHasGit) nestedGit = true;
+    // stopAtGit: once a directory is itself a nested repository's own root,
+    // its children are never entered at all — "never enter", not "enter and
+    // tag" — so the automatic path can never touch, or even list, whatever a
+    // nested worktree holds.
+    if (stopAtGit && dirHasGit) continue;
     for (const name of names) {
-      if (budgetLeft != null && visited >= budgetLeft) {
-        partial = true;
-        return { bytes, visited, partial, unreadable, nested_git: nestedGit, other_fs: otherFs, newest_ms: newestMs, dev, ino };
-      }
+      if (budgetLeft != null && visited >= budgetLeft) return cut();
+      if (deadline != null && visited > 0 && visited % 512 === 0 && Date.now() > deadline) return cut();
       const p = join(dir, name);
       let st;
       try { st = lstatSync(p); } catch { visited++; unreadable = true; continue; }
@@ -309,6 +371,7 @@ function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET) {
         const age = entryAgeMs(st);
         if (newestMs == null || age > newestMs) newestMs = age;
       }
+      if (!holdsPackage && hasKeepSuffix(name, keepSuffixes)) { holdsPackage = true; packageName = name; }
       if (st.dev !== dev) otherFs = true;
       const key = `${st.dev}:${st.ino}`;
       if (seen.has(key)) continue;
@@ -317,23 +380,26 @@ function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET) {
       if (st.isDirectory() && !st.isSymbolicLink()) stack.push(p);
     }
   }
-  return { bytes, visited, partial, unreadable, nested_git: nestedGit, other_fs: otherFs, newest_ms: newestMs, dev, ino };
+  return {
+    bytes, visited, partial, unreadable, nested_git: nestedGit, other_fs: otherFs,
+    newest_ms: newestMs, dev, ino, holds_package: holdsPackage, package: packageName,
+  };
 }
 
 // One absolute path, in isolation: the same facts a matched item carries out
 // of the walk above, with no budget and no dedup against any other item —
 // for a re-check right before a later removal step touches anything, and for
 // tests that want one item's facts without a whole project scan.
-export function inspectDir(abs, { metadata = EMPTY_SET } = {}) {
+export function inspectDir(abs, { metadata = EMPTY_SET, stopAtGit = false, keepSuffixes = EMPTY_SET, deadline = null } = {}) {
   let st;
   try { st = lstatSync(abs); } catch { return { exists: false }; }
   if (st.isSymbolicLink()) return { exists: true, is_directory: false, is_symlink: true };
   if (!st.isDirectory()) return { exists: true, is_directory: false, is_symlink: false };
-  const r = dirBytes(abs, new Set(), null, metadata);
+  const r = dirBytes(abs, new Set(), null, metadata, { stopAtGit, keepSuffixes, deadline });
   return {
     exists: true, is_directory: true, is_symlink: false,
     bytes: r.bytes, newest_ms: r.newest_ms, nested_git: r.nested_git, other_fs: r.other_fs,
-    unreadable: r.unreadable, dev: r.dev, ino: r.ino,
+    unreadable: r.unreadable, dev: r.dev, ino: r.ino, holds_package: r.holds_package, package: r.package,
   };
 }
 
@@ -347,12 +413,18 @@ export function inspectDir(abs, { metadata = EMPTY_SET } = {}) {
 // `check-ignore` itself refuses that option outright ("pathspec magic not
 // supported by this command"), on every git version tried — unlike ls-files
 // below, which does support it.
-function gitIgnoredSet(root, relPaths) {
+// `timeoutMs` (the amended ADR's own one-deadline rule): the automatic path
+// passes the time actually left before its own deadline instead of the
+// default 15s ceiling; 0 or negative means none is left, and the
+// conservative answer — nothing counts as ignored — comes back without ever
+// spawning git at all.
+function gitIgnoredSet(root, relPaths, timeoutMs = 15000) {
   if (!relPaths.length) return new Set();
+  if (timeoutMs <= 0) return new Set();
   const input = relPaths.map((p) => p.split(sep).join("/")).join("\0") + "\0";
   let r;
   try {
-    r = spawnSync("git", ["-C", root, "check-ignore", "--stdin", "-z"], { input, encoding: "utf8", timeout: 15000 });
+    r = spawnSync("git", ["-C", root, "check-ignore", "--stdin", "-z"], { input, encoding: "utf8", timeout: timeoutMs });
   } catch {
     return new Set();
   }
@@ -367,12 +439,16 @@ function gitIgnoredSet(root, relPaths) {
 // check-ignore already flagged, not one call per candidate. Any failure here
 // is read the OPPOSITE way from gitIgnoredSet's: as "cannot tell, so do not
 // call this an artifact" — the direction that cannot lose tracked content.
-function gitTrackedDirs(root, relPaths) {
+// timeoutMs: see gitIgnoredSet above — here the conservative answer (no
+// remaining time) is the opposite direction, the same as any other failure
+// of this call: every given path reads as tracked.
+function gitTrackedDirs(root, relPaths, timeoutMs = 15000) {
   if (!relPaths.length) return new Set();
+  if (timeoutMs <= 0) return new Set(relPaths);
   const rels = relPaths.map((p) => p.split(sep).join("/"));
   let r;
   try {
-    r = spawnSync("git", ["--literal-pathspecs", "-C", root, "ls-files", "-z", "--", ...rels], { encoding: "utf8", timeout: 15000 });
+    r = spawnSync("git", ["--literal-pathspecs", "-C", root, "ls-files", "-z", "--", ...rels], { encoding: "utf8", timeout: timeoutMs });
   } catch {
     return new Set(relPaths);
   }
@@ -432,19 +508,25 @@ function hasGitAnywhereAbove(dir) {
   }
 }
 
-export function gitFacts(root, relPaths) {
+// timeoutMs: see gitIgnoredSet above. Without remaining time this returns
+// the same conservative answer any other git failure here already does,
+// before ever spawning either call — a git repository that answers "cannot
+// tell right now" and one this scan simply had no time left for read the
+// same way to every caller.
+export function gitFacts(root, relPaths, timeoutMs = 15000) {
   if (!relPaths.length) return { repo: true, ignored: new Set(), tracked: new Set() };
   const conservative = () => ({ repo: true, ignored: new Set(), tracked: new Set(relPaths) });
   if (!gitCommonDir(root)) {
     return hasGitAnywhereAbove(root) ? conservative() : { repo: false, ignored: new Set(), tracked: new Set() };
   }
+  if (timeoutMs <= 0) return conservative();
 
   const posix = relPaths.map((p) => p.split(sep).join("/"));
 
   let r;
   try {
     r = spawnSync("git", ["-C", root, "check-ignore", "--stdin", "-z"],
-      { input: posix.join("\0") + "\0", encoding: "utf8", timeout: 15000 });
+      { input: posix.join("\0") + "\0", encoding: "utf8", timeout: timeoutMs });
   } catch {
     return conservative();
   }
@@ -459,7 +541,7 @@ export function gitFacts(root, relPaths) {
 
   let tr;
   try {
-    tr = spawnSync("git", ["--literal-pathspecs", "-C", root, "ls-files", "-z", "--", ...posix], { encoding: "utf8", timeout: 15000 });
+    tr = spawnSync("git", ["--literal-pathspecs", "-C", root, "ls-files", "-z", "--", ...posix], { encoding: "utf8", timeout: timeoutMs });
   } catch {
     return conservative();
   }
@@ -484,10 +566,11 @@ function hasCachedirTag(dirAbs) {
 // ─── scanProject ─────────────────────────────────────────────────────────
 //
 // Output: { root, complete, bytes_at_least, entries_visited, entry_budget,
-// subprocess_calls, dirs: [{ path, bytes, partial, newest_ms, nested_git,
-// in_nested_repo, unreadable, other_fs, dev, ino, match, tool, origin,
-// regenerable, stale_days, clean, clean_argv }] } — the same shape whether
-// the walk ran to completion or was stopped by the budget. `dirs[].path` is
+// subprocess_calls, nested_skipped, stopped_by, dirs: [{ path, bytes,
+// partial, newest_ms, nested_git, in_nested_repo, unreadable, other_fs, dev,
+// ino, match, tool, origin, regenerable, stale_days, clean, clean_argv,
+// holds_package, package }] } — the same shape whether the walk ran to
+// completion or was stopped by the budget or the deadline. `dirs[].path` is
 // root-relative
 // for directories inside the project, and an absolute path for a match a
 // locator found outside it. `match` is "tag"/"sure"/"generic"/"locator";
@@ -497,6 +580,12 @@ function hasCachedirTag(dirAbs) {
 // `in_nested_repo` is true for a match found while the walk was already
 // inside a directory that itself holds a `.git` — a boundary distinct from
 // `nested_git`, which says the match's OWN subtree holds one.
+// `nested_skipped` counts directories `stopAtGit` never entered at all (0
+// without it); `stopped_by` is `"deadline"` when the walk stopped because
+// `deadline` passed, else null (a budget-only stop leaves it null too —
+// `complete: false` alone already says the walk did not finish).
+// `holds_package`/`package` (an item's own fields) come from the registry's
+// own `auto_keep_suffixes` (keepSuffixesOf) — see dirBytes above.
 // `subprocess_calls` is the number of git and locator subprocesses actually
 // run, reported either way; with a budget set, each one was also charged
 // against entries_visited at GIT_CALL_COST (see above) before it ran.
@@ -518,7 +607,10 @@ function hasCachedirTag(dirAbs) {
 // check-ignore batch scoped to the outer root at all — git would either
 // answer for the wrong repository or fail the whole batch — and is walked
 // as ordinary instead, the same safe fallback used when git cannot answer.
-export function scanProject(dir, { budget = null, home = homedir(), registry = null, rootItem = true } = {}) {
+export function scanProject(dir, {
+  budget = null, home = homedir(), registry = null, rootItem = true,
+  stopAtGit = false, deadline = null, locators: locatorsOpt = true,
+} = {}) {
   const root = resolve(dir);
   home = resolve(home);
   if (root === home) throw new Error("refusing to scan $HOME as a project root — pass the project directory instead");
@@ -533,7 +625,11 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
   const reg = registry || loadRegistry({ projectRoot: root });
   const c = compileArtifacts(reg.entries);
   const metadataNames = metadataNamesOf(reg.entries);
-  const locators = applicableLocators(reg.entries);
+  const keepSuffixes = keepSuffixesOf(reg.entries);
+  // locators: false (the automatic path only) — no locator ever runs, and
+  // nothing is even collected for one, so an empty array here disables both
+  // ends at once.
+  const locators = locatorsOpt === false ? [] : applicableLocators(reg.entries);
   const locatorOwners = compileLocatorOwners(reg.entries);
   // One basename set per locator, filled in during the walk itself whenever
   // a directory's name ends with a suffix that locator asked to `collect`.
@@ -542,10 +638,20 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
   let entriesVisited = 0;
   let complete = true;
   let subprocessCalls = 0;
+  let nestedSkipped = 0;
+  let deadlineHit = false;
   const dirs = [];
   let bytesTotal = 0;
   const seen = new Set();
   const budgetHit = () => budget != null && entriesVisited >= budget;
+  // Checked every 512 visited entries, the same cadence dirBytes itself
+  // uses, so the cost of asking the clock never competes with the walk it
+  // bounds.
+  const deadlinePassed = () => deadline != null && entriesVisited > 0 && entriesVisited % 512 === 0 && Date.now() > deadline;
+  // The time actually left before the deadline, for a git call about to run
+  // — capped at the same 15s ceiling this module always used, never above
+  // it just because a caller passed no deadline at all.
+  const gitTimeoutMs = () => (deadline == null ? 15000 : Math.max(0, Math.min(15000, deadline - Date.now())));
 
   // Attempts to charge one subprocess call (git or a locator's own) against
   // the budget, charging and returning true only if it is affordable; an
@@ -572,28 +678,34 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
     for (const m of matches) {
       const owner = ownerFor(m);
       const inNestedRepo = Boolean(m.inNested);
-      if (budgetHit()) {
+      if (budgetHit() || deadlinePassed()) {
+        if (deadlinePassed()) deadlineHit = true;
         dirs.push({
           path: m.rel, bytes: 0, partial: true,
           newest_ms: null, nested_git: false, in_nested_repo: inNestedRepo, unreadable: false, other_fs: false,
           dev: null, ino: null, match: m.match,
           tool: owner.tool, origin: owner.origin, regenerable: owner.regenerable,
           stale_days: owner.stale_days, clean: owner.clean, clean_argv: owner.clean_argv,
+          holds_package: false, package: null,
         });
         complete = false;
         continue;
       }
       const budgetLeft = budget == null ? null : budget - entriesVisited;
-      const r = dirBytes(m.abs, seen, budgetLeft, metadataNames);
+      const r = dirBytes(m.abs, seen, budgetLeft, metadataNames, { stopAtGit, keepSuffixes, deadline });
       entriesVisited += r.visited;
       bytesTotal += r.bytes;
-      if (r.partial) complete = false;
+      if (r.partial) {
+        complete = false;
+        if (deadline != null && Date.now() > deadline) deadlineHit = true;
+      }
       dirs.push({
         path: m.rel, bytes: r.bytes, partial: r.partial,
         newest_ms: r.newest_ms, nested_git: r.nested_git, in_nested_repo: inNestedRepo, unreadable: r.unreadable,
         other_fs: r.other_fs, dev: r.dev, ino: r.ino, match: m.match,
         tool: owner.tool, origin: owner.origin, regenerable: owner.regenerable,
         stale_days: owner.stale_days, clean: owner.clean, clean_argv: owner.clean_argv,
+        holds_package: r.holds_package, package: r.package,
       });
     }
   }
@@ -614,7 +726,7 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
 
       levelLoop:
       for (const { abs, rel, inNested } of level) {
-        if (budgetHit()) { stopped = true; break levelLoop; }
+        if (budgetHit() || deadlinePassed()) { stopped = true; if (deadlinePassed()) deadlineHit = true; break levelLoop; }
         let names;
         try { names = readdirSync(abs); } catch { continue; }
         names.sort();
@@ -624,10 +736,16 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
         // here on is "in_nested_repo", regardless of whether it also turns
         // out to be a match itself.
         const selfIsNestedRoot = abs !== root && names.includes(".git");
+        // stopAtGit: this directory's children are never listed at all, let
+        // alone matched or walked — "never enter", the same rule dirBytes
+        // applies inside one already-matched item, here applied to the
+        // OUTER discovery walk too, so a nested worktree is never even
+        // looked into while searching for build output elsewhere.
+        if (stopAtGit && selfIsNestedRoot) { nestedSkipped++; continue; }
         const childInNested = inNested || selfIsNestedRoot;
 
         for (const name of names) {
-          if (budgetHit()) { stopped = true; break levelLoop; }
+          if (budgetHit() || deadlinePassed()) { stopped = true; if (deadlinePassed()) deadlineHit = true; break levelLoop; }
           const childAbs = join(abs, name);
           const childRel = rel ? `${rel}/${name}` : name;
           let lst;
@@ -675,20 +793,27 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
         const outside = pendingMaybe.filter((p) => !p.inNested);
         for (const p of pendingMaybe) if (p.inNested) next.push(p);
         if (outside.length) {
-          if (!chargeSubprocessCall()) {
+          // Past the deadline this level's generic candidates stay
+          // unresolved too, the same as a budget the walk cannot afford —
+          // "stops where it is", not "keeps going on a conservative guess".
+          const deadlineNow = deadline != null && Date.now() > deadline;
+          if (deadlineNow || !chargeSubprocessCall()) {
             stopped = true;
+            if (deadlineNow) deadlineHit = true;
           } else {
-            const ignored = gitIgnoredSet(root, outside.map((p) => p.rel));
+            const ignored = gitIgnoredSet(root, outside.map((p) => p.rel), gitTimeoutMs());
             const ignoredCandidates = [];
             for (const p of outside) {
               if (ignored.has(p.rel)) ignoredCandidates.push(p);
               else next.push(p); // definitively ordinary — no second call needed
             }
             if (ignoredCandidates.length) {
-              if (!chargeSubprocessCall()) {
+              const deadlineNow2 = deadline != null && Date.now() > deadline;
+              if (deadlineNow2 || !chargeSubprocessCall()) {
                 stopped = true; // these stay unresolved: not counted, not walked
+                if (deadlineNow2) deadlineHit = true;
               } else {
-                const tracked = gitTrackedDirs(root, ignoredCandidates.map((p) => p.rel));
+                const tracked = gitTrackedDirs(root, ignoredCandidates.map((p) => p.rel), gitTimeoutMs());
                 for (const p of ignoredCandidates) {
                   if (tracked.has(p.rel)) next.push(p);
                   else matchedThisLevel.push({ ...p, match: "generic" });
@@ -717,6 +842,7 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
   return {
     root, complete, bytes_at_least: bytesTotal, entries_visited: entriesVisited,
     entry_budget: budget, subprocess_calls: subprocessCalls, dirs,
+    nested_skipped: nestedSkipped, stopped_by: deadlineHit ? "deadline" : null,
   };
 }
 

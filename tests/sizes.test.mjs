@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   scanProject, scanGlobal, DEFAULT_ENTRY_BUDGET, GIT_CALL_COST,
-  inspectDir, gitFacts, metadataNamesOf, cacheCandidates, measureCaches,
+  inspectDir, gitFacts, metadataNamesOf, keepSuffixesOf, cacheCandidates, measureCaches,
 } from "../scripts/sizes.mjs";
 import { loadRegistry } from "../scripts/toolchains.mjs";
 import { bootIdentity } from "../scripts/capacity.mjs";
@@ -554,6 +554,115 @@ test("scanProject: rootItem: false never reports the project root itself, even w
   assert.deepEqual(withRootItemFalse.dirs, [], "the clean plan never reports the project root as an item");
 });
 
+// ─── the amended ADR: stopAtGit, holds_package, deadline, locators:false ──
+
+test("scanProject: stopAtGit never even lists a directory holding a nested repository, and counts it in nested_skipped — nothing inside it is matched, even an otherwise-unambiguous name", () => {
+  const root = tmpRoot("waypost-sizes-stopatgit-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, "vendor", "lib"), { recursive: true });
+  git(join(root, "vendor", "lib"), ["init", "-q"]); // a nested repository
+  mkdirSync(join(root, "vendor", "lib", ".build"), { recursive: true }); // an unambiguous name inside it
+  writeFileSync(join(root, "vendor", "lib", ".build", "o.o"), "x", "utf8");
+
+  const without = scanProject(root);
+  assert.ok(without.dirs.some((d) => d.path === "vendor/lib/.build"), "today's behaviour is unchanged: still found, tagged in_nested_repo");
+  assert.equal(without.nested_skipped, 0);
+
+  const withStop = scanProject(root, { stopAtGit: true });
+  assert.ok(!withStop.dirs.some((d) => d.path.startsWith("vendor/lib")), "never entered at all under stopAtGit");
+  assert.ok(withStop.nested_skipped >= 1, "the nested repository's own directory is counted");
+});
+
+test("scanProject: stopAtGit applies inside an already-matched item's own subtree too — a nested repository there is never walked into for byte summation either", () => {
+  const root = tmpRoot("waypost-sizes-stopatgit-inner-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, ".build", "vendored"), { recursive: true });
+  writeFileSync(join(root, ".build", "top.o"), "x".repeat(1000), "utf8");
+  git(join(root, ".build", "vendored"), ["init", "-q"]);
+  writeFileSync(join(root, ".build", "vendored", "inner.o"), "x".repeat(5000), "utf8");
+
+  const without = scanProject(root);
+  const itemWithout = without.dirs.find((d) => d.path === ".build");
+  assert.ok(itemWithout.bytes > 5000, "today's behaviour is unchanged: the nested repo's own content is still summed");
+
+  const withStop = scanProject(root, { stopAtGit: true });
+  const itemWith = withStop.dirs.find((d) => d.path === ".build");
+  assert.equal(itemWith.nested_git, true, "still reported — dirBytes still notices the .git entry itself");
+  assert.ok(itemWith.bytes < itemWithout.bytes, "but its content is never entered, so it is not summed");
+});
+
+test("scanProject: holds_package/package — an entry ending in a distributable-package suffix is flagged, compared case-insensitively; an ordinary item is not", () => {
+  const root = tmpRoot("waypost-sizes-package-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, ".build", "bundle"), { recursive: true });
+  writeFileSync(join(root, ".build", "bundle", "App.DMG"), "x", "utf8"); // uppercase suffix
+  mkdirSync(join(root, "cmake-build-debug"), { recursive: true });
+  writeFileSync(join(root, "cmake-build-debug", "o.o"), "x", "utf8");
+
+  const out = scanProject(root);
+  const withPkg = out.dirs.find((d) => d.path === ".build");
+  const ordinary = out.dirs.find((d) => d.path === "cmake-build-debug");
+  assert.equal(withPkg.holds_package, true);
+  assert.equal(withPkg.package, "App.DMG");
+  assert.equal(ordinary.holds_package, false);
+  assert.equal(ordinary.package, null);
+});
+
+test("keepSuffixesOf: the system entry's own auto_keep_suffixes, lower-cased; empty when absent", () => {
+  const reg = loadRegistry({ projectRoot: tmpRoot("waypost-sizes-keepsuffixes-") });
+  const suffixes = keepSuffixesOf(reg.entries);
+  assert.ok(suffixes.has(".dmg"), [...suffixes].join(","));
+  assert.ok(suffixes.has(".xcarchive"));
+  assert.deepEqual(keepSuffixesOf([{ id: "system" }]), new Set());
+  assert.deepEqual(keepSuffixesOf([]), new Set());
+});
+
+test("scanProject: deadline stops the walk where it stands, reporting complete:false and stopped_by 'deadline'", () => {
+  const root = tmpRoot("waypost-sizes-deadline-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, ".build"), { recursive: true });
+  for (let i = 0; i < 2000; i++) writeFileSync(join(root, ".build", `f${i}.bin`), "x", "utf8");
+
+  const out = scanProject(root, { deadline: Date.now() - 1 }); // already past when the walk starts
+  assert.equal(out.complete, false);
+  assert.equal(out.stopped_by, "deadline");
+});
+
+test("scanProject: a deadline far in the future changes nothing at all — complete:true, stopped_by null", () => {
+  const root = tmpRoot("waypost-sizes-deadline-far-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, ".build"), { recursive: true });
+  writeFileSync(join(root, ".build", "o.o"), "x", "utf8");
+  const out = scanProject(root, { deadline: Date.now() + 60000 });
+  assert.equal(out.complete, true);
+  assert.equal(out.stopped_by, null);
+});
+
+test("scanProject: a budget-only stop leaves stopped_by null — 'deadline' means the deadline specifically, not any incomplete scan", () => {
+  const root = makeDeepGenericFixture(5);
+  const out = scanProject(root, { budget: 50 });
+  assert.equal(out.complete, false);
+  assert.equal(out.stopped_by, null);
+});
+
+test("scanProject: locators: false never runs a locator at all, even one that would otherwise match (macOS)", { skip: process.platform !== "darwin" }, () => {
+  const home = tmpRoot("waypost-sizes-locatorsoff-home-");
+  const project = tmpRoot("waypost-sizes-locatorsoff-project-");
+  mkdirSync(join(project, "Foo.xcodeproj"), { recursive: true });
+  const dd = join(home, "Library", "Developer", "Xcode", "DerivedData", "Foo-abcdefgh");
+  mkdirSync(join(dd, "Build"), { recursive: true });
+  writeFileSync(join(dd, "Build", "big.o"), "x".repeat(4000), "utf8");
+  const plist = join(dd, "info.plist");
+  spawnSync("plutil", ["-create", "xml1", plist]);
+  spawnSync("plutil", ["-insert", "WorkspacePath", "-string", join(project, "Foo.xcodeproj"), plist]);
+
+  const withLocators = scanProject(project, { home });
+  assert.ok(withLocators.dirs.some((d) => d.path === dd), "today's behaviour: found through the locator");
+
+  const withoutLocators = scanProject(project, { home, locators: false });
+  assert.ok(!withoutLocators.dirs.some((d) => d.path === dd), "locators: false — never even run");
+});
+
 test("inspectDir: a missing path reports exists: false; a file and a symlink are reported, never walked as a directory", () => {
   const root = tmpRoot("waypost-sizes-inspectdir-");
   assert.deepEqual(inspectDir(join(root, "nope")), { exists: false });
@@ -627,6 +736,16 @@ test("gitFacts: inside a repository, reports which of the given paths are ignore
   // file") already exercises end to end through the walk.
   assert.ok(!facts.ignored.has("ignored-tracked"), "a directory holding a tracked file is never reported ignored by git itself");
   assert.ok(!facts.tracked.has("ignored-clean"), "nothing tracked in here at all");
+});
+
+test("gitFacts: with no time left (timeoutMs <= 0), the conservative answer comes back without a check-ignore/ls-files call — the same shape any other failure of this call already reports", () => {
+  const root = tmpRoot("waypost-sizes-gitfacts-notime-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, "somedir"), { recursive: true });
+  const facts = gitFacts(root, ["somedir"], 0);
+  assert.equal(facts.repo, true);
+  assert.deepEqual(facts.ignored, new Set());
+  assert.deepEqual(facts.tracked, new Set(["somedir"]), "conservative: every candidate reads as tracked");
 });
 
 test("gitFacts: any git failure inside a repository (a corrupt index, here) reports every candidate tracked and nothing ignored — never the direction that could turn real content into something a caller believes is safe", () => {

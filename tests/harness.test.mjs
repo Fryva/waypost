@@ -9,7 +9,7 @@ import { join, dirname, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { detectHarnesses, detectHarness } from "../scripts/agents.mjs";
+import { detectHarnesses, detectHarness, gateCheck } from "../scripts/agents.mjs";
 import { storedVaultPath, resolveVaultPath } from "../scripts/lib.mjs";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
@@ -764,6 +764,114 @@ test("a harness started from inside another is detected by its process, not by t
   assert.equal(detectHarness(withProc("codex")), "codex", "the process alone is enough when env says nothing about it");
   assert.equal(detectHarness(withProc("Electron")), "claude", "an IDE helper says nothing, so env order decides as before");
   assert.equal(detectHarness({ ...withProc("opencode"), WAYPOST_HARNESS: "pi" }), "pi", "an explicit WAYPOST_HARNESS still wins");
+});
+
+// ─── gateCheck (the machine-wide-limit ADR, Decision 2) ────────────────────
+
+function harnessDir(entries) {
+  const dir = mkdtempSync(join(tmpdir(), "waypost-gate-dir-"));
+  for (const e of entries) writeFileSync(join(dir, `${e.id}.json`), JSON.stringify(e), "utf8");
+  return dir;
+}
+
+// A Map shaped exactly like presence.mjs's own processTable(): pid -> { pid,
+// ppid, comm, started } — so these tests never depend on this machine's real
+// process table, or on any real harness actually running it.
+function fakeTable(rows) {
+  return new Map(rows.map((r) => [r.pid, { pid: r.pid, ppid: r.ppid, comm: r.comm, started: "T" }]));
+}
+
+test("gateCheck: a known harness in the process chain is found even with WAYPOST_HARNESS/WAYPOST_PROC claiming something else — neither is ever read", () => {
+  const dirs = [harnessDir([{ id: "claude", env: ["CLAUDECODE"] }])];
+  const t = fakeTable([{ pid: 100, ppid: 1, comm: "claude" }]);
+  const out = gateCheck({
+    env: { WAYPOST_HARNESS: "codex", WAYPOST_PROC: JSON.stringify({ pid: 999, comm: "codex" }) },
+    table: t, ppid: 100, dirs,
+  });
+  assert.equal(out.harness, "claude");
+  assert.equal(out.via, "process");
+  assert.equal(out.evidence, true);
+});
+
+test("gateCheck: a full executable path as comm (what macOS ps reports) is matched by its basename", () => {
+  const dirs = [harnessDir([{ id: "claude", env: ["CLAUDECODE"] }])];
+  const t = fakeTable([
+    { pid: 100, ppid: 1, comm: "/Users/x/Library/Application Support/Claude/claude-code/2.1/claude.app/Contents/MacOS/claude" },
+    { pid: 200, ppid: 100, comm: "/bin/zsh" },
+  ]);
+  const out = gateCheck({ env: {}, table: t, ppid: 200, dirs });
+  assert.equal(out.harness, "claude");
+  assert.equal(out.via, "process");
+});
+
+test("gateCheck: a provider entry is never evidence of a harness, by process or by env marker", () => {
+  const dirs = [harnessDir([{ id: "someprovider", kind: "provider", process: ["someprovider"], env: ["SOME_PROVIDER_KEY"] }])];
+  const t = fakeTable([{ pid: 100, ppid: 1, comm: "someprovider" }]);
+  const out = gateCheck({ env: { SOME_PROVIDER_KEY: "x" }, table: t, ppid: 100, dirs });
+  assert.equal(out.harness, null);
+  assert.equal(out.evidence, false);
+  assert.deepEqual(out.markers, []);
+});
+
+test("gateCheck: without a process table, env markers alone decide, and process_table/ancestors say so", () => {
+  const dirs = [harnessDir([{ id: "claude", env: ["CLAUDECODE"] }])];
+  const out = gateCheck({ env: { CLAUDECODE: "1" }, table: null, ppid: 100, dirs });
+  assert.equal(out.harness, "claude");
+  assert.equal(out.via, "env");
+  assert.equal(out.process_table, false);
+  assert.deepEqual(out.ancestors, []);
+});
+
+test("gateCheck: a harness several levels up the ancestor chain is found, and the nearest match wins over a farther one", () => {
+  const dirs = [harnessDir([{ id: "claude", env: [] }, { id: "codex", env: [] }])];
+  // 300 (an ordinary node process) -> 200 (codex) -> 100 (claude) -> 1
+  const t = fakeTable([
+    { pid: 300, ppid: 200, comm: "node" },
+    { pid: 200, ppid: 100, comm: "codex" },
+    { pid: 100, ppid: 1, comm: "claude" },
+  ]);
+  const out = gateCheck({ env: {}, table: t, ppid: 300, dirs });
+  assert.equal(out.harness, "codex", "the nearest ancestor wins, not one farther up the same chain");
+  assert.equal(out.ancestors.length, 3, "the whole chain is reported, not only the winning ancestor");
+});
+
+test("gateCheck: a project directory may only ADD env markers to a shipped id — it can never replace its process names or remove a marker", () => {
+  const shipped = harnessDir([{ id: "claude", process: ["claude"], env: ["CLAUDECODE"] }]);
+  // The project's own file for the SAME id tries to drop CLAUDECODE
+  // (an empty env array) and swap in a different process name — neither
+  // takes effect: loadGateEntries only ever adds env markers to an id the
+  // shipped directory already owns.
+  const project = harnessDir([{ id: "claude", process: ["evil-override"], env: [] }]);
+  const out = gateCheck({ env: { CLAUDECODE: "1" }, table: null, ppid: 1, dirs: [shipped, project] });
+  assert.equal(out.harness, "claude", "the shipped marker still fires — the project could not remove it");
+});
+
+test("gateCheck: a project directory may add a NEW marker to a shipped id, and may add a brand-new id outright", () => {
+  const shipped = harnessDir([{ id: "claude", process: [], env: ["CLAUDECODE"] }]);
+  const project = harnessDir([
+    { id: "claude", env: ["MY_PROJECT_CLAUDE_FLAG"] },
+    { id: "myharness", env: ["MY_HARNESS_FLAG"] },
+  ]);
+  const dirs = [shipped, project];
+  const addedMarker = gateCheck({ env: { MY_PROJECT_CLAUDE_FLAG: "1" }, table: null, ppid: 1, dirs });
+  assert.equal(addedMarker.harness, "claude", "the project's own ADDED marker for a shipped id is honoured");
+  const newId = gateCheck({ env: { MY_HARNESS_FLAG: "1" }, table: null, ppid: 1, dirs });
+  assert.equal(newId.harness, "myharness", "a brand-new id the project invents is honoured outright — nothing shipped to weaken");
+});
+
+test("gateCheck: an unreadable shipped directory throws; an unreadable project directory is merely optional", () => {
+  assert.throws(() => gateCheck({ env: {}, table: null, ppid: 1, dirs: [join(tmpdir(), "waypost-gate-does-not-exist-xyz")] }));
+  const shipped = harnessDir([{ id: "claude", env: ["CLAUDECODE"] }]);
+  const out = gateCheck({
+    env: { CLAUDECODE: "1" }, table: null, ppid: 1,
+    dirs: [shipped, join(tmpdir(), "waypost-gate-no-project-dir-xyz")],
+  });
+  assert.equal(out.harness, "claude");
+});
+
+test("gateCheck: dirs is required, and an empty list is refused the same way", () => {
+  assert.throws(() => gateCheck({ env: {}, table: null, ppid: 1 }));
+  assert.throws(() => gateCheck({ env: {}, table: null, ppid: 1, dirs: [] }));
 });
 
 // ─── Agent Skills (WP-14) ───────────────────────────────────────────────

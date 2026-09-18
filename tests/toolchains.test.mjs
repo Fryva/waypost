@@ -157,6 +157,37 @@ test("toolchains/<id>.json: metadata_names is carried only by the system entry",
   for (const n of sys.metadata_names) assert.equal(typeof n, "string");
 });
 
+// ─── the amended ADR (WP-17, the machine-wide limit): auto, auto_keep_suffixes ──
+
+test("toolchains/<id>.json: auto_keep_suffixes is carried only by the system entry, and every value is a dot-led suffix string (keepSuffixesOf lower-cases it at read time, whatever case is shipped)", () => {
+  for (const e of shippedOnly()) {
+    if (e.id === "system") continue;
+    assert.ok(!("auto_keep_suffixes" in e), `${e.id}: auto_keep_suffixes only applies to the system entry`);
+  }
+  const sys = shippedOnly().find((e) => e.id === "system");
+  assert.ok(Array.isArray(sys.auto_keep_suffixes) && sys.auto_keep_suffixes.length > 0);
+  for (const s of sys.auto_keep_suffixes) {
+    assert.equal(typeof s, "string");
+    assert.match(s, /^\.[a-zA-Z]/, `${s}: a suffix starts with a dot`);
+  }
+});
+
+test("toolchains/<id>.json: auto, where present, is only ever false, and only ever on an artifact — never a cache, a locator or the entry itself", () => {
+  for (const e of shippedOnly()) {
+    assert.ok(!("auto" in e), `${e.id}: auto is an artifact-level field, never on the entry itself`);
+    for (const c of e.caches || []) assert.ok(!("auto" in c), `${e.id}: auto never applies to a cache`);
+    for (const l of e.locators || []) assert.ok(!("auto" in l), `${e.id}: auto never applies to a locator`);
+    for (const a of e.artifacts || []) {
+      if (!("auto" in a)) continue;
+      assert.equal(a.auto, false, `${e.id}: auto is only ever false — there is no true, only "not opted out"`);
+    }
+  }
+  // At least one shipped artifact actually uses it (.terraform) — a schema
+  // rule with no real user would be untested by every other check here.
+  const withAuto = shippedOnly().flatMap((e) => (e.artifacts || []).filter((a) => "auto" in a));
+  assert.ok(withAuto.length >= 1, "at least one shipped artifact opts out with auto: false");
+});
+
 test("toolchains/<id>.json: a cache's clean_argv is an array of strings, always paired with clean_docs, and never combined with manual", () => {
   for (const e of shippedOnly()) {
     for (const c of e.caches || []) {
@@ -263,7 +294,7 @@ test("a project toolchain entry: disallowed fields are dropped and reported, val
     caches: [{ path: "$HOME/.myapp", os: ["darwin"], confidence: { darwin: "verified" }, regenerable: true, clean: "x" }],
     skip: ["vendor"], locators: [{ name: "made-up", os: ["darwin"], collect: [".x"] }],
     ask: { argv: ["myapp", "cache-dir"] }, clean_argv: ["myapp", "clean"], processes: ["myapp"],
-    detectors: ["stale-myapp"], metadata_names: [".DS_Store"],
+    detectors: ["stale-myapp"], metadata_names: [".DS_Store"], auto_keep_suffixes: [".dmg"],
   });
   const { entries, notes } = loadRegistry({ projectRoot: root });
   const e = entries.find((x) => x.id === "myapp");
@@ -275,12 +306,28 @@ test("a project toolchain entry: disallowed fields are dropped and reported, val
   assert.deepEqual(e.skip, [], "a project entry carries no skip list");
   assert.deepEqual(e.locators, [], "a project entry carries no locators");
   assert.ok(!("metadata_names" in e), "metadata_names only ever applies to the shipped system entry");
+  assert.ok(!("auto_keep_suffixes" in e), "auto_keep_suffixes only ever applies to the shipped system entry");
 
   const file = join(".waypost", "toolchains", "myapp.json");
   const droppedFields = notes.filter((n) => n.file === file).map((n) => n.field);
-  for (const f of ["detect.bins", "caches", "skip", "locators", "ask", "clean_argv", "processes", "detectors", "metadata_names"]) {
+  for (const f of ["detect.bins", "caches", "skip", "locators", "ask", "clean_argv", "processes", "detectors", "metadata_names", "auto_keep_suffixes"]) {
     assert.ok(droppedFields.includes(f), `expected a note dropping ${f}, got ${JSON.stringify(droppedFields)}`);
   }
+});
+
+test("a project toolchain entry: an artifact's auto is dropped and reported, with its own reason — read only from the shipped registry", () => {
+  const root = projectWithToolchain("optout.json", {
+    id: "optout", name: "Opt Out",
+    artifacts: [{ name: "output", match: "sure", regenerable: true, clean: "x", auto: false }],
+  });
+  const { entries, notes } = loadRegistry({ projectRoot: root });
+  const e = entries.find((x) => x.id === "optout");
+  const a = e.artifacts.find((x) => x.name === "output");
+  assert.ok(a, "the artifact itself survives — only the unrecognized key is stripped");
+  assert.ok(!("auto" in a), JSON.stringify(a));
+  const file = join(".waypost", "toolchains", "optout.json");
+  const reasons = notes.filter((n) => n.file === file);
+  assert.ok(reasons.some((n) => n.field === "artifacts[0].auto" && /shipped registry/.test(n.reason)), JSON.stringify(reasons));
 });
 
 test("a project toolchain entry: an artifact name with a slash, or '..', is refused and reported", () => {

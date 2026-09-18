@@ -13,6 +13,7 @@
   "artifacts": [],
   "skip": [],
   "metadata_names": [".DS_Store", "Thumbs.db", "desktop.ini"],
+  "auto_keep_suffixes": [".dmg", ".pkg", ".msi", ".msix", ".AppImage", ".deb", ".rpm", ".ipa", ".xcarchive", ".whl"],
   "caches": [
     {
       "path": "/cores",

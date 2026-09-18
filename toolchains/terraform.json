@@ -19,6 +19,7 @@
       "name": ".terraform",
       "match": "sure",
       "regenerable": true,
+      "auto": false,
       "clean": "terraform init recreates provider/module downloads; the state file lives elsewhere by default (check your backend config before deleting)"
     }
   ],

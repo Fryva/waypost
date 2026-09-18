@@ -25,6 +25,7 @@ import {
 import {
   bootIdentity, sameBoot, slotLive, readHolders, measure,
   bootAuthority, authorityOnce, confirmBoot, uptimeSaysOtherBoot, UPTIME_MARGIN_S,
+  blockingHolder,
 } from "../scripts/capacity.mjs";
 import { machineStateDir } from "../scripts/lib.mjs";
 import { hostSlug, processTable, startTicks } from "../scripts/presence.mjs";
@@ -859,4 +860,50 @@ test("the stress test: 5 parallel claims against a cap of one — exactly one ru
     assert.equal(ok, 1, `codes: ${JSON.stringify(codes)}`);
     assert.equal(refused, 4, `codes: ${JSON.stringify(codes)}`);
   } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+// ─── blockingHolder (the machine-wide-limit ADR, Decision 4) ──────────────
+//
+// `canon` is the identity function in every test below — hermetic on
+// purpose: none of these paths need to exist for the comparison itself to
+// be exercised, and the default (realpathSync, falling back to the path
+// itself) would behave the same way for a path that does not exist anyway.
+
+test("blockingHolder: the caller's own id is never a blocker, even when its own root would otherwise overlap", () => {
+  const holders = [{ id: "self", root: "/proj" }];
+  assert.equal(blockingHolder(holders, { self: "self", root: "/proj", platform: "linux", canon: (p) => p }), null);
+});
+
+test("blockingHolder: an overlapping root blocks, case-folded on darwin", () => {
+  const holders = [{ id: "other", root: "/PROJ" }];
+  const hit = blockingHolder(holders, { self: null, root: "/proj", platform: "darwin", canon: (p) => p });
+  assert.ok(hit, "case-folded on darwin, so /PROJ overlaps /proj");
+  assert.equal(hit.holder.id, "other");
+});
+
+test("blockingHolder: linux is case-sensitive — a differently-cased root does not overlap", () => {
+  const holders = [{ id: "other", root: "/PROJ" }];
+  assert.equal(blockingHolder(holders, { self: null, root: "/proj", platform: "linux", canon: (p) => p }), null);
+});
+
+test("blockingHolder: root: null falls back to cwd", () => {
+  const holders = [{ id: "other", root: null, cwd: "/proj/sub" }];
+  const hit = blockingHolder(holders, { self: null, root: "/proj", platform: "linux", canon: (p) => p });
+  assert.ok(hit, "the working directory overlaps the root");
+  assert.match(hit.reason, /working directory/);
+});
+
+test("blockingHolder: a record naming neither root nor cwd blocks unconditionally — an older Waypost", () => {
+  const holders = [{ id: "old" }];
+  const hit = blockingHolder(holders, { self: null, root: "/proj", platform: "linux", canon: (p) => p });
+  assert.ok(hit);
+  assert.equal(hit.holder.id, "old");
+  assert.match(hit.reason, /older Waypost/);
+});
+
+test("blockingHolder: a root elsewhere entirely is not a blocker, and no holders at all blocks nothing", () => {
+  const holders = [{ id: "other", root: "/elsewhere" }];
+  assert.equal(blockingHolder(holders, { self: null, root: "/proj", platform: "linux", canon: (p) => p }), null);
+  assert.equal(blockingHolder([], { self: null, root: "/proj" }), null);
+  assert.equal(blockingHolder(undefined, { self: null, root: "/proj" }), null);
 });

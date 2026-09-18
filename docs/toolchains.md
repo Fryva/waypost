@@ -59,12 +59,14 @@ longer exists is not measured, and `size --global` asks for
 | `name` | shown in `waypost size --global` output |
 | `os` | the OSes this tool runs on — a non-empty subset of `darwin`/`linux`/`win32`, and a superset of every `caches[].os` and `locators[].os` the entry lists (an artifact-only entry with no caches or locators, like `cmake` or `generic`, still names every OS it runs on — this is what the discovery story detects it on, not a fact derived from its caches) |
 | `detect` | `bins` (executables looked up, never run, on `PATH`) and `manifests` (project files like `Cargo.toml`, matched in the project root) — what discovery (`waypost profile`) uses to list the tools and ecosystems present; an entry without `bins` is never listed as a tool, but its caches are still resolved from the environment or the default |
-| `artifacts` | where the tool writes *inside a project*: `name` (exact), `prefix`, or `pattern` (a JS regex source matched against one directory name, with optional `flags`), `match` (`sure` counts unconditionally, wherever it appears; `generic` counts only when the project's own `.gitignore` says so and it holds no tracked file), `regenerable`, `clean` (the tool's own project-clean command, in prose) |
+| `artifacts` | where the tool writes *inside a project*: `name` (exact), `prefix`, or `pattern` (a JS regex source matched against one directory name, with optional `flags`), `match` (`sure` counts unconditionally, wherever it appears; `generic` counts only when the project's own `.gitignore` says so and it holds no tracked file), `regenerable`, `clean` (the tool's own project-clean command, in prose), optional `auto` (below) |
 | `skip` | names this tool's own artifacts never get walked into (`node_modules`, a virtualenv name); `.git` is hard-coded in the scanner core, not listed anywhere |
 | `caches` | machine-wide cache paths: `path` (with the tokens below), `os`, `confidence` (**one key per OS in this item's `os`**), `docs`/`notes` as the confidence levels below require, `regenerable`, `clean`, optional `stale_days` (defaults to 30 — the ADR's machine-cache window — when absent), optional `manual` (below), optional `clean_argv`/`clean_docs` (below), optional `env` (an override variable name), optional `ask` (below) |
 | `locators` | named checks in `scripts/toolchains.mjs` for something a plain name/pattern match cannot find (matched by content, not by its own directory name) — `{ "name", "os", "collect": ["<suffix>", …], "regenerable", "clean" }`; the core collects basenames ending in `collect`'s suffixes during the walk and calls the locator by name afterwards, generically, never knowing what it does. `regenerable`/`clean` describe what the locator itself finds, the same fields an artifact carries |
 | `processes` | entry-level: short, exact process (`comm`) names that mean this tool is at work right now — `waypost clean` (`scripts/cleanup.mjs`'s `runningTools`) matches them against the live process table by basename, case-insensitively, with a trailing `.exe` stripped and compared by the first 15 characters (Linux's own truncated `comm`). Never an interpreter or shell (`node`, `java`, `python`, `sh`, …) — that would call half the machine "in use" for one unrelated process. Omitted where no process name is unambiguous enough (Gradle's own daemon shows up as `java`, not `gradle` or `GradleDaemon`) |
 | `metadata_names` (the `system` entry only) | OS metadata file names (`.DS_Store`, a Windows thumbnail cache file, a Windows folder-settings file) ignored when computing an item's own age — a metadata file's timestamp never makes an otherwise-idle item look freshly touched |
+| `auto_keep_suffixes` (the `system` entry only) | distributable-package file-name suffixes (`.dmg`, `.pkg`, `.msi`, `.msix`, `.AppImage`, `.deb`, `.rpm`, `.ipa`, `.xcarchive`, `.whl`), compared case-insensitively — an item holding an entry whose name ends with one of these never qualifies for the machine-wide limit's own automatic path (the amended ADR, [Cleanup to a machine-wide limit](vault/adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md), Decision 3), whatever else it matches — `waypost clean` still lists it, by id, on the manual path |
+| `auto` (an artifact only, shipped registry only) | `false` opts one artifact out of the machine-wide limit's automatic path entirely (`.terraform`, which holds working-directory state in `environment`) — it still shows up on the manual `waypost clean` path exactly as before. Read only from the shipped registry, like `pattern`; the project-entry loader drops it, and it can never turn automatic removal *on* for something the shipped registry left out |
 
 ### `manual`, `clean_argv`, `clean_docs`, and `origin`
 
@@ -216,11 +218,12 @@ this project's own choice, not a public tool's. It is read as **data only**:
 - Kept at the top level: `id`, `name`, `detect.manifests`.
 - Every other top-level field — `caches` (so `ask` can never ride along
   either — asking only ever runs the shipped registry's own argv), `skip`,
-  `locators`, `detect.bins`, `processes`, `metadata_names`, and anything else
-  outside the allowlist (`detectors`, a project clean command) — is dropped
-  and reported, one `{ file, field, reason }` per field, in `notes` from
-  `loadRegistry` and by `waypost size --json`/`--global --json`/
-  `waypost profile --json`/`waypost clean --json`.
+  `locators`, `detect.bins`, `processes`, `metadata_names`,
+  `auto_keep_suffixes`, and anything else outside the allowlist (`detectors`,
+  a project clean command) — is dropped and reported, one
+  `{ file, field, reason }` per field, in `notes` from `loadRegistry` and by
+  `waypost size --json`/`--global --json`/`waypost profile --json`/
+  `waypost clean --json`.
 - Each `artifacts[]` item is **rebuilt field by field from an allowlist**,
   never passed through whole, so no stray key (a `clean_argv`, `clean_docs`,
   an `ask`, a `path`) can ride along inside one:
@@ -240,6 +243,12 @@ this project's own choice, not a public tool's. It is read as **data only**:
     artifact: only a shipped cache's own clean command may ever be run by
     `waypost clean` (see above); a project artifact is removed through
     `git clean -X` once confirmed ignored, never through argv a clone ships.
+  - `auto` is **never** kept either — read only from the shipped registry
+    (the amended machine-wide-limit ADR), the same rule as `pattern`: a
+    project's own artifact never qualifies for the automatic path at all
+    regardless (its `origin` is always `"project"`), so nothing a project
+    entry could write to this field would ever mean anything — it is simply
+    dropped, like every other key outside the allowlist.
   - Any other artifact key is dropped and reported the same way.
 - An id matching a shipped entry **extends** that entry's artifacts and
   manifests; a new id adds a project-only entry.

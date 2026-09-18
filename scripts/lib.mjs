@@ -59,6 +59,92 @@ export function machineStateDir({ platform = process.platform, env = process.env
   return join(env.XDG_STATE_HOME || join(home, ".local", "state"), "waypost");
 }
 
+// ─── The machine-wide cleanup limit (the amended disk-hygiene ADR) ──────
+//
+// The setting the owner picked with `waypost clean --limit` (a later commit
+// of this story), and the last outcome the automatic path at the end of
+// `waypost run --heavy` logged — both read here so `status`/`brief`/`doctor`
+// and the gate share one place that knows the file names, instead of each
+// reconstructing `cleanup-limit.<host>.json`/`cleanup.<host>.jsonl` by hand.
+// `host` is a parameter, not read from `hostSlug()` here, so this file never
+// imports presence.mjs (presence.mjs already imports lib.mjs — a cycle back
+// would be circular). Neither function writes anything.
+
+// Two names this exact string is reserved for: the directory a heavy run's
+// cleanup renames items into right before handing them to the detached
+// deleter (`<git common dir>/waypost-removing/`), and nothing else — it sits
+// outside ADR-0010's own `waypost/<vault>/` coordination tree on purpose, so
+// a coordination-tree sweep and a leftover-deleter sweep can never collide.
+export const REMOVING_DIR = "waypost-removing";
+
+// The current setting, or null when none was ever set, the host was
+// renamed (the ADR: "a renamed host reads as 'no limit'"), or the file is
+// missing or corrupt — never a thrown error; a caller with nothing to read
+// treats that exactly the same as "no limit". `stateOpts` forwards straight
+// to machineStateDir (platform/env/home), so a test can point this at a
+// temporary state directory the same way it already does for
+// machineStateDir itself.
+export function readCleanupSetting({ host, ...stateOpts } = {}) {
+  const p = join(machineStateDir(stateOpts), `cleanup-limit.${host}.json`);
+  try {
+    const v = JSON.parse(readFileSync(p, "utf8"));
+    return v && typeof v === "object" && !Array.isArray(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+// The last `kind: "auto"` line logged in `cleanup.<host>.jsonl` — the same
+// file `waypost clean --apply` already appends `kind: "apply"` lines to
+// (bin/waypost's own appendCleanLog), read backwards so the newest one wins
+// regardless of how many other lines came after it. Log rotation
+// (appendCleanLog, a later commit) keeps one previous file as `.1`; when the
+// current file holds no "auto" line (rotated away, or nothing has run yet),
+// the rotated one is tried next. null when neither file has one, or when
+// neither can be read at all.
+export function readLastAutoCleanup({ host, ...stateOpts } = {}) {
+  const dir = machineStateDir(stateOpts);
+  for (const suffix of ["", ".1"]) {
+    let text;
+    try { text = readFileSync(join(dir, `cleanup.${host}.jsonl${suffix}`), "utf8"); }
+    catch { continue; }
+    const lines = text.split("\n");
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      let rec;
+      try { rec = JSON.parse(line); } catch { continue; }
+      if (rec && rec.kind === "auto") return rec;
+    }
+  }
+  return null;
+}
+
+// True when `a` and `b` name the same tree, or one is an ancestor of the
+// other, in either direction — used both for "does a live heavy job overlap
+// this project" (capacity.mjs's blockingHolder) and for "is this the same
+// checkout" (presence.mjs's sharedTree, with `contain: true`). Separators
+// are folded to "/" first (a Windows path compared against a POSIX one is
+// otherwise never equal to itself), and case is folded only on the platforms
+// whose own filesystems already do that — darwin and win32 — the same rule
+// refusePath (scripts/cleanup.mjs) and pathUnder above already use. Neither
+// path is resolved against the filesystem here: a caller wanting real paths
+// (a symlinked checkout, a case-preserving alias) resolves them first, the
+// way refusePath's own callers already do.
+export function treesOverlap(a, b, { platform = process.platform } = {}) {
+  const fold = platform === "darwin" || platform === "win32";
+  const norm = (p) => {
+    let s = String(p || "").replace(/\\/g, "/");
+    if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
+    return fold ? s.toLowerCase() : s;
+  };
+  const na = norm(a);
+  const nb = norm(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  return na.startsWith(nb + "/") || nb.startsWith(na + "/");
+}
+
 // `~` is only expanded by an interactive shell — a harness that spawns us
 // directly (spawn/execFile with an argv array, no shell in between) passes it
 // through literally. One helper, reused everywhere a path arrives from argv
