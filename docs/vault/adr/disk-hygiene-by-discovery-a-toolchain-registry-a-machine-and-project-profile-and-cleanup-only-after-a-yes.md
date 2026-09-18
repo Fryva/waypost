@@ -189,7 +189,7 @@ standing-context text.
    creates the file, because a guard that selects no file is a finding of its
    own (ADR-0011).
 
-   *Amended by [Cleanup to a machine-wide limit](cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md) (2026-09-18): over the limit, `should` holds only idle items, oldest first, as many as bring the project under it.*
+   *Amended by [Cleanup to a machine-wide limit](cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md) (2026-09-18): over the limit, only idle (`should`) items are removed, oldest first, as many as bring the project under it; recently used items stay `can`.*
 
 5. **`waypost clean` removes only after a yes.**
    - Without flags it prints the plan with ids, sizes and reasons; `--json`

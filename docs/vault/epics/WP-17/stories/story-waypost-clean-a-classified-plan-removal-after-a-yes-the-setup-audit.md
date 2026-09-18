@@ -3,7 +3,7 @@ type: story
 id: "story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit"
 epic: "WP-17"
 title: "waypost clean: a classified plan, removal after a yes, the setup audit"
-status: planned
+status: in-progress
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-14
@@ -13,9 +13,9 @@ tags: []
 code_refs: ["scripts/cleanup.mjs (planned)", "scripts/sizes.mjs", "scripts/presence.mjs", "bin/waypost", "prompts/cleanup.md (planned)", "skills/waypost-doctor/SKILL.md", "tests/cleanup.test.mjs (planned)"]
 specs: []
 blocked_by: ["WP-17/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with"]
-started_at: null
+started_at: "2026-09-18T16:41:47.645Z"
 closed_at: null
-plan_updated_at: null
+plan_updated_at: "2026-09-18T16:41:47.645Z"
 ---
 
 # waypost clean: a classified plan, removal after a yes, the setup audit
@@ -23,7 +23,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-17](../epic.md) |
-| **Status** | planned |
+| **Status** | in-progress |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -46,9 +46,8 @@ decides (Decisions 4–6), as amended by
 - [ ] `scripts/sizes.mjs`: a read-only age per item — the newest of `mtime`
       and `ctime` over its entries, ignoring the OS metadata names of the
       `system` entry, ties by path.
-- [ ] Tool versions in the machine profile, for the detector that finds a
-      toolchain duplicating another at the same version (deferred from the
-      discovery story; the ADR's "with versions").
+- [ ] ~~Tool versions in the machine profile~~ — deferred with the detectors
+      to a follow-up story (planning pass, 2026-09-18).
 - [ ] `scripts/cleanup.mjs` computes keep / should / can, each with a reason:
       - in use — the registry's process names, plus 10-minute recency (recency
         alone where the process table is unavailable);
@@ -81,8 +80,91 @@ decides (Decisions 4–6), as amended by
 
 ## Implementation Plan
 
-<!-- Written at the work-start gate (waypost story plan), after the ADR is
-     accepted and the discovery story has landed. -->
+From a `waypost-planner` pass (2026-09-18), grounded in the code, with the
+lead's answers to its open questions.
+
+**Shape** (as the registry and discovery stories landed): `scripts/cleanup.mjs`
+is pure — no filesystem, no spawn; `bin/waypost` gathers every fact (scan, git,
+process table, leases, peers) and passes it in, so classification is tested
+without git or `ps`. Tool knowledge stays in `toolchains/*.json`.
+
+1. `scripts/sizes.mjs` (read-only): per item `newest_ms` (max of mtime and
+   ctime, `metadata_names` of the `system` entry ignored), `nested_git`,
+   `unreadable` (today swallowed), `dev`/`ino`, `match`
+   (`tag`/`sure`/`generic`/`locator`) and the owner entry; `rootItem: false`
+   for the plan; `inspectDir(abs)` for the per-item re-check; `gitFacts(root,
+   rels)` (`--literal-pathspecs`; outside git nothing is tracked);
+   `scanGlobal` split into `cacheCandidates` + `measureCaches`, policy always
+   from the current registry.
+2. `scripts/toolchains.mjs`: shipped-only fields pass through — entry
+   `processes`, `metadata_names`; cache `manual`, `clean_argv`, `clean_docs`,
+   `stale_days`; artifact `clean_argv`; `origin: shipped|project`. The project
+   allowlist already drops them.
+3. `scripts/cleanup.mjs`: `itemId` (sha256 of the path, `p-`/`m-`),
+   `runningTools`, `refusePath` (filesystem/drive root, home, the project
+   root, any ancestor of home/root/state dir; case-folded on darwin/win32),
+   `routeFor`, `classifyItem`, `classify`, `orderOldestFirst`, `countedBytes`,
+   `pickUnderLimit`, `recheck`, `consent`, `logLine`. Two removal guards join
+   the disk-hygiene ADR's frontmatter in the same commit.
+4. Classification, in order: `keep` by policy (refused path, `regenerable`
+   not true — a `CACHEDIR.TAG` directory is regenerable by convention —,
+   inside a nested repository, no route); `keep` in use (10-minute recency;
+   a registry process of the item's tool; another session's lease
+   overlapping it; recency only where there is no process table, and the
+   plan says so); then `should` past `stale_days` (7 project / 30 machine),
+   else `can`; unknown age at most `can`. Caps at `can`: `manual` items
+   (machine-wide garbage collection, directories of versions), generic names
+   (`build/`, `dist/`, … — release output lives there; removed only by id),
+   and project items in a shared checkout (another host's live session,
+   `sharedTree`). A limit, when given, marks `picks` among `should` items of
+   the counted kinds, oldest first; the CLI passes none until the limit
+   story.
+5. Removal (`recheckItem` + `removeItem`, one per item, each in its own
+   try/catch, ancestors first): re-check `refusePath`, `lstat` (a directory,
+   not a link or junction), the same `dev`/`ino`, fresh facts, classify
+   again. Routes, always `git -C <root>`: the shipped `clean_argv` when the
+   whole directory is the tool's output with no tracked file or nested
+   repository (none shipped for project artifacts yet); else `git clean -X -d
+   -f` for an ignored directory (what stays is named); else Waypost itself
+   for a tag or a shipped `sure`/locator match with no tracked file and no
+   nested repository; else no route, with the reason. Machine caches:
+   `manual` never touched; `clean_argv` by absolute path, no shell, a
+   timeout, `.cmd`/`.bat` shims refused, an asked path re-asked first; else
+   Waypost removes the path — an asked path differing from the default only
+   through `clean_argv`. Prose is only shown. Verify each result; free space
+   per filesystem with `statfsSync` before/after; exit 0 only when all
+   selected items were removed, 1 otherwise, 75 when the slot is refused.
+6. The yes: `--yes --reason` anywhere; else a TTY with no harness (the
+   detection `waypost commit` uses, hardened so `WAYPOST_HARNESS` cannot hide
+   the markers) gets `[y/N]`, no after 60 s (`askYesNo` in `scripts/lib.mjs`,
+   reused by the limit story); else refuse and name the flags and `waypost
+   prompt cleanup`. `waypost clean` holds a machine-wide slot.
+7. Log: one line per `--apply` in `<machine state>/cleanup.<host>.jsonl`
+   (`v`, `kind: "apply"`, time, host, session, harness, source, root, yes,
+   selection, items with route/result/reason/freed, filesystems, exit).
+8. Setup: the audit as the last step, under a slot, in a try/catch; the
+   machine part only when discovery just refreshed the profile; totals per
+   class and the five largest; `[y/N]` for `should` only on a TTY with no
+   harness, otherwise it names `waypost clean`.
+9. `prompts/cleanup.md`; one body line in the `waypost-doctor` skill, then
+   `waypost skills install` so the tracked copies stay current;
+   `docs/toolchains.md`; `CHANGELOG.md`. `AGENTS.md` is left to the doctor
+   story.
+
+**Tests**: `tests/cleanup.test.mjs`, one test (or more) per acceptance
+criterion, end to end with a hermetic `HOME`, `PATH`, `WAYPOST_HOME` holding
+fake registry entries only, and `WAYPOST_CLEAN_NOW` as the clock (ctime cannot
+be backdated; it warns and is logged). Never `--apply` against the real
+registry. Plus pure units, registry schema checks in
+`tests/toolchains.test.mjs`, walk facts in `tests/sizes.test.mjs`.
+
+**Commits**: A — the plan (walk facts, loader, registry data, `cleanup.mjs`
+and its guards, `waypost clean [--json]`); B — removal after a yes; C — the
+setup audit, the prompt and the skill line.
+
+**Deferred**: detectors (superseded device support, unavailable simulators,
+duplicate toolchains) and tool versions — a follow-up story; their evidence
+sources need a live run on each OS.
 
 ## Acceptance Criteria
 
@@ -108,8 +190,9 @@ decides (Decisions 4–6), as amended by
       `keep`; with a live peer on the project, project artifacts are at most
       `can`.
 - [ ] A project root carrying `CACHEDIR.TAG` never appears in the plan.
-- [ ] Over the limit, `should` holds only the idle items, oldest first, that
-      bring the project under it; items used within `stale_days` stay `can`.
+- [ ] Given a limit, the plan picks from the idle (`should`) items, oldest
+      first, those that bring the counted total under it; items used within
+      `stale_days` stay `can` and are never picked.
 - [ ] An item that changed between plan and apply (now in use, now tracked,
       replaced by a symlink) is skipped with the reason.
 - [ ] Each apply appends one log line with the reason given, the items and
@@ -152,4 +235,4 @@ decides (Decisions 4–6), as amended by
 
 ---
 
-*Last updated: 2026-09-14*
+*Last updated: 2026-09-18*
