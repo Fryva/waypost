@@ -63,10 +63,16 @@ function withoutHarnessEvidence() {
   return off;
 }
 
+// The CLI under test gets the WAYPOST_* a call sets and none it would inherit:
+// the suite itself may run under some — `WAYPOST_NO_BEAT=1 waypost run --heavy
+// -- node --test …` turned every heartbeat below off, and an exported
+// WAYPOST_PROC stands in for the harness process a call is meant to derive.
+const ambientEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("WAYPOST_")));
+
 function waypost(proj, args, { expectFail = false, session = null, env = {} } = {}) {
   const r = spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd: proj, timeout: 30000,
-    env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO,
+    env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO,
       ...withoutHarnessEvidence(), ...(session ? { WAYPOST_SESSION_ID: session } : {}), ...env },
   });
   if (!expectFail) assert.equal(r.status, 0, `${args.join(" ")}\n${r.stderr}${r.stdout}`);

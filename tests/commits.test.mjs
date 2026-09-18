@@ -23,11 +23,17 @@ after(() => { for (const p of TMP_DIRS) rmSync(p, { recursive: true, force: true
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
 
+// The CLI under test gets the WAYPOST_* a call sets and none it would inherit:
+// the suite itself may run under some — `WAYPOST_NO_BEAT=1 waypost run --heavy
+// -- node --test …` turned every heartbeat below off, and an exported
+// WAYPOST_PROC stands in for the harness process a call is meant to derive.
+const ambientEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("WAYPOST_")));
+
 function waypost(proj, args, { harness = "claude", session = null, expectFail = false } = {}) {
   const r = spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd: proj, timeout: 40000,
     env: {
-      ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO,
+      ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO,
       WAYPOST_HARNESS: harness, ...(session ? { WAYPOST_SESSION_ID: session } : {}),
     },
   });

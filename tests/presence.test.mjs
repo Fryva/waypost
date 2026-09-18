@@ -35,11 +35,17 @@ const slashed = (p) => String(p).replace(/[\\]/g, "/");
 
 const Waypost = join(REPO, "bin", "waypost");
 
+// The CLI under test gets the WAYPOST_* a call sets and none it would inherit:
+// the suite itself may run under some — `WAYPOST_NO_BEAT=1 waypost run --heavy
+// -- node --test …` turned every heartbeat below off, and an exported
+// WAYPOST_PROC stands in for the harness process a call is meant to derive.
+const ambientEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("WAYPOST_")));
+
 function project() {
   const proj = mkdtempSync(join(tmpdir(), "waypost-p-"));
   spawnSync("git", ["init", "-q"], { cwd: proj });
   spawnSync(process.execPath, [Waypost, "bind", join(proj, "vault")], {
-    encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   return { proj, vault: join(proj, "vault") };
 }
@@ -593,7 +599,7 @@ test("a linked worktree inherits the binding, shares the records, is named a sib
   TMP_DIRS.push(wt);
   g(["worktree", "add", "-q", wt, "-b", "wt"]);
   const run = (cwd, args, env = {}) => spawnSync(process.execPath, [Waypost, ...args], {
-    encoding: "utf8", cwd, env: { ...process.env, WAYPOST_PROJECT_DIR: cwd, WAYPOST_HOME: REPO, ...env },
+    encoding: "utf8", cwd, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: cwd, WAYPOST_HOME: REPO, ...env },
   });
   // Bound without any setup: the main worktree's binding, resolved against this worktree.
   const st = run(wt, ["status"], { WAYPOST_SESSION_ID: "wt-session" });
@@ -825,10 +831,9 @@ test("one session gets one id whether or not the harness was pinned before the i
   spawnSync("git", ["config", "user.name", "T"], { cwd: proj });
   // Nothing inherited may pre-decide the answer: the harness comes from a
   // registry marker set here, the id from the harness's own session variable.
-  const base = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^WAYPOST_(HARNESS|SESSION_ID)$/.test(k)));
   const run = (args, env = {}) => spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd: proj,
-    env: { ...base, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, CLAUDECODE: "1",
+    env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, CLAUDECODE: "1",
       CLAUDE_CODE_SESSION_ID: "3e3378c8-d5be-4efe-b94e-ef6c665ce008", ...env },
   });
   const me = (r) => JSON.parse(r.stdout).active.find((s) => s.self).id;
