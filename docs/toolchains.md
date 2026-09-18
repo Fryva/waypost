@@ -1,7 +1,7 @@
 # Toolchains
 
-`waypost size`, `waypost profile` (and, later, `waypost clean`) know no
-tool. What counts as a Rust build directory, where Xcode keeps its caches,
+`waypost size`, `waypost profile` and `waypost clean` know no tool. What
+counts as a Rust build directory, where Xcode keeps its caches,
 whether an npm cache is safe to remove — all of that is data:
 `toolchains/<id>.json`, one file per tool, plus `generic.json` for the
 conventional names (`build`, `dist`, `target`, …) that many unrelated
@@ -61,12 +61,43 @@ longer exists is not measured, and `size --global` asks for
 | `detect` | `bins` (executables looked up, never run, on `PATH`) and `manifests` (project files like `Cargo.toml`, matched in the project root) — what discovery (`waypost profile`) uses to list the tools and ecosystems present; an entry without `bins` is never listed as a tool, but its caches are still resolved from the environment or the default |
 | `artifacts` | where the tool writes *inside a project*: `name` (exact), `prefix`, or `pattern` (a JS regex source matched against one directory name, with optional `flags`), `match` (`sure` counts unconditionally, wherever it appears; `generic` counts only when the project's own `.gitignore` says so and it holds no tracked file), `regenerable`, `clean` (the tool's own project-clean command, in prose) |
 | `skip` | names this tool's own artifacts never get walked into (`node_modules`, a virtualenv name); `.git` is hard-coded in the scanner core, not listed anywhere |
-| `caches` | machine-wide cache paths: `path` (with the tokens below), `os`, `confidence` (**one key per OS in this item's `os`**), `docs`/`notes` as the confidence levels below require, `regenerable`, `clean`, optional `env` (an override variable name), optional `ask` (below) |
-| `locators` | named checks in `scripts/toolchains.mjs` for something a plain name/pattern match cannot find (matched by content, not by its own directory name) — `{ "name", "os", "collect": ["<suffix>", …] }`; the core collects basenames ending in `collect`'s suffixes during the walk and calls the locator by name afterwards, generically, never knowing what it does |
+| `caches` | machine-wide cache paths: `path` (with the tokens below), `os`, `confidence` (**one key per OS in this item's `os`**), `docs`/`notes` as the confidence levels below require, `regenerable`, `clean`, optional `stale_days` (defaults to 30 — the ADR's machine-cache window — when absent), optional `manual` (below), optional `clean_argv`/`clean_docs` (below), optional `env` (an override variable name), optional `ask` (below) |
+| `locators` | named checks in `scripts/toolchains.mjs` for something a plain name/pattern match cannot find (matched by content, not by its own directory name) — `{ "name", "os", "collect": ["<suffix>", …], "regenerable", "clean" }`; the core collects basenames ending in `collect`'s suffixes during the walk and calls the locator by name afterwards, generically, never knowing what it does. `regenerable`/`clean` describe what the locator itself finds, the same fields an artifact carries |
+| `processes` | entry-level: short, exact process (`comm`) names that mean this tool is at work right now — `waypost clean` (`scripts/cleanup.mjs`'s `runningTools`) matches them against the live process table by basename, case-insensitively, with a trailing `.exe` stripped and compared by the first 15 characters (Linux's own truncated `comm`). Never an interpreter or shell (`node`, `java`, `python`, `sh`, …) — that would call half the machine "in use" for one unrelated process. Omitted where no process name is unambiguous enough (Gradle's own daemon shows up as `java`, not `gradle` or `GradleDaemon`) |
+| `metadata_names` (the `system` entry only) | OS metadata file names (`.DS_Store`, a Windows thumbnail cache file, a Windows folder-settings file) ignored when computing an item's own age — a metadata file's timestamp never makes an otherwise-idle item look freshly touched |
 
-`clean_argv`, `processes` and `detectors` are part of the ADR's full shape
-but belong to a later story (classified cleanup) — they are not read yet,
-and a shipped entry should not carry them before that story lands.
+### `manual`, `clean_argv`, `clean_docs`, and `origin`
+
+A cache's `manual: true` means its clean command reaches beyond its own
+path — a machine-wide garbage collection (`docker system prune`, `brew
+cleanup --prune=all`, `conda clean --all`) or a directory holding several
+tool *versions* (`~/.rustup/toolchains`, an Android SDK/Studio version
+directory, a JetBrains or Gradle-wrapper cache, Xcode's DeviceSupport or
+CoreSimulator images). `waypost clean` caps a manual cache at `can` — never
+`should`, so it is never picked automatically by a future machine-wide limit
+— and shows its `clean` text as instructions, never runs it.
+
+`clean_argv` (a literal argv, run without a shell) plus `clean_docs` (its own
+documentation URL, required alongside it) is added **only** when the
+command cleans exactly that one cache path and nothing else, backed by the
+tool's own documentation — `go clean -cache`, `go clean -modcache`,
+`npm cache clean --force`, `pip cache purge`, `uv cache clean`,
+`ccache -C`, `bun pm cache rm`. When it is not certain a command cleans
+*exactly* that path (NuGet's `dotnet nuget locals all --clear` also clears
+sibling caches this registry does not track as one item; Composer's
+`clear-cache` depends on which cache directory is actually active), `clean`
+stays prose and `clean_argv` is left out — a later fix can always add it once
+that certainty exists. `clean_argv` and `manual` never appear on the same
+cache: a manual cache's whole point is that no single argv cleans only it.
+
+`origin` is not written in any `toolchains/<id>.json` file — `loadRegistry`
+computes it: `"shipped"` for everything from the shipped registry,
+`"project"` only for an id a project's own `.waypost/toolchains/` invents;
+extending a shipped entry keeps that entry's own `"shipped"` origin. It
+travels with every matched item `waypost size --project`/`waypost clean`
+report, so classification can tell a shipped `sure` match (removable through
+`git clean -X` or the tool's own command) from a project's own artifact
+(removed only once git is confirmed to ignore it — see the ADR).
 
 ### `ask`: asking the tool itself (WP-17, the discovery story)
 
@@ -172,8 +203,9 @@ is `true` because it is re-copied from a paired device on connect. `false`
 means irreplaceable or doubtful: Xcode Archives (needed to symbolicate old
 crash reports), crash/diagnostic reports, `/cores`, a simulator device's own
 installed apps and data, a container engine's data volume. When unsure, the
-entry says `false` and explains why in `notes` — a later cleanup story reads
-`regenerable` as the one hard gate on what may ever be removed in bulk.
+entry says `false` and explains why in `notes` — `waypost clean`
+(`scripts/cleanup.mjs`) reads `regenerable` as the one hard gate on what may
+ever be classified `should`/`can` at all; anything else stays `keep`.
 
 ## Project entries: data only, and why
 
@@ -184,14 +216,14 @@ this project's own choice, not a public tool's. It is read as **data only**:
 - Kept at the top level: `id`, `name`, `detect.manifests`.
 - Every other top-level field — `caches` (so `ask` can never ride along
   either — asking only ever runs the shipped registry's own argv), `skip`,
-  `locators`, `detect.bins`, and anything from a later story (`clean_argv`, a
-  project clean command, `processes`, `detectors`) — is dropped and
-  reported, one `{ file, field, reason }` per field, in `notes` from
+  `locators`, `detect.bins`, `processes`, `metadata_names`, and anything else
+  outside the allowlist (`detectors`, a project clean command) — is dropped
+  and reported, one `{ file, field, reason }` per field, in `notes` from
   `loadRegistry` and by `waypost size --json`/`--global --json`/
-  `waypost profile --json`.
+  `waypost profile --json`/`waypost clean --json`.
 - Each `artifacts[]` item is **rebuilt field by field from an allowlist**,
-  never passed through whole, so no stray key (a `clean_argv`, an `ask`, a
-  `path`) can ride along inside one:
+  never passed through whole, so no stray key (a `clean_argv`, `clean_docs`,
+  an `ask`, a `path`) can ride along inside one:
   - `name` or `prefix` — a single path segment (no `/` or `\`, never `.` or
     `..`); an artifact with neither is dropped.
   - `match` — must be exactly `"sure"` or `"generic"`; anything else drops
@@ -204,6 +236,10 @@ this project's own choice, not a public tool's. It is read as **data only**:
     (catastrophic backtracking against a long directory name), so a project
     artifact is only ever matched by name or prefix — the shipped registry
     is the only source of patterns.
+  - `clean_argv`/`clean_docs` are **never** kept either, on a project
+    artifact: only a shipped cache's own clean command may ever be run by
+    `waypost clean` (see above); a project artifact is removed through
+    `git clean -X` once confirmed ignored, never through argv a clone ships.
   - Any other artifact key is dropped and reported the same way.
 - An id matching a shipped entry **extends** that entry's artifacts and
   manifests; a new id adds a project-only entry.

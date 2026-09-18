@@ -152,7 +152,12 @@ function shippedEntries() {
 export function loadRegistry({ projectRoot, platform = process.platform } = {}) {
   const notes = [];
   const map = new Map();
-  for (const [id, e] of shippedEntries()) map.set(id, { ...e });
+  // `origin` marks where an entry's OWN definition comes from — "shipped"
+  // for everything from toolchains/*.json, "project" only for an id a
+  // project invents itself. Spreading into a fresh object on every call
+  // (here, and again below) is what keeps this from ever mutating
+  // shippedEntries()'s own cached objects.
+  for (const [id, e] of shippedEntries()) map.set(id, { ...e, origin: "shipped" });
 
   const [, projectDir] = registryDirs(projectRoot);
   let files = [];
@@ -169,13 +174,16 @@ export function loadRegistry({ projectRoot, platform = process.platform } = {}) 
     if (!clean) continue;
     const existing = map.get(clean.id);
     if (existing) {
+      // Extending a shipped entry keeps ITS origin — it is still fundamentally
+      // the shipped definition, now with a project artifact glued on, not a
+      // project invention of its own.
       map.set(clean.id, {
         ...existing,
         artifacts: [...existing.artifacts, ...clean.artifacts],
         detect: { ...existing.detect, manifests: [...new Set([...(existing.detect.manifests || []), ...clean.detect.manifests])] },
       });
     } else {
-      map.set(clean.id, clean);
+      map.set(clean.id, { ...clean, origin: "project" });
     }
   }
 
@@ -443,6 +451,8 @@ export function resolveCachePaths(entries, { home, env = process.env, platform =
       const base = {
         tool: e.id, item: c.path, clean: c.clean, confidence: (c.confidence || {})[platform] || null,
         docs: c.docs ?? null, notes: c.notes ?? null, regenerable: c.regenerable ?? null,
+        manual: c.manual === true, clean_argv: Array.isArray(c.clean_argv) ? c.clean_argv : null,
+        clean_docs: c.clean_docs ?? null, stale_days: Number.isFinite(c.stale_days) ? c.stale_days : null,
       };
 
       let askNote = null;

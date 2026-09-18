@@ -56,7 +56,8 @@
       },
       "docs": "https://docs.gradle.org/current/userguide/directory_layout.html",
       "regenerable": true,
-      "clean": "remove old Gradle wrapper versions"
+      "clean": "remove old Gradle wrapper versions",
+      "manual": true
     }
   ],
   "locators": []

@@ -83,6 +83,8 @@
       "notes": "ask.env sets npm_config_update_notifier=false to suppress the update-notifier network check (https://docs.npmjs.com/cli/v10/using-npm/config#update-notifier).",
       "regenerable": true,
       "clean": "npm cache clean --force",
+      "clean_argv": ["npm", "cache", "clean", "--force"],
+      "clean_docs": "https://docs.npmjs.com/cli/v10/commands/npm-cache",
       "ask": {
         "argv": ["npm", "config", "get", "cache"],
         "parse": "line",
@@ -102,6 +104,8 @@
       "notes": "ask.env sets npm_config_update_notifier=false to suppress the update-notifier network check (https://docs.npmjs.com/cli/v10/using-npm/config#update-notifier).",
       "regenerable": true,
       "clean": "npm cache clean --force",
+      "clean_argv": ["npm", "cache", "clean", "--force"],
+      "clean_docs": "https://docs.npmjs.com/cli/v10/commands/npm-cache",
       "ask": {
         "argv": ["npm", "config", "get", "cache"],
         "parse": "line",

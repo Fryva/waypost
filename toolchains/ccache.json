@@ -27,6 +27,8 @@
       "notes": "ccache's default cache dir follows the OS cache-dir convention on macOS; not present on this machine.",
       "regenerable": true,
       "clean": "ccache -C",
+      "clean_argv": ["ccache", "-C"],
+      "clean_docs": "https://ccache.dev/manual/latest.html#_options_summary",
       "ask": {
         "argv": ["ccache", "--get-config", "cache_dir"],
         "parse": "line",
@@ -44,6 +46,8 @@
       "docs": "https://ccache.dev/manual/latest.html#_configuration",
       "regenerable": true,
       "clean": "ccache -C",
+      "clean_argv": ["ccache", "-C"],
+      "clean_docs": "https://ccache.dev/manual/latest.html#_options_summary",
       "ask": {
         "argv": ["ccache", "--get-config", "cache_dir"],
         "parse": "line",
@@ -61,6 +65,8 @@
       "docs": "https://ccache.dev/manual/latest.html#_configuration",
       "regenerable": true,
       "clean": "ccache -C",
+      "clean_argv": ["ccache", "-C"],
+      "clean_docs": "https://ccache.dev/manual/latest.html#_options_summary",
       "ask": {
         "argv": ["ccache", "--get-config", "cache_dir"],
         "parse": "line",
@@ -79,7 +85,9 @@
       },
       "notes": "Legacy pre-XDG ccache default, still used when CCACHE_DIR is unset on older configurations; not present on this machine.",
       "regenerable": true,
-      "clean": "ccache -C"
+      "clean": "ccache -C",
+      "clean_argv": ["ccache", "-C"],
+      "clean_docs": "https://ccache.dev/manual/latest.html#_options_summary"
     }
   ],
   "locators": []

@@ -27,11 +27,17 @@
       "regenerable": true,
       "clean": "brew cleanup --prune=all",
       "ask": {
-        "argv": ["brew", "--cache"],
+        "argv": [
+          "brew",
+          "--cache"
+        ],
         "parse": "line",
-        "env": { "HOMEBREW_NO_AUTO_UPDATE": "1" },
+        "env": {
+          "HOMEBREW_NO_AUTO_UPDATE": "1"
+        },
         "docs": "https://docs.brew.sh/Manpage"
-      }
+      },
+      "manual": true
     },
     {
       "path": "$XDG_CACHE_HOME/Homebrew",
@@ -46,11 +52,17 @@
       "regenerable": true,
       "clean": "brew cleanup --prune=all",
       "ask": {
-        "argv": ["brew", "--cache"],
+        "argv": [
+          "brew",
+          "--cache"
+        ],
         "parse": "line",
-        "env": { "HOMEBREW_NO_AUTO_UPDATE": "1" },
+        "env": {
+          "HOMEBREW_NO_AUTO_UPDATE": "1"
+        },
         "docs": "https://docs.brew.sh/Manpage"
-      }
+      },
+      "manual": true
     }
   ],
   "locators": []

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// waypost — sizes.mjs (WP-17, the registry story)
+// waypost — sizes.mjs (WP-17, the registry and clean-plan stories)
 // A read-only measurement of build artifacts and dev caches: never deletes,
 // never shells out to anything that deletes. This module knows no tool: it
 // walks a project tree by NAME and PATTERN alone, and those names, patterns
@@ -13,23 +13,35 @@
 //   node sizes.mjs --global
 //
 // Two modes:
-//  - scanProject(dir, { budget, registry }): walks one project tree,
-//    breadth-first, for directories that are build/cache output by the walk
-//    invariants in the ADR: an outermost CACHEDIR.TAG, a name/prefix/pattern
-//    the registry marks unambiguous ("sure") anywhere, or one it marks
-//    ambiguous ("generic") only where the project's own git rules say it is
-//    output. After the walk, any locator the loaded registry applies on
-//    this platform runs once, generically, against the basenames the walk
-//    collected for it.
-//  - scanGlobal({ home, env, platform, registry }): measures the registry's
-//    own cache paths for this platform — resolved from an environment
-//    variable, then a per-OS default, with a trailing "*" expanded against
-//    the parent directory's real entries — reporting only the ones that
-//    exist on this machine, each with which tool it belongs to and where
-//    its path came from.
+//  - scanProject(dir, { budget, registry, rootItem }): walks one project
+//    tree, breadth-first, for directories that are build/cache output by the
+//    walk invariants in the ADR: an outermost CACHEDIR.TAG, a name/prefix/
+//    pattern the registry marks unambiguous ("sure") anywhere, or one it
+//    marks ambiguous ("generic") only where the project's own git rules say
+//    it is output. After the walk, any locator the loaded registry applies
+//    on this platform runs once, generically, against the basenames the
+//    walk collected for it. `rootItem: false` (the clean-plan story) never
+//    reports the root itself as one item even when it carries the tag —
+//    `waypost size` never passes it, so its own output is unchanged.
+//  - scanGlobal({ home, env, platform, registry, profile }): measures the
+//    registry's own cache paths for this platform — resolved from an
+//    environment variable, then a per-OS default, with a trailing "*"
+//    expanded against the parent directory's real entries — reporting only
+//    the ones that exist on this machine, each with which tool it belongs to
+//    and where its path came from. Built from two smaller, separately
+//    exported steps: cacheCandidates (policy, no filesystem measurement) and
+//    measureCaches (stat + sum, no policy).
 //
 // Both report allocated bytes (st.blocks * 512; st.size on win32, which
 // reports none) and dedupe by (dev, ino) so a hard link is counted once.
+// Every matched item (either mode) also carries a read-only age (the newest
+// of mtime/ctime over its own root and everything inside it, the OS metadata
+// names the registry's `system` entry lists ignored), whether its own
+// subtree holds a nested repository, whether it was found while already
+// walking inside one, whether any of it could not be read, its own identity
+// (dev/ino), how it was matched, and the registry fields its owning entry
+// carries — the facts the clean-plan story classifies from, never a removal
+// decision made here.
 // bin/waypost formats the JSON both functions return, reaching this module
 // with a dynamic import() (in-process, the way selfInstall reaches
 // agents.mjs at bin/waypost:812). doctor (a later story) is synchronous and
@@ -39,20 +51,38 @@
 // runs this code in-process, never as a subprocess.
 
 import { readdirSync, lstatSync, statSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { loadRegistry, applicableLocators, runLocator, resolveCachePaths } from "./toolchains.mjs";
+import { gitCommonDir } from "./lib.mjs";
 
 // Never entered, whatever it contains: version control metadata. Every
 // other never-enter name (installed dependency trees, virtualenvs, …) is a
 // tool's own business and comes from the registry's `skip` lists instead.
 const CORE_SKIP = new Set([".git"]);
+const EMPTY_SET = new Set();
+
+// The OS metadata names the registry's `system` entry lists (".DS_Store",
+// a Windows thumbnail cache file, a Windows folder-settings file) — read
+// once per scan and passed down to every age computation below, so a
+// metadata file's own timestamp never makes an otherwise-idle item look
+// freshly touched.
+export function metadataNamesOf(entries) {
+  const sys = entries.find((e) => e.id === "system");
+  return new Set(Array.isArray(sys && sys.metadata_names) ? sys.metadata_names : []);
+}
 
 // Builds the four lookup shapes the walk needs — sure/generic names,
 // prefixes and patterns — from every loaded entry's `artifacts`, plus the
-// union of every entry's `skip` names. Pure data assembly, no tool named.
+// union of every entry's `skip` names, and an owner lookup back from a
+// matched name/prefix/pattern to the entry that claims it (`tool`, whether
+// that entry's own definition is the shipped registry or a project's own,
+// `regenerable`, `stale_days`, and its clean instructions) — the same shape
+// a matched cache item already carries, so a caller classifying a matched
+// item never has to ask which kind of match it was to read its owner. Pure
+// data assembly, no tool named.
 function compileArtifacts(entries) {
   const sureNames = new Set();
   const surePrefixes = [];
@@ -61,20 +91,66 @@ function compileArtifacts(entries) {
   const surePatterns = [];
   const genericPatterns = [];
   const skip = new Set(CORE_SKIP);
+  const ownerByName = new Map();
+  const ownerByPrefix = [];
+  const ownerByPattern = [];
   for (const e of entries) {
     for (const name of e.skip || []) skip.add(name);
     for (const a of e.artifacts || []) {
       const sure = a.match === "sure";
-      if (typeof a.name === "string") (sure ? sureNames : genericNames).add(a.name);
-      else if (typeof a.prefix === "string") (sure ? surePrefixes : genericPrefixes).push(a.prefix);
-      else if (typeof a.pattern === "string") {
+      const owner = {
+        tool: e.id, origin: e.origin || "shipped", regenerable: a.regenerable,
+        stale_days: Number.isFinite(a.stale_days) ? a.stale_days : null,
+        clean: a.clean ?? null,
+        clean_argv: Array.isArray(a.clean_argv) ? a.clean_argv : null,
+      };
+      if (typeof a.name === "string") {
+        (sure ? sureNames : genericNames).add(a.name);
+        ownerByName.set(a.name, owner);
+      } else if (typeof a.prefix === "string") {
+        (sure ? surePrefixes : genericPrefixes).push(a.prefix);
+        ownerByPrefix.push({ prefix: a.prefix, owner });
+      } else if (typeof a.pattern === "string") {
         let re;
         try { re = new RegExp(a.pattern, a.flags || undefined); } catch { continue; }
         (sure ? surePatterns : genericPatterns).push(re);
+        ownerByPattern.push({ re, owner });
       }
     }
   }
-  return { sureNames, surePrefixes, genericNames, genericPrefixes, surePatterns, genericPatterns, skip };
+  return {
+    sureNames, surePrefixes, genericNames, genericPrefixes, surePatterns, genericPatterns, skip,
+    ownerByName, ownerByPrefix, ownerByPattern,
+  };
+}
+
+function ownerOf(name, c) {
+  if (c.ownerByName.has(name)) return c.ownerByName.get(name);
+  const p = c.ownerByPrefix.find((x) => name.startsWith(x.prefix));
+  if (p) return p.owner;
+  const r = c.ownerByPattern.find((x) => x.re.test(name));
+  return r ? r.owner : null;
+}
+
+// One entry per locator name, from whichever entry declares it — the same
+// owner shape as an artifact's, read from the locator's own declaration
+// (a locator that carries no `regenerable`/`clean` of its own reports those
+// as unknown rather than guessing).
+function compileLocatorOwners(entries) {
+  const map = new Map();
+  for (const e of entries) {
+    for (const l of e.locators || []) {
+      if (map.has(l.name)) continue;
+      map.set(l.name, {
+        tool: e.id, origin: e.origin || "shipped",
+        regenerable: typeof l.regenerable === "boolean" ? l.regenerable : null,
+        stale_days: Number.isFinite(l.stale_days) ? l.stale_days : null,
+        clean: l.clean ?? null,
+        clean_argv: Array.isArray(l.clean_argv) ? l.clean_argv : null,
+      });
+    }
+  }
+  return map;
 }
 
 function isSureName(name, c) {
@@ -127,34 +203,64 @@ function sizeOf(st) {
   return process.platform === "win32" ? st.size : st.blocks * 512;
 }
 
-// ─── byte summation inside one matched directory ────────────────────────
+function entryAgeMs(st) {
+  return Math.max(st.mtimeMs, st.ctimeMs);
+}
+
+// ─── byte summation + age/identity/readability inside one matched item ──
 //
 // Pure lstat, no symlink is ever resolved or descended into — its own
 // allocation is counted and nothing more, which is also what keeps a
 // symlink cycle from ever being followed here. `seen` is shared across the
 // whole scan (every matched directory), so two hard links anywhere in the
-// scan are counted once, the way `du` counts them.
-function dirBytes(root, seen, budgetLeft) {
+// scan are counted once, the way `du` counts them. Alongside bytes, this
+// also reports: `newest_ms` (the newest of mtime/ctime over the item's own
+// root and every entry inside it, a name in `metadataNames` never moving
+// it); `nested_git` (a `.git` file or directory found directly inside any
+// directory this walk entered — the item's own subtree holds a nested
+// repository or worktree); `unreadable` (a readdir or lstat failure inside
+// the item was swallowed rather than surfaced); and the item's own root
+// identity (`dev`/`ino`), read once, for a re-check to compare against
+// later without re-walking the whole tree.
+function dirBytes(root, seen, budgetLeft, metadataNames = EMPTY_SET) {
   let bytes = 0;
   let visited = 0;
   let partial = false;
+  let unreadable = false;
+  let nestedGit = false;
+  let newestMs = null;
   let rst;
-  try { rst = lstatSync(root); } catch { return { bytes: 0, visited: 0, partial: false }; }
+  try { rst = lstatSync(root); }
+  catch { return { bytes: 0, visited: 0, partial: false, unreadable: true, nested_git: false, newest_ms: null, dev: null, ino: null }; }
   visited++;
-  const rootKey = `${rst.dev}:${rst.ino}`;
+  const dev = rst.dev;
+  const ino = rst.ino;
+  const rootKey = `${dev}:${ino}`;
   if (!seen.has(rootKey)) { seen.add(rootKey); bytes += sizeOf(rst); }
+  if (!metadataNames.has(basename(root))) newestMs = entryAgeMs(rst);
 
   const stack = [root];
   while (stack.length) {
     const dir = stack.pop();
     let names;
-    try { names = readdirSync(dir); } catch { continue; }
+    try { names = readdirSync(dir); } catch { unreadable = true; continue; }
+    // A .git entry directly inside a visited directory means this item's own
+    // subtree holds a nested repository (or a worktree's link back to one) —
+    // read for free off the listing the walk below already fetched.
+    if (names.includes(".git")) nestedGit = true;
     for (const name of names) {
-      if (budgetLeft != null && visited >= budgetLeft) { partial = true; return { bytes, visited, partial }; }
+      if (budgetLeft != null && visited >= budgetLeft) {
+        partial = true;
+        return { bytes, visited, partial, unreadable, nested_git: nestedGit, newest_ms: newestMs, dev, ino };
+      }
       const p = join(dir, name);
       let st;
-      try { st = lstatSync(p); } catch { visited++; continue; }
+      try { st = lstatSync(p); } catch { visited++; unreadable = true; continue; }
       visited++;
+      if (!metadataNames.has(name)) {
+        const age = entryAgeMs(st);
+        if (newestMs == null || age > newestMs) newestMs = age;
+      }
       const key = `${st.dev}:${st.ino}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -162,7 +268,24 @@ function dirBytes(root, seen, budgetLeft) {
       if (st.isDirectory() && !st.isSymbolicLink()) stack.push(p);
     }
   }
-  return { bytes, visited, partial };
+  return { bytes, visited, partial, unreadable, nested_git: nestedGit, newest_ms: newestMs, dev, ino };
+}
+
+// One absolute path, in isolation: the same facts a matched item carries out
+// of the walk above, with no budget and no dedup against any other item —
+// for a re-check right before a later removal step touches anything, and for
+// tests that want one item's facts without a whole project scan.
+export function inspectDir(abs, { metadata = EMPTY_SET } = {}) {
+  let st;
+  try { st = lstatSync(abs); } catch { return { exists: false }; }
+  if (st.isSymbolicLink()) return { exists: true, is_directory: false, is_symlink: true };
+  if (!st.isDirectory()) return { exists: true, is_directory: false, is_symlink: false };
+  const r = dirBytes(abs, new Set(), null, metadata);
+  return {
+    exists: true, is_directory: true, is_symlink: false,
+    bytes: r.bytes, newest_ms: r.newest_ms, nested_git: r.nested_git,
+    unreadable: r.unreadable, dev: r.dev, ino: r.ino,
+  };
 }
 
 // ─── git check-ignore, batched once per scan ────────────────────────────
@@ -171,7 +294,10 @@ function dirBytes(root, seen, budgetLeft) {
 // "none of these is ignored" (status 1) — no git binary, a project that is
 // not a git repository, a detached worktree with no HEAD — is read as
 // "nothing here counts as ignored", per the ADR: a generic name only counts
-// inside a repository whose own rules say so.
+// inside a repository whose own rules say so. No --literal-pathspecs here:
+// `check-ignore` itself refuses that option outright ("pathspec magic not
+// supported by this command"), on every git version tried — unlike ls-files
+// below, which does support it.
 function gitIgnoredSet(root, relPaths) {
   if (!relPaths.length) return new Set();
   const input = relPaths.map((p) => p.split(sep).join("/")).join("\0") + "\0";
@@ -197,7 +323,7 @@ function gitTrackedDirs(root, relPaths) {
   const rels = relPaths.map((p) => p.split(sep).join("/"));
   let r;
   try {
-    r = spawnSync("git", ["-C", root, "ls-files", "-z", "--", ...rels], { encoding: "utf8", timeout: 15000 });
+    r = spawnSync("git", ["--literal-pathspecs", "-C", root, "ls-files", "-z", "--", ...rels], { encoding: "utf8", timeout: 15000 });
   } catch {
     return new Set(relPaths);
   }
@@ -211,6 +337,71 @@ function gitTrackedDirs(root, relPaths) {
   return out;
 }
 
+// A merged, hardened read of the same two facts, for callers outside the
+// walk's own per-level budget accounting — inspectDir's re-check, the
+// clean-plan's own fact-gathering (bin/waypost), and later the removal
+// path's own re-check right before it touches anything.
+//
+// Repository membership is its own question, answered once by
+// `gitCommonDir` (lib.mjs's own `git rev-parse --git-common-dir`) rather
+// than inferred from check-ignore's exit status — check-ignore can fail for
+// reasons that have nothing to do with "is this a repository" (a corrupt
+// index, for one), and conflating the two used to read a corrupt-but-real
+// repository as "outside git" instead of "cannot tell right now".
+//
+// Tracked-ness is checked for EVERY given path, not only the ones
+// check-ignore flagged ignored: an un-ignored match (a shipped "sure" name
+// with no ignore rule covering it at all) can still hold tracked content,
+// and that is exactly the case a plain "only check what's ignored" miss —
+// the CACHEDIR.TAG/tracked-file acceptance criterion this function exists
+// for. --literal-pathspecs is used only here, on ls-files, which supports
+// it; `check-ignore` refuses that option outright regardless of `--stdin`.
+//
+// Outside a git repository, `repo` is false and nothing is reported ignored
+// or tracked. Inside one, ANY git failure on either call (no binary, a
+// corrupt index, an unreadable object, output this function cannot parse) —
+// answers conservatively: nothing ignored, EVERY given path tracked. That is
+// the one direction that can never turn real content into something a
+// caller believes is safe to remove.
+export function gitFacts(root, relPaths) {
+  if (!relPaths.length) return { repo: true, ignored: new Set(), tracked: new Set() };
+  if (!gitCommonDir(root)) return { repo: false, ignored: new Set(), tracked: new Set() };
+
+  const posix = relPaths.map((p) => p.split(sep).join("/"));
+  const conservative = () => ({ repo: true, ignored: new Set(), tracked: new Set(relPaths) });
+
+  let r;
+  try {
+    r = spawnSync("git", ["-C", root, "check-ignore", "--stdin", "-z"],
+      { input: posix.join("\0") + "\0", encoding: "utf8", timeout: 15000 });
+  } catch {
+    return conservative();
+  }
+  // check-ignore: status 0 (at least one match) or 1 (none) are the only
+  // answers that mean anything; anything else is a failure, not "nothing
+  // ignored".
+  if (r.error || r.status == null || (r.status !== 0 && r.status !== 1)) {
+    return conservative();
+  }
+  const ignoredPosix = new Set((r.stdout || "").split("\0").filter(Boolean));
+  const ignored = new Set(relPaths.filter((_, i) => ignoredPosix.has(posix[i])));
+
+  let tr;
+  try {
+    tr = spawnSync("git", ["--literal-pathspecs", "-C", root, "ls-files", "-z", "--", ...posix], { encoding: "utf8", timeout: 15000 });
+  } catch {
+    return conservative();
+  }
+  if (tr.error || tr.status !== 0) return conservative();
+  const files = (tr.stdout || "").split("\0").filter(Boolean);
+  const tracked = new Set();
+  for (let i = 0; i < relPaths.length; i++) {
+    const prefix = `${posix[i]}/`;
+    if (files.some((f) => f === posix[i] || f.startsWith(prefix))) tracked.add(relPaths[i]);
+  }
+  return { repo: true, ignored, tracked };
+}
+
 // A directory carries the tag when CACHEDIR.TAG is a direct child file —
 // checked by name for every directory the walk encounters, independent of
 // that directory's own name: a custom cache directory is found exactly
@@ -222,13 +413,21 @@ function hasCachedirTag(dirAbs) {
 // ─── scanProject ─────────────────────────────────────────────────────────
 //
 // Output: { root, complete, bytes_at_least, entries_visited, entry_budget,
-// subprocess_calls, dirs: [{ path, bytes, partial }] } — the same shape
-// whether the walk ran to completion or was stopped by the budget.
-// `dirs[].path` is root-relative for directories inside the project, and an
-// absolute path for a match a locator found outside it. `subprocess_calls`
-// is the number of git and locator subprocesses actually run, reported
-// either way; with a budget set, each one was also charged against
-// entries_visited at GIT_CALL_COST (see above) before it ran.
+// subprocess_calls, dirs: [{ path, bytes, partial, newest_ms, nested_git,
+// in_nested_repo, unreadable, dev, ino, match, tool, origin, regenerable,
+// stale_days, clean, clean_argv }] } — the same shape whether the walk ran
+// to completion or was stopped by the budget. `dirs[].path` is root-relative
+// for directories inside the project, and an absolute path for a match a
+// locator found outside it. `match` is "tag"/"sure"/"generic"/"locator";
+// `tool`/`origin`/… are the owning registry entry's own fields (null for a
+// bare CACHEDIR.TAG match with no registry entry behind it — regenerable by
+// the tag's own convention, a classifier's call to make, not this walk's).
+// `in_nested_repo` is true for a match found while the walk was already
+// inside a directory that itself holds a `.git` — a boundary distinct from
+// `nested_git`, which says the match's OWN subtree holds one.
+// `subprocess_calls` is the number of git and locator subprocesses actually
+// run, reported either way; with a budget set, each one was also charged
+// against entries_visited at GIT_CALL_COST (see above) before it ran.
 //
 // Discovery and summation are interleaved level by level, not run as two
 // separate passes over the whole tree: each breadth-first level's generic
@@ -242,8 +441,12 @@ function hasCachedirTag(dirAbs) {
 // left unresolved (neither counted nor walked) — which is what keeps a
 // tree whose generic names recur at many levels from spending wall-clock
 // the entry budget alone cannot see. The same charge applies to whatever
-// confirmation calls a locator makes after the walk.
-export function scanProject(dir, { budget = null, home = homedir(), registry = null } = {}) {
+// confirmation calls a locator makes after the walk. A candidate found
+// while already inside a nested repository is never sent into a
+// check-ignore batch scoped to the outer root at all — git would either
+// answer for the wrong repository or fail the whole batch — and is walked
+// as ordinary instead, the same safe fallback used when git cannot answer.
+export function scanProject(dir, { budget = null, home = homedir(), registry = null, rootItem = true } = {}) {
   const root = resolve(dir);
   home = resolve(home);
   if (root === home) throw new Error("refusing to scan $HOME as a project root — pass the project directory instead");
@@ -257,7 +460,9 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
 
   const reg = registry || loadRegistry({ projectRoot: root });
   const c = compileArtifacts(reg.entries);
+  const metadataNames = metadataNamesOf(reg.entries);
   const locators = applicableLocators(reg.entries);
+  const locatorOwners = compileLocatorOwners(reg.entries);
   // One basename set per locator, filled in during the walk itself whenever
   // a directory's name ends with a suffix that locator asked to `collect`.
   const collected = new Map(locators.map((l) => [l.name, new Set()]));
@@ -280,28 +485,55 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
     return true;
   }
 
+  function ownerFor(m) {
+    if (m.match === "tag") return { tool: null, origin: null, regenerable: true, stale_days: null, clean: null, clean_argv: null };
+    if (m.match === "locator") {
+      return locatorOwners.get(m.locator) || { tool: null, origin: null, regenerable: null, stale_days: null, clean: null, clean_argv: null };
+    }
+    return ownerOf(basename(m.abs), c) || { tool: null, origin: null, regenerable: false, stale_days: null, clean: null, clean_argv: null };
+  }
+
   // Sums one level's confirmed matches (sorted by path, for determinism)
   // against the shared budget, appending to `dirs` either way.
   function sumMatches(matches) {
     matches.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
     for (const m of matches) {
-      if (budgetHit()) { dirs.push({ path: m.rel, bytes: 0, partial: true }); complete = false; continue; }
+      const owner = ownerFor(m);
+      const inNestedRepo = Boolean(m.inNested);
+      if (budgetHit()) {
+        dirs.push({
+          path: m.rel, bytes: 0, partial: true,
+          newest_ms: null, nested_git: false, in_nested_repo: inNestedRepo, unreadable: false,
+          dev: null, ino: null, match: m.match,
+          tool: owner.tool, origin: owner.origin, regenerable: owner.regenerable,
+          stale_days: owner.stale_days, clean: owner.clean, clean_argv: owner.clean_argv,
+        });
+        complete = false;
+        continue;
+      }
       const budgetLeft = budget == null ? null : budget - entriesVisited;
-      const { bytes, visited, partial } = dirBytes(m.abs, seen, budgetLeft);
-      entriesVisited += visited;
-      bytesTotal += bytes;
-      if (partial) complete = false;
-      dirs.push({ path: m.rel, bytes, partial });
+      const r = dirBytes(m.abs, seen, budgetLeft, metadataNames);
+      entriesVisited += r.visited;
+      bytesTotal += r.bytes;
+      if (r.partial) complete = false;
+      dirs.push({
+        path: m.rel, bytes: r.bytes, partial: r.partial,
+        newest_ms: r.newest_ms, nested_git: r.nested_git, in_nested_repo: inNestedRepo, unreadable: r.unreadable,
+        dev: r.dev, ino: r.ino, match: m.match,
+        tool: owner.tool, origin: owner.origin, regenerable: owner.regenerable,
+        stale_days: owner.stale_days, clean: owner.clean, clean_argv: owner.clean_argv,
+      });
     }
   }
 
-  // The root itself is checked for the tag too — the invariant makes no
-  // exception for depth zero.
+  // The root itself is checked for the tag too, unless the caller opted out
+  // (rootItem: false — the clean-plan story: the project root is never an
+  // item) — the invariant makes no exception for depth zero otherwise.
   entriesVisited++; // the root's own tag probe
-  if (hasCachedirTag(root)) {
-    sumMatches([{ rel: "", abs: root }]);
+  if (rootItem !== false && hasCachedirTag(root)) {
+    sumMatches([{ rel: "", abs: root, match: "tag", inNested: false }]);
   } else {
-    let level = [{ abs: root, rel: "" }];
+    let level = [{ abs: root, rel: "", inNested: false }];
     while (level.length) {
       const next = [];
       const matchedThisLevel = [];
@@ -309,11 +541,18 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
       let stopped = false;
 
       levelLoop:
-      for (const { abs, rel } of level) {
+      for (const { abs, rel, inNested } of level) {
         if (budgetHit()) { stopped = true; break levelLoop; }
         let names;
         try { names = readdirSync(abs); } catch { continue; }
         names.sort();
+        // A .git entry directly inside this directory (not the project root
+        // itself, whose own .git does not count) makes it the root of a
+        // nested repository or worktree — everything found below it from
+        // here on is "in_nested_repo", regardless of whether it also turns
+        // out to be a match itself.
+        const selfIsNestedRoot = abs !== root && names.includes(".git");
+        const childInNested = inNested || selfIsNestedRoot;
 
         for (const name of names) {
           if (budgetHit()) { stopped = true; break levelLoop; }
@@ -338,10 +577,10 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
           if (c.skip.has(name)) continue;
           if (budgetHit()) { stopped = true; break levelLoop; }
           entriesVisited++; // the tag probe, whether or not it finds one
-          if (hasCachedirTag(childAbs)) { matchedThisLevel.push({ rel: childRel, abs: childAbs }); continue; }
-          if (isSureName(name, c)) { matchedThisLevel.push({ rel: childRel, abs: childAbs }); continue; }
-          if (isMaybeName(name, c)) { pendingMaybe.push({ rel: childRel, abs: childAbs }); continue; }
-          next.push({ abs: childAbs, rel: childRel });
+          if (hasCachedirTag(childAbs)) { matchedThisLevel.push({ rel: childRel, abs: childAbs, match: "tag", inNested: childInNested }); continue; }
+          if (isSureName(name, c)) { matchedThisLevel.push({ rel: childRel, abs: childAbs, match: "sure", inNested: childInNested }); continue; }
+          if (isMaybeName(name, c)) { pendingMaybe.push({ rel: childRel, abs: childAbs, inNested: childInNested }); continue; }
+          next.push({ abs: childAbs, rel: childRel, inNested: childInNested });
         }
       }
 
@@ -351,31 +590,37 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
       // matches; ls-files (batched, only for the ones check-ignore flagged)
       // tells the two apart. Anything that turns out ordinary — never
       // ignored, or ignored but carrying tracked content — is walked in
-      // the next level exactly like any other directory. Each call is
-      // charged against the budget before it runs (see
+      // the next level exactly like any other directory. A candidate
+      // already inside a nested repository never enters this batch at all
+      // (see the header note) — it goes straight to `next`. Each remaining
+      // call is charged against the budget before it runs (see
       // chargeSubprocessCall): a candidate this level cannot afford to
       // resolve is left out of both `next` and `matchedThisLevel` —
       // neither walked nor counted — and the walk stops after this level's
       // already-resolved matches are summed, rather than spawning the call
       // anyway.
       if (pendingMaybe.length) {
-        if (!chargeSubprocessCall()) {
-          stopped = true;
-        } else {
-          const ignored = gitIgnoredSet(root, pendingMaybe.map((p) => p.rel));
-          const ignoredCandidates = [];
-          for (const p of pendingMaybe) {
-            if (ignored.has(p.rel)) ignoredCandidates.push(p);
-            else next.push(p); // definitively ordinary — no second call needed
-          }
-          if (ignoredCandidates.length) {
-            if (!chargeSubprocessCall()) {
-              stopped = true; // these stay unresolved: not counted, not walked
-            } else {
-              const tracked = gitTrackedDirs(root, ignoredCandidates.map((p) => p.rel));
-              for (const p of ignoredCandidates) {
-                if (tracked.has(p.rel)) next.push(p);
-                else matchedThisLevel.push(p);
+        const outside = pendingMaybe.filter((p) => !p.inNested);
+        for (const p of pendingMaybe) if (p.inNested) next.push(p);
+        if (outside.length) {
+          if (!chargeSubprocessCall()) {
+            stopped = true;
+          } else {
+            const ignored = gitIgnoredSet(root, outside.map((p) => p.rel));
+            const ignoredCandidates = [];
+            for (const p of outside) {
+              if (ignored.has(p.rel)) ignoredCandidates.push(p);
+              else next.push(p); // definitively ordinary — no second call needed
+            }
+            if (ignoredCandidates.length) {
+              if (!chargeSubprocessCall()) {
+                stopped = true; // these stay unresolved: not counted, not walked
+              } else {
+                const tracked = gitTrackedDirs(root, ignoredCandidates.map((p) => p.rel));
+                for (const p of ignoredCandidates) {
+                  if (tracked.has(p.rel)) next.push(p);
+                  else matchedThisLevel.push({ ...p, match: "generic" });
+                }
               }
             }
           }
@@ -394,7 +639,7 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
   for (const l of locators) {
     const { matches, incomplete } = runLocator(l.name, { root, home, basenames: collected.get(l.name), chargeCall: chargeSubprocessCall });
     if (incomplete) complete = false;
-    for (const abs of matches) sumMatches([{ rel: abs, abs }]);
+    for (const abs of matches) sumMatches([{ rel: abs, abs, match: "locator", locator: l.name, inNested: false }]);
   }
 
   return {
@@ -405,32 +650,35 @@ export function scanProject(dir, { budget = null, home = homedir(), registry = n
 
 // ─── scanGlobal ──────────────────────────────────────────────────────────
 //
-// Measures the registry's own cache paths for this platform — resolved by
-// scripts/toolchains.mjs (token + trailing-"*" expansion), reporting only
-// the ones that exist. Nothing here is filtered by size — bin/waypost's
-// human output does that.
+// Split into two pure(r) steps: cacheCandidates resolves WHICH paths and
+// their policy (no filesystem measurement beyond what resolving one needs
+// — a trailing "*" expansion's own directory listing, or, with a profile,
+// none at all); measureCaches stats and sums whichever of those exist. The
+// registry's own policy (`clean`/`regenerable`/…) always comes from the
+// CURRENT registry passed in here, never from a profile — a profile holds
+// facts only (see below).
 //
 // `profile` (WP-17, the discovery story): when bin/waypost has a fresh
 // machine profile for this host, its own `caches` are measured directly —
 // no resolveCachePaths, no re-asking. But a profile holds facts, not policy
 // (ADR Decision 2): it carries only { tool, item, path, source, ask_note? },
-// so `clean`/`confidence`/`docs`/`notes`/`regenerable` are read back from
-// the CURRENT `registry` at measurement time, matched by (tool, item) —
-// `item` is the cache item's own raw path template, a stable key regardless
-// of how it resolved. This is what keeps a fixed `regenerable` or `clean`
-// in the registry visible to `size --global` at once, never stale for up to
-// 30 days waiting on the next profile refresh. A profile item whose (tool,
-// item) no longer matches anything in the current registry — the entry or
-// that exact cache item was removed or renamed — is not measured; the
-// caller sees this via the returned array's own `.dropped` count (an extra
-// own property on the array, not a fourth output shape: `JSON.stringify`
-// and a plain `for…of` both only ever see the indexed elements, so every
-// existing consumer of "scanGlobal returns an array of measured caches" is
-// unaffected — only a caller that deliberately reads `.dropped`, or a
-// whole-object comparison like `assert.deepEqual`, ever sees it). Without a
-// profile, today's path (the registry's own env/default resolution) runs
-// unchanged.
-export function scanGlobal({ home = homedir(), env = process.env, platform = process.platform, registry = null, profile = null } = {}) {
+// so `clean`/`confidence`/`docs`/`notes`/`regenerable`/`manual`/`clean_argv`/
+// `clean_docs`/`stale_days` are read back from the CURRENT `registry` at
+// measurement time, matched by (tool, item) — `item` is the cache item's own
+// raw path template, a stable key regardless of how it resolved. This is
+// what keeps a fixed `regenerable` or `clean` in the registry visible to
+// `size --global` at once, never stale for up to 30 days waiting on the next
+// profile refresh. A profile item whose (tool, item) no longer matches
+// anything in the current registry — the entry or that exact cache item was
+// removed or renamed — is not measured; the caller sees this via the
+// returned array's own `.dropped` count (an extra own property on the
+// array, not a fourth output shape: `JSON.stringify` and a plain `for…of`
+// both only ever see the indexed elements, so every existing consumer of
+// "scanGlobal returns an array of measured caches" is unaffected — only a
+// caller that deliberately reads `.dropped`, or a whole-object comparison
+// like `assert.deepEqual`, ever sees it). Without a profile, today's path
+// (the registry's own env/default resolution) runs unchanged.
+export function cacheCandidates({ home = homedir(), env = process.env, platform = process.platform, registry = null, profile = null } = {}) {
   let candidates;
   let dropped = 0;
   if (profile) {
@@ -449,6 +697,8 @@ export function scanGlobal({ home = homedir(), env = process.env, platform = pro
         policy.set(`${e.id}::${c.path}`, {
           clean: c.clean, confidence: (c.confidence || {})[platform] || null,
           docs: c.docs ?? null, notes: c.notes ?? null, regenerable: c.regenerable ?? null,
+          manual: c.manual === true, clean_argv: Array.isArray(c.clean_argv) ? c.clean_argv : null,
+          clean_docs: c.clean_docs ?? null, stale_days: Number.isFinite(c.stale_days) ? c.stale_days : null,
         });
       }
     }
@@ -459,8 +709,21 @@ export function scanGlobal({ home = homedir(), env = process.env, platform = pro
       candidates.push({ ...item, ...pol });
     }
   } else {
-    candidates = resolveCachePaths((registry || loadRegistry({ projectRoot: process.cwd(), platform })).entries, { home, env, platform });
+    // resolveCachePaths' own `base` already carries manual/clean_argv/
+    // clean_docs/stale_days normalized the same way — nothing left to add.
+    const reg = registry || loadRegistry({ projectRoot: process.cwd(), platform });
+    candidates = resolveCachePaths(reg.entries, { home, env, platform });
   }
+  candidates.dropped = dropped;
+  return candidates;
+}
+
+// Stats and sums whichever candidates exist and are directories — read-only,
+// dedup by (dev, ino) like every other summation in this module. `metadata`
+// is the same OS-metadata-name set scanProject's age computation uses
+// (metadataNamesOf), so a cache directory's own age is computed the same
+// way an item's is.
+export function measureCaches(candidates, { metadata = EMPTY_SET } = {}) {
   const seen = new Set();
   const out = [];
   for (const cand of candidates) {
@@ -471,14 +734,23 @@ export function scanGlobal({ home = homedir(), env = process.env, platform = pro
     let st;
     try { st = statSync(cand.path); } catch { continue; }
     if (!st.isDirectory()) continue;
-    const { bytes } = dirBytes(cand.path, seen, null);
+    const r = dirBytes(cand.path, seen, null, metadata);
     out.push({
-      path: cand.path, bytes, clean: cand.clean, tool: cand.tool, source: cand.source,
+      path: cand.path, bytes: r.bytes, clean: cand.clean, tool: cand.tool, source: cand.source,
       confidence: cand.confidence, docs: cand.docs, notes: cand.notes, regenerable: cand.regenerable ?? null,
+      manual: cand.manual === true, clean_argv: cand.clean_argv ?? null, clean_docs: cand.clean_docs ?? null,
+      stale_days: cand.stale_days ?? null, newest_ms: r.newest_ms, unreadable: r.unreadable, dev: r.dev, ino: r.ino,
     });
   }
-  out.dropped = dropped;
+  out.dropped = candidates.dropped || 0;
   return out;
+}
+
+export function scanGlobal(opts = {}) {
+  const platform = opts.platform || process.platform;
+  const registry = opts.registry || loadRegistry({ projectRoot: process.cwd(), platform });
+  const candidates = cacheCandidates({ ...opts, registry, platform });
+  return measureCaches(candidates, { metadata: metadataNamesOf(registry.entries) });
 }
 
 // ─── CLI ─────────────────────────────────────────────────────────────────

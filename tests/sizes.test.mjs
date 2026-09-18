@@ -6,7 +6,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
-  mkdtempSync, mkdirSync, writeFileSync, symlinkSync, linkSync, rmSync, existsSync,
+  mkdtempSync, mkdirSync, writeFileSync, symlinkSync, linkSync, rmSync, existsSync, utimesSync,
 } from "node:fs";
 import { basename, join, dirname } from "node:path";
 import { tmpdir, homedir, hostname } from "node:os";
@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   scanProject, scanGlobal, DEFAULT_ENTRY_BUDGET, GIT_CALL_COST,
+  inspectDir, gitFacts, metadataNamesOf, cacheCandidates, measureCaches,
 } from "../scripts/sizes.mjs";
 import { loadRegistry } from "../scripts/toolchains.mjs";
 import { bootIdentity } from "../scripts/capacity.mjs";
@@ -413,6 +414,256 @@ test("scanProject: Xcode DerivedData outside the project is matched by its recor
   spawnSync("plutil", ["-insert", "WorkspacePath", "-string", "/somewhere/else/Foo.xcodeproj", otherPlist]);
   const out3 = scanProject(project, { home });
   assert.ok(!out3.dirs.some((d) => d.path === other));
+});
+
+// ─── clean-plan facts: newest_ms, nested_git, in_nested_repo, match, origin, rootItem ──
+
+function sleepMs(ms) {
+  const sab = new SharedArrayBuffer(4);
+  Atomics.wait(new Int32Array(sab), 0, 0, ms);
+}
+
+test("scanProject: newest_ms ignores the OS metadata names the system entry lists — a metadata file's own LATER timestamp never moves it", () => {
+  const root = tmpRoot("waypost-sizes-metadata-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, ".build"), { recursive: true });
+  writeFileSync(join(root, ".build", "old.o"), "x", "utf8");
+  // Created alongside old.o (adding either bumps the .build directory's own
+  // mtime the same way — that part is unavoidable and not what this proves).
+  writeFileSync(join(root, ".build", ".DS_Store"), "junk", "utf8");
+  sleepMs(1100);
+  const before = Date.now();
+  // utimesSync touches only THIS file's own inode, never its parent
+  // directory's mtime — ctime cannot be backdated, but pushing the file's
+  // mtime (and, as a side effect, its own ctime) forward in time isolates
+  // exactly what exclusion is supposed to hide: this one entry's own
+  // timestamp, without also re-touching .build itself.
+  const future = new Date(Date.now() + 60 * 60 * 1000);
+  utimesSync(join(root, ".build", ".DS_Store"), future, future);
+
+  const out = scanProject(root);
+  const item = out.dirs.find((d) => d.path === ".build");
+  assert.ok(item, JSON.stringify(out.dirs));
+  assert.ok(item.newest_ms < before,
+    `newest_ms (${item.newest_ms}) must ignore .DS_Store's own later timestamp (touched at/after ${before})`);
+});
+
+test("scanProject: nested_git is true when a matched item's own subtree holds a nested repository", () => {
+  const root = tmpRoot("waypost-sizes-nestedgit-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, ".build", "vendored"), { recursive: true });
+  writeFileSync(join(root, ".build", "top.o"), "x", "utf8");
+  git(join(root, ".build", "vendored"), ["init", "-q"]); // a nested repository inside the matched item
+
+  const out = scanProject(root);
+  const item = out.dirs.find((d) => d.path === ".build");
+  assert.ok(item, JSON.stringify(out.dirs));
+  assert.equal(item.nested_git, true);
+});
+
+test("scanProject: nested_git is false for an ordinary matched item with no nested repository inside it", () => {
+  const root = tmpRoot("waypost-sizes-notnestedgit-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, ".build"), { recursive: true });
+  writeFileSync(join(root, ".build", "o.o"), "x", "utf8");
+  const out = scanProject(root);
+  const item = out.dirs.find((d) => d.path === ".build");
+  assert.equal(item.nested_git, false);
+});
+
+test("scanProject: in_nested_repo marks a match found while already walking inside a nested repository, and a generic name there is never batched into the outer root's own git check (no crash on a submodule-like boundary)", () => {
+  const root = tmpRoot("waypost-sizes-innested-");
+  git(root, ["init", "-q"]);
+
+  mkdirSync(join(root, "vendor", "lib"), { recursive: true });
+  git(join(root, "vendor", "lib"), ["init", "-q"]); // a nested repository — its own status is never the outer root's to judge
+  mkdirSync(join(root, "vendor", "lib", "cache"), { recursive: true });
+  writeFileSync(join(root, "vendor", "lib", "cache", "CACHEDIR.TAG"), "Signature: 8a477f597d28d172789f06886806bc55\n", "utf8");
+  writeFileSync(join(root, "vendor", "lib", "cache", "o.o"), "x", "utf8");
+  // A generic name in the SAME nested repo — proof that the batch which
+  // would otherwise resolve it is skipped rather than run scoped to the
+  // wrong repository (or crashing the whole level's git call outright).
+  mkdirSync(join(root, "vendor", "lib", "build"), { recursive: true });
+  writeFileSync(join(root, "vendor", "lib", "build", "out.o"), "x", "utf8");
+
+  const out = scanProject(root);
+  assert.equal(out.complete, true, "the walk must not fail or stop because a candidate lived inside a nested repository");
+  const tagged = out.dirs.find((d) => d.path === "vendor/lib/cache");
+  assert.ok(tagged, JSON.stringify(out.dirs));
+  assert.equal(tagged.in_nested_repo, true);
+  assert.ok(!out.dirs.some((d) => d.path === "vendor/lib/build"),
+    "a generic name inside a nested repository is walked as ordinary, never matched from the outer root's own git status");
+});
+
+test("scanProject: match is tag/sure/generic for the three ways a project item is found", () => {
+  const root = makeProjectFixture();
+  const out = scanProject(root);
+  const byPath = Object.fromEntries(out.dirs.map((d) => [d.path, d]));
+  assert.equal(byPath["tgt"].match, "tag");
+  assert.equal(byPath[".build"].match, "sure");
+  assert.equal(byPath["build"].match, "generic");
+});
+
+test("scanProject: origin is \"shipped\" for a shipped registry entry's match, and \"project\" for a project's own toolchain entry's match", () => {
+  const root = tmpRoot("waypost-sizes-origin-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  mkdirSync(join(root, ".waypost", "toolchains"), { recursive: true });
+  writeFileSync(join(root, ".waypost", "toolchains", "myproj.json"), JSON.stringify({
+    id: "myproj", name: "My Project", artifacts: [{ name: "myoutput", match: "sure", regenerable: true, clean: "x" }],
+  }), "utf8");
+  mkdirSync(join(root, "myoutput"), { recursive: true });
+  writeFileSync(join(root, "myoutput", "f.bin"), "x", "utf8");
+  mkdirSync(join(root, ".build"), { recursive: true }); // swiftpm, shipped
+  writeFileSync(join(root, ".build", "f.bin"), "x", "utf8");
+  git(root, ["add", ".waypost"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+
+  const reg = loadRegistry({ projectRoot: root });
+  const out = scanProject(root, { registry: reg });
+  const byPath = Object.fromEntries(out.dirs.map((d) => [d.path, d]));
+  assert.equal(byPath["myoutput"].origin, "project");
+  assert.equal(byPath["myoutput"].tool, "myproj");
+  assert.equal(byPath[".build"].origin, "shipped");
+  assert.equal(byPath[".build"].tool, "swiftpm");
+});
+
+test("scanProject: a bare CACHEDIR.TAG match with no owning entry carries a null tool/origin, and is still regenerable by convention", () => {
+  const root = tmpRoot("waypost-sizes-tagowner-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, "tgt"), { recursive: true });
+  writeFileSync(join(root, "tgt", "CACHEDIR.TAG"), "Signature: 8a477f597d28d172789f06886806bc55\n", "utf8");
+  const out = scanProject(root);
+  const item = out.dirs.find((d) => d.path === "tgt");
+  assert.equal(item.tool, null);
+  assert.equal(item.origin, null);
+  assert.equal(item.regenerable, true);
+});
+
+test("scanProject: rootItem: false never reports the project root itself, even when it carries CACHEDIR.TAG — waypost size's own default behaviour is unchanged", () => {
+  const root = tmpRoot("waypost-sizes-rootitem-");
+  git(root, ["init", "-q"]);
+  writeFileSync(join(root, "CACHEDIR.TAG"), "Signature: 8a477f597d28d172789f06886806bc55\n", "utf8");
+  writeFileSync(join(root, "f.bin"), "x".repeat(1000), "utf8");
+
+  const withDefault = scanProject(root);
+  assert.deepEqual(withDefault.dirs.map((d) => d.path), [""], "today's behaviour: the tagged root counts as one item");
+
+  const withRootItemFalse = scanProject(root, { rootItem: false });
+  assert.deepEqual(withRootItemFalse.dirs, [], "the clean plan never reports the project root as an item");
+});
+
+test("inspectDir: a missing path reports exists: false; a file and a symlink are reported, never walked as a directory", () => {
+  const root = tmpRoot("waypost-sizes-inspectdir-");
+  assert.deepEqual(inspectDir(join(root, "nope")), { exists: false });
+
+  writeFileSync(join(root, "afile"), "x", "utf8");
+  const fileFacts = inspectDir(join(root, "afile"));
+  assert.equal(fileFacts.exists, true);
+  assert.equal(fileFacts.is_directory, false);
+
+  mkdirSync(join(root, "target"), { recursive: true });
+  symlinkSync(join(root, "target"), join(root, "link"));
+  const linkFacts = inspectDir(join(root, "link"));
+  assert.equal(linkFacts.exists, true);
+  assert.equal(linkFacts.is_symlink, true);
+});
+
+test("inspectDir: a directory's own facts (bytes, newest_ms, nested_git, dev/ino) match a fresh single-item walk", () => {
+  const root = tmpRoot("waypost-sizes-inspectdir2-");
+  mkdirSync(join(root, "d"), { recursive: true });
+  writeFileSync(join(root, "d", "f.bin"), Buffer.alloc(12345, 1));
+  const facts = inspectDir(join(root, "d"));
+  assert.equal(facts.exists, true);
+  assert.equal(facts.is_directory, true);
+  assert.ok(facts.bytes > 0);
+  assert.ok(Number.isFinite(facts.newest_ms));
+  assert.equal(facts.nested_git, false);
+  assert.ok(facts.dev != null && facts.ino != null);
+});
+
+test("gitFacts: outside a git repository (or with no git at all) reports repo: false and nothing ignored or tracked", () => {
+  const root = tmpRoot("waypost-sizes-gitfacts-nogit-");
+  mkdirSync(join(root, "somedir"), { recursive: true });
+  const facts = gitFacts(root, ["somedir"]);
+  assert.deepEqual(facts, { repo: false, ignored: new Set(), tracked: new Set() });
+});
+
+test("gitFacts: inside a repository, reports which of the given paths are ignored, and checks tracked-ness for EVERY candidate, not only the ignored ones (AC 1's own scenario: an un-ignored match that still holds a tracked file)", () => {
+  const root = tmpRoot("waypost-sizes-gitfacts-git-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  writeFileSync(join(root, ".gitignore"), "/ignored-clean\n/ignored-tracked\n", "utf8");
+  mkdirSync(join(root, "ignored-clean"), { recursive: true });
+  writeFileSync(join(root, "ignored-clean", "o.o"), "x", "utf8");
+  mkdirSync(join(root, "ignored-tracked"), { recursive: true });
+  writeFileSync(join(root, "ignored-tracked", "kept.txt"), "tracked", "utf8");
+  mkdirSync(join(root, "ordinary"), { recursive: true });
+  writeFileSync(join(root, "ordinary", "src.txt"), "code", "utf8");
+  // No ignore rule covers this at all (a "sure"/"tag" match, say) — the OLD
+  // gitFacts only ever checked tracked-ness for the ignored subset, so this
+  // one would never have been reported tracked no matter what it held.
+  mkdirSync(join(root, "not-ignored-tracked"), { recursive: true });
+  writeFileSync(join(root, "not-ignored-tracked", "kept.txt"), "tracked", "utf8");
+  git(root, ["add", "-f", "ignored-tracked/kept.txt", ".gitignore", "ordinary/src.txt", "not-ignored-tracked/kept.txt"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+
+  const facts = gitFacts(root, ["ignored-clean", "ignored-tracked", "ordinary", "not-ignored-tracked"]);
+  assert.equal(facts.repo, true);
+  assert.ok(facts.ignored.has("ignored-clean"));
+  assert.ok(!facts.ignored.has("ordinary"));
+  assert.ok(!facts.ignored.has("not-ignored-tracked"), "never had an ignore rule to begin with");
+  assert.ok(facts.tracked.has("not-ignored-tracked"), "tracked-ness is checked for every candidate, not only the ignored ones");
+  assert.ok(facts.tracked.has("ordinary"), "an ordinary, never-ignored path can be reported tracked too");
+  // git's own check-ignore already refuses to call a directory "ignored"
+  // once it holds tracked content (verified directly against the git
+  // binary during development) — the same safety scanProject's walk
+  // already relies on for a generic match. The ls-files-based tracked
+  // check below this in gitFacts is a defensive backstop for whatever
+  // scanProject's own regression test (tests/sizes.test.mjs, "a
+  // generic-named directory that git ignores but that holds a tracked
+  // file") already exercises end to end through the walk.
+  assert.ok(!facts.ignored.has("ignored-tracked"), "a directory holding a tracked file is never reported ignored by git itself");
+  assert.ok(!facts.tracked.has("ignored-clean"), "nothing tracked in here at all");
+});
+
+test("gitFacts: any git failure inside a repository (a corrupt index, here) reports every candidate tracked and nothing ignored — never the direction that could turn real content into something a caller believes is safe", () => {
+  const root = tmpRoot("waypost-sizes-gitfacts-corrupt-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  mkdirSync(join(root, "somedir"), { recursive: true });
+  writeFileSync(join(root, "somedir", "f.txt"), "x", "utf8");
+  git(root, ["add", "somedir/f.txt"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+  // `git rev-parse --git-common-dir` (repository membership) still succeeds
+  // against a corrupt index — it never reads it — but check-ignore and
+  // ls-files both fail outright: exactly the case that must never be read
+  // as "outside git" or "nothing ignored, nothing tracked".
+  writeFileSync(join(root, ".git", "index"), "garbagegarbagegarbagegarbage", "utf8");
+
+  const facts = gitFacts(root, ["somedir", "elsewhere"]);
+  assert.equal(facts.repo, true, "a corrupt index does not stop this from still being a real repository");
+  assert.equal(facts.ignored.size, 0);
+  assert.ok(facts.tracked.has("somedir"));
+  assert.ok(facts.tracked.has("elsewhere"), "every given candidate is treated as tracked, not only the ones that plausibly could be");
+});
+
+test("metadataNamesOf: reads the system entry's own list, empty when there is none", () => {
+  assert.deepEqual(metadataNamesOf([{ id: "other" }]), new Set());
+  assert.deepEqual(metadataNamesOf([{ id: "system", metadata_names: [".DS_Store", "Thumbs.db"] }]), new Set([".DS_Store", "Thumbs.db"]));
+});
+
+test("cacheCandidates + measureCaches compose to exactly what scanGlobal returns", () => {
+  const home = tmpRoot("waypost-sizes-compose-");
+  mkdirSync(join(home, ".cargo", "registry"), { recursive: true });
+  writeFileSync(join(home, ".cargo", "registry", "f.bin"), Buffer.alloc(5000, 1));
+  const registry = loadRegistry({ projectRoot: home, platform: "darwin" });
+  const composed = measureCaches(cacheCandidates({ home, env: {}, platform: "darwin", registry }), { metadata: metadataNamesOf(registry.entries) });
+  const direct = scanGlobal({ home, env: {}, platform: "darwin", registry });
+  assert.deepEqual(composed, direct);
 });
 
 // ─── scanGlobal ──────────────────────────────────────────────────────────

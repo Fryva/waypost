@@ -29,7 +29,8 @@
       "docs": "https://docs.docker.com/config/pruning/",
       "notes": "Docker Desktop's documented macOS VM data path; not present on this machine (Docker Desktop not installed). Holds the container/VM data volume, including running containers and volumes, not merely a pull cache.",
       "regenerable": false,
-      "clean": "docker system df; docker system prune / docker builder prune"
+      "clean": "docker system df; docker system prune / docker builder prune",
+      "manual": true
     },
     {
       "path": "$LOCALAPPDATA/Docker/wsl",
@@ -42,7 +43,8 @@
       "docs": "https://docs.docker.com/config/pruning/",
       "notes": "Holds the container/VM data volume, including running containers and volumes, not merely a pull cache.",
       "regenerable": false,
-      "clean": "docker system df; docker system prune / docker builder prune"
+      "clean": "docker system df; docker system prune / docker builder prune",
+      "manual": true
     },
     {
       "path": "/var/lib/docker",
@@ -55,7 +57,8 @@
       "docs": "https://docs.docker.com/config/pruning/",
       "notes": "Holds the container/VM data volume, including running containers and volumes, not merely a pull cache.",
       "regenerable": false,
-      "clean": "docker system df; docker system prune / docker builder prune"
+      "clean": "docker system df; docker system prune / docker builder prune",
+      "manual": true
     }
   ],
   "locators": []

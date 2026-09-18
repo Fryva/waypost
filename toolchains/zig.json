@@ -35,6 +35,7 @@
     }
   ],
   "skip": [],
+  "processes": ["zig"],
   "caches": [
     {
       "path": "$XDG_CACHE_HOME/zig",

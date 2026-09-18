@@ -127,6 +127,70 @@ test("toolchains/<id>.json: no docs URL is invented — every docs value is a pl
   }
 });
 
+// ─── the clean-story fields (WP-17, the clean-plan story) ────────────────
+
+// The registry process names classify() reads to tell "in use" — never the
+// name of an interpreter or shell many unrelated tools also run under,
+// which would make classify() call half the machine "in use" for one
+// unrelated Python or Node process.
+const FORBIDDEN_PROCESS_NAMES = ["node", "java", "python", "python3", "sh", "bash", "zsh", "cmd", "powershell", "pwsh"];
+
+test("toolchains/<id>.json: processes is an array of short, exact process names, never an interpreter or shell", () => {
+  for (const e of shippedOnly()) {
+    if (!("processes" in e)) continue;
+    assert.ok(Array.isArray(e.processes) && e.processes.length > 0, `${e.id}: processes must be a non-empty array when present`);
+    for (const p of e.processes) {
+      assert.equal(typeof p, "string", `${e.id}: a process name must be a string, got ${JSON.stringify(p)}`);
+      assert.ok(p.length > 0, `${e.id}: an empty process name`);
+      assert.ok(!FORBIDDEN_PROCESS_NAMES.includes(p.toLowerCase()), `${e.id}: ${JSON.stringify(p)} is an interpreter/shell — never a safe "in use" signal`);
+    }
+  }
+});
+
+test("toolchains/<id>.json: metadata_names is carried only by the system entry", () => {
+  for (const e of shippedOnly()) {
+    if (e.id === "system") continue;
+    assert.ok(!("metadata_names" in e), `${e.id}: metadata_names only applies to the system entry`);
+  }
+  const sys = shippedOnly().find((e) => e.id === "system");
+  assert.ok(Array.isArray(sys.metadata_names) && sys.metadata_names.length > 0);
+  for (const n of sys.metadata_names) assert.equal(typeof n, "string");
+});
+
+test("toolchains/<id>.json: a cache's clean_argv is an array of strings, always paired with clean_docs, and never combined with manual", () => {
+  for (const e of shippedOnly()) {
+    for (const c of e.caches || []) {
+      if ("clean_argv" in c) {
+        assert.ok(Array.isArray(c.clean_argv) && c.clean_argv.length > 0, `${e.id} ${c.path}: clean_argv must be a non-empty array`);
+        for (const tok of c.clean_argv) assert.equal(typeof tok, "string", `${e.id} ${c.path}: clean_argv entries must be strings`);
+        assert.match(c.clean_docs || "", /^https:\/\/\S+$/, `${e.id} ${c.path}: clean_argv needs a clean_docs URL`);
+        assert.notEqual(c.manual, true, `${e.id} ${c.path}: a manual cache never carries a clean_argv too`);
+      }
+      if ("manual" in c) assert.equal(typeof c.manual, "boolean", `${e.id} ${c.path}: manual must be a boolean`);
+      if ("stale_days" in c) assert.ok(Number.isFinite(c.stale_days) && c.stale_days > 0, `${e.id} ${c.path}: stale_days must be a positive number`);
+    }
+  }
+});
+
+test("loadRegistry: origin marks a shipped entry \"shipped\", a project-only id \"project\", and stays \"shipped\" once a project extends it", () => {
+  const shipped = shippedOnly();
+  assert.ok(shipped.length > 30);
+  for (const e of shipped) assert.equal(e.origin, "shipped", `${e.id}: a plain shipped-registry load must report origin shipped`);
+
+  const root = projectWithToolchain("myorigin.json", {
+    id: "myorigin", name: "My Origin Test", artifacts: [{ name: "out", match: "sure", regenerable: true, clean: "x" }],
+  });
+  const { entries } = loadRegistry({ projectRoot: root });
+  assert.equal(entries.find((e) => e.id === "myorigin").origin, "project", "a brand-new project-only id is origin project");
+
+  const extendRoot = projectWithToolchain("swiftpm.json", {
+    id: "swiftpm", name: "extends the shipped entry",
+    artifacts: [{ name: "MyCustomBuildDir", match: "sure", regenerable: true, clean: "x" }],
+  });
+  const extended = loadRegistry({ projectRoot: extendRoot }).entries.find((e) => e.id === "swiftpm");
+  assert.equal(extended.origin, "shipped", "extending a shipped entry keeps its own origin — it is not a project invention");
+});
+
 test("toolchains/<id>.json: every shipped ask is a well-formed argv+parse, with docs and, for json/kv, a key (WP-17, the discovery story)", () => {
   for (const e of shippedOnly()) {
     for (const c of e.caches || []) {
@@ -161,7 +225,7 @@ test("a project toolchain entry: disallowed fields are dropped and reported, val
     caches: [{ path: "$HOME/.myapp", os: ["darwin"], confidence: { darwin: "verified" }, regenerable: true, clean: "x" }],
     skip: ["vendor"], locators: [{ name: "made-up", os: ["darwin"], collect: [".x"] }],
     ask: { argv: ["myapp", "cache-dir"] }, clean_argv: ["myapp", "clean"], processes: ["myapp"],
-    detectors: ["stale-myapp"],
+    detectors: ["stale-myapp"], metadata_names: [".DS_Store"],
   });
   const { entries, notes } = loadRegistry({ projectRoot: root });
   const e = entries.find((x) => x.id === "myapp");
@@ -172,10 +236,11 @@ test("a project toolchain entry: disallowed fields are dropped and reported, val
   assert.deepEqual(e.caches, [], "a project entry carries no machine caches");
   assert.deepEqual(e.skip, [], "a project entry carries no skip list");
   assert.deepEqual(e.locators, [], "a project entry carries no locators");
+  assert.ok(!("metadata_names" in e), "metadata_names only ever applies to the shipped system entry");
 
   const file = join(".waypost", "toolchains", "myapp.json");
   const droppedFields = notes.filter((n) => n.file === file).map((n) => n.field);
-  for (const f of ["detect.bins", "caches", "skip", "locators", "ask", "clean_argv", "processes", "detectors"]) {
+  for (const f of ["detect.bins", "caches", "skip", "locators", "ask", "clean_argv", "processes", "detectors", "metadata_names"]) {
     assert.ok(droppedFields.includes(f), `expected a note dropping ${f}, got ${JSON.stringify(droppedFields)}`);
   }
 });
@@ -221,17 +286,18 @@ test("a project toolchain entry: an artifact's clean_argv and path are dropped a
     id: "sneaky", name: "Sneaky",
     artifacts: [{
       name: "output", match: "sure", regenerable: true, clean: "x",
-      clean_argv: ["rm", "-rf", "/"], path: "/etc/passwd",
+      clean_argv: ["rm", "-rf", "/"], clean_docs: "https://example.com", path: "/etc/passwd",
     }],
   });
   const { entries, notes } = loadRegistry({ projectRoot: root });
   const e = entries.find((x) => x.id === "sneaky");
   const a = e.artifacts.find((x) => x.name === "output");
   assert.ok(a, "the artifact itself survives — only the unrecognized keys are stripped");
-  assert.ok(!("clean_argv" in a) && !("path" in a), JSON.stringify(a));
+  assert.ok(!("clean_argv" in a) && !("clean_docs" in a) && !("path" in a), JSON.stringify(a));
   const file = join(".waypost", "toolchains", "sneaky.json");
   const reasons = notes.filter((n) => n.file === file);
   assert.ok(reasons.some((n) => n.field === "artifacts[0].clean_argv"), JSON.stringify(reasons));
+  assert.ok(reasons.some((n) => n.field === "artifacts[0].clean_docs"), JSON.stringify(reasons));
   assert.ok(reasons.some((n) => n.field === "artifacts[0].path"), JSON.stringify(reasons));
 });
 

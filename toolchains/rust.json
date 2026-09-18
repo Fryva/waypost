@@ -17,6 +17,7 @@
   },
   "artifacts": [],
   "skip": [],
+  "processes": ["cargo", "rustc"],
   "caches": [
     {
       "path": "$HOME/.cargo/registry",
@@ -64,6 +65,7 @@
       },
       "docs": "https://rust-lang.github.io/rustup/environment-variables.html",
       "regenerable": true,
+      "manual": true,
       "clean": "rustup toolchain list; rustup toolchain uninstall <old-ones>"
     }
   ],

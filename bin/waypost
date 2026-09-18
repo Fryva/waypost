@@ -980,6 +980,204 @@ async function handleSize(args) {
   }
 }
 
+// ─── clean ───────────────────────────────────────────────────────────────
+//
+// waypost clean [--json] — WP-17, the clean-plan story (ADR "Disk hygiene by
+// discovery" Decision 4). A classified plan over both scopes at once: the
+// project (walked with rootItem:false — the project root is never an item —
+// and the entry budget `size` itself uses) and the machine (a fresh
+// profile's own caches, plus any registry cache the profile does not carry
+// yet, the same static fallback `size --global` uses without one). Every
+// fact classification needs — git ignore/tracked status, the live process
+// table, leases, whether another host shares this checkout — is gathered
+// HERE and handed to the pure scripts/cleanup.mjs; nothing there ever
+// touches the filesystem or a subprocess. Holds the machine-wide slot the
+// whole time it runs, exactly like `size --global` (WP-18 Decision 4): a
+// plan is itself a scan of the whole machine's caches.
+//
+// `--apply` lands with the next commit — removal never runs from this one,
+// so naming it now is a clear refusal, not a silent no-op.
+
+// WAYPOST_CLEAN_NOW overrides "now" for hermetic tests only — ctime cannot be
+// backdated on a fixture, so a test instead moves the clock forward past
+// stale_days. Warned once, on stderr, the same way WAYPOST_CAPACITY_PROBE is
+// (warnIfProbed above), so a variable leaked into an interactive shell can
+// never silently misdate a real plan.
+let warnedCleanNowProbed = false;
+function cleanNow() {
+  const raw = process.env.WAYPOST_CLEAN_NOW;
+  if (!raw) return Date.now();
+  const n = Number(raw);
+  const ms = Number.isFinite(n) ? n : Date.parse(raw);
+  if (!Number.isFinite(ms)) return Date.now();
+  if (!warnedCleanNowProbed) {
+    warnedCleanNowProbed = true;
+    process.stderr.write("waypost: WAYPOST_CLEAN_NOW is set — the clock is not the real one (tests only)\n");
+  }
+  return ms;
+}
+
+function buildCleanPlan({ cleanup, sizes, toolchains, presence, discovery }, now) {
+  const root = projectRoot();
+  const home = homedir();
+  const stateDir = machineStateDir();
+  const platform = process.platform;
+
+  // The vault, if any — read early: a lease is stored keyed the same way
+  // `presence.vaultRel` spells it (vault-relative when the leased path sits
+  // inside the bound vault, project-relative otherwise), and that function
+  // is one-way — resolving a lease's own string back to an absolute path
+  // would be genuinely ambiguous (the same relative string can spell a real
+  // path under EITHER root). Every project item is instead run through the
+  // SAME vaultRel() a lease went through, and compared as strings — no
+  // inversion needed either way.
+  const cfg = readConfig();
+  const vault = cfg && cfg.vault_path && existsSync(cfg.vault_path) ? cfg.vault_path : null;
+
+  const reg = toolchains.loadRegistry({ projectRoot: root, platform });
+
+  // Project scope: the project root is never an item (rootItem: false); a
+  // batched git check-ignore/ls-files over every match this walk found, once,
+  // gives classification the ignored/tracked facts it needs per item. A
+  // locator match's own `path` is already absolute (outside the project),
+  // so it never enters that batch.
+  const scan = sizes.scanProject(root, { registry: reg, rootItem: false });
+  const relCandidates = scan.dirs.filter((d) => d.match !== "locator").map((d) => d.path);
+  const gf = sizes.gitFacts(root, relCandidates);
+  const projectItems = scan.dirs.map((d) => {
+    const abs = d.match === "locator" ? d.path : resolve(root, d.path);
+    return {
+      scope: "project", path: abs, rel: d.match === "locator" ? null : d.path,
+      leaseRel: vault ? presence.vaultRel(abs, vault) : abs,
+      bytes: d.bytes, newest_ms: d.newest_ms, nested_git: d.nested_git,
+      in_nested_repo: d.in_nested_repo, unreadable: d.unreadable, match: d.match,
+      tool: d.tool, origin: d.origin, regenerable: d.regenerable, stale_days: d.stale_days,
+      clean: d.clean, clean_argv: d.clean_argv, dev: d.dev, ino: d.ino,
+      ignored: d.match === "locator" ? undefined : gf.ignored.has(d.path),
+      tracked: d.match === "locator" ? undefined : gf.tracked.has(d.path),
+    };
+  });
+
+  // Machine scope: a fresh profile's own caches (facts only — policy is
+  // reattached from THIS registry, same as `size --global`), plus any
+  // registry cache item the profile does not carry — measured directly, the
+  // static fallback path `size --global` uses without a profile at all.
+  const host = presence.hostSlug();
+  const machinePath = discovery.machineProfilePath({ home, host });
+  let machine = null;
+  if (existsSync(machinePath)) {
+    try { machine = JSON.parse(readFileSync(machinePath, "utf8")); } catch { machine = null; }
+  }
+  const fresh = machine && machine.platform === platform
+    && Array.isArray(machine.caches) && !discovery.needsRefresh(machine, {});
+  const metadataNames = sizes.metadataNamesOf(reg.entries);
+  const profileCaches = fresh ? sizes.scanGlobal({ profile: machine, registry: reg, platform }) : [];
+  const covered = new Set(profileCaches.map((c) => c.path));
+  const staticCandidates = sizes.cacheCandidates({ home, env: process.env, platform, registry: reg })
+    .filter((c) => !covered.has(c.path));
+  const extraCaches = sizes.measureCaches(staticCandidates, { metadata: metadataNames });
+  const machineItems = [...profileCaches, ...extraCaches].map((c) => ({
+    scope: "machine", path: c.path, rel: null, bytes: c.bytes, newest_ms: c.newest_ms,
+    nested_git: false, in_nested_repo: false, unreadable: c.unreadable, match: null,
+    tool: c.tool, origin: null, regenerable: c.regenerable, stale_days: c.stale_days,
+    clean: c.clean, clean_argv: c.clean_argv, manual: c.manual, dev: c.dev, ino: c.ino,
+  }));
+
+  // Facts outside the walk: the live process table (never on win32), the
+  // other live sessions' leases on a path inside this project, and whether a
+  // live session on another host shares this checkout — all advisory,
+  // exactly as ADR-0007 already treats them, and all skipped gracefully
+  // when there is no bound vault to read them from.
+  const table = platform === "win32" ? null : presence.processTable();
+  const comms = table ? [...table.values()].map((p) => p.comm).filter(Boolean) : [];
+  const runningTools = cleanup.runningTools(reg.entries, comms);
+
+  let leases = [];
+  let sharedProject = false;
+  if (vault) {
+    const sess = process.env.WAYPOST_SESSION_ID || null;
+    leases = presence.readLeases(vault, { self: sess })
+      .filter((l) => l.live && !l.mine)
+      .map((l) => ({ path: l.path, session: l.session, host: l.host }));
+    sharedProject = presence.sharedTree(vault, { self: sess }).shared;
+  }
+
+  const facts = { now, home, root, stateDir, platform, runningTools, leases, sharedProject };
+  const classified = cleanup.classify([...projectItems, ...machineItems], facts, { now });
+
+  return {
+    host, root, generated_at: new Date(now).toISOString(),
+    items: classified.map((it) => ({
+      id: it.id, scope: it.scope, path: it.path, ...(it.rel ? { rel: it.rel } : {}),
+      bytes: it.bytes, class: it.class, reason: it.reason, route: it.route,
+      match: it.match, tool: it.tool, stale_days: it.stale_days, newest_ms: it.newest_ms,
+      picked: it.picked,
+    })),
+  };
+}
+
+function printCleanPlan(result) {
+  process.stdout.write(`host  ${result.host}\n`);
+  process.stdout.write(`root  ${tildeHome(result.root)}\n`);
+  let any = false;
+  for (const cls of ["should", "can", "keep"]) {
+    const items = result.items.filter((it) => it.class === cls).sort((a, b) => b.bytes - a.bytes);
+    if (!items.length) continue;
+    any = true;
+    process.stdout.write(`\n${cls} (${items.length})\n`);
+    for (const it of items) {
+      const where = it.rel || tildeHome(it.path);
+      process.stdout.write(`  ${it.id}  ${(it.bytes / GB).toFixed(2)} GB  [${it.scope}]  ${where}\n    ${it.reason}\n`);
+    }
+  }
+  if (!any) process.stdout.write("\nnothing found\n");
+}
+
+async function handleClean(args) {
+  if (args.includes("--apply")) {
+    fail("clean --apply: removal lands with the next commit");
+    return;
+  }
+  const json = flag(args, "--json");
+
+  let cleanup, sizes, toolchains, capacity, presence, discovery;
+  try {
+    cleanup = await import(`file://${SCRIPT("cleanup")}`);
+    sizes = await import(`file://${SCRIPT("sizes")}`);
+    toolchains = await import(`file://${SCRIPT("toolchains")}`);
+    capacity = await import(`file://${SCRIPT("capacity")}`);
+    presence = await import(`file://${SCRIPT("presence")}`);
+    discovery = await import(`file://${SCRIPT("discovery")}`);
+  } catch (e) { fail(`clean: ${e.message}`); }
+
+  // Same rule as `size --global` (WP-18 Decision 4): a machine-wide scan
+  // holds the machine-wide slot, same refusal (exit 75). No fail() between
+  // the claim and the finally below, so the slot is always released.
+  const dir = slotsDir(presence);
+  mkdirSync(dir, { recursive: true });
+  const claim = await claimSlot(dir, ["waypost", "clean", ...(json ? ["--json"] : [])], capacity, presence);
+  if (!claim.ok) {
+    process.stderr.write(`waypost clean: refused — ${claim.reason}\n  retry: waypost clean\n`);
+    process.exitCode = EX_TEMPFAIL;
+    return;
+  }
+  recordAuthority(claim.file, capacity);
+
+  const now = cleanNow();
+  let result, error;
+  try {
+    result = buildCleanPlan({ cleanup, sizes, toolchains, presence, discovery }, now);
+  } catch (e) {
+    error = e;
+  } finally {
+    claim.release();
+  }
+  if (error) fail(`clean: ${error.message}`);
+
+  if (json) { process.stdout.write(JSON.stringify(result, null, 2) + "\n"); return; }
+  printCleanPlan(result);
+}
+
 // ─── capacity ──────────────────────────────────────────────────────────
 //
 // waypost capacity [--json] — Decision 1 of the heavy-work-sized-to-the-
@@ -1534,6 +1732,9 @@ PROCEDURES
                            containers and temp dirs ≥ 0.1 GB, each with its
                            own clean command — measures a fresh machine
                            profile's paths when one exists [--json for the rest]
+  clean [--json]           a classified plan over the project and the machine
+                           at once (keep / should / can, with why) — never
+                           deletes; --apply lands with the next commit
   capacity [--json]        the machine's real free resources right now: cores,
                            load, available memory and how many more heavy
                            jobs it can take (never cached) [--json for detail]
@@ -1575,6 +1776,10 @@ function leaseArgs(rest) {
 // implies work beats the session's heartbeat, so another device sees this
 // session without anyone remembering `waypost sessions --touch`. Never fails the
 // command, never runs for a read-only lookup, and WAYPOST_NO_BEAT=1 turns it off.
+// "clean" is deliberately NOT here, unlike "size": it is a working command
+// that will remove things once --apply lands (the next commit), so it beats
+// the heartbeat like any other write-side command; a plan-only run today
+// costs one extra beat, which is cheap.
 const QUIET_COMMANDS = new Set(["help", "--help", "-h", "version", "--version", "-v",
   "harnesses", "prompt", "skill", "skills", "agents", "log", "storage", "merge-derived", "size", "capacity"]);
 
@@ -1723,6 +1928,7 @@ async function main() {
     case "doctor": run("doctor", rest); break;
     case "diff-refs": run("diff-refs", rest); break;
     case "size": await handleSize(rest); break;
+    case "clean": await handleClean(rest); break;
     case "profile": await handleProfile(rest); break;
     case "capacity": await handleCapacity(rest); break;
     case "run": await handleRun(rest); break;

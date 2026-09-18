@@ -12,6 +12,7 @@
   },
   "artifacts": [],
   "skip": [],
+  "metadata_names": [".DS_Store", "Thumbs.db", "desktop.ini"],
   "caches": [
     {
       "path": "/cores",

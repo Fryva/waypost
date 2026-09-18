@@ -23,7 +23,8 @@
       },
       "notes": "Documented JetBrains directory convention; not present on this machine.",
       "regenerable": true,
-      "clean": "remove old IDE version directories"
+      "clean": "remove old IDE version directories",
+      "manual": true
     },
     {
       "path": "$XDG_CACHE_HOME/JetBrains",
@@ -35,7 +36,8 @@
       },
       "notes": "JetBrains Linux cache convention; not verifiable from macOS.",
       "regenerable": true,
-      "clean": "remove old IDE version directories"
+      "clean": "remove old IDE version directories",
+      "manual": true
     },
     {
       "path": "$LOCALAPPDATA/JetBrains",
@@ -47,7 +49,8 @@
       },
       "notes": "JetBrains Windows cache convention; not verifiable from macOS.",
       "regenerable": true,
-      "clean": "remove old IDE version directories"
+      "clean": "remove old IDE version directories",
+      "manual": true
     }
   ],
   "locators": []

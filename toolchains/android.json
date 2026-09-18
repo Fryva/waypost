@@ -94,7 +94,8 @@
       },
       "notes": "Standard Android Studio macOS SDK location; not installed on this machine.",
       "regenerable": true,
-      "clean": "sdkmanager --uninstall \"system-images;<...>\" for images you no longer need"
+      "clean": "sdkmanager --uninstall \"system-images;<...>\" for images you no longer need",
+      "manual": true
     },
     {
       "path": "$HOME/Android/Sdk/system-images",
@@ -106,7 +107,8 @@
       },
       "notes": "Standard Android Studio Linux SDK location; not verifiable from macOS.",
       "regenerable": true,
-      "clean": "sdkmanager --uninstall \"system-images;<...>\" for images you no longer need"
+      "clean": "sdkmanager --uninstall \"system-images;<...>\" for images you no longer need",
+      "manual": true
     },
     {
       "path": "$LOCALAPPDATA/Android/Sdk/system-images",
@@ -118,7 +120,8 @@
       },
       "notes": "Standard Android Studio Windows SDK location; not verifiable from macOS.",
       "regenerable": true,
-      "clean": "sdkmanager --uninstall \"system-images;<...>\" for images you no longer need"
+      "clean": "sdkmanager --uninstall \"system-images;<...>\" for images you no longer need",
+      "manual": true
     },
     {
       "path": "$HOME/Library/Caches/Google/AndroidStudio*",
@@ -130,7 +133,8 @@
       },
       "notes": "Trailing * matches per-version directories (e.g. AndroidStudio2024.2); none installed on this machine.",
       "regenerable": true,
-      "clean": "remove old Android Studio version directories"
+      "clean": "remove old Android Studio version directories",
+      "manual": true
     },
     {
       "path": "$XDG_CACHE_HOME/Google/AndroidStudio*",
@@ -142,7 +146,8 @@
       },
       "notes": "Linux equivalent of the macOS per-version cache directory; not verifiable from macOS.",
       "regenerable": true,
-      "clean": "remove old Android Studio version directories"
+      "clean": "remove old Android Studio version directories",
+      "manual": true
     },
     {
       "path": "$LOCALAPPDATA/Google/AndroidStudio*",
@@ -154,7 +159,8 @@
       },
       "notes": "Windows equivalent of the per-version cache directory; not verifiable from macOS.",
       "regenerable": true,
-      "clean": "remove old Android Studio version directories"
+      "clean": "remove old Android Studio version directories",
+      "manual": true
     }
   ],
   "locators": []

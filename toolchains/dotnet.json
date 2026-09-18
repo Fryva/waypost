@@ -17,6 +17,7 @@
   },
   "artifacts": [],
   "skip": [],
+  "processes": ["dotnet"],
   "caches": [
     {
       "path": "$HOME/.nuget/packages",

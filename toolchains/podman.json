@@ -27,7 +27,8 @@
       "docs": "https://docs.podman.io/en/latest/markdown/podman-system-prune.1.html",
       "notes": "Holds container storage and volumes, not merely a cache.",
       "regenerable": false,
-      "clean": "podman system prune"
+      "clean": "podman system prune",
+      "manual": true
     }
   ],
   "locators": []

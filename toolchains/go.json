@@ -16,6 +16,7 @@
   },
   "artifacts": [],
   "skip": [],
+  "processes": ["go"],
   "caches": [
     {
       "path": "$HOME/Library/Caches/go-build",
@@ -29,6 +30,8 @@
       "notes": "Documented default Go build cache location for macOS; not present under this exact path on this machine (see $XDG_CACHE_HOME/go-build).",
       "regenerable": true,
       "clean": "go clean -cache",
+      "clean_argv": ["go", "clean", "-cache"],
+      "clean_docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
       "ask": {
         "argv": ["go", "env", "GOCACHE"],
         "parse": "line",
@@ -46,6 +49,8 @@
       "docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
       "regenerable": true,
       "clean": "go clean -cache",
+      "clean_argv": ["go", "clean", "-cache"],
+      "clean_docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
       "ask": {
         "argv": ["go", "env", "GOCACHE"],
         "parse": "line",
@@ -63,6 +68,8 @@
       "docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
       "regenerable": true,
       "clean": "go clean -cache",
+      "clean_argv": ["go", "clean", "-cache"],
+      "clean_docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
       "ask": {
         "argv": ["go", "env", "GOCACHE"],
         "parse": "line",
@@ -84,6 +91,8 @@
       "docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
       "regenerable": true,
       "clean": "go clean -modcache",
+      "clean_argv": ["go", "clean", "-modcache"],
+      "clean_docs": "https://pkg.go.dev/cmd/go#hdr-Remove_object_files_and_cached_files",
       "ask": {
         "argv": ["go", "env", "GOMODCACHE"],
         "parse": "line",

@@ -29,6 +29,7 @@
     }
   ],
   "skip": [],
+  "processes": ["cmake", "ninja"],
   "caches": [],
   "locators": []
 }

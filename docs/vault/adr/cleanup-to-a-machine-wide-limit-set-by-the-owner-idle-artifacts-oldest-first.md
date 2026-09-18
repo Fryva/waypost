@@ -12,7 +12,7 @@ superseded_by: null
 review_status: reviewed
 reviewed_at: 2026-09-18
 drafted_by: {"harness":"claude","provider":null,"date":"2026-09-18"}
-code_refs: ["scripts/cleanup.mjs (planned)", "scripts/sizes.mjs", "scripts/capacity.mjs", "scripts/presence.mjs", "scripts/agents.mjs", "scripts/doctor.mjs", "toolchains/system.json", "toolchains/generic.json", "toolchains/terraform.json", "scripts/toolchains.mjs", "bin/waypost", "docs/toolchains.md", "tests/cleanup.test.mjs (planned)"]
+code_refs: ["scripts/cleanup.mjs", "scripts/sizes.mjs", "scripts/capacity.mjs", "scripts/presence.mjs", "scripts/agents.mjs", "scripts/doctor.mjs", "toolchains/system.json", "toolchains/generic.json", "toolchains/terraform.json", "scripts/toolchains.mjs", "bin/waypost", "docs/toolchains.md", "tests/cleanup.test.mjs"]
 related: "disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes, heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first, ADR-0001, ADR-0006, ADR-0007, ADR-0010, ADR-0011"
 guards: []
 ---

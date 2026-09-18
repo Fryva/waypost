@@ -34,11 +34,16 @@
       "regenerable": true,
       "clean": "conda clean --all",
       "ask": {
-        "argv": ["conda", "info", "--json"],
+        "argv": [
+          "conda",
+          "info",
+          "--json"
+        ],
         "parse": "json",
         "key": "pkgs_dirs",
         "docs": "https://docs.conda.io/projects/conda/en/stable/commands/info.html"
-      }
+      },
+      "manual": true
     },
     {
       "path": "$HOME/miniforge3/pkgs",
@@ -55,7 +60,8 @@
       "docs": "https://docs.conda.io/projects/conda/en/latest/commands/clean.html",
       "notes": "Default only when Miniforge was installed into the user's home directory; not installed on this machine.",
       "regenerable": true,
-      "clean": "conda clean --all"
+      "clean": "conda clean --all",
+      "manual": true
     },
     {
       "path": "$HOME/anaconda3/pkgs",
@@ -72,7 +78,8 @@
       "docs": "https://docs.conda.io/projects/conda/en/latest/commands/clean.html",
       "notes": "Default only when Anaconda was installed into the user's home directory; not installed on this machine.",
       "regenerable": true,
-      "clean": "conda clean --all"
+      "clean": "conda clean --all",
+      "manual": true
     },
     {
       "path": "$HOME/.conda/pkgs",
@@ -89,7 +96,8 @@
       "docs": "https://docs.conda.io/projects/conda/en/latest/commands/clean.html",
       "notes": "conda's per-user package cache fallback; not present on this machine.",
       "regenerable": true,
-      "clean": "conda clean --all"
+      "clean": "conda clean --all",
+      "manual": true
     }
   ],
   "locators": []

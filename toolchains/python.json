@@ -73,6 +73,8 @@
       "notes": "Documented pip macOS cache location; not present on this machine. ask.env sets PIP_DISABLE_PIP_VERSION_CHECK=1 to suppress pip's periodic version-check network call (https://pip.pypa.io/en/stable/cli/pip/#cmdoption-disable-pip-version-check).",
       "regenerable": true,
       "clean": "pip cache purge",
+      "clean_argv": ["pip", "cache", "purge"],
+      "clean_docs": "https://pip.pypa.io/en/stable/cli/pip_cache/#pip-cache-purge",
       "ask": {
         "argv": ["pip", "cache", "dir"],
         "parse": "line",
@@ -92,6 +94,8 @@
       "notes": "ask.env sets PIP_DISABLE_PIP_VERSION_CHECK=1 to suppress pip's periodic version-check network call (https://pip.pypa.io/en/stable/cli/pip/#cmdoption-disable-pip-version-check).",
       "regenerable": true,
       "clean": "pip cache purge",
+      "clean_argv": ["pip", "cache", "purge"],
+      "clean_docs": "https://pip.pypa.io/en/stable/cli/pip_cache/#pip-cache-purge",
       "ask": {
         "argv": ["pip", "cache", "dir"],
         "parse": "line",
@@ -111,6 +115,8 @@
       "notes": "ask.env sets PIP_DISABLE_PIP_VERSION_CHECK=1 to suppress pip's periodic version-check network call (https://pip.pypa.io/en/stable/cli/pip/#cmdoption-disable-pip-version-check).",
       "regenerable": true,
       "clean": "pip cache purge",
+      "clean_argv": ["pip", "cache", "purge"],
+      "clean_docs": "https://pip.pypa.io/en/stable/cli/pip_cache/#pip-cache-purge",
       "ask": {
         "argv": ["pip", "cache", "dir"],
         "parse": "line",
@@ -131,6 +137,8 @@
       "docs": "https://docs.astral.sh/uv/concepts/cache/",
       "regenerable": true,
       "clean": "uv cache clean",
+      "clean_argv": ["uv", "cache", "clean"],
+      "clean_docs": "https://docs.astral.sh/uv/reference/cli/#uv-cache-clean",
       "ask": {
         "argv": ["uv", "cache", "dir"],
         "parse": "line",
@@ -148,6 +156,8 @@
       "docs": "https://docs.astral.sh/uv/concepts/cache/",
       "regenerable": true,
       "clean": "uv cache clean",
+      "clean_argv": ["uv", "cache", "clean"],
+      "clean_docs": "https://docs.astral.sh/uv/reference/cli/#uv-cache-clean",
       "ask": {
         "argv": ["uv", "cache", "dir"],
         "parse": "line",

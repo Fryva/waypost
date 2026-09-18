@@ -32,6 +32,8 @@
       "docs": "https://bun.sh/docs/install/cache",
       "regenerable": true,
       "clean": "bun pm cache rm",
+      "clean_argv": ["bun", "pm", "cache", "rm"],
+      "clean_docs": "https://bun.sh/docs/cli/pm",
       "ask": {
         "argv": ["bun", "pm", "cache"],
         "parse": "line",

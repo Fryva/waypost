@@ -26,7 +26,8 @@
       },
       "notes": "Colima's own home directory; not present on this machine, and only its README is available as documentation. Holds Colima's VM state and any containers/volumes running in it, not merely a cache.",
       "regenerable": false,
-      "clean": "colima prune; docker system prune"
+      "clean": "colima prune; docker system prune",
+      "manual": true
     }
   ],
   "locators": []

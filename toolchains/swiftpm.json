@@ -22,6 +22,7 @@
     }
   ],
   "skip": [],
+  "processes": ["swift-build"],
   "caches": [
     {
       "path": "$HOME/Library/Caches/org.swift.swiftpm",

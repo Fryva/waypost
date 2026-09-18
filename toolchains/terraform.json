@@ -23,6 +23,7 @@
     }
   ],
   "skip": [],
+  "processes": ["terraform"],
   "caches": [],
   "locators": []
 }
