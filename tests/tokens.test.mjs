@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { rowCost, normModel } from "../scripts/tokens.mjs";
+import { ambientEnv } from "./env.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -89,7 +90,7 @@ function run(home, args) {
   return spawnSync(process.execPath, [TOKENS, ...args], {
     // HOME and USERPROFILE both: os.homedir() reads the first on POSIX and
     // the second on Windows, and tokens.mjs finds transcripts under it.
-    encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home }, timeout: 15000,
+    encoding: "utf8", env: { ...ambientEnv(), HOME: home, USERPROFILE: home }, timeout: 15000,
   });
 }
 

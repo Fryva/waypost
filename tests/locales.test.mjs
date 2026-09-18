@@ -33,6 +33,7 @@ import {
   parseFrontmatter,
 } from "../scripts/lib.mjs";
 import { checkLayoutTemplates } from "../scripts/doctor.mjs";
+import { ambientEnv } from "./env.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -41,7 +42,7 @@ const mkdtempSync = (prefix) => { const p = fsMkdtemp(prefix); TMP_DIRS.push(p);
 after(() => { for (const p of TMP_DIRS) rmSync(p, { recursive: true, force: true }); });
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
-const ENV = { ...process.env, WAYPOST_HOME: REPO };
+const ENV = { ...ambientEnv(), WAYPOST_HOME: REPO };
 
 // The bundled set, DERIVED from the templates directory rather than hand-listed.
 // A hardcoded list has the same failure shape as the bug this suite exists to catch:

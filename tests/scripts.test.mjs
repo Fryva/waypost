@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { ambientEnv } from "./env.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -32,7 +33,7 @@ const SCRATCH = (() => {
     JSON.stringify({ vault_path: vault, layout: "engineering", language: "en" }), "utf8");
   return proj;
 })();
-const ENV = { ...process.env, WAYPOST_PROJECT_DIR: SCRATCH, WAYPOST_HOME: REPO };
+const ENV = { ...ambientEnv(), WAYPOST_PROJECT_DIR: SCRATCH, WAYPOST_HOME: REPO };
 
 function run(script, args) {
   const r = spawnSync(process.execPath, [join(REPO, "scripts", script), ...args], {
@@ -799,7 +800,7 @@ test("bin/waypost story --write refuses a stale sha256 — a concurrent edit is 
   const raceContent = '---\ntype: story\nid: "story-race"\nstatus: planned\nconcurrent: "yes"\n---\n\n# Race\n';
   const raceRepo = makeRaceRepo(raceContent);
   const r = spawnSync(process.execPath, [join(raceRepo, "bin", "waypost"), "story", "plan", storyPath, "--write"], {
-    encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" }, timeout: 15000,
+    encoding: "utf8", env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" }, timeout: 15000,
   });
   assert.notEqual(r.status, 0, r.stdout);
   assert.match(r.stderr, /changed since it was read/);
@@ -1339,7 +1340,7 @@ function emptyBinDir() {
 
 function discoveryEnv(home, extra = {}) {
   return {
-    ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home,
+    ...ambientEnv(), HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home,
     PATH: emptyBinDir(), WAYPOST_NO_BEAT: "1", ...extra,
   };
 }
@@ -1426,7 +1427,7 @@ test("bin/waypost profile --json: a fake tool on PATH that reports a moved cache
   // GOCACHE`/`GOMODCACHE`, so this one fake tool exercises the real,
   // shipped ask wiring end to end, not a synthetic entry.
   writeFileSync(join(bin, "go"), `#!/bin/sh\ncase "$2" in\n  GOCACHE) echo "${moved}";;\n  GOMODCACHE) echo "${moved}";;\nesac\n`, { mode: 0o755 });
-  const env = { ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
+  const env = { ...ambientEnv(), HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
   const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile", "--json"], { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
   assert.equal(r.status, 0, r.stderr);
   const p = JSON.parse(r.stdout);
@@ -1487,7 +1488,7 @@ test("bin/waypost size --global: with a fresh machine profile for this host, it 
   writeFileSync(profilePath, JSON.stringify(profile, null, 2) + "\n", "utf8");
 
   const env = {
-    ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, WAYPOST_NO_BEAT: "1",
+    ...ambientEnv(), HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, WAYPOST_NO_BEAT: "1",
     WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB }),
   };
   const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "size", "--global", "--json"],
@@ -1547,7 +1548,7 @@ test("bin/waypost size --global: a profile built by real discovery still measure
 test("bin/waypost size --global: without a fresh machine profile, falls back to the registry with a hint (WP-17)", () => {
   const home = mkdtempSync(join(tmpdir(), "wp-size-noprofile-home-"));
   const env = {
-    ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, WAYPOST_NO_BEAT: "1",
+    ...ambientEnv(), HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, WAYPOST_NO_BEAT: "1",
     WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB }),
   };
   const json = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "size", "--global", "--json"],
@@ -1570,7 +1571,7 @@ test("bin/waypost setup: a discovery failure (unwritable machine-state dir) does
   const home = mkdtempSync(join(tmpdir(), "wp-setup-discfail-home-"));
   const bin = mkdtempSync(join(tmpdir(), "wp-setup-discfail-bin-"));
   symlinkSync(spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim(), join(bin, "git"));
-  const env = { ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
+  const env = { ...ambientEnv(), HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
 
   // The machine state directory itself is a plain FILE, so
   // mkdirSync(..., { recursive: true }) inside refreshProfiles throws
@@ -1592,7 +1593,7 @@ test("bin/waypost profile: outside a project (projectRoot === HOME) builds no pr
   const bin = emptyBinDir();
   // USERPROFILE too: os.homedir() reads it on Windows, and this test is
   // about the project root BEING the home directory.
-  const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: home, WAYPOST_NO_BEAT: "1" };
+  const env = { ...ambientEnv(), HOME: home, USERPROFILE: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: home, WAYPOST_NO_BEAT: "1" };
   const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile", "--json"],
     { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
   assert.equal(r.status, 0, r.stderr);
@@ -1615,7 +1616,7 @@ test("bin/waypost setup: a real (non-dry-run) run writes both the machine and pr
   const home = mkdtempSync(join(tmpdir(), "wp-setup-bothprofiles-home-"));
   const bin = mkdtempSync(join(tmpdir(), "wp-setup-bothprofiles-bin-"));
   symlinkSync(spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim(), join(bin, "git"));
-  const env = { ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
+  const env = { ...ambientEnv(), HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
   const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "setup", "--vault", join(proj, "vault")],
     { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
   assert.equal(r.status, 0, r.stderr);
@@ -1673,7 +1674,7 @@ test("bin/waypost profile: a hostile project .waypost/toolchains/ entry (ask, ca
     clean_argv: ["evil-tool", "clean"],
   }), "utf8");
 
-  const env = { ...process.env, HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
+  const env = { ...ambientEnv(), HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1" };
   const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "profile"],
     { encoding: "utf8", env, cwd: REPO, timeout: 15000 });
   assert.equal(r.status, 0, r.stderr);

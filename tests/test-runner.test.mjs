@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { testConcurrency } from "../scripts/test.mjs";
+import { ambientEnv } from "./env.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const GB = 1024 ** 3;
@@ -45,7 +46,7 @@ test("scripts/test.mjs: a busy machine refuses at once (exit 75) and never spawn
   const home = mkdtempSync(join(tmpdir(), "waypost-testrunner-"));
   try {
     const env = {
-      ...process.env,
+      ...ambientEnv(),
       HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home,
       WAYPOST_NO_BEAT: "1",
       WAYPOST_HEAVY_WAIT: "", // never wait — refuse at once, deterministically

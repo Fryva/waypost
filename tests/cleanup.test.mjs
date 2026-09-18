@@ -27,6 +27,7 @@ import {
   parseLimit, limitChange, limitDecision, shortfallOf, limitNeed, formatLimit, formatOutcome,
   TEN_MINUTES_MS, DAY_MS, DEFAULT_PROJECT_STALE_DAYS, DEFAULT_MACHINE_STALE_DAYS,
 } from "../scripts/cleanup.mjs";
+import { ambientEnv } from "./env.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
@@ -751,7 +752,7 @@ function fakeToolchainsHome(entries = []) {
 
 function machineEnv(home, fakeHome, extra = {}) {
   return {
-    ...process.env, HOME: home, USERPROFILE: home, XDG_STATE_HOME: home, LOCALAPPDATA: home,
+    ...ambientEnv(), HOME: home, USERPROFILE: home, XDG_STATE_HOME: home, LOCALAPPDATA: home,
     WAYPOST_HOME: fakeHome, WAYPOST_NO_BEAT: "1",
     WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB }),
     ...extra,
@@ -942,7 +943,7 @@ test("S9: a project root that is home itself never throws — the plan is machin
 test("AC 9 (e2e): a directory leased by another live session shows keep \u2018leased by other\u2019", () => {
   const root = tagProjectFixture();
   spawnSync(process.execPath, [Waypost, "bind", join(root, "vault")], {
-    encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_HOME: REPO, WAYPOST_NO_BEAT: "1" },
+    encoding: "utf8", env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: root, WAYPOST_HOME: REPO, WAYPOST_NO_BEAT: "1" },
   });
 
   // "other" leases the tagged directory and beats presence for itself (no
@@ -950,7 +951,7 @@ test("AC 9 (e2e): a directory leased by another live session shows keep \u2018le
   // run moments later).
   const leaseResult = spawnSync(process.execPath, [Waypost, "lease", "tgt"], {
     encoding: "utf8", cwd: root,
-    env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "other" },
+    env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: root, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "other" },
   });
   assert.equal(leaseResult.status, 0, leaseResult.stderr);
 
@@ -976,7 +977,7 @@ test("AC 9 (e2e): a directory leased by another live session shows keep \u2018le
 test("waypost clean --apply (no value): refused with a clear message, exit 1", () => {
   const root = tagProjectFixture();
   const r = spawnSync(process.execPath, [Waypost, "clean", "--apply"], {
-    encoding: "utf8", cwd: root, env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: "1" },
+    encoding: "utf8", cwd: root, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: "1" },
   });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /needs an id/);
@@ -985,7 +986,7 @@ test("waypost clean --apply (no value): refused with a clear message, exit 1", (
 test("waypost clean --apply can: refused outright — can items are removed only by id", () => {
   const root = tagProjectFixture();
   const r = spawnSync(process.execPath, [Waypost, "clean", "--apply", "can"], {
-    encoding: "utf8", cwd: root, env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: "1" },
+    encoding: "utf8", cwd: root, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: "1" },
   });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /can items are removed only by id/);
@@ -997,7 +998,7 @@ test("waypost clean --apply can: refused outright — can items are removed only
 // BEFORE the machine-wide slot is even claimed — so, unlike most refusals
 // tested above by their message alone, this one really does write a
 // cleanup.<host>.jsonl line. A hermetic HOME (machineEnv, not a raw
-// `...process.env` spread) keeps that write inside a temp directory rather
+// `...ambientEnv()` spread) keeps that write inside a temp directory rather
 // than this machine's own real machine-state directory.
 test("AC 7: a detected harness (WAYPOST_HARNESS=claude), no --yes/--reason, refuses before touching anything — exit non-zero, names the flags and the prompt", () => {
   const root = tagProjectFixture();
@@ -1911,7 +1912,7 @@ test("item 7: the log's clock field is null when WAYPOST_CLEAN_NOW was set but i
 });
 
 test("waypost help lists clean", () => {
-  const r = spawnSync(process.execPath, [Waypost, "help"], { encoding: "utf8", env: { ...process.env, WAYPOST_NO_BEAT: "1" } });
+  const r = spawnSync(process.execPath, [Waypost, "help"], { encoding: "utf8", env: { ...ambientEnv(), WAYPOST_NO_BEAT: "1" } });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /^\s+clean \[--json\]/m);
 });
@@ -2010,7 +2011,7 @@ test("node --check passes on scripts/cleanup.mjs", () => {
 // select it and pass — no finding for this ADR from doctor at all.
 test("the disk-hygiene ADR's guards select scripts/cleanup.mjs too, and all pass", () => {
   const r = spawnSync(process.execPath, [Waypost, "doctor", "--json"], {
-    encoding: "utf8", cwd: REPO, env: { ...process.env, WAYPOST_NO_BEAT: "1" },
+    encoding: "utf8", cwd: REPO, env: { ...ambientEnv(), WAYPOST_NO_BEAT: "1" },
   });
   const findings = JSON.parse(r.stdout);
   const adrFile = "adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md";

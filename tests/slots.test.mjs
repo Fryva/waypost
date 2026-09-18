@@ -29,6 +29,7 @@ import {
 } from "../scripts/capacity.mjs";
 import { machineStateDir } from "../scripts/lib.mjs";
 import { hostSlug, processTable, startTicks } from "../scripts/presence.mjs";
+import { ambientEnv } from "./env.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
@@ -43,7 +44,7 @@ function tmpHome() {
 
 function heavyEnv(home, extra = {}) {
   return {
-    ...process.env,
+    ...ambientEnv(),
     HOME: home,
     XDG_STATE_HOME: home,
     LOCALAPPDATA: home,

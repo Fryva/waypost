@@ -21,6 +21,7 @@ import { loadRegistry } from "../scripts/toolchains.mjs";
 import { bootIdentity } from "../scripts/capacity.mjs";
 import { hostSlug, processTable } from "../scripts/presence.mjs";
 import { machineStateDir } from "../scripts/lib.mjs";
+import { ambientEnv } from "./env.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const GB = 1024 ** 3;
@@ -42,7 +43,7 @@ function slotsDirFor(home) {
 
 function heavyEnv(home, extra = {}) {
   return {
-    ...process.env,
+    ...ambientEnv(),
     HOME: home,
     // os.homedir() reads HOME on POSIX and USERPROFILE on Windows: without
     // both, a fixture home redirects nothing there and the test scans the
@@ -943,7 +944,7 @@ test("scanGlobal({ profile }): a profile whose caches is not an array is treated
 
 function runBin(args, opts = {}) {
   const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), ...args], {
-    encoding: "utf8", env: { ...process.env, WAYPOST_NO_BEAT: "1" }, cwd: REPO, timeout: 15000, ...opts,
+    encoding: "utf8", env: { ...ambientEnv(), WAYPOST_NO_BEAT: "1" }, cwd: REPO, timeout: 15000, ...opts,
   });
   return r;
 }

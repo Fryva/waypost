@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { composeMessage, storyRef, detectSessionHarness, leasesOverStaged } from "../scripts/commit.mjs";
 import { storyRefOf, storyPathOf } from "../scripts/lib.mjs";
 import { processTable, osTag } from "../scripts/presence.mjs";
+import { ambientEnv } from "./env.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -22,12 +23,6 @@ after(() => { for (const p of TMP_DIRS) rmSync(p, { recursive: true, force: true
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
-
-// The CLI under test gets the WAYPOST_* a call sets and none it would inherit:
-// the suite itself may run under some — `WAYPOST_NO_BEAT=1 waypost run --heavy
-// -- node --test …` turned every heartbeat below off, and an exported
-// WAYPOST_PROC stands in for the harness process a call is meant to derive.
-const ambientEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("WAYPOST_")));
 
 function waypost(proj, args, { harness = "claude", session = null, expectFail = false } = {}) {
   const r = spawnSync(process.execPath, [Waypost, ...args], {
@@ -295,7 +290,7 @@ const TERMINAL_ENV_VARS = ["WAYPOST_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAU
   "TERM_SESSION_ID", "ITERM_SESSION_ID", "TMUX_PANE", "WT_SESSION", "KITTY_WINDOW_ID", "SSH_TTY"];
 
 function withoutSessionEnv(proj) {
-  const env = { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO };
+  const env = { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO };
   for (const k of TERMINAL_ENV_VARS) delete env[k];
   return env;
 }
@@ -434,7 +429,7 @@ test("doctor reports the merge driver, and repairs a stale one", () => {
 test("the merge driver refuses rather than guessing when it cannot re-derive", () => {
   const proj = repo();
   const r = spawnSync(process.execPath, [join(REPO, "scripts", "merge-derived.mjs"), join(proj, "README.md")], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   assert.notEqual(r.status, 0, "a file that is not a derived view leaves the conflict for a human");
   assert.match(r.stderr, /not a derived view/);
@@ -482,7 +477,7 @@ test("the merge driver re-derives a view rather than merging it, board and folde
     for (const [f, text] of [["A", "ours"], ["O", "base"], ["B", "theirs"]]) writeFileSync(join(tmp, f), text + "\n", "utf8");
     const r = spawnSync(process.execPath,
       [join(REPO, "scripts", "merge-derived.mjs"), a, join(tmp, "O"), join(tmp, "B"), join("vault", view)],
-      { encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO } });
+      { encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO } });
     // On Windows this exited 1 with "not a derived view" for every one of
     // them, and git kept the conflict markers in a file ADR-0006 says is
     // never merged in the first place.

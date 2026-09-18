@@ -18,6 +18,7 @@ import {
 import { claimsOf, parseDuration } from "../scripts/sessions.mjs";
 import { gitCommonDir } from "../scripts/lib.mjs";
 import { checkPortableNames, checkProcessTable } from "../scripts/doctor.mjs";
+import { ambientEnv } from "./env.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -34,12 +35,6 @@ const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const slashed = (p) => String(p).replace(/[\\]/g, "/");
 
 const Waypost = join(REPO, "bin", "waypost");
-
-// The CLI under test gets the WAYPOST_* a call sets and none it would inherit:
-// the suite itself may run under some — `WAYPOST_NO_BEAT=1 waypost run --heavy
-// -- node --test …` turned every heartbeat below off, and an exported
-// WAYPOST_PROC stands in for the harness process a call is meant to derive.
-const ambientEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("WAYPOST_")));
 
 function project() {
   const proj = mkdtempSync(join(tmpdir(), "waypost-p-"));
@@ -177,7 +172,7 @@ test("prunePresence removes only records that are gone, ours excepted, and quiet
 test("`waypost sessions --prune` also prunes stale presence, and the text mode hints at it before anyone asks", () => {
   const { proj, vault } = project();
   const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
   });
   mkdirSync(pdir(vault), { recursive: true });
   writeFileSync(join(pdir(vault), "long-gone.json"), JSON.stringify({
@@ -202,7 +197,7 @@ test("`--older-than` lowers the reaping threshold explicitly, and never reaps a 
   const { proj, vault } = project();
   const me = hostname().split(".")[0];
   const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
   });
   const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString();
   withProject(proj, () => {
@@ -284,7 +279,7 @@ test("`waypost lease --force` reports the override in its own words (P3-8)", () 
     leaseFile(vault, { path: "src/auth.ts", session: "remote" });
   });
   const r = spawnSync(process.execPath, [Waypost, "lease", "src/auth.ts", "--force"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
   });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /^leased\s+src\/auth\.ts {2}\(forced over remote\)$/m);
@@ -321,7 +316,7 @@ test("two live sessions racing to acquire the same path converge on exactly one 
     // into the repo's own cache made every later run judge them by that
     // stale history (F2) — both "stale", both "won".
     const child = spawn(process.execPath, ["--input-type=module", "-e", race(sid)],
-      { stdio: ["ignore", "pipe", "inherit"], env: { ...process.env, WAYPOST_PROJECT_DIR: vault } });
+      { stdio: ["ignore", "pipe", "inherit"], env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: vault } });
     let out = "";
     child.stdout.on("data", (d) => { out += d; });
     child.on("close", (code) => (code === 0 ? res(JSON.parse(out)) : rej(new Error(`race worker ${sid} exited ${code}`))));
@@ -423,7 +418,7 @@ test("a record whose timestamp cannot be read is live on first sight — the fai
 test("`waypost lease <path>` and `waypost lease --json` both work in the documented form (G-2)", () => {
   const { proj } = project();
   const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
   });
 
   // AGENTS.md, README and help() all document `waypost lease <path…>` — a bare
@@ -510,7 +505,7 @@ test("`sessions --release` frees the story claim but leaves this session's lease
   const { proj, vault } = project();
   const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd: proj,
-    env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
+    env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
   });
   assert.equal(run(["lease", "unrelated.txt"]).status, 0);
   assert.equal(run(["sessions", "--claim", "some/story"]).status, 0);
@@ -529,7 +524,7 @@ test("`sessions --release` frees the story claim but leaves this session's lease
 test("commit refuses to write over a file another live session is editing", () => {
   const { proj, vault } = project();
   const run = (args, env = {}) => spawnSync(process.execPath, [Waypost, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, ...env },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, ...env },
   });
   spawnSync("git", ["config", "user.email", "t@e.com"], { cwd: proj });
   spawnSync("git", ["config", "user.name", "T"], { cwd: proj });
@@ -718,7 +713,7 @@ test("on cloud storage a live peer on another host shares the checkout even when
   mkdirSync(proj, { recursive: true });
   spawnSync("git", ["init", "-q"], { cwd: proj });
   spawnSync(process.execPath, [Waypost, "bind", join(proj, "vault")], {
-    encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   const vault = join(proj, "vault");
   withProject(proj, () => {
@@ -735,7 +730,7 @@ test("brief and sessions name a shared checkout, and commit --all refuses to swe
   const { proj, vault } = project();
   const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd: proj,
-    env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
+    env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "me" },
   });
   spawnSync("git", ["config", "user.email", "t@e.com"], { cwd: proj });
   spawnSync("git", ["config", "user.name", "T"], { cwd: proj });
@@ -865,7 +860,7 @@ test("storage kind decides how stale presence may be, and it is stated", () => {
 test("`waypost sessions` says what the vault is stored on when it is not local", () => {
   const { proj } = project();
   const r = spawnSync(process.execPath, [Waypost, "sessions", "--json"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "s" },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "s" },
   });
   const out = JSON.parse(r.stdout);
   assert.ok(out.storage && out.storage.kind, "the storage judgement is part of the machine-readable answer");
@@ -878,7 +873,7 @@ test("`waypost sessions` says what the vault is stored on when it is not local",
 test("`waypost sessions --touch --id ../../evil` writes inside presence/, nothing at the vault root", () => {
   const { proj, vault } = project();
   const r = spawnSync(process.execPath, [Waypost, "sessions", "--touch", "--id", "../../evil", "--json"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   assert.equal(r.status, 0, r.stderr);
   const names = readdirSync(pdir(vault));
@@ -897,7 +892,7 @@ test("`sessions --touch --id` outranks an inherited WAYPOST_SESSION_ID: one sess
   const { proj, vault } = project();
   const r = spawnSync(process.execPath, [Waypost, "sessions", "--touch", "--id", "alpha", "--json"], {
     encoding: "utf8",
-    env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "ambient" },
+    env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "ambient" },
   });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout).session_id, "alpha");
@@ -1105,7 +1100,7 @@ test("names that cannot survive another OS are reported before that OS sees them
 test("doctor wires one line-ending policy, so a Windows session cannot rewrite every file", () => {
   const { proj } = project();
   const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   const before = JSON.parse(run(["doctor", "--install", "--json"]).stdout);
   assert.ok(before.some((f) => f.check === "line-endings"));
@@ -1143,7 +1138,7 @@ test("doctor says so when there is no process table, and says nothing when there
 test("doctor: `* text=auto` without eol= is reported and repaired in place", () => {
   const { proj } = project();
   const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   writeFileSync(join(proj, ".gitattributes"), "# mine\n* text=auto\n*.png binary\n", "utf8");
 
@@ -1168,7 +1163,7 @@ test("a temp file from another machine is never swept by this one", () => {
     writeFileSync(join(dir, ".x.md.otherbox.999999.tmp"), "in flight elsewhere", "utf8");
     beat(vault, "s1", {});                     // any atomic write triggers the sweep
     spawnSync(process.execPath, [Waypost, "reconcile", "--write"], {
-      encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+      encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
     });
     assert.ok(existsSync(join(dir, ".x.md.otherbox.999999.tmp")),
       "pid liveness is a local fact; sweeping another host's temp destroys a write in progress there");
@@ -1181,7 +1176,7 @@ test("brief lists vault commits by others since your own last commit, and nothin
   spawnSync("git", ["config", "user.email", "me@example.com"], { cwd: proj });
   spawnSync("git", ["config", "user.name", "me"], { cwd: proj });
   const brief = () => spawnSync(process.execPath, [Waypost, "brief", "--no-install"], {
-    encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   }).stdout;
   writeFileSync(join(proj, ".gitignore"), ".waypost/\n", "utf8");
   g(["add", "-A"]); g(["commit", "-qm", "mine"]);

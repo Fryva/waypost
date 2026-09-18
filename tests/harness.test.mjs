@@ -15,6 +15,7 @@ import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleO
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
   instructionTargets, skillsOf, CONFIDENCE } from "../scripts/agents.mjs";
 import { skillNames, readSkill, validateSkill, DESCRIPTION_MAX, DESCRIPTIONS_TOTAL_MAX } from "../scripts/skills.mjs";
+import { ambientEnv } from "./env.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -63,11 +64,6 @@ function withoutHarnessEvidence() {
   return off;
 }
 
-// The CLI under test gets the WAYPOST_* a call sets and none it would inherit:
-// the suite itself may run under some — `WAYPOST_NO_BEAT=1 waypost run --heavy
-// -- node --test …` turned every heartbeat below off, and an exported
-// WAYPOST_PROC stands in for the harness process a call is meant to derive.
-const ambientEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("WAYPOST_")));
 
 function waypost(proj, args, { expectFail = false, session = null, env = {} } = {}) {
   const r = spawnSync(process.execPath, [Waypost, ...args], {
@@ -229,7 +225,7 @@ test("a role naming a tool outside the neutral vocabulary is rejected at read ti
     "---\nname: bogus\ndescription: x\ntools: [read, telepathy]\n---\nbody\n", "utf8");
   const r = spawnSync(process.execPath, ["-e",
     `import(${moduleUrl(REPO, "scripts", "agents.mjs")}).then(m => m.readRole("bogus")).catch(e => { console.log(e.message); })`],
-    { encoding: "utf8", env: { ...process.env, WAYPOST_HOME: dir } });
+    { encoding: "utf8", env: { ...ambientEnv(), WAYPOST_HOME: dir } });
   assert.match(r.stdout, /unknown tool\(s\) telepathy/, "the error names the tool and the file");
 });
 
@@ -244,7 +240,7 @@ test("a bare AGENTS.md that is only waypost's own routing block does not conjure
   assert.match(readFileSync(join(proj, "AGENTS.md"), "utf8"), /waypost:agents/, "the block landed");
   // codex's marker is AGENTS.md, but that file is now purely our block: not evidence.
   const r = spawnSync(process.execPath, [join(REPO, "scripts", "agents.mjs"), "list"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   assert.doesNotMatch(r.stdout, /codex/, "codex must not be detected from a file waypost wrote for pi");
   // …and the documented "idempotent" second run must not scatter a .codex/ tree.
@@ -274,7 +270,7 @@ test("detectHarness falls back to env markers, the way commit trailers already d
 test("bin/waypost uses its own tree even when the caller exported another WAYPOST_HOME (O-4)", () => {
   const proj = mkdtempSync(join(tmpdir(), "waypost-o4-"));
   const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "harnesses"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: "/nonexistent/tool-root" },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: "/nonexistent/tool-root" },
   });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /21 harnesses known/, "one invocation, one tree: the dispatcher's own");
@@ -290,7 +286,7 @@ test("a tool root missing harnesses/ makes `agents list` exit non-zero, naming W
   // pins WAYPOST_HOME to its own tree, so the misconfiguration cannot reach
   // it through the dispatcher (O-4).
   const r = spawnSync(process.execPath, [join(REPO, "scripts", "agents.mjs"), "list"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: home },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: home },
   });
   assert.notEqual(r.status, 0, "a missing bundled registry must not print an empty table with exit 0");
   assert.match(r.stderr + r.stdout, /WAYPOST_HOME/, "the message names the env var that sets the tool root");
@@ -352,7 +348,7 @@ test("a harness that declares no frontmatter fields gets no empty block", () => 
     `import(${moduleUrl(REPO, "scripts", "agents.mjs")}).then(m => {` +
     `  const t = m.renderFor("bare", m.readRole("solo"), null);` +
     `  console.log(JSON.stringify(t.slice(0, 40)));` +
-    `})`], { encoding: "utf8", env: { ...process.env, WAYPOST_HOME: dir } });
+    `})`], { encoding: "utf8", env: { ...ambientEnv(), WAYPOST_HOME: dir } });
   const head = JSON.parse(r.stdout.trim());
   assert.ok(!head.startsWith("---\n---"),
     "an empty frontmatter block is a block that parses to nothing, not the absence of one");
@@ -668,7 +664,7 @@ test("a role declaring a vendor model id instead of a tier is rejected", () => {
     "---\nname: upstreamish\ndescription: x\nmodel: opus\ntools: [read]\n---\nbody\n", "utf8");
   const r = spawnSync(process.execPath, ["-e",
     `import(${moduleUrl(REPO, "scripts", "agents.mjs")}).then(m => m.readRole("upstreamish")).catch(e => console.log(e.message))`],
-    { encoding: "utf8", env: { ...process.env, WAYPOST_HOME: dir } });
+    { encoding: "utf8", env: { ...ambientEnv(), WAYPOST_HOME: dir } });
   assert.match(r.stdout, /not a neutral tier/,
     "an upstream role file must fail loudly, not render with the model silently dropped");
 });
@@ -1757,7 +1753,7 @@ test("a leading --project expands `~` the same way `bind` does", () => {
   mkdirSync(target, { recursive: true });
   spawnSync("git", ["init", "-q"], { cwd: target });
   const r = spawnSync(process.execPath, [Waypost, "--project", "~/proj", "bind", join(target, "vault")], {
-    encoding: "utf8", env: { ...process.env, WAYPOST_HOME: REPO, HOME: fakeHome },
+    encoding: "utf8", env: { ...ambientEnv(), WAYPOST_HOME: REPO, HOME: fakeHome },
   });
   assert.equal(r.status, 0, r.stderr);
   assert.ok(existsSync(join(target, ".waypost", "projectstore.json")),
@@ -1777,7 +1773,7 @@ test("register: the block reaches .claude/CLAUDE.md, the layout many projects us
   writeFileSync(join(proj, ".claude", "CLAUDE.md"), "# rules\n\nproject rules live here\n", "utf8");
 
   const r = spawnSync(process.execPath, [Waypost, "agents", "register"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   assert.equal(r.status, 0, r.stderr);
   const text = readFileSync(join(proj, ".claude", "CLAUDE.md"), "utf8");
@@ -1792,7 +1788,7 @@ test("register: a harness that already has an instruction file gets no second on
   writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
 
   spawnSync(process.execPath, [Waypost, "agents", "register"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   assert.match(readFileSync(join(proj, "AGENTS.md"), "utf8"), /waypost:agents/);
   assert.ok(!existsSync(join(proj, ".codex", "AGENTS.md")),
@@ -1805,7 +1801,7 @@ test("doctor: one block per instruction file is correct, two in one file is not"
   writeFileSync(join(proj, ".claude", "CLAUDE.md"), "# rules\n", "utf8");
   writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
   const run = (args) => spawnSync(process.execPath, [Waypost, ...args], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   run(["bind", join(proj, "vault")]); // install checks need a bound vault to run
   run(["agents", "register"]);
@@ -1835,7 +1831,7 @@ test("register: a harness documented not to read AGENTS.md still gets its own fi
     mkdirSync(join(proj, dir), { recursive: true });
     writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
     spawnSync(process.execPath, [Waypost, "agents", "register"], {
-      encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+      encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
     });
     assert.match(readFileSync(join(proj, own), "utf8"), /waypost:agents/,
       `${own} must carry the block even though AGENTS.md exists`);
@@ -1848,7 +1844,7 @@ test("register: a harness that does read the shared file gets one target, not tw
   mkdirSync(join(proj, ".claude"), { recursive: true });
   writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
   spawnSync(process.execPath, [Waypost, "agents", "register"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   assert.match(readFileSync(join(proj, "AGENTS.md"), "utf8"), /waypost:agents/);
   assert.ok(!existsSync(join(proj, ".codex", "AGENTS.md")), "codex reads AGENTS.md; a second copy is read twice");
@@ -1860,7 +1856,7 @@ test("register: an existing .claude/CLAUDE.md is preferred over inventing one", 
   mkdirSync(join(proj, ".claude"), { recursive: true });
   writeFileSync(join(proj, ".claude", "CLAUDE.md"), "# rules\n", "utf8");
   spawnSync(process.execPath, [Waypost, "agents", "register"], {
-    encoding: "utf8", cwd: proj, env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
   });
   assert.match(readFileSync(join(proj, ".claude", "CLAUDE.md"), "utf8"), /waypost:agents/);
   assert.ok(!existsSync(join(proj, "CLAUDE.md")));

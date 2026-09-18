@@ -13,6 +13,7 @@ import { spawnSync } from "node:child_process";
 
 import { inspect, installShims, findLaunchers, shimText, SHIM_MARKER } from "../scripts/launcher.mjs";
 import { checkLauncher } from "../scripts/doctor.mjs";
+import { ambientEnv } from "./env.mjs";
 
 const POSIX = process.platform !== "win32";
 const ROOTS = [];
@@ -78,7 +79,7 @@ test("--write replaces the symlinks with shims that run without the bit", { skip
     assert.equal(lstatSync(file).isSymbolicLink(), false);
     assert.ok(readFileSync(file, "utf8").includes(SHIM_MARKER));
   }
-  const run = spawnSync(join(f.binDir, "wyp"), ["doctor", "two words"], { encoding: "utf8", env: { ...process.env, PATH: f.pathEnv } });
+  const run = spawnSync(join(f.binDir, "wyp"), ["doctor", "two words"], { encoding: "utf8", env: { ...ambientEnv(), PATH: f.pathEnv } });
   assert.equal(run.status, 0, run.stderr);
   assert.deepEqual(JSON.parse(run.stdout), ["doctor", "two words"]);
 
@@ -116,7 +117,7 @@ test("paths with spaces and quotes survive the shim", { skip: !POSIX }, () => {
 test("`waypost launcher` is routed through bin/waypost", { skip: !POSIX }, () => {
   const REPO = dirname(dirname(new URL(import.meta.url).pathname));
   // A PATH with node and nothing else: no launcher of ours on it, so no risk, whatever the machine.
-  const env = { ...process.env, PATH: dirname(process.execPath) };
+  const env = { ...ambientEnv(), PATH: dirname(process.execPath) };
   const run = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "launcher", "--json"], { encoding: "utf8", env });
   assert.equal(run.status, 0, run.stderr);
   const report = JSON.parse(run.stdout);

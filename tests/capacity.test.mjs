@@ -19,6 +19,7 @@ import {
   CORES_PER_SLOT, JOB_CORE_DIVISOR, JOB_MEMORY_CAP, JOB_MEMORY_DIVISOR,
 } from "../scripts/capacity.mjs";
 import { machineStateDir } from "../scripts/lib.mjs";
+import { ambientEnv } from "./env.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const GB = 1024 ** 3;
@@ -34,7 +35,7 @@ function tmpHome() {
 }
 
 function realRunEnv(home) {
-  return { ...process.env, WAYPOST_NO_BEAT: "1", HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home };
+  return { ...ambientEnv(), WAYPOST_NO_BEAT: "1", HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home };
 }
 
 // A fake `os`-shaped object. cpus() may be given as an array (returned every
