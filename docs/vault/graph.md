@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-17T18:50:02.530Z
+generated_at: 2026-09-18T16:13:24.410Z
 
 ---
 
@@ -27,6 +27,7 @@ full typed neighborhood, both directions, in one call.
 | adr/0009-artifact-integrity-checks.md | doctor verifies artifact integrity, not just story mechanics | adr | accepted |
 | adr/0010-coordination-follows-the-repository.md | Coordination follows the repository: presence and leases in the git common dir | adr | accepted |
 | adr/0011-decisions-that-check-themselves.md | Decisions that check themselves: guards and provenance in ADRs | adr | accepted |
+| adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md | Cleanup to a machine-wide limit: set by the owner, idle artifacts oldest first | adr | accepted |
 | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | adr | accepted |
 | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md | Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first | adr | accepted |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
@@ -53,6 +54,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-17/epic.md | Disk hygiene by discovery | epic | planned |
 | epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md | Discovery and the profile: the scheme of what Waypost works with | story | done |
 | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | doctor and next surface build artifacts | story | planned |
+| epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md | The machine-wide limit: automatic cleanup at the end of a heavy run | story | planned |
 | epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md | Verified on Linux and Windows virtual machines | story | planned |
 | epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | waypost clean: a classified plan, removal after a yes, the setup audit | story | planned |
 | epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md | The toolchain registry and a tool-agnostic waypost size | story | done |
@@ -118,16 +120,22 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot.md | mdlink | epics/WP-16/epic.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md |
+| epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md |
+| epics/WP-17/epic.md | mdlink | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md |
 | epics/WP-17/epic.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
 | epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
 | epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md | mdlink | epics/WP-17/epic.md |
+| epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | mdlink | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md |
 | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
 | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | mdlink | epics/WP-17/epic.md |
+| epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md | mdlink | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md |
+| epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md | mdlink | epics/WP-17/epic.md |
 | epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
 | epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md | mdlink | epics/WP-17/epic.md |
+| epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | mdlink | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md |
 | epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
 | epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | mdlink | epics/WP-17/epic.md |
 | epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |

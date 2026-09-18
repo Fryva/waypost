@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-17T18:40:00.852Z
+generated_at: 2026-09-18T16:13:24.224Z
 
 ---
 
@@ -13,6 +13,7 @@ generated_at: 2026-09-17T18:40:00.852Z
 - [ ] [[epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt|WP-17: doctor and next surface build artifacts]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines|WP-17: Verified on Linux and Windows virtual machines]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit|WP-17: waypost clean: a classified plan, removal after a yes, the setup audit]] #p2
+- [ ] [[epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run|WP-17: The machine-wide limit: automatic cleanup at the end of a heavy run]] #p2 #blocked
 
 ## ToDo
 

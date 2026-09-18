@@ -7,7 +7,7 @@ status: planned
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-14
-updated: 2026-09-14
+updated: 2026-09-18
 external_refs: {}
 tags: []
 code_refs: ["scripts/cleanup.mjs (planned)", "scripts/sizes.mjs", "scripts/presence.mjs", "bin/waypost", "prompts/cleanup.md (planned)", "skills/waypost-doctor/SKILL.md", "tests/cleanup.test.mjs (planned)"]
@@ -33,7 +33,9 @@ plan_updated_at: null
 
 Classify what the scans find and remove only after a yes, as the ADR
 [Disk hygiene by discovery](../../../adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md)
-decides (Decisions 4–6):
+decides (Decisions 4–6), as amended by
+[Cleanup to a machine-wide limit](../../../adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md)
+(Decision 3 there: over the limit, only idle items, oldest first):
 - a compute-only plan in `scripts/cleanup.mjs`;
 - `waypost clean` in `bin/waypost`, which removes exactly what was agreed and
   logs it;
@@ -41,7 +43,9 @@ decides (Decisions 4–6):
 
 ## Decomposition
 
-- [ ] `scripts/sizes.mjs`: a read-only `newest_mtime` per item.
+- [ ] `scripts/sizes.mjs`: a read-only age per item — the newest of `mtime`
+      and `ctime` over its entries, ignoring the OS metadata names of the
+      `system` entry, ties by path.
 - [ ] Tool versions in the machine profile, for the detector that finds a
       toolchain duplicating another at the same version (deferred from the
       discovery story; the ADR's "with versions").
@@ -50,7 +54,8 @@ decides (Decisions 4–6):
         alone where the process table is unavailable);
       - leases and live peers;
       - `regenerable`, which defaults to false;
-      - `stale_days` and the project limit;
+      - `stale_days`; over the project limit, only the idle items oldest
+        first, as many as bring it under (never every regenerable item);
       - detectors, with their evidence.
 
       The project root is never an item. Machine-wide garbage collection is at
@@ -103,6 +108,8 @@ decides (Decisions 4–6):
       `keep`; with a live peer on the project, project artifacts are at most
       `can`.
 - [ ] A project root carrying `CACHEDIR.TAG` never appears in the plan.
+- [ ] Over the limit, `should` holds only the idle items, oldest first, that
+      bring the project under it; items used within `stale_days` stay `can`.
 - [ ] An item that changed between plan and apply (now in use, now tracked,
       replaced by a symlink) is skipped with the reason.
 - [ ] Each apply appends one log line with the reason given, the items and

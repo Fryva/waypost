@@ -342,6 +342,9 @@ Decision drivers:
    - **What counts as heavy:** builds, full test suites, simulator or
      emulator boots, whole-disk scans, and any background agent that builds
      or tests.
+
+   *Amended by [Cleanup to a machine-wide limit](cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md) (2026-09-18): the slot record also holds the working directory and the git root it was claimed from, computed before the lock; the automatic cleanup at the end of a run reads them.*
+
 3. **The rule reaches every project.** The routing block that
    `waypost agents register` installs gains one line of about 45 characters:
    "Heavy work: `waypost run --heavy -- <cmd>`." It fits the existing budget

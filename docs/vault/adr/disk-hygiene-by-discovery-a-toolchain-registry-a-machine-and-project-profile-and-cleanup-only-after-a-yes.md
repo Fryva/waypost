@@ -188,6 +188,9 @@ standing-context text.
    `scripts/sizes.mjs`; they join this ADR's frontmatter in the commit that
    creates the file, because a guard that selects no file is a finding of its
    own (ADR-0011).
+
+   *Amended by [Cleanup to a machine-wide limit](cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md) (2026-09-18): over the limit, `should` holds only idle items, oldest first, as many as bring the project under it.*
+
 5. **`waypost clean` removes only after a yes.**
    - Without flags it prints the plan with ids, sizes and reasons; `--json`
      gives it whole.
@@ -226,6 +229,9 @@ standing-context text.
    - Each result is verified (the directory is gone or smaller), and the space
      freed is measured with `fs.statfsSync` on each item's own filesystem,
      before and after.
+
+   *Amended by [Cleanup to a machine-wide limit](cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md) (2026-09-18): a limit the owner sets in their own terminal is a standing yes for the automatic path at the end of `waypost run --heavy`; every other removal still needs a yes each time.*
+
 6. **`waypost setup` audits last.** After discovery it scans the project (with
    the budget) and, if due, the machine; prints the totals per class and the
    largest items; when a person is at the terminal and no harness is detected,
@@ -240,6 +246,9 @@ standing-context text.
    above the limit warns with `≥ N GB`, a stopped scan below it gives an
    `info`. `next` already forwards warnings; it gains the `info` and the
    repair pointer `waypost clean`.
+
+   *Amended by [Cleanup to a machine-wide limit](cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md) (2026-09-18): the limit is a machine-wide setting, not vault policy; `WAYPOST_BUILD_LIMIT_GB` stays for warnings only.*
+
 8. **Verification across operating systems is recorded, not assumed.** Tests
    stay hermetic on every OS (fixtures, injected platform and environment).
    A registry entry's `confidence` for an OS becomes `verified` only after a
