@@ -20,7 +20,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { PassThrough } from "node:stream";
 
-import { askYesNo } from "../scripts/lib.mjs";
+import { askYesNo, machineStateDir } from "../scripts/lib.mjs";
 import {
   itemId, runningTools, refusePath, routeFor, classifyItem, classify,
   orderOldestFirst, countedBytes, qualifiesForLimit, pickUnderLimit, recheck, consent, logLine,
@@ -612,6 +612,13 @@ function machineEnv(home, fakeHome, extra = {}) {
     WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB }),
     ...extra,
   };
+}
+
+// The machine state directory the child resolves under machineEnv — the
+// same XDG_STATE_HOME / LOCALAPPDATA it gets, so a test reads and writes the
+// temp home on every OS, never the real one.
+function stateDirOf(home) {
+  return machineStateDir({ platform: process.platform, env: { XDG_STATE_HOME: home, LOCALAPPDATA: home }, home });
 }
 
 function runClean(proj, home, fakeHome, args = [], extra = {}) {
@@ -1315,6 +1322,35 @@ test("B1 (round 2): an unrelated prefix cannot promote a shipped generic NAME to
   assert.equal(ignored.class, "can", "the generic cap still applies");
 });
 
+test("B1 (round 3): a project name or prefix cannot take over a name only a shipped PATTERN owns", () => {
+  for (const decl of [{ name: "derived-data" }, { prefix: "derived" }]) {
+    const root = tmpRoot("waypost-cleanup-b1mk-pattern-");
+    git(root, ["init", "-q"]);
+    git(root, ["config", "user.email", "test@example.com"]);
+    git(root, ["config", "user.name", "Test"]);
+    mkdirSync(join(root, ".waypost", "toolchains"), { recursive: true });
+    writeFileSync(join(root, ".waypost", "toolchains", "mine3.json"), JSON.stringify({
+      id: "mine3", name: "pattern hijack attempt", artifacts: [{ ...decl, match: "sure", regenerable: true }],
+    }), "utf8");
+    writeFileSync(join(root, ".gitignore"), "/derived-data/\n", "utf8");
+    mkdirSync(join(root, "derived-data"), { recursive: true });
+    writeFileSync(join(root, "derived-data", "obj.bin"), Buffer.alloc(2000, 1));
+    git(root, ["add", ".waypost", ".gitignore"]);
+    git(root, ["commit", "-q", "-m", "init"]);
+
+    const home = tmpRoot("waypost-cleanup-b1mk-pattern-home-");
+    const fakeHome = fakeToolchainsHome([{ id: "fakeide", artifacts: [{ pattern: "^\\.?derived[-_]?data$", flags: "i", match: "generic", regenerable: true }] }]);
+    const now = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
+    const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+
+    const item = plan.items.find((i) => i.rel === "derived-data");
+    assert.ok(item, JSON.stringify(plan.items));
+    assert.equal(item.match, "generic", `${JSON.stringify(decl)} never takes over the shipped pattern's match kind`);
+    assert.equal(item.tool, "fakeide", "the shipped pattern owner governs");
+    assert.equal(item.class, "can", "the generic cap still applies");
+  }
+});
+
 // ─── AC 5: a machine cache without clean_argv, and a manual one ────────────
 
 test("AC 5 (apply): a machine cache with no clean_argv is removed by Waypost itself; its own prose clean text is shown, never run", () => {
@@ -1424,7 +1460,7 @@ test("S5: a leftover at a tool's OLD default location (after its cache moved) is
   writeFileSync(join(newPath, "active.bin"), Buffer.alloc(2000, 1));
 
   const host = hostSlug();
-  const profilePath = machineProfilePath({ home, host });
+  const profilePath = machineProfilePath({ home, host, env: { XDG_STATE_HOME: home, LOCALAPPDATA: home } });
   mkdirSync(dirname(profilePath), { recursive: true });
   writeFileSync(profilePath, JSON.stringify({
     generated_at: new Date().toISOString(), platform: process.platform, tools: [],
@@ -1611,7 +1647,7 @@ test("AC 13: each --apply appends exactly one new log line naming the reason and
   const item = plan.items.find((i) => i.rel === "tgt");
   assert.ok(item);
 
-  const stateDir = join(home, "Library", "Application Support", "Waypost");
+  const stateDir = stateDirOf(home);
   const logFileOf = () => {
     let names = [];
     try { names = readdirSync(stateDir).filter((n) => n.startsWith("cleanup.") && n.endsWith(".jsonl")); } catch { names = []; }
@@ -1665,7 +1701,7 @@ test("item 7: the log's clock field is null when WAYPOST_CLEAN_NOW was set but i
     { WAYPOST_CLEAN_NOW: futureClock(), NODE_TEST_CONTEXT: undefined });
   assert.equal(r.status, 1, r.stderr);
 
-  const stateDir = join(home, "Library", "Application Support", "Waypost");
+  const stateDir = stateDirOf(home);
   const names = readdirSync(stateDir).filter((n) => n.startsWith("cleanup.") && n.endsWith(".jsonl"));
   assert.equal(names.length, 1);
   const lines = readFileSync(join(stateDir, names[0]), "utf8").trim().split("\n").filter(Boolean);

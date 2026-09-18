@@ -160,12 +160,20 @@ function compileArtifacts(entries) {
   return { skip, ownerByName, ownerByPrefix, ownerByPattern };
 }
 
+// Every shipped owner (name, then prefix, then pattern) is asked before any
+// project owner, so a project name or prefix can never take over a name only
+// a shipped pattern governs (a project "derived-data" against the shipped
+// derived-data pattern) and lift it out of that owner's match kind.
 function ownerOf(name, c) {
-  if (c.ownerByName.has(name)) return c.ownerByName.get(name);
-  const p = c.ownerByPrefix.find((x) => name.startsWith(x.prefix));
-  if (p) return p.owner;
-  const r = c.ownerByPattern.find((x) => x.re.test(name));
-  return r ? r.owner : null;
+  for (const origin of ["shipped", "project"]) {
+    const n = c.ownerByName.get(name);
+    if (n && n.origin === origin) return n;
+    const p = c.ownerByPrefix.find((x) => x.owner.origin === origin && name.startsWith(x.prefix));
+    if (p) return p.owner;
+    const r = c.ownerByPattern.find((x) => x.owner.origin === origin && x.re.test(name));
+    if (r) return r.owner;
+  }
+  return null;
 }
 
 // One entry per locator name, from whichever entry declares it — the same
