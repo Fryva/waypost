@@ -6,10 +6,11 @@
 //
 // Subcommands: see help() at the bottom, or `waypost help`.
 
-import { resolve, dirname, join, sep, basename } from "node:path";
+import { resolve, dirname, join, sep, basename, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, lstatSync, unlinkSync, rmSync,
+  statfsSync, appendFileSync,
 } from "node:fs";
 import { spawnSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -17,7 +18,7 @@ import { homedir, hostname, setPriority, uptime as osUptime, constants as osCons
 import {
   parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, sessionIdFlag, storyRefOf, expandHome,
   storedVaultPath, resolveVaultPath, bindingInfo, readConfig as readConfigLib, isLinkedWorktree, worktreeTag,
-  machineStateDir,
+  machineStateDir, askYesNo,
 } from "../scripts/lib.mjs";
 
 // Captured before main() (below) pins WAYPOST_SESSION_ID, WAYPOST_HARNESS and
@@ -97,7 +98,7 @@ function readConfig() {
 // boolean flag was written before it.
 const VALUED = new Set(["--harness", "--layout", "--lang", "--only", "--id",
   "--budget", "--project", "--since", "--for", "--kind", "--limit", "--message",
-  "--story", "--merge", "--session", "--provider", "--older-than", "--wait", "--release"]);
+  "--story", "--merge", "--session", "--provider", "--older-than", "--wait", "--release", "--reason"]);
 
 // The literal `--` stops flag parsing, same as most POSIX CLIs: everything
 // after it is positional even if it is spelled like a flag (`waypost search --
@@ -995,8 +996,12 @@ async function handleSize(args) {
 // whole time it runs, exactly like `size --global` (WP-18 Decision 4): a
 // plan is itself a scan of the whole machine's caches.
 //
-// `--apply` lands with the next commit — removal never runs from this one,
-// so naming it now is a clear refusal, not a silent no-op.
+// waypost clean --apply <id…>|should [--yes --reason "…"] — the removal
+// story (Decision 5, and its amendment for the standing yes at the end of
+// `run --heavy`, which does not apply here — every apply here needs its own
+// yes). Removal itself lives ENTIRELY in this file: scripts/cleanup.mjs and
+// scripts/sizes.mjs carry the same two guards forbidding a removal call or
+// a quoted removal word, so this is the only place any of it can happen.
 
 // WAYPOST_CLEAN_NOW overrides "now" for hermetic tests only — ctime cannot be
 // backdated on a fixture, so a test instead moves the clock forward past
@@ -1017,7 +1022,31 @@ function cleanNow() {
   return ms;
 }
 
-function buildCleanPlan({ cleanup, sizes, toolchains, presence, discovery }, now) {
+// Whether a harness is running right now, checked the way the machine-wide-
+// limit ADR's own gate checks it: WAYPOST_HARNESS is never trusted alone to
+// say "no harness" (it could just be unset by whatever is asking) — the
+// SAME detection is also run with it forced empty, so the real process
+// ancestry and the registry's own env markers still have their say either
+// way. Any failure along the way (the agents module itself, or the
+// detection call) is read as "no harness detected" — the terminal check is
+// the other half of this gate, so a session with neither a TTY nor a
+// harness still needs --yes --reason regardless.
+async function isHarnessDetected() {
+  try {
+    const agents = await import(`file://${SCRIPT("agents")}`);
+    if (agents.detectHarness(process.env) !== "unknown") return true;
+    if (agents.detectHarness({ ...process.env, WAYPOST_HARNESS: "" }) !== "unknown") return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// Gathers every project- and machine-scope item, plus every fact
+// classification needs, once — the plan and `--apply` both build from this
+// same context, so "should" always re-plans against the current state
+// rather than a stale earlier run.
+function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery }) {
   const root = projectRoot();
   const home = homedir();
   const stateDir = machineStateDir();
@@ -1035,6 +1064,7 @@ function buildCleanPlan({ cleanup, sizes, toolchains, presence, discovery }, now
   const vault = cfg && cfg.vault_path && existsSync(cfg.vault_path) ? cfg.vault_path : null;
 
   const reg = toolchains.loadRegistry({ projectRoot: root, platform });
+  const metadataNames = sizes.metadataNamesOf(reg.entries);
 
   // Project scope: the project root is never an item (rootItem: false); a
   // batched git check-ignore/ls-files over every match this walk found, once,
@@ -1050,7 +1080,7 @@ function buildCleanPlan({ cleanup, sizes, toolchains, presence, discovery }, now
       scope: "project", path: abs, rel: d.match === "locator" ? null : d.path,
       leaseRel: vault ? presence.vaultRel(abs, vault) : abs,
       bytes: d.bytes, newest_ms: d.newest_ms, nested_git: d.nested_git,
-      in_nested_repo: d.in_nested_repo, unreadable: d.unreadable, match: d.match,
+      in_nested_repo: d.in_nested_repo, unreadable: d.unreadable, partial: d.partial, match: d.match,
       tool: d.tool, origin: d.origin, regenerable: d.regenerable, stale_days: d.stale_days,
       clean: d.clean, clean_argv: d.clean_argv, dev: d.dev, ino: d.ino,
       ignored: d.match === "locator" ? undefined : gf.ignored.has(d.path),
@@ -1068,17 +1098,21 @@ function buildCleanPlan({ cleanup, sizes, toolchains, presence, discovery }, now
   if (existsSync(machinePath)) {
     try { machine = JSON.parse(readFileSync(machinePath, "utf8")); } catch { machine = null; }
   }
-  const fresh = machine && machine.platform === platform
+  const freshProfile = machine && machine.platform === platform
     && Array.isArray(machine.caches) && !discovery.needsRefresh(machine, {});
-  const metadataNames = sizes.metadataNamesOf(reg.entries);
-  const profileCaches = fresh ? sizes.scanGlobal({ profile: machine, registry: reg, platform }) : [];
+  const profileCaches = freshProfile ? sizes.scanGlobal({ profile: machine, registry: reg, platform }) : [];
   const covered = new Set(profileCaches.map((c) => c.path));
   const staticCandidates = sizes.cacheCandidates({ home, env: process.env, platform, registry: reg })
     .filter((c) => !covered.has(c.path));
   const extraCaches = sizes.measureCaches(staticCandidates, { metadata: metadataNames });
   const machineItems = [...profileCaches, ...extraCaches].map((c) => ({
-    scope: "machine", path: c.path, rel: null, bytes: c.bytes, newest_ms: c.newest_ms,
-    nested_git: false, in_nested_repo: false, unreadable: c.unreadable, match: null,
+    scope: "machine", path: c.path, rel: null,
+    // `item` (the cache's own raw path template) and `source` ("asked" vs.
+    // "env"/"default") are what the removal path re-checks a moved cache
+    // and an asked-only path against — see machinePathStillSafe() below.
+    item: c.item ?? null, source: c.source ?? null,
+    bytes: c.bytes, newest_ms: c.newest_ms,
+    nested_git: false, in_nested_repo: false, unreadable: c.unreadable, partial: false, match: null,
     tool: c.tool, origin: null, regenerable: c.regenerable, stale_days: c.stale_days,
     clean: c.clean, clean_argv: c.clean_argv, manual: c.manual, dev: c.dev, ino: c.ino,
   }));
@@ -1102,18 +1136,34 @@ function buildCleanPlan({ cleanup, sizes, toolchains, presence, discovery }, now
     sharedProject = presence.sharedTree(vault, { self: sess }).shared;
   }
 
-  const facts = { now, home, root, stateDir, platform, runningTools, leases, sharedProject };
-  const classified = cleanup.classify([...projectItems, ...machineItems], facts, { now });
-
   return {
-    host, root, generated_at: new Date(now).toISOString(),
-    items: classified.map((it) => ({
-      id: it.id, scope: it.scope, path: it.path, ...(it.rel ? { rel: it.rel } : {}),
-      bytes: it.bytes, class: it.class, reason: it.reason, route: it.route,
-      match: it.match, tool: it.tool, stale_days: it.stale_days, newest_ms: it.newest_ms,
-      picked: it.picked,
-    })),
+    root, home, stateDir, platform, vault, reg, metadataNames, host,
+    projectItems, machineItems, runningTools, leases, sharedProject,
   };
+}
+
+function factsFrom(ctx, now) {
+  return {
+    now, home: ctx.home, root: ctx.root, stateDir: ctx.stateDir, platform: ctx.platform,
+    runningTools: ctx.runningTools, leases: ctx.leases, sharedProject: ctx.sharedProject,
+  };
+}
+
+function planFromContext(ctx, cleanup, now) {
+  return cleanup.classify([...ctx.projectItems, ...ctx.machineItems], factsFrom(ctx, now), { now });
+}
+
+function formatPlanItem(it) {
+  return {
+    id: it.id, scope: it.scope, path: it.path, ...(it.rel ? { rel: it.rel } : {}),
+    bytes: it.bytes, class: it.class, reason: it.reason, route: it.route,
+    match: it.match, tool: it.tool, stale_days: it.stale_days, newest_ms: it.newest_ms,
+    picked: it.picked,
+  };
+}
+
+function formatPlan(classified, ctx, now) {
+  return { host: ctx.host, root: ctx.root, generated_at: new Date(now).toISOString(), items: classified.map(formatPlanItem) };
 }
 
 function printCleanPlan(result) {
@@ -1133,12 +1183,396 @@ function printCleanPlan(result) {
   if (!any) process.stdout.write("\nnothing found\n");
 }
 
-async function handleClean(args) {
-  if (args.includes("--apply")) {
-    fail("clean --apply: removal lands with the next commit");
+// ─── --apply: parsing and selecting ────────────────────────────────────
+
+// `--apply` takes a variable number of positional values (ids, or the
+// single word "should") rather than the shared opt()'s one-token shape, so
+// it is parsed by hand: every token right after the flag, up to the next
+// one starting with "--" or the end of argv.
+function parseApplySelection(args) {
+  const { head } = splitAtTerminator(args);
+  const i = head.indexOf("--apply");
+  if (i === -1) return null;
+  const values = [];
+  for (let j = i + 1; j < head.length; j++) {
+    if (head[j].startsWith("--")) break;
+    values.push(head[j]);
+  }
+  if (values.length === 0) return { mode: "empty" };
+  if (values.length === 1 && values[0] === "should") return { mode: "should" };
+  if (values.length === 1 && values[0] === "can") return { mode: "can" };
+  return { mode: "ids", ids: values };
+}
+
+function selectionDescriptorOf(sel) {
+  return sel.mode === "should" ? { mode: "should" } : { mode: "ids", ids: sel.ids };
+}
+
+// Resolves a selection against the CURRENT (just-built) plan: { toApply,
+// refused }. Every refusal is named up front, before anything is even
+// re-checked, let alone removed:
+//   - "should": every item classified should right now, whatever id it has.
+//   - an id absent from the plan: gone, or never something Waypost would
+//     remove at all (a symlink/junction is never followed, so it never
+//     became an item in the first place).
+//   - a manual machine cache: refused, showing its own prose `clean` text —
+//     manual items are never run, by id or otherwise.
+//   - a keep item: refused with the plan's own reason.
+//   - anything else (should or can, not manual): eligible — "can only by
+//     id" is enforced by --apply can itself being refused outright, not
+//     here.
+function resolveApplySelection(classified, sel) {
+  if (sel.mode === "should") {
+    return { toApply: classified.filter((it) => it.class === "should"), refused: [] };
+  }
+  const byId = new Map(classified.map((it) => [it.id, it]));
+  const toApply = [];
+  const refused = [];
+  for (const id of sel.ids) {
+    const it = byId.get(id);
+    if (!it) {
+      refused.push({
+        id, path: null, scope: null, bytes: null, class: null, route: null,
+        reason: "not in the plan now: gone, or no longer a directory Waypost would remove — a symbolic link is never followed",
+      });
+      continue;
+    }
+    if (it.manual) {
+      refused.push({ id, path: it.path, scope: it.scope, bytes: it.bytes, class: it.class, route: null, reason: it.clean || "manual — see its own instructions, never run automatically" });
+      continue;
+    }
+    if (it.class === "keep") {
+      refused.push({ id, path: it.path, scope: it.scope, bytes: it.bytes, class: it.class, route: it.route, reason: it.reason });
+      continue;
+    }
+    toApply.push(it);
+  }
+  return { toApply, refused };
+}
+
+// Ancestors before descendants: sorted by path depth, so a directory chosen
+// alongside one of its own subdirectories (a project and a machine item can
+// coincide in principle) is always removed before whatever sits inside it.
+function orderForRemoval(items) {
+  return [...items].sort((a, b) => {
+    const da = a.path.split(sep).length, db = b.path.split(sep).length;
+    return da !== db ? da - db : (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  });
+}
+
+function isDescendantOf(p, ancestor) {
+  return p !== ancestor && p.startsWith(ancestor + sep);
+}
+
+// ─── recheck, right before touching anything ───────────────────────────
+
+// Fresh facts for exactly one item: inspectDir for its own bytes/age/nested-
+// repo/readability, gitFacts scoped to just this one path (project items
+// only — a locator match lives outside the project, so its git status is
+// not this repository's to answer), the live process table, leases and
+// sharedTree — all re-read, never carried over from the plan.
+function freshFactsFor(item, ctx, mods, now) {
+  const { sizes, cleanup, presence } = mods;
+  const inspected = sizes.inspectDir(item.path, { metadata: ctx.metadataNames });
+  let ignored, tracked;
+  if (item.scope === "project" && item.match !== "locator" && inspected.exists && inspected.is_directory) {
+    const rel = relative(ctx.root, item.path);
+    const gf = sizes.gitFacts(ctx.root, [rel]);
+    ignored = gf.ignored.has(rel);
+    tracked = gf.tracked.has(rel);
+  }
+  const table = ctx.platform === "win32" ? null : presence.processTable();
+  const comms = table ? [...table.values()].map((p) => p.comm).filter(Boolean) : [];
+  const runningTools = cleanup.runningTools(ctx.reg.entries, comms);
+  let leases = [];
+  let sharedProject = false;
+  if (ctx.vault) {
+    const sess = process.env.WAYPOST_SESSION_ID || null;
+    leases = presence.readLeases(ctx.vault, { self: sess }).filter((l) => l.live && !l.mine)
+      .map((l) => ({ path: l.path, session: l.session, host: l.host }));
+    sharedProject = presence.sharedTree(ctx.vault, { self: sess }).shared;
+  }
+  const fresh = { ...inspected, ...(ignored !== undefined ? { ignored } : {}), ...(tracked !== undefined ? { tracked } : {}) };
+  return { fresh, facts: factsFrom({ ...ctx, runningTools, leases, sharedProject }, now) };
+}
+
+function recheckItem(item, ctx, mods, now) {
+  const { fresh, facts } = freshFactsFor(item, ctx, mods, now);
+  return { ...mods.cleanup.recheck(item, fresh, facts), fresh };
+}
+
+function findCacheDef(reg, toolId, itemKey) {
+  if (!toolId || !itemKey) return null;
+  const entry = reg.entries.find((e) => e.id === toolId);
+  if (!entry) return null;
+  return (entry.caches || []).find((c) => c.path === itemKey) || null;
+}
+
+// A machine cache's own path re-checked right before removing it: when the
+// shipped entry has an `ask`, the tool is asked again, and a path it no
+// longer reports is skipped rather than removed from under a moved cache; a
+// path that only ever resolved by asking (never the env/default template)
+// is removed only through its own clean_argv — never rmSync'd directly,
+// since nothing here can confirm an arbitrary tool-chosen location is safe
+// to remove wholesale.
+function machinePathStillSafe(item, ctx, mods, route) {
+  if (item.scope !== "machine") return { ok: true };
+  const def = findCacheDef(ctx.reg, item.tool, item.item);
+  if (def && def.ask && Array.isArray(def.ask.argv) && def.ask.argv.length) {
+    const bin = mods.discovery.findOnPath(def.ask.argv[0], { platform: ctx.platform, env: process.env });
+    if (bin) {
+      let asked;
+      try { asked = mods.toolchains.askCache(def.ask, { bin, env: process.env, home: ctx.home, platform: ctx.platform }); }
+      catch { asked = { ok: false }; }
+      if (asked.ok && !asked.value.includes(item.path)) {
+        return { ok: false, reason: "the tool now reports a different cache location — re-plan with `waypost clean`" };
+      }
+    }
+  }
+  if (item.source === "asked" && route && route.kind === "waypost-remove") {
+    return { ok: false, reason: "an asked (non-default) cache path is removed only through its own clean_argv" };
+  }
+  return { ok: true };
+}
+
+// ─── the routes themselves — the only removal calls in this whole tree ──
+
+function removeItem(item, route, ctx, mods) {
+  if (route.kind === "waypost-remove") {
+    rmSync(item.path, { recursive: true });
     return;
   }
+  if (route.kind === "git-clean-x") {
+    const rel = relative(ctx.root, item.path);
+    const r = spawnSync("git", ["--literal-pathspecs", "-C", ctx.root, "clean", "-X", "-d", "-f", "--", rel],
+      { encoding: "utf8", timeout: 30000 });
+    if (r.error) throw r.error;
+    if (r.status !== 0) throw new Error(`git clean exited ${r.status}: ${(r.stderr || "").trim().slice(0, 300)}`);
+    return;
+  }
+  if (route.kind === "tool-clean-argv") {
+    const bin = mods.discovery.findOnPath(route.argv[0], { platform: ctx.platform, env: process.env });
+    if (!bin) throw new Error(`${route.argv[0]} not found on PATH`);
+    if (ctx.platform === "win32" && mods.toolchains.BATCH_SHIM_RE.test(bin)) {
+      throw new Error(`${route.argv[0]} is a .cmd/.bat shim — refused, the same as asking it`);
+    }
+    // Project: the manifest directory (the item's own parent) — a tool's
+    // project-clean command runs the way it would from a checkout. Machine:
+    // home, the same cwd asking it already uses.
+    const cwd = item.scope === "project" ? dirname(item.path) : ctx.home;
+    const r = spawnSync(bin, route.argv.slice(1), { shell: false, stdio: ["ignore", "pipe", "pipe"], cwd, timeout: 30000, encoding: "utf8" });
+    if (r.error) throw r.error;
+    if (r.status !== 0) throw new Error(`${route.argv[0]} exited ${r.status}: ${(r.stderr || "").trim().slice(0, 300)}`);
+    return;
+  }
+  throw new Error("no route");
+}
+
+// What a partial git-clean-x left behind, best effort — never blocks the
+// result itself if either read fails.
+function describeKept(item, ctx, mods) {
+  const parts = [];
+  let inspected = null;
+  try { inspected = mods.sizes.inspectDir(item.path, {}); } catch { /* best effort */ }
+  if (inspected && inspected.nested_git) parts.push("a nested repository");
+  try {
+    const rel = relative(ctx.root, item.path);
+    const gf = mods.sizes.gitFacts(ctx.root, [rel]);
+    if (gf.tracked.has(rel)) parts.push("tracked file(s)");
+  } catch { /* best effort */ }
+  return parts.length ? parts.join(" and ") : "some content";
+}
+
+// lstat ENOENT is the only "removed" verdict; anything else that still
+// exists but reads smaller than it did right before the route ran is
+// "partial" — a real success for git-clean-x, which by design never removes
+// a tracked file or a nested repository even when this module's own
+// pre-checks somehow missed one. Anything else is "failed".
+function verifyRemoval(item, ctx, mods, beforeBytes) {
+  let st;
+  try { st = lstatSync(item.path); }
+  catch (e) {
+    if (e.code === "ENOENT") return { result: "removed", freed_bytes: Number.isFinite(beforeBytes) ? beforeBytes : 0 };
+    return { result: "failed", freed_bytes: 0, reason: `could not verify: ${e.message}` };
+  }
+  let after = null;
+  try { after = mods.sizes.inspectDir(item.path, { metadata: ctx.metadataNames }); } catch { /* leaves after null */ }
+  if (after && after.exists && Number.isFinite(after.bytes) && Number.isFinite(beforeBytes) && after.bytes < beforeBytes) {
+    return { result: "partial", freed_bytes: beforeBytes - after.bytes, kept: describeKept(item, ctx, mods) };
+  }
+  return { result: "failed", freed_bytes: 0, reason: "still there after the route ran" };
+}
+
+// ─── consent, the log, and the apply loop itself ───────────────────────
+
+const APFS_FREE_SPACE_NOTE = "free space is read with fs.statfsSync; bavail excludes APFS purgeable space, so freed space can read smaller than what was actually removed";
+
+function appendCleanLog(host, line) {
+  const dir = machineStateDir();
+  mkdirSync(dir, { recursive: true });
+  appendFileSync(join(dir, `cleanup.${host}.jsonl`), line + "\n", "utf8");
+}
+
+function baseLogItem(item) {
+  return { id: item.id, scope: item.scope, path: item.path, bytes: item.bytes, class: item.class, route: item.route };
+}
+
+function refusedLogItem(r) {
+  return { id: r.id, scope: r.scope, path: r.path, bytes: r.bytes, class: r.class, route: r.route, result: "refused", reason: r.reason, freed_bytes: 0, kept: null };
+}
+
+function printApplyPreview(items) {
+  const total = items.reduce((s, it) => s + (it.bytes || 0), 0);
+  process.stderr.write(`About to remove ${items.length} item(s), ${(total / GB).toFixed(2)} GB total:\n`);
+  for (const it of items) process.stderr.write(`  ${it.id}  ${(it.bytes / GB).toFixed(2)} GB  ${it.path}\n`);
+}
+
+function groupByDev(ordered) {
+  const groups = new Map();
+  ordered.forEach((item, idx) => {
+    const key = item.dev ?? "unknown";
+    if (!groups.has(key)) groups.set(key, { dev: item.dev ?? null, path: dirname(item.path), firstIndex: idx, lastIndex: idx });
+    else groups.get(key).lastIndex = idx;
+  });
+  return groups;
+}
+
+async function applyClean(sel, consent, args, mods, now) {
+  const { cleanup, presence } = mods;
+  const root = projectRoot();
+  const host = presence.hostSlug();
+  const selection = selectionDescriptorOf(sel);
+
+  const logAndReturn = (yesField, items, exitCode) => {
+    const line = cleanup.logLine({
+      at: new Date(now).toISOString(), host, session: process.env.WAYPOST_SESSION_ID || null,
+      harness: process.env.WAYPOST_HARNESS || null, source: "clean", root,
+      clock: process.env.WAYPOST_CLEAN_NOW || null,
+      yes: yesField, selection, items, filesystems: [], exit: exitCode,
+    });
+    appendCleanLog(host, line);
+    return exitCode;
+  };
+
+  // Build the plan fresh, right now: "should" re-plans against the current
+  // state; an id is looked up against this same fresh plan, never a stale
+  // earlier one.
+  const ctx = gatherCleanContext(mods);
+  const classified = planFromContext(ctx, cleanup, now);
+  const { toApply, refused } = resolveApplySelection(classified, sel);
+
+  if (consent.method === "prompt" && toApply.length) {
+    printApplyPreview(toApply);
+    const answered = await askYesNo(`Remove ${toApply.length} item(s)? [y/N] `, { timeoutMs: 60000 });
+    if (!answered) {
+      const items = [...refused.map(refusedLogItem), ...toApply.map((it) => ({ ...baseLogItem(it), result: "declined", reason: "not confirmed", freed_bytes: 0, kept: null }))];
+      const exitCode = logAndReturn({ by: null, declined: true }, items, 1);
+      return { exitCode, declined: true, message: "not confirmed — nothing removed" };
+    }
+  }
+
+  // ── remove, ancestors first, filesystem free space measured per device ──
+  const ordered = orderForRemoval(toApply);
+  const devGroups = groupByDev(ordered);
+  const fsStats = new Map();
+  const removedRoots = [];
+  const results = [];
+
+  for (let i = 0; i < ordered.length; i++) {
+    const item = ordered[i];
+    const groupKey = item.dev ?? "unknown";
+    const group = devGroups.get(groupKey);
+    if (i === group.firstIndex) {
+      try {
+        const s = statfsSync(group.path);
+        fsStats.set(groupKey, { dev: group.dev, path: group.path, free_before: s.bavail * s.bsize, free_after: null });
+      } catch { /* best effort — this filesystem's free space just is not reported */ }
+    }
+
+    const ancestor = removedRoots.find((r) => isDescendantOf(item.path, r.path));
+    if (ancestor) {
+      results.push({ ...baseLogItem(item), result: "removed", reason: `removed with ${ancestor.id}`, freed_bytes: 0, kept: null });
+    } else {
+      try {
+        const rc = recheckItem(item, ctx, mods, now);
+        const stillEligible = sel.mode === "should" ? rc.class === "should" : rc.class !== "keep";
+        if (rc.changed || !stillEligible || !rc.route) {
+          results.push({ ...baseLogItem(item), result: "skipped", reason: rc.reason, freed_bytes: 0, kept: null });
+        } else {
+          const safe = machinePathStillSafe(item, ctx, mods, rc.route);
+          if (!safe.ok) {
+            results.push({ ...baseLogItem(item), result: "skipped", reason: safe.reason, freed_bytes: 0, kept: null });
+          } else {
+            const beforeBytes = Number.isFinite(rc.fresh.bytes) ? rc.fresh.bytes : item.bytes;
+            try {
+              removeItem(item, rc.route, ctx, mods);
+              const v = verifyRemoval(item, ctx, mods, beforeBytes);
+              results.push({ ...baseLogItem(item), result: v.result, reason: v.reason || null, freed_bytes: v.freed_bytes, kept: v.kept || null });
+              if (v.result === "removed") removedRoots.push({ path: item.path, id: item.id });
+            } catch (e) {
+              results.push({ ...baseLogItem(item), result: "failed", reason: e.message, freed_bytes: 0, kept: null });
+            }
+          }
+        }
+      } catch (e) {
+        results.push({ ...baseLogItem(item), result: "failed", reason: e.message, freed_bytes: 0, kept: null });
+      }
+    }
+
+    if (i === group.lastIndex) {
+      const rec = fsStats.get(groupKey);
+      if (rec) { try { const s = statfsSync(group.path); rec.free_after = s.bavail * s.bsize; } catch { /* best effort */ } }
+    }
+  }
+
+  const filesystems = [...fsStats.values()].map((r) => ({
+    dev: r.dev, path: r.path, free_before: r.free_before, free_after: r.free_after,
+    freed: (r.free_after != null && r.free_before != null) ? r.free_after - r.free_before : null,
+  }));
+
+  const allItems = [...refused.map(refusedLogItem), ...results];
+  const exitCode = (refused.length === 0 && results.every((r) => r.result === "removed" || r.result === "partial")) ? 0 : 1;
+  const yesField = consent.method === "flag" ? { by: "flags", reason: consent.reason } : { by: "terminal" };
+
+  const line = cleanup.logLine({
+    at: new Date(now).toISOString(), host, session: process.env.WAYPOST_SESSION_ID || null,
+    harness: process.env.WAYPOST_HARNESS || null, source: "clean", root,
+    clock: process.env.WAYPOST_CLEAN_NOW || null,
+    yes: yesField, selection, items: allItems, filesystems, exit: exitCode,
+  });
+  appendCleanLog(host, line);
+
+  return { exitCode, host, root, selection, items: allItems, filesystems, apfs_note: APFS_FREE_SPACE_NOTE };
+}
+
+function printApplyResult(result) {
+  // A consent refusal (no valid --yes --reason, no eligible terminal) is
+  // handled directly in handleClean, before this is ever reached — only a
+  // declined interactive prompt (the plan was already built to show it)
+  // takes this early return here.
+  if (result.declined) {
+    process.stderr.write(`waypost clean --apply: ${result.message}\n`);
+    return;
+  }
+  for (const it of result.items) {
+    const where = it.path ? tildeHome(it.path) : (it.id || "?");
+    process.stdout.write(`  ${it.id || "?"}  ${it.result}  ${where}\n`);
+    if (it.reason) process.stdout.write(`    ${it.reason}\n`);
+    if (it.kept) process.stdout.write(`    kept: ${it.kept}\n`);
+  }
+  for (const fsEntry of result.filesystems) {
+    if (fsEntry.freed == null) continue;
+    process.stdout.write(`  ${tildeHome(fsEntry.path)}: ${(fsEntry.freed / GB).toFixed(2)} GB freed\n`);
+  }
+  if (result.filesystems.length) process.stdout.write(`  (${result.apfs_note})\n`);
+  process.stdout.write(result.exitCode === 0 ? "done\n" : "done, with issues — see above\n");
+}
+
+async function handleClean(args) {
   const json = flag(args, "--json");
+  const applySel = parseApplySelection(args);
+  if (applySel && applySel.mode === "empty") { fail("clean --apply: needs an id, a list of ids, or should"); return; }
+  if (applySel && applySel.mode === "can") { fail("clean --apply can: refused — can items are removed only by id"); return; }
 
   let cleanup, sizes, toolchains, capacity, presence, discovery;
   try {
@@ -1150,12 +1584,46 @@ async function handleClean(args) {
     discovery = await import(`file://${SCRIPT("discovery")}`);
   } catch (e) { fail(`clean: ${e.message}`); }
 
+  const now = cleanNow();
+
+  // --apply's consent is decided before the machine-wide slot is ever
+  // claimed: a harness detected, or no terminal and no --yes --reason, must
+  // refuse the SAME way whether or not the machine happens to be busy with
+  // something else entirely — claiming a slot first would make that refusal
+  // depend on machine load, and waste a slot on a request that was always
+  // going to be refused.
+  let consentDecision = null;
+  if (applySel) {
+    const yes = flag(args, "--yes");
+    const reasonFlag = opt(args, "--reason");
+    const isTTY = Boolean(process.stdin.isTTY);
+    const harnessDetected = await isHarnessDetected();
+    consentDecision = cleanup.consent({ yes, reason: reasonFlag, isTTY, harnessDetected });
+    if (consentDecision.method === "refused") {
+      const host = presence.hostSlug();
+      const root = projectRoot();
+      const line = cleanup.logLine({
+        at: new Date(now).toISOString(), host, session: process.env.WAYPOST_SESSION_ID || null,
+        harness: process.env.WAYPOST_HARNESS || null, source: "clean", root,
+        clock: process.env.WAYPOST_CLEAN_NOW || null,
+        yes: { by: null, declined: false }, selection: selectionDescriptorOf(applySel), items: [], filesystems: [], exit: 1,
+      });
+      appendCleanLog(host, line);
+      const message = `${consentDecision.reason} — pass --yes --reason "<who agreed, when>" or run \`waypost prompt cleanup\``;
+      if (json) process.stdout.write(JSON.stringify({ exitCode: 1, refusedEarly: true, message }, null, 2) + "\n");
+      else process.stderr.write(`waypost clean --apply: ${message}\n`);
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   // Same rule as `size --global` (WP-18 Decision 4): a machine-wide scan
-  // holds the machine-wide slot, same refusal (exit 75). No fail() between
-  // the claim and the finally below, so the slot is always released.
+  // holds the machine-wide slot, same refusal (exit 75), for the plan AND
+  // for --apply. No fail() between the claim and the finally below, so the
+  // slot is always released.
   const dir = slotsDir(presence);
   mkdirSync(dir, { recursive: true });
-  const claim = await claimSlot(dir, ["waypost", "clean", ...(json ? ["--json"] : [])], capacity, presence);
+  const claim = await claimSlot(dir, ["waypost", "clean", ...(applySel ? ["--apply"] : []), ...(json ? ["--json"] : [])], capacity, presence);
   if (!claim.ok) {
     process.stderr.write(`waypost clean: refused — ${claim.reason}\n  retry: waypost clean\n`);
     process.exitCode = EX_TEMPFAIL;
@@ -1163,16 +1631,30 @@ async function handleClean(args) {
   }
   recordAuthority(claim.file, capacity);
 
-  const now = cleanNow();
-  let result, error;
+  const mods = { cleanup, sizes, toolchains, presence, discovery };
+  let result, error, applyResult = false;
   try {
-    result = buildCleanPlan({ cleanup, sizes, toolchains, presence, discovery }, now);
+    if (!applySel) {
+      const ctx = gatherCleanContext(mods);
+      const classified = planFromContext(ctx, cleanup, now);
+      result = formatPlan(classified, ctx, now);
+    } else {
+      applyResult = true;
+      result = await applyClean(applySel, consentDecision, args, mods, now);
+    }
   } catch (e) {
     error = e;
   } finally {
     claim.release();
   }
   if (error) fail(`clean: ${error.message}`);
+
+  if (applyResult) {
+    if (json) process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    else printApplyResult(result);
+    if (result.exitCode) process.exitCode = result.exitCode;
+    return;
+  }
 
   if (json) { process.stdout.write(JSON.stringify(result, null, 2) + "\n"); return; }
   printCleanPlan(result);
@@ -1733,8 +2215,15 @@ PROCEDURES
                            own clean command — measures a fresh machine
                            profile's paths when one exists [--json for the rest]
   clean [--json]           a classified plan over the project and the machine
-                           at once (keep / should / can, with why) — never
-                           deletes; --apply lands with the next commit
+                           at once (keep / should / can, with why) — read-only
+  clean --apply <id…>|should [--yes --reason "<who agreed, when>"]
+                           remove exactly those ids, or every should item;
+                           can only by id, keep and manual always refused;
+                           re-checked right before each removal, one failure
+                           never stops the rest [--json for the full report]
+                           on a terminal with no harness detected, asks
+                           [y/N] (60s, no otherwise); a harness or no
+                           terminal needs --yes --reason
   capacity [--json]        the machine's real free resources right now: cores,
                            load, available memory and how many more heavy
                            jobs it can take (never cached) [--json for detail]

@@ -737,6 +737,12 @@ export function measureCaches(candidates, { metadata = EMPTY_SET } = {}) {
     const r = dirBytes(cand.path, seen, null, metadata);
     out.push({
       path: cand.path, bytes: r.bytes, clean: cand.clean, tool: cand.tool, source: cand.source,
+      // The cache item's own raw path template — a stable key back into the
+      // CURRENT registry's exact cache definition (its `ask`, in particular)
+      // for a caller that wants to re-ask the tool at removal time, the way
+      // scanGlobal({ profile }) already matches a profile entry back to its
+      // policy by (tool, item).
+      item: cand.item ?? null,
       confidence: cand.confidence, docs: cand.docs, notes: cand.notes, regenerable: cand.regenerable ?? null,
       manual: cand.manual === true, clean_argv: cand.clean_argv ?? null, clean_docs: cand.clean_docs ?? null,
       stale_days: cand.stale_days ?? null, newest_ms: r.newest_ms, unreadable: r.unreadable, dev: r.dev, ino: r.ino,

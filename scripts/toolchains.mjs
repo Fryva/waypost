@@ -18,7 +18,7 @@
 //   runLocator(name, ctx)                   -> { matches, incomplete }
 //   askCache(ask, { bin, env, home, platform, timeoutMs }) -> { ok, value|note }
 //   resolveCachePaths(entries, { home, env, platform, ask, bins }) -> [{ ... }]
-//   ASK_TIMEOUT_MS
+//   ASK_TIMEOUT_MS, BATCH_SHIM_RE
 
 import { readFileSync, readdirSync, lstatSync } from "node:fs";
 import { join, sep, normalize, win32 as pathWin32, posix as pathPosix } from "node:path";
@@ -309,7 +309,10 @@ function tokensFor(home, env) {
 // itself ships.
 export const ASK_TIMEOUT_MS = 3000;
 
-const BATCH_SHIM_RE = /\.(cmd|bat)$/i;
+// Exported so bin/waypost's own removal path (a machine cache's clean_argv)
+// refuses the exact same shim shapes askCache already does, rather than
+// keeping a second copy of the pattern in sync by hand.
+export const BATCH_SHIM_RE = /\.(cmd|bat)$/i;
 
 // Returns { ok: true, value: [absolutePath, …] } or { ok: false, note }. Every
 // failure mode becomes a note instead of a throw — resolveCachePaths falls

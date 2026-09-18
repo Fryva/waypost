@@ -290,14 +290,24 @@ export function classify(items, facts = {}, { now = Date.now(), limit = null } =
 }
 
 // Re-classifies one item against fresh facts read right before its own
-// removal (a later commit): gone, replaced by a symlink, or otherwise
-// changed identity (dev/ino) is reported as `changed`, never removed
-// through even if the fresh facts would otherwise classify it should/can.
+// removal (the apply story, WP-17): gone, replaced by a symlink or junction,
+// or otherwise changed identity (dev/ino) is reported as `changed`, never
+// removed through even if the fresh facts would otherwise classify it
+// should/can. `fresh` is inspectDir's own facts for this one path, plus (for
+// a project item) `ignored`/`tracked` from a gitFacts call scoped to just
+// this path — both optional, so a caller that never re-checked git status
+// (a machine item, or a caller happy with the plan's own facts) still works
+// exactly as before.
 export function recheck(item, fresh, facts = {}) {
   if (!fresh || fresh.exists === false) return { class: "keep", reason: "no longer exists", route: null, changed: true };
   if (fresh.is_symlink) return { class: "keep", reason: "replaced by a symlink", route: null, changed: true };
   const identityChanged = item.dev != null && item.ino != null && (fresh.dev !== item.dev || fresh.ino !== item.ino);
-  const merged = { ...item, newest_ms: fresh.newest_ms, nested_git: fresh.nested_git, unreadable: fresh.unreadable, dev: fresh.dev, ino: fresh.ino };
+  const merged = {
+    ...item, newest_ms: fresh.newest_ms, nested_git: fresh.nested_git, unreadable: fresh.unreadable,
+    dev: fresh.dev, ino: fresh.ino,
+    ...(fresh.ignored !== undefined ? { ignored: fresh.ignored } : {}),
+    ...(fresh.tracked !== undefined ? { tracked: fresh.tracked } : {}),
+  };
   const result = classifyItem(merged, facts);
   return { ...result, changed: identityChanged };
 }

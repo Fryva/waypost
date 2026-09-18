@@ -1,19 +1,26 @@
 // waypost — tests for scripts/cleanup.mjs and `waypost clean` (WP-17, the
-// clean-plan story). Pure units for the classification functions, and a few
-// end-to-end CLI checks through a hermetic project + machine-state directory
-// — never the real toolchain registry, never a real project or cache path.
-// Removal is not exercised here at all: `--apply` lands with the next
-// commit, and every plan below is read-only by construction.
+// clean-plan and clean-apply stories). Pure units for the classification
+// functions and for askYesNo, plus end-to-end CLI checks — both the
+// read-only plan and `--apply` itself — through a hermetic project +
+// machine-state directory and a fake toolchains registry. `--apply` really
+// does remove fixtures below (never anything outside a temp directory this
+// suite made itself; never the real toolchain registry or a real cache
+// path).
 //   node --test tests/cleanup.test.mjs
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, readdirSync,
+  utimesSync, symlinkSync, chmodSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir, homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { PassThrough } from "node:stream";
 
+import { askYesNo } from "../scripts/lib.mjs";
 import {
   itemId, runningTools, refusePath, routeFor, classifyItem, classify,
   orderOldestFirst, countedBytes, pickUnderLimit, recheck, consent, logLine,
@@ -23,6 +30,12 @@ import {
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const Waypost = join(REPO, "bin", "waypost");
 const GB = 1024 ** 3;
+const CACHEDIR_TAG = "Signature: 8a477f597d28d172789f06886806bc55\n";
+// An hour ahead of real time — every apply test below runs the plan AND the
+// apply through this same fixed WAYPOST_CLEAN_NOW, so nothing looks
+// "modified within the last 10 minutes" purely because the fixture was just
+// created (ctime cannot be backdated either way).
+function futureClock() { return new Date(Date.now() + 60 * 60 * 1000).toISOString(); }
 
 const ROOTS = [];
 function tmpRoot(prefix) {
@@ -586,13 +599,568 @@ test("AC 9 (e2e): a directory leased by another live session shows keep \u2018le
   assert.match(item.reason, /leased by other/);
 });
 
-test("waypost clean --apply: refused with a clear message, exit 1, before anything is scanned", () => {
+// ─── --apply: malformed selections refuse before any scan ────────────────
+
+test("waypost clean --apply (no value): refused with a clear message, exit 1", () => {
   const root = tagProjectFixture();
-  const r = spawnSync(process.execPath, [Waypost, "clean", "--apply", "p-doesnotmatter"], {
+  const r = spawnSync(process.execPath, [Waypost, "clean", "--apply"], {
     encoding: "utf8", cwd: root, env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: "1" },
   });
   assert.notEqual(r.status, 0);
-  assert.match(r.stderr, /removal lands with the next commit/);
+  assert.match(r.stderr, /needs an id/);
+});
+
+test("waypost clean --apply can: refused outright — can items are removed only by id", () => {
+  const root = tagProjectFixture();
+  const r = spawnSync(process.execPath, [Waypost, "clean", "--apply", "can"], {
+    encoding: "utf8", cwd: root, env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: "1" },
+  });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /can items are removed only by id/);
+});
+
+// ─── AC 7: consent — a detected harness, or no TTY, refuses before scanning ──
+
+test("AC 7: a detected harness (WAYPOST_HARNESS=claude), no --yes/--reason, refuses before touching anything — exit non-zero, names the flags and the prompt", () => {
+  const root = tagProjectFixture();
+  const r = spawnSync(process.execPath, [Waypost, "clean", "--apply", "p-doesnotmatter"], {
+    encoding: "utf8", cwd: root,
+    env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: "1", WAYPOST_HARNESS: "claude" },
+  });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /--yes --reason/);
+  assert.match(r.stderr, /waypost prompt cleanup/);
+  assert.ok(existsSync(join(root, "tgt")), "nothing was touched");
+});
+
+test("AC 7: no TTY (a spawned process has none) also refuses without --yes --reason, same message", () => {
+  const root = tagProjectFixture();
+  const r = spawnSync(process.execPath, [Waypost, "clean", "--apply", "p-doesnotmatter"], {
+    encoding: "utf8", cwd: root, stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: "1" },
+  });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /--yes --reason/);
+  assert.match(r.stderr, /waypost prompt cleanup/);
+  assert.ok(existsSync(join(root, "tgt")), "nothing was touched");
+});
+
+// ─── AC 7: askYesNo itself, on a PassThrough pair (no real terminal needed) ──
+
+test("askYesNo: silence past the timeout resolves false, well before a much longer wait would", async () => {
+  const input = new PassThrough(); const output = new PassThrough(); output.resume();
+  const t0 = Date.now();
+  const answer = await askYesNo("Remove? [y/N] ", { input, output, timeoutMs: 50 });
+  assert.equal(answer, false);
+  assert.ok(Date.now() - t0 < 2000, "must not wait anywhere near the full 60s default in a 50ms test");
+});
+
+test("askYesNo: EOF with no answer at all resolves false", async () => {
+  const input = new PassThrough(); const output = new PassThrough(); output.resume();
+  input.end();
+  assert.equal(await askYesNo("Remove? [y/N] ", { input, output, timeoutMs: 2000 }), false);
+});
+
+test("askYesNo: 'y'/'yes' (any case, trimmed) resolve true; every other answer resolves false", async () => {
+  const cases = [["y\n", true], ["yes\n", true], ["Y\n", true], ["  YES  \n", true], ["n\n", false], ["nope\n", false], ["\n", false]];
+  for (const [line, expected] of cases) {
+    const input = new PassThrough(); const output = new PassThrough(); output.resume();
+    const p = askYesNo("Remove? [y/N] ", { input, output, timeoutMs: 2000 });
+    input.write(line);
+    assert.equal(await p, expected, `answer ${JSON.stringify(line)}`);
+  }
+});
+
+// ─── AC 1: keep is refused by id, with the real reason, others still apply ──
+
+test("AC 1 (apply): of three tag directories — clean, holding a tracked file, holding a nested repository — only the clean one is removed by id; the other two are refused, named, and survive; exit 1", () => {
+  const root = tmpRoot("waypost-cleanup-ac1-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+
+  mkdirSync(join(root, "clean-cache"), { recursive: true });
+  writeFileSync(join(root, "clean-cache", "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+  writeFileSync(join(root, "clean-cache", "o.bin"), Buffer.alloc(20000, 1));
+
+  mkdirSync(join(root, "tracked-cache"), { recursive: true });
+  writeFileSync(join(root, "tracked-cache", "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+  writeFileSync(join(root, "tracked-cache", "kept.txt"), "tracked", "utf8");
+
+  // Only tracked-cache/kept.txt is ever added — `git add -A` here would
+  // have tracked clean-cache's own files too, since nothing ignores them.
+  git(root, ["add", "tracked-cache/kept.txt"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+
+  mkdirSync(join(root, "nested-cache"), { recursive: true });
+  writeFileSync(join(root, "nested-cache", "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+  git(join(root, "nested-cache"), ["init", "-q"]);
+
+  const home = tmpRoot("waypost-cleanup-ac1-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const now = futureClock();
+
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const byRel = Object.fromEntries(plan.items.filter((i) => i.scope === "project").map((i) => [i.rel, i]));
+  assert.equal(byRel["tracked-cache"].class, "keep");
+  assert.equal(byRel["nested-cache"].class, "keep");
+  const [cleanId, trackedId, nestedId] = [byRel["clean-cache"].id, byRel["tracked-cache"].id, byRel["nested-cache"].id];
+
+  const r = runClean(root, home, fakeHome,
+    ["--apply", cleanId, trackedId, nestedId, "--yes", "--reason", "AC1", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 1, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.exitCode, 1);
+  const byId = Object.fromEntries(out.items.map((i) => [i.id, i]));
+
+  assert.equal(byId[cleanId].result, "removed");
+  assert.equal(byId[trackedId].result, "refused");
+  assert.match(byId[trackedId].reason, /tracked file/);
+  assert.equal(byId[nestedId].result, "refused");
+  assert.match(byId[nestedId].reason, /nested repository/);
+
+  assert.ok(!existsSync(join(root, "clean-cache")), "the clean tag directory is actually gone from disk");
+  assert.ok(existsSync(join(root, "tracked-cache")));
+  assert.ok(existsSync(join(root, "nested-cache")));
+});
+
+// ─── AC 2: an ignored generic directory routes through git clean -X ────────
+
+// Real git never reports a directory "ignored" (`check-ignore`) while it
+// holds ANY tracked file, regardless of the ignore rule — verified directly
+// against the git binary during development (`git check-ignore build`
+// answers "not ignored" the moment `build/keep.txt` is force-added, even
+// though `git clean -X -d -f -n -- build` still correctly offers to remove
+// only `build/output.o`). That is exactly what already keeps a directory
+// holding a tracked file out of `should`/`can` in the first place
+// (classifyItem's own "holds a tracked file" keep, AC 1 above) — so a
+// git-clean-x route is only ever chosen for a directory confirmed to have
+// NO tracked content at all. This test covers the route actually running
+// end to end; the "a tracked file survives" half of the ADR's own claim is
+// a property of `git clean -X` itself, not something our own classifier
+// ever hands it a chance to prove wrong.
+test("AC 2 (apply): an ignored generic build/ directory (no tracked content) is cleaned via git clean -X, end to end", () => {
+  const root = tmpRoot("waypost-cleanup-ac2-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  writeFileSync(join(root, ".gitignore"), "/build\n", "utf8");
+  git(root, ["add", ".gitignore"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+  mkdirSync(join(root, "build"), { recursive: true });
+  writeFileSync(join(root, "build", "output.o"), "ignored output", "utf8");
+
+  const home = tmpRoot("waypost-cleanup-ac2-home-");
+  // A fake "generic" entry — the real one ships as toolchains/generic.json,
+  // never touched by this hermetic registry.
+  const fakeHome = fakeToolchainsHome([
+    { id: "generic", name: "Generic", artifacts: [{ name: "build", match: "generic", regenerable: true, clean: "project-specific" }] },
+  ]);
+  const now = futureClock();
+
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const item = plan.items.find((i) => i.rel === "build");
+  assert.ok(item, JSON.stringify(plan.items));
+  assert.equal(item.match, "generic");
+  assert.deepEqual(item.route, { kind: "git-clean-x" });
+
+  const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC2", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  const applied = out.items.find((i) => i.id === item.id);
+  assert.ok(applied.result === "removed" || applied.result === "partial", JSON.stringify(applied));
+  assert.ok(!existsSync(join(root, "build", "output.o")), "the ignored output is gone");
+});
+
+// The route's own protection of a tracked file, verified directly against
+// the real git binary (see the comment above) — not through the CLI, since
+// our own classifier never lets a directly-tracked directory reach this
+// route at all.
+test("AC 2: git clean -X -d -f itself never removes a tracked file, whatever else is in the same directory", () => {
+  const root = tmpRoot("waypost-cleanup-ac2-route-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  mkdirSync(join(root, "build"), { recursive: true });
+  writeFileSync(join(root, "build", "keep.txt"), "tracked on purpose", "utf8");
+  git(root, ["add", "-f", "build/keep.txt"]);
+  git(root, ["commit", "-q", "-m", "keep.txt first"]);
+  writeFileSync(join(root, ".gitignore"), "/build\n", "utf8");
+  git(root, ["add", ".gitignore"]);
+  git(root, ["commit", "-q", "-m", "ignore build"]);
+  writeFileSync(join(root, "build", "output.o"), "ignored output", "utf8");
+
+  const r = spawnSync("git", ["--literal-pathspecs", "-C", root, "clean", "-X", "-d", "-f", "--", "build"], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(join(root, "build", "output.o")), "the ignored output is gone");
+  assert.ok(existsSync(join(root, "build", "keep.txt")), "the tracked file survives");
+  assert.equal(readFileSync(join(root, "build", "keep.txt"), "utf8"), "tracked on purpose");
+});
+
+// ─── AC 3: a shipped clean_argv route, and the tracked-file refusal ────────
+
+function fakeToolScript(binDir, name, script) {
+  const p = join(binDir, name);
+  writeFileSync(p, script, "utf8");
+  chmodSync(p, 0o755);
+  return binDir;
+}
+
+test("AC 3 (apply): a shipped artifact's own clean_argv runs (with cwd at the manifest directory) and a marker proves it; force-added tracked content refuses instead, and the marker is never written", () => {
+  const binDir = tmpRoot("waypost-cleanup-ac3-bin-");
+  // cwd is the manifest directory (the item's own parent, i.e. the project
+  // root here) — the marker and the directory removal are both relative to
+  // it, so their presence proves BOTH where it ran and that it ran at all.
+  fakeToolScript(binDir, "faketool", "#!/bin/sh\ntouch ac3-ran\nrm -rf myart\n");
+
+  // Clean scenario: no tracked content.
+  {
+    const root = tmpRoot("waypost-cleanup-ac3-clean-");
+    git(root, ["init", "-q"]);
+    mkdirSync(join(root, "myart"), { recursive: true });
+    writeFileSync(join(root, "myart", "o.bin"), Buffer.alloc(2000, 1));
+
+    const home = tmpRoot("waypost-cleanup-ac3-clean-home-");
+    const fakeHome = fakeToolchainsHome([{
+      id: "faketool3", name: "Fake Tool 3",
+      artifacts: [{ name: "myart", match: "sure", regenerable: true, clean: "faketool clean", clean_argv: ["faketool", "clean"] }],
+    }]);
+    const now = futureClock();
+    const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now, PATH: `${binDir}:${process.env.PATH}` }).stdout);
+    const item = plan.items.find((i) => i.rel === "myart");
+    assert.ok(item, JSON.stringify(plan.items));
+    assert.deepEqual(item.route, { kind: "tool-clean-argv", argv: ["faketool", "clean"] });
+
+    const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC3", "--json"],
+      { WAYPOST_CLEAN_NOW: now, PATH: `${binDir}:${process.env.PATH}` });
+    assert.equal(r.status, 0, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.items.find((i) => i.id === item.id).result, "removed");
+    assert.ok(existsSync(join(root, "ac3-ran")), "the shipped clean_argv actually ran");
+    assert.ok(!existsSync(join(root, "myart")));
+  }
+
+  // Tracked scenario: force-added content inside the same-named artifact —
+  // never ignored either, so it is keep before a route is even considered.
+  {
+    const root = tmpRoot("waypost-cleanup-ac3-tracked-");
+    git(root, ["init", "-q"]);
+    git(root, ["config", "user.email", "test@example.com"]);
+    git(root, ["config", "user.name", "Test"]);
+    mkdirSync(join(root, "myart"), { recursive: true });
+    writeFileSync(join(root, "myart", "kept.txt"), "tracked on purpose", "utf8");
+    git(root, ["add", "-A"]);
+    git(root, ["commit", "-q", "-m", "init"]);
+
+    const home = tmpRoot("waypost-cleanup-ac3-tracked-home-");
+    const fakeHome = fakeToolchainsHome([{
+      id: "faketool3", name: "Fake Tool 3",
+      artifacts: [{ name: "myart", match: "sure", regenerable: true, clean: "faketool clean", clean_argv: ["faketool", "clean"] }],
+    }]);
+    const now = futureClock();
+    const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now, PATH: `${binDir}:${process.env.PATH}` }).stdout);
+    const item = plan.items.find((i) => i.rel === "myart");
+    assert.ok(item, JSON.stringify(plan.items));
+    assert.equal(item.class, "keep");
+    assert.match(item.reason, /tracked file/);
+
+    const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC3", "--json"],
+      { WAYPOST_CLEAN_NOW: now, PATH: `${binDir}:${process.env.PATH}` });
+    assert.equal(r.status, 1, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.items.find((i) => i.id === item.id).result, "refused");
+    assert.ok(!existsSync(join(root, "ac3-ran")), "the clean_argv must never have run");
+    assert.ok(existsSync(join(root, "myart", "kept.txt")));
+  }
+});
+
+// ─── AC 4: a project entry's non-ignored artifact is refused by id ─────────
+
+test("AC 4 (apply): a project's own toolchain artifact that git does not ignore is keep, refused by id, and survives untouched", () => {
+  const root = tmpRoot("waypost-cleanup-ac4-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  mkdirSync(join(root, ".waypost", "toolchains"), { recursive: true });
+  writeFileSync(join(root, ".waypost", "toolchains", "mine.json"), JSON.stringify({
+    id: "mine", name: "Mine", artifacts: [{ name: "myoutput", match: "sure", regenerable: true, clean: "rm -rf myoutput" }],
+  }), "utf8");
+  mkdirSync(join(root, "myoutput"), { recursive: true });
+  writeFileSync(join(root, "myoutput", "f.bin"), Buffer.alloc(2000, 1));
+  git(root, ["add", ".waypost"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+
+  const home = tmpRoot("waypost-cleanup-ac4-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const now = futureClock();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const item = plan.items.find((i) => i.rel === "myoutput");
+  assert.ok(item, JSON.stringify(plan.items));
+  assert.equal(item.class, "keep");
+
+  const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC4", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 1, r.stderr);
+  const out = JSON.parse(r.stdout);
+  const applied = out.items.find((i) => i.id === item.id);
+  assert.equal(applied.result, "refused");
+  assert.match(applied.reason, /does not ignore/);
+  assert.ok(existsSync(join(root, "myoutput", "f.bin")));
+});
+
+// ─── AC 5: a machine cache without clean_argv, and a manual one ────────────
+
+test("AC 5 (apply): a machine cache with no clean_argv is removed by Waypost itself; its own prose clean text is shown, never run", () => {
+  const home = tmpRoot("waypost-cleanup-ac5-home-");
+  const cacheDir = join(home, "fake-cache");
+  mkdirSync(cacheDir, { recursive: true });
+  writeFileSync(join(cacheDir, "f.bin"), Buffer.alloc(2000, 1));
+  const fakeHome = fakeToolchainsHome([{
+    id: "faketool5", name: "Fake Tool 5", detect: { bins: [], manifests: [] },
+    caches: [{
+      path: "$HOME/fake-cache", os: ["darwin", "linux", "win32"],
+      confidence: { darwin: "verified", linux: "verified", win32: "verified" },
+      regenerable: true, clean: "touch $HOME/ran",
+    }],
+  }]);
+  const root = tmpRoot("waypost-cleanup-ac5-proj-");
+  git(root, ["init", "-q"]);
+  const now = futureClock();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const item = plan.items.find((i) => i.scope === "machine" && i.path === cacheDir);
+  assert.ok(item, JSON.stringify(plan.items));
+  assert.deepEqual(item.route, { kind: "waypost-remove" });
+
+  const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC5", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  const applied = out.items.find((i) => i.id === item.id);
+  assert.equal(applied.result, "removed");
+  assert.ok(!existsSync(cacheDir), "waypost removed the cache directory itself");
+  assert.ok(!existsSync(join(home, "ran")), "the prose clean text must never be executed as a shell command");
+});
+
+test("AC 5 (apply): a manual machine cache is refused by id, and its own clean text is never run", () => {
+  const home = tmpRoot("waypost-cleanup-ac5b-home-");
+  const cacheDir = join(home, "manual-cache");
+  mkdirSync(cacheDir, { recursive: true });
+  writeFileSync(join(cacheDir, "f.bin"), Buffer.alloc(2000, 1));
+  const fakeHome = fakeToolchainsHome([{
+    id: "manualtool", name: "Manual Tool", detect: { bins: [], manifests: [] },
+    caches: [{
+      path: "$HOME/manual-cache", os: ["darwin", "linux", "win32"],
+      confidence: { darwin: "verified", linux: "verified", win32: "verified" },
+      regenerable: true, manual: true, clean: "sometool prune --all (machine-wide, never run automatically)",
+    }],
+  }]);
+  const root = tmpRoot("waypost-cleanup-ac5b-proj-");
+  git(root, ["init", "-q"]);
+  const now = futureClock();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const item = plan.items.find((i) => i.scope === "machine" && i.path === cacheDir);
+  assert.ok(item, JSON.stringify(plan.items));
+  assert.equal(item.class, "can");
+
+  const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC5", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 1, r.stderr);
+  const out = JSON.parse(r.stdout);
+  const applied = out.items.find((i) => i.id === item.id);
+  assert.equal(applied.result, "refused");
+  assert.match(applied.reason, /prune/);
+  assert.ok(existsSync(cacheDir), "a manual cache is never touched");
+});
+
+// ─── AC 6: one item's own failure never stops the rest ─────────────────────
+
+const IS_ROOT = typeof process.getuid === "function" && process.getuid() === 0;
+
+test("AC 6 (apply): the middle of three items fails (EACCES, a read-only subdirectory) without stopping the other two; exit 1", { skip: process.platform === "win32" || IS_ROOT }, () => {
+  const root = tmpRoot("waypost-cleanup-ac6-");
+  git(root, ["init", "-q"]);
+  for (const name of ["first-cache", "second-cache", "third-cache"]) {
+    mkdirSync(join(root, name), { recursive: true });
+    writeFileSync(join(root, name, "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+    writeFileSync(join(root, name, "o.bin"), Buffer.alloc(2000, 1));
+  }
+  const lockedSub = join(root, "second-cache", "locked");
+  mkdirSync(lockedSub, { recursive: true });
+  writeFileSync(join(lockedSub, "f.txt"), "x", "utf8");
+  chmodSync(lockedSub, 0o500);
+
+  const home = tmpRoot("waypost-cleanup-ac6-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const now = futureClock();
+  try {
+    const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+    const byRel = Object.fromEntries(plan.items.filter((i) => i.scope === "project").map((i) => [i.rel, i]));
+    const ids = [byRel["first-cache"].id, byRel["second-cache"].id, byRel["third-cache"].id];
+
+    const r = runClean(root, home, fakeHome, ["--apply", ...ids, "--yes", "--reason", "AC6", "--json"], { WAYPOST_CLEAN_NOW: now });
+    assert.equal(r.status, 1, r.stderr);
+    const out = JSON.parse(r.stdout);
+    const byId = Object.fromEntries(out.items.map((i) => [i.id, i]));
+    assert.equal(byId[byRel["first-cache"].id].result, "removed");
+    assert.equal(byId[byRel["third-cache"].id].result, "removed");
+    assert.equal(byId[byRel["second-cache"].id].result, "failed");
+    // Node's recursive rmSync surfaces this as EACCES on some Node/OS
+    // combinations and as ENOTEMPTY on others (the unlink inside the
+    // unwritable subdirectory fails first either way, so the directory
+    // itself can never be emptied) — the shape that matters for this AC is
+    // "one item fails without stopping the rest", not the exact errno.
+    assert.match(byId[byRel["second-cache"].id].reason, /EACCES|EPERM|ENOTEMPTY|permission/i);
+  } finally {
+    try { chmodSync(lockedSub, 0o700); } catch { /* best effort restore */ }
+  }
+});
+
+// ─── AC 12: changed between plan and apply — never removed ────────────────
+//
+// `--apply` re-plans from scratch at its own start (the same fresh
+// gatherCleanContext + planFromContext `--apply should` needs to re-plan
+// against current state) — so a change made any time before the apply
+// process even starts is already visible in THAT fresh plan, and
+// resolveApplySelection's own keep-check refuses it by name before a route
+// is ever chosen, exactly the way an unknown or already-keep id is refused.
+// cleanup.recheck()'s OWN correctness (gone, symlinked, identity changed) is
+// covered directly by its unit tests above; recheckItem's wiring to it is
+// exercised by every successful apply test in this file (the common case:
+// nothing changed, and recheck confirms it).
+
+test("AC 12: an item touched between plan and apply (mtime moved to just before \"now\") is refused, not removed", () => {
+  const root = tmpRoot("waypost-cleanup-ac12a-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, "tgt"), { recursive: true });
+  writeFileSync(join(root, "tgt", "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+  writeFileSync(join(root, "tgt", "o.bin"), Buffer.alloc(2000, 1));
+
+  const home = tmpRoot("waypost-cleanup-ac12a-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const now = futureClock();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const item = plan.items.find((i) => i.rel === "tgt");
+  assert.ok(item);
+
+  // "Touched" between plan and apply — one minute before the apply's own
+  // WAYPOST_CLEAN_NOW, so it reads as modified within the last 10 minutes
+  // at recheck time.
+  const touchedAt = new Date(Date.parse(now) - 60_000);
+  utimesSync(join(root, "tgt", "o.bin"), touchedAt, touchedAt);
+
+  const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC12", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 1, r.stderr);
+  const out = JSON.parse(r.stdout);
+  const applied = out.items.find((i) => i.id === item.id);
+  assert.equal(applied.result, "refused");
+  assert.match(applied.reason, /modified/);
+  assert.ok(existsSync(join(root, "tgt")));
+});
+
+test("AC 12: a file force-added to git between plan and apply is refused, ‘holds a tracked file’", () => {
+  const root = tmpRoot("waypost-cleanup-ac12b-");
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  writeFileSync(join(root, "README.md"), "hi\n", "utf8");
+  git(root, ["add", "README.md"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+  mkdirSync(join(root, "tgt"), { recursive: true });
+  writeFileSync(join(root, "tgt", "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+  writeFileSync(join(root, "tgt", "o.bin"), Buffer.alloc(2000, 1));
+
+  const home = tmpRoot("waypost-cleanup-ac12b-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const now = futureClock();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const item = plan.items.find((i) => i.rel === "tgt");
+  assert.ok(item);
+  assert.notEqual(item.class, "keep");
+
+  git(root, ["add", "-f", "tgt/o.bin"]);
+  git(root, ["commit", "-q", "-m", "force add"]);
+
+  const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC12", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 1, r.stderr);
+  const out = JSON.parse(r.stdout);
+  const applied = out.items.find((i) => i.id === item.id);
+  assert.equal(applied.result, "refused");
+  assert.match(applied.reason, /tracked file/);
+  assert.ok(existsSync(join(root, "tgt", "o.bin")));
+});
+
+test("AC 12: an item replaced by a symlink between plan and apply is refused, and the symlink's own target survives", { skip: process.platform === "win32" }, () => {
+  const root = tmpRoot("waypost-cleanup-ac12c-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, "tgt"), { recursive: true });
+  writeFileSync(join(root, "tgt", "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+  writeFileSync(join(root, "tgt", "o.bin"), Buffer.alloc(2000, 1));
+
+  const home = tmpRoot("waypost-cleanup-ac12c-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const now = futureClock();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const item = plan.items.find((i) => i.rel === "tgt");
+  assert.ok(item);
+
+  const realTarget = tmpRoot("waypost-cleanup-ac12c-target-");
+  writeFileSync(join(realTarget, "precious.txt"), "do not eat me", "utf8");
+  rmSync(join(root, "tgt"), { recursive: true });
+  symlinkSync(realTarget, join(root, "tgt"));
+
+  const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC12", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 1, r.stderr);
+  const out = JSON.parse(r.stdout);
+  const applied = out.items.find((i) => i.id === item.id);
+  // scanProject's own walk never follows a symlink at all, so the fresh
+  // plan built at the start of --apply no longer finds this id anywhere —
+  // it is refused the same way a stale or unknown id is, which happens to
+  // spell out exactly this case in its own message.
+  assert.equal(applied.result, "refused");
+  assert.match(applied.reason, /not in the plan now/);
+  assert.match(applied.reason, /symbolic link/);
+  assert.ok(existsSync(join(realTarget, "precious.txt")), "the symlink's own target is untouched");
+});
+
+// ─── AC 13: one log line per apply, with items and reason; freed space ─────
+
+test("AC 13: each --apply appends exactly one new log line naming the reason and the items, and --json reports freed space per filesystem", () => {
+  const root = tmpRoot("waypost-cleanup-ac13-");
+  git(root, ["init", "-q"]);
+  mkdirSync(join(root, "tgt"), { recursive: true });
+  writeFileSync(join(root, "tgt", "CACHEDIR.TAG"), CACHEDIR_TAG, "utf8");
+  writeFileSync(join(root, "tgt", "o.bin"), Buffer.alloc(50000, 1));
+
+  const home = tmpRoot("waypost-cleanup-ac13-home-");
+  const fakeHome = fakeToolchainsHome([]);
+  const now = futureClock();
+  const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
+  const item = plan.items.find((i) => i.rel === "tgt");
+  assert.ok(item);
+
+  const stateDir = join(home, "Library", "Application Support", "Waypost");
+  const logFileOf = () => {
+    let names = [];
+    try { names = readdirSync(stateDir).filter((n) => n.startsWith("cleanup.") && n.endsWith(".jsonl")); } catch { names = []; }
+    return names[0] ? join(stateDir, names[0]) : null;
+  };
+  assert.equal(logFileOf(), null, "no log file exists before any apply");
+
+  const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC13 check", "--json"], { WAYPOST_CLEAN_NOW: now });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+
+  const logFile = logFileOf();
+  assert.ok(logFile, "a log file now exists");
+  const lines = readFileSync(logFile, "utf8").trim().split("\n").filter(Boolean);
+  assert.equal(lines.length, 1, "exactly one line for this one apply");
+  const entry = JSON.parse(lines[0]);
+  assert.equal(entry.kind, "apply");
+  assert.equal(entry.yes.reason, "AC13 check");
+  assert.equal(entry.items.length, 1);
+  assert.equal(entry.items[0].id, item.id);
+  assert.equal(entry.items[0].result, "removed");
+
+  assert.ok(Array.isArray(out.filesystems) && out.filesystems.length >= 1, JSON.stringify(out.filesystems));
+  const fsEntry = out.filesystems[0];
+  assert.ok("freed" in fsEntry && "free_before" in fsEntry && "free_after" in fsEntry);
 });
 
 test("waypost help lists clean", () => {
