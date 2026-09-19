@@ -12,15 +12,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, symlinkSync, realpathSync,
+  mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, symlinkSync, realpathSync,
+  utimesSync, statSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir, hostname } from "node:os";
-import { spawnSync } from "node:child_process";
+import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { machineStateDir, REMOVING_DIR } from "../scripts/lib.mjs";
-import { hostSlug } from "../scripts/presence.mjs";
+import { hostSlug, processTable, startTicks } from "../scripts/presence.mjs";
 import { bootIdentity } from "../scripts/capacity.mjs";
 import { registry } from "../scripts/agents.mjs";
 
@@ -99,6 +100,106 @@ function writeCurrentSetting(home, limit, extra = {}) {
 function lastLogRecord(home) {
   const lines = readFileSync(logPathOf(home), "utf8").trim().split("\n").filter(Boolean);
   return JSON.parse(lines[lines.length - 1]);
+}
+
+// ─── shared fixtures for the automatic path (commit C) ────────────────────
+
+function sleepMs(ms) {
+  const sab = new SharedArrayBuffer(4);
+  Atomics.wait(new Int32Array(sab), 0, 0, ms);
+}
+
+// A tagged, git-ignored directory the automatic path can find. `.gitignore`
+// is written once per project by the caller — see gitProject().
+function tagFixture(root, rel, bytes = 1000) {
+  const abs = join(root, rel);
+  mkdirSync(abs, { recursive: true });
+  writeFileSync(join(abs, "CACHEDIR.TAG"), "Signature: 8a477f597d28d172789f06886806bc55\n", "utf8");
+  writeFileSync(join(abs, "obj.bin"), Buffer.alloc(bytes, 1));
+  return abs;
+}
+
+// Stamps every entry in a subtree to "now" — ctime cannot be backdated (any
+// touch resets it to the real moment it ran), so relative age between
+// several fixtures comes from the ORDER these calls happen in, not from the
+// timestamp passed to utimesSync. WAYPOST_CLEAN_NOW then shifts the whole
+// simulated clock forward uniformly, so every fixture reads idle while
+// their relative order (oldest call first) survives exactly.
+function touchTree(abs) {
+  const now = new Date();
+  const walk = (p) => {
+    try { utimesSync(p, now, now); } catch { return; }
+    let st;
+    try { st = statSync(p); } catch { return; }
+    if (st.isDirectory()) for (const n of readdirSync(p)) walk(join(p, n));
+  };
+  walk(abs);
+}
+
+// A git repository with a root-anchored .gitignore for every tag directory
+// name this suite uses, so `git init` + one `add`/`commit` covers every
+// fixture a test adds afterward.
+function gitProject(prefix, ignored) {
+  const root = tmpRoot(prefix);
+  git(root, ["init", "-q"]);
+  git(root, ["config", "user.email", "test@example.com"]);
+  git(root, ["config", "user.name", "Test"]);
+  writeFileSync(join(root, ".gitignore"), ignored.map((n) => `/${n}\n`).join(""), "utf8");
+  writeFileSync(join(root, "README.md"), "hi\n", "utf8");
+  git(root, ["add", ".gitignore", "README.md"]);
+  git(root, ["commit", "-q", "-m", "init"]);
+  return root;
+}
+
+function gitCommonOf(proj) {
+  return join(realpathSync(proj), ".git");
+}
+
+function cleanNowPlusDays(days) {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function slotsDirFor(home) {
+  return join(stateDirOf(home), `slots.${hostSlug()}`);
+}
+
+// The pattern tests/slots.test.mjs's own selfRecord() uses: a record naming
+// THIS test process — genuinely alive, on this boot, on this host — the
+// cheapest way to manufacture a real LIVE holder without spawning a second
+// process.
+function selfHolderRecord(id, extra = {}) {
+  const table = process.platform === "win32" ? null : processTable();
+  const self = table ? table.get(process.pid) : null;
+  return {
+    id, host: RAW_HOST,
+    proc: { pid: process.pid, started: self ? self.started : null, ticks: startTicks(process.pid), comm: "test" },
+    boot: bootIdentity(), uptime: 0,
+    session: "limit-test", harness: "test", command: "node -e test",
+    started_at: new Date().toISOString(),
+    ...extra,
+  };
+}
+
+function writeHolderRecord(home, rec) {
+  const dir = slotsDirFor(home);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${rec.id}.json`), JSON.stringify(rec, null, 2) + "\n", "utf8");
+}
+
+// `waypost run --heavy -- <wrapped…>` as a child, hermetic: its own temp
+// HOME (and so its own slot directory) never competes with, or waits
+// behind, whatever else this machine is doing right now.
+function runHeavyChild(proj, wrapped, env, extraArgs = []) {
+  return spawnSync(process.execPath, [Waypost, "run", "--heavy", ...extraArgs, "--", ...wrapped], {
+    cwd: proj, encoding: "utf8", timeout: 30000, env,
+  });
+}
+
+function autoCleanEnv(home, extra = {}) {
+  return strippedEnv(machineEnv(home, {
+    WAYPOST_CLEAN_NOW: cleanNowPlusDays(8),
+    ...extra,
+  }));
 }
 
 // ─── no value: prints the setting, the last outcome, the choices ─────────
@@ -414,4 +515,419 @@ test("AC12: a leftover that lost its marker is re-marked and removed; a name of 
   }
   assert.ok(!existsSync(join(removingDir, orphan)), "the re-marked orphan is gone within 10s");
   assert.ok(existsSync(join(removingDir, foreign)), "a name Waypost never minted is never removed");
+});
+
+// ─── automatic cleanup at the end of `waypost run --heavy` (commit C) ────
+
+test("AC3: idle for only 2 days (under the 7-day floor) — a tiny GB threshold protects the working set; the report and log say to raise it", () => {
+  const home = tmpRoot("waypost-limit-ac3-home-");
+  const proj = gitProject("waypost-limit-ac3-proj-", ["a", "b", "c"]);
+  for (const n of ["a", "b", "c"]) touchTree(tagFixture(proj, n, 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const env = autoCleanEnv(home, { WAYPOST_CLEAN_NOW: cleanNowPlusDays(2) });
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  for (const n of ["a", "b", "c"]) assert.ok(existsSync(join(proj, n)), `${n} survives`);
+  assert.match(r.stderr, /raise it/);
+  const rec = lastLogRecord(home);
+  assert.equal(rec.kind, "auto");
+  assert.equal(rec.result, "ran");
+  assert.deepEqual(rec.renamed, []);
+  assert.equal(rec.reason, null);
+});
+
+test("AC4: three idle items over a small GB threshold — only the single oldest is renamed, enough to cover the need", () => {
+  const home = tmpRoot("waypost-limit-ac4-home-");
+  const proj = gitProject("waypost-limit-ac4-proj-", ["a", "b", "c"]);
+  const bytesEach = 45000;
+  touchTree(tagFixture(proj, "a", bytesEach)); sleepMs(30);
+  touchTree(tagFixture(proj, "b", bytesEach)); sleepMs(30);
+  touchTree(tagFixture(proj, "c", bytesEach));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.0001, bytes: 0.0001 * GB });
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(join(proj, "a")), "the oldest is gone from its original place");
+  assert.ok(existsSync(join(proj, "b")), "b survives");
+  assert.ok(existsSync(join(proj, "c")), "c survives");
+  const rec = lastLogRecord(home);
+  assert.equal(rec.renamed.length, 1);
+  assert.match(rec.renamed[0].path, /(^|\/)a$/);
+});
+
+test("AC5: under free:30%, the probe's own statfs decides the shortfall once — exactly the two oldest cover it", () => {
+  const home = tmpRoot("waypost-limit-ac5-home-");
+  const proj = gitProject("waypost-limit-ac5-proj-", ["a", "b", "c"]);
+  const bytesEach = 30000;
+  touchTree(tagFixture(proj, "a", bytesEach)); sleepMs(30);
+  touchTree(tagFixture(proj, "b", bytesEach)); sleepMs(30);
+  touchTree(tagFixture(proj, "c", bytesEach));
+  writeCurrentSetting(home, { kind: "free", percent: 30 });
+  // size 1e6, avail 250000 -> want 300000, shortfall 50000
+  const env = autoCleanEnv(home, { WAYPOST_AUTOCLEAN_PROBE: JSON.stringify({ statfs: { size: 1e6, avail: 250000 } }) });
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(join(proj, "a")));
+  assert.ok(!existsSync(join(proj, "b")));
+  assert.ok(existsSync(join(proj, "c")));
+  const rec = lastLogRecord(home);
+  assert.equal(rec.shortfall, 50000);
+  assert.equal(rec.renamed.length, 2);
+});
+
+test("AC6: a generic name holding a package, a tagged directory holding a package, and .terraform never go through the automatic path — excluded names each reason", () => {
+  const home = tmpRoot("waypost-limit-ac6-home-");
+  const proj = gitProject("waypost-limit-ac6-proj-", ["build", "pkgtag", ".terraform"]);
+
+  const buildDir = join(proj, "build");
+  mkdirSync(buildDir, { recursive: true });
+  writeFileSync(join(buildDir, "App.dmg"), Buffer.alloc(5000, 1));
+  touchTree(buildDir);
+
+  const pkgtagDir = join(proj, "pkgtag");
+  mkdirSync(join(pkgtagDir, "out"), { recursive: true });
+  writeFileSync(join(pkgtagDir, "CACHEDIR.TAG"), "Signature: 8a477f597d28d172789f06886806bc55\n", "utf8");
+  writeFileSync(join(pkgtagDir, "out", "App.pkg"), Buffer.alloc(5000, 1));
+  touchTree(pkgtagDir);
+
+  const tfDir = join(proj, ".terraform");
+  mkdirSync(tfDir, { recursive: true });
+  writeFileSync(join(tfDir, "environment"), "default\n", "utf8");
+  touchTree(tfDir);
+
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(buildDir));
+  assert.ok(existsSync(pkgtagDir));
+  assert.ok(existsSync(tfDir));
+
+  const rec = lastLogRecord(home);
+  assert.equal(rec.result, "ran");
+  assert.deepEqual(rec.renamed, []);
+  const reasons = rec.excluded.map((e) => e.reason).join(" | ");
+  assert.match(reasons, /generic name/);
+  assert.match(reasons, /distributable package/);
+  assert.match(reasons, /auto: false/);
+});
+
+test("AC7: a linked worktree and a nested repository, each holding an idle tag directory, are never entered — nested_skipped names them", () => {
+  const home = tmpRoot("waypost-limit-ac7-home-");
+  const proj = gitProject("waypost-limit-ac7-proj-", []);
+  git(proj, ["branch", "wtbranch"]);
+  const wtDir = join(proj, "wt");
+  git(proj, ["worktree", "add", "-q", wtDir, "wtbranch"]);
+  touchTree(tagFixture(wtDir, "b", 20000));
+  const subDir = join(proj, "sub");
+  mkdirSync(subDir, { recursive: true });
+  git(subDir, ["init", "-q"]);
+  git(subDir, ["config", "user.email", "test@example.com"]);
+  git(subDir, ["config", "user.name", "Test"]);
+  touchTree(tagFixture(subDir, "c", 20000));
+
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(wtDir, "b")), "the worktree's own idle tag dir survives");
+  assert.ok(existsSync(join(subDir, "c")), "the nested repository's own idle tag dir survives");
+  const rec = lastLogRecord(home);
+  assert.equal(rec.result, "ran");
+  assert.ok(rec.nested_skipped >= 2, JSON.stringify(rec));
+  assert.deepEqual(rec.renamed, []);
+});
+
+test("AC8: a live holder whose root is the fixture itself blocks — nothing renamed", () => {
+  const home = tmpRoot("waypost-limit-ac8a-home-");
+  const proj = gitProject("waypost-limit-ac8a-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  writeHolderRecord(home, selfHolderRecord("other-1", { root: realpathSync(proj), cwd: realpathSync(proj) }));
+
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(proj, "a")));
+  const rec = lastLogRecord(home);
+  assert.equal(rec.result, "skipped");
+  assert.equal(rec.renamed, undefined);
+  assert.match(rec.reason || "", /overlaps/);
+});
+
+test("AC8: a live holder whose root is an ancestor of the fixture blocks it too", () => {
+  const home = tmpRoot("waypost-limit-ac8b-home-");
+  const parent = tmpRoot("waypost-limit-ac8b-parent-");
+  const proj = join(parent, "proj");
+  mkdirSync(proj, { recursive: true });
+  git(proj, ["init", "-q"]);
+  git(proj, ["config", "user.email", "test@example.com"]);
+  git(proj, ["config", "user.name", "Test"]);
+  writeFileSync(join(proj, ".gitignore"), "/a\n", "utf8");
+  git(proj, ["add", ".gitignore"]);
+  git(proj, ["commit", "-q", "-m", "init"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  writeHolderRecord(home, selfHolderRecord("other-2", { root: realpathSync(parent), cwd: realpathSync(parent) }));
+
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(proj, "a")));
+});
+
+test("AC8: a live holder whose root is a descendant of the fixture blocks it too", () => {
+  const home = tmpRoot("waypost-limit-ac8c-home-");
+  const proj = gitProject("waypost-limit-ac8c-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  const sub = join(proj, "somewhere", "deep");
+  mkdirSync(sub, { recursive: true });
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  writeHolderRecord(home, selfHolderRecord("other-3", { root: realpathSync(sub), cwd: realpathSync(sub) }));
+
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(proj, "a")));
+});
+
+test("AC8: a live holder naming neither root nor cwd blocks unconditionally — an older Waypost", () => {
+  const home = tmpRoot("waypost-limit-ac8d-home-");
+  const proj = gitProject("waypost-limit-ac8d-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  writeHolderRecord(home, selfHolderRecord("other-4"));
+
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(proj, "a")));
+});
+
+test("AC8: a live holder whose root is unrelated does not block — the sweep proceeds normally", () => {
+  const home = tmpRoot("waypost-limit-ac8e-home-");
+  const proj = gitProject("waypost-limit-ac8e-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  const elsewhere = tmpRoot("waypost-limit-ac8e-elsewhere-");
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  writeHolderRecord(home, selfHolderRecord("other-5", { root: realpathSync(elsewhere), cwd: realpathSync(elsewhere) }));
+
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(join(proj, "a")), "an unrelated holder never blocks");
+});
+
+test("AC8: holders are re-read before each item — a new one appearing after the first rename stops the second", async () => {
+  const home = tmpRoot("waypost-limit-ac8f-home-");
+  const proj = gitProject("waypost-limit-ac8f-proj-", ["a", "b"]);
+  touchTree(tagFixture(proj, "a", 20000)); sleepMs(30);
+  touchTree(tagFixture(proj, "b", 20000));
+  // A tiny threshold — both items are needed to cover it, so the loop keeps
+  // going past the first rename instead of stopping on its own.
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+
+  const env = autoCleanEnv(home, { WAYPOST_AUTOCLEAN_PROBE: JSON.stringify({ pause_ms: 2000 }) });
+  const child = spawn(process.execPath, [Waypost, "run", "--heavy", "--", "node", "-e", "1"], { cwd: proj, env, stdio: ["ignore", "ignore", "pipe"] });
+  let sawPause = false;
+  child.stderr.on("data", (chunk) => {
+    const text = chunk.toString();
+    if (!sawPause && /test pause after 1 rename/.test(text)) {
+      sawPause = true;
+      writeHolderRecord(home, selfHolderRecord("late-holder", { root: realpathSync(proj), cwd: realpathSync(proj) }));
+    }
+  });
+  const [code] = await new Promise((res) => child.on("exit", (c) => res([c])));
+  assert.equal(code, 0);
+  assert.ok(sawPause, "the pause line appeared");
+  assert.ok(!existsSync(join(proj, "a")), "a was renamed before the pause");
+  assert.ok(existsSync(join(proj, "b")), "b is never touched once a holder appears");
+});
+
+test("AC8: a live presence record from another host in this checkout skips the sweep as a shared checkout", () => {
+  const home = tmpRoot("waypost-limit-ac8g-home-");
+  const proj = gitProject("waypost-limit-ac8g-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+
+  const vault = join(proj, "vault");
+  mkdirSync(vault, { recursive: true });
+  mkdirSync(join(proj, ".waypost"), { recursive: true });
+  writeFileSync(join(proj, ".waypost", "projectstore.json"), JSON.stringify({ vault_path: "vault" }) + "\n", "utf8");
+
+  const common = gitCommonOf(proj);
+  const presenceDir = join(common, "waypost", "vault", "presence");
+  mkdirSync(presenceDir, { recursive: true });
+  const realProj = realpathSync(proj);
+  writeFileSync(join(presenceDir, "other-session.json"), JSON.stringify({
+    session: "other-session", host: "some-other-host", os: "darwin-24", user: "x",
+    harness: "claude", project_root: realProj, common_dir: common,
+    vault_rel: ".", proc: null, seq: 1, at: new Date().toISOString(), started_at: new Date().toISOString(),
+    doing: null, claim: null,
+  }) + "\n", "utf8");
+
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(proj, "a")));
+  const rec = lastLogRecord(home);
+  assert.equal(rec.result, "skipped");
+  assert.match(rec.reason, /shared/);
+});
+
+test("AC9: the wrapped command ending itself by SIGTERM triggers no cleanup — exit 143, nothing renamed", { skip: process.platform === "win32" ? "POSIX signals only" : false }, () => {
+  const home = tmpRoot("waypost-limit-ac9a-home-");
+  const proj = gitProject("waypost-limit-ac9a-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "process.kill(process.pid, 'SIGTERM')"], env);
+  assert.equal(r.status, 143);
+  assert.ok(existsSync(join(proj, "a")));
+  const rec = lastLogRecord(home);
+  assert.equal(rec.result, "skipped");
+  assert.match(rec.reason, /ended by SIGTERM/);
+});
+
+test("AC9: a signal to the wrapper itself, mid-cleanup, ends it at once — the already-renamed item is safe, the rest untouched",
+  { skip: process.platform === "win32" ? "POSIX signals only" : false },
+  async () => {
+    const home = tmpRoot("waypost-limit-ac9b-home-");
+    const proj = gitProject("waypost-limit-ac9b-proj-", ["a", "b"]);
+    touchTree(tagFixture(proj, "a", 20000)); sleepMs(30);
+    touchTree(tagFixture(proj, "b", 20000));
+    // A tiny threshold — both items are needed, so the loop reaches b's own
+    // holder/deadline check instead of stopping right after a.
+    writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+
+    const env = autoCleanEnv(home, { WAYPOST_AUTOCLEAN_PROBE: JSON.stringify({ pause_ms: 4000 }) });
+    const child = spawn(process.execPath, [Waypost, "run", "--heavy", "--", "node", "-e", "1"], { cwd: proj, env, stdio: ["ignore", "ignore", "pipe"] });
+    let killed = false;
+    child.stderr.on("data", (chunk) => {
+      if (!killed && /test pause after 1 rename/.test(chunk.toString())) {
+        killed = true;
+        child.kill("SIGTERM");
+      }
+    });
+    const [, signal] = await new Promise((res) => child.on("exit", (c, s) => res([c, s])));
+    assert.ok(killed, "the pause line was seen and the wrapper was signalled");
+    assert.equal(signal, "SIGTERM");
+    assert.ok(!existsSync(join(proj, "a")), "a was already renamed aside");
+    assert.ok(existsSync(join(proj, "b")), "b was never reached");
+
+    const common = gitCommonOf(proj);
+    const removingDir = join(common, REMOVING_DIR);
+    const entries = readdirSync(removingDir).filter((n) => !n.endsWith(".json"));
+    assert.equal(entries.length, 1, JSON.stringify(entries));
+    const marker = JSON.parse(readFileSync(join(removingDir, `${entries[0]}.json`), "utf8"));
+    assert.equal(marker.proc.pid, child.pid, "the marker names the wrapper's own (now dead) pid — the deleter was never spawned");
+  });
+
+test("AC10: a short deadline probe stops the sweep after the first item — status names the deadline", async () => {
+  const home = tmpRoot("waypost-limit-ac10-home-");
+  const proj = gitProject("waypost-limit-ac10-proj-", ["a", "b"]);
+  touchTree(tagFixture(proj, "a", 20000)); sleepMs(30);
+  touchTree(tagFixture(proj, "b", 20000));
+  // A tiny threshold — both items are needed, so the sweep is still going
+  // (paused after a) when the deadline hits, rather than stopping on its own.
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const env = autoCleanEnv(home, { WAYPOST_AUTOCLEAN_PROBE: JSON.stringify({ deadline_ms: 1000, pause_ms: 1500 }) });
+
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(join(proj, "a")), "a was renamed before the deadline hit");
+  assert.ok(existsSync(join(proj, "b")), "b was never reached — the deadline hit during the pause after a");
+  const rec = lastLogRecord(home);
+  assert.equal(rec.deadline, true);
+
+  const statusOut = runWaypost(proj, ["status"], env).stdout;
+  assert.match(statusOut, /deadline/);
+});
+
+test("AC11: root under a Dropbox path reads as non-local storage — nothing removed, the reason is logged", () => {
+  const home = tmpRoot("waypost-limit-ac11a-home-");
+  const dbx = join(tmpdir(), "Dropbox");
+  mkdirSync(dbx, { recursive: true });
+  ROOTS.push(dbx);
+  const proj = join(dbx, `waypost-limit-ac11a-proj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  mkdirSync(proj, { recursive: true });
+  git(proj, ["init", "-q"]);
+  git(proj, ["config", "user.email", "test@example.com"]);
+  git(proj, ["config", "user.name", "Test"]);
+  writeFileSync(join(proj, ".gitignore"), "/a\n", "utf8");
+  git(proj, ["add", ".gitignore"]);
+  git(proj, ["commit", "-q", "-m", "init"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(proj, "a")));
+  const rec = lastLogRecord(home);
+  assert.equal(rec.result, "skipped");
+  assert.match(rec.reason, /Dropbox|cloud/i);
+});
+
+test("AC11: a working directory outside any git repository skips — 'not in a git work tree'", () => {
+  const home = tmpRoot("waypost-limit-ac11b-home-");
+  const proj = tmpRoot("waypost-limit-ac11b-proj-");
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  const rec = lastLogRecord(home);
+  assert.equal(rec.result, "skipped");
+  assert.match(rec.reason, /git work tree/);
+});
+
+test("AC11: HOME equal to the project root skips it as a protected path", () => {
+  const proj = gitProject("waypost-limit-ac11c-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(proj, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const env = autoCleanEnv(proj);
+  const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(proj, "a")));
+  const rec = lastLogRecord(proj);
+  assert.equal(rec.result, "skipped");
+  assert.match(rec.reason, /protected/);
+});
+
+test("AC13: the wrapped command's own exit status passes through unchanged when something was renamed", () => {
+  const home = tmpRoot("waypost-limit-ac13a-home-");
+  const proj = gitProject("waypost-limit-ac13a-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "process.exit(3)"], env);
+  assert.equal(r.status, 3);
+  assert.ok(!existsSync(join(proj, "a")), "still renamed despite the wrapped command's own non-zero exit");
+});
+
+test("AC13: a cleanup failure never changes the wrapped command's own exit status", () => {
+  const home = tmpRoot("waypost-limit-ac13b-home-");
+  const proj = gitProject("waypost-limit-ac13b-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  // waypost-removing/ as a plain FILE blocks renameForRemoval's own mkdirSync.
+  writeFileSync(join(gitCommonOf(proj), REMOVING_DIR), "not a directory", "utf8");
+  const env = autoCleanEnv(home);
+  const r = runHeavyChild(proj, ["node", "-e", "process.exit(3)"], env);
+  assert.equal(r.status, 3, "the wrapped command's own exit status, unaffected by the cleanup's own failure");
+  const rec = lastLogRecord(home);
+  assert.ok(rec.result === "failed" || (rec.skipped_items && rec.skipped_items.length), JSON.stringify(rec));
+});
+
+test("AC13: the log grows by exactly one line per run", () => {
+  const home = tmpRoot("waypost-limit-ac13c-home-");
+  const proj = gitProject("waypost-limit-ac13c-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 100, bytes: 100 * GB });
+  const env = autoCleanEnv(home);
+  runHeavyChild(proj, ["node", "-e", "1"], env);
+  const linesAfterFirst = readFileSync(logPathOf(home), "utf8").trim().split("\n").filter(Boolean).length;
+  assert.equal(linesAfterFirst, 1);
+  runHeavyChild(proj, ["node", "-e", "1"], env);
+  const linesAfterSecond = readFileSync(logPathOf(home), "utf8").trim().split("\n").filter(Boolean).length;
+  assert.equal(linesAfterSecond, 2);
 });

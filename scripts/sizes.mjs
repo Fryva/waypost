@@ -686,6 +686,7 @@ export function scanProject(dir, {
           dev: null, ino: null, match: m.match,
           tool: owner.tool, origin: owner.origin, regenerable: owner.regenerable,
           stale_days: owner.stale_days, clean: owner.clean, clean_argv: owner.clean_argv,
+          auto: owner.auto,
           holds_package: false, package: null,
         });
         complete = false;
@@ -705,6 +706,7 @@ export function scanProject(dir, {
         other_fs: r.other_fs, dev: r.dev, ino: r.ino, match: m.match,
         tool: owner.tool, origin: owner.origin, regenerable: owner.regenerable,
         stale_days: owner.stale_days, clean: owner.clean, clean_argv: owner.clean_argv,
+        auto: owner.auto,
         holds_package: r.holds_package, package: r.package,
       });
     }

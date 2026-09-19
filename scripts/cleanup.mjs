@@ -567,11 +567,19 @@ export function formatLimit(limit) {
 // writes (the amended ADR, Decision 4's own report shape).
 export function formatOutcome(outcome) {
   if (!outcome) return "automatic cleanup: never run";
-  const when = outcome.time ? ` (${outcome.time})` : "";
+  // `at` is the real kind:"auto" log field (an ISO timestamp); `time` was
+  // this function's own guess before that record's exact shape existed —
+  // both are accepted so an older-shaped test fixture still renders.
+  const when = outcome.at || outcome.time ? ` (${outcome.at || outcome.time})` : "";
   if (outcome.result !== "ran") {
     return `automatic cleanup: ${outcome.result || "unknown"}${when}${outcome.reason ? ` — ${outcome.reason}` : ""}`;
   }
-  const renamed = Number.isFinite(outcome.renamed) ? outcome.renamed : 0;
-  const stayed = Number.isFinite(outcome.stayed) ? outcome.stayed : 0;
-  return `automatic cleanup: ran${when} — ${renamed} item(s) removed, ${stayed} stayed`;
+  // `renamed`/`stayed` are arrays in the real log record (the items
+  // themselves, capped); a bare count is accepted too, for the same
+  // pre-shape-knowledge reason as `time` above.
+  const count = (v) => (Array.isArray(v) ? v.length : (Number.isFinite(v) ? v : 0));
+  const renamed = count(outcome.renamed);
+  const stayed = count(outcome.stayed);
+  const deadlineNote = outcome.deadline ? " (stopped at its deadline)" : "";
+  return `automatic cleanup: ran${when}${deadlineNote} — ${renamed} item(s) removed, ${stayed} stayed`;
 }
