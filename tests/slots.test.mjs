@@ -19,7 +19,7 @@ import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { hostname, tmpdir } from "node:os";
 import {
-  mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, utimesSync,
+  mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, utimesSync, realpathSync,
 } from "node:fs";
 
 import {
@@ -503,6 +503,50 @@ test("run --heavy: the record carries the value a later epoch mismatch is checke
         "no authority on this platform: such a record can only ever be kept, never pruned");
     }
   } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+// The amended machine-wide-limit ADR, Decision 4: the slot record's own
+// working directory and (inside a repository) root — slotWhere(), computed
+// before the lock. Outside git the temp HOME the rest of this file already
+// runs from is exactly the "no repository" case: root/common stay null.
+test("run --heavy: the slot record carries cwd; root stays null outside a repository", () => {
+  const home = tmpHome();
+  try {
+    const dir = slotsDirFor(home);
+    const code = "const fs=require('fs'),p=require('path'),d=process.env.WP_SLOTS;"
+      + "const f=fs.readdirSync(d).filter(n=>n.endsWith('.json'))[0];"
+      + "process.stdout.write(fs.readFileSync(p.join(d,f),'utf8'));";
+    const r = runCli(["run", "--heavy", "--", "node", "-e", code], heavyEnv(home, { WP_SLOTS: dir }));
+    assert.equal(r.status, 0, r.stderr);
+    const rec = JSON.parse(r.stdout);
+    assert.equal(typeof rec.cwd, "string");
+    assert.ok(rec.cwd.length > 0, "cwd is recorded even with no repository to name a root in");
+    assert.equal(rec.root, null);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("run --heavy: inside a repository, the record's root is the working tree's own top level, as a real path", () => {
+  const home = tmpHome();
+  const proj = mkdtempSync(join(tmpdir(), "waypost-slots-gitproj-"));
+  try {
+    const init = spawnSync("git", ["init", "-q"], { cwd: proj });
+    assert.equal(init.status, 0, init.stderr);
+    const dir = slotsDirFor(home);
+    const code = "const fs=require('fs'),p=require('path'),d=process.env.WP_SLOTS;"
+      + "const f=fs.readdirSync(d).filter(n=>n.endsWith('.json'))[0];"
+      + "process.stdout.write(fs.readFileSync(p.join(d,f),'utf8'));";
+    const r = spawnSync(process.execPath, [Waypost, "run", "--heavy", "--", "node", "-e", code], {
+      encoding: "utf8", env: heavyEnv(home, { WP_SLOTS: dir }), cwd: proj, timeout: 15000,
+    });
+    assert.equal(r.status, 0, r.stderr);
+    const rec = JSON.parse(r.stdout);
+    const realProj = realpathSync(proj);
+    assert.equal(rec.root, realProj);
+    assert.equal(rec.cwd, realProj);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(proj, { recursive: true, force: true });
+  }
 });
 
 test("run --heavy: the exit code passes through, including a crash", () => {

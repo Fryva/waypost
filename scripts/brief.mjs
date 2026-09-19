@@ -14,14 +14,31 @@
 // CLI: node brief.mjs [--json] [--budget <ms>]
 
 import { fileURLToPath } from "node:url";
-import { readConfig, gatherVaultFacts, renderVaultSkeleton, ignoreEpipe } from "./lib.mjs";
-import { peers, readLeases, sharedTree, sharedWith, SHARED_TREE_ADVICE } from "./presence.mjs";
+import { readConfig, gatherVaultFacts, renderVaultSkeleton, ignoreEpipe, readCleanupSetting, readLastAutoCleanup } from "./lib.mjs";
+import { peers, readLeases, sharedTree, sharedWith, SHARED_TREE_ADVICE, hostSlug } from "./presence.mjs";
 import { sessionId } from "./sessions.mjs";
+import { formatLimit, formatOutcome } from "./cleanup.mjs";
 
 export async function brief(cfg, opts = {}) {
   const facts = await gatherVaultFacts(cfg, opts);
   const full = renderVaultSkeleton(facts);
-  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) };
+  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) + cleanupLine() };
+}
+
+// The machine-wide cleanup-limit setting (the amended machine-wide-limit
+// ADR) — one line, and only when a setting actually exists: an unset
+// machine has nothing to say here, and this must never grow the standing
+// context on a project that never touched `waypost clean --limit`.
+function cleanupLine() {
+  try {
+    const host = hostSlug();
+    const setting = readCleanupSetting({ host });
+    if (!setting) return "";
+    let line = `\ncleanup limit: ${formatLimit(setting.limit)} (set ${String(setting.set_at).slice(0, 10)})`;
+    const outcome = readLastAutoCleanup({ host });
+    if (outcome) line += ` — ${formatOutcome(outcome)}`;
+    return line + "\n";
+  } catch { return ""; }
 }
 
 // The skeleton explains itself in full every session. Most of that explanation
