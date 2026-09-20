@@ -39,7 +39,7 @@ import { join, basename, resolve, dirname } from "node:path";
 import { hostname, platform, release as osRelease, userInfo } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { readConfig, projectRoot, ignoreEpipe, writeFileAtomic, sessionId, gitCommonDir, mainWorktree } from "./lib.mjs";
+import { readConfig, projectRoot, ignoreEpipe, writeFileAtomic, sessionId, gitCommonDir, mainWorktree, treesOverlap } from "./lib.mjs";
 
 // A session is considered live while its counter has moved recently, measured
 // locally. The window has to cover the storage's propagation delay, or a peer
@@ -693,12 +693,19 @@ function sleep(ms) {
 // Two sessions on one machine in one checkout are ADR-0006's case (leases).
 // The vault-offset signal of the first version is retired: once records
 // travel through .git, "same offset" no longer means "same checkout".
-export function sharedTree(vault, { self = null, now = Date.now(), persist = true, view = null } = {}) {
+// `contain` (the machine-wide-limit ADR, Decision 4's own "no other host
+// shares the checkout" check): "same project root" widens from exact
+// equality to treesOverlap — a peer whose root is an ANCESTOR or a
+// DESCENDANT of ours counts too, not only an identical one. Every other
+// signal (sibling worktrees, the no-repository-at-all cloud/network case) is
+// unchanged; this is strictly about how "same root" itself is decided.
+export function sharedTree(vault, { self = null, now = Date.now(), persist = true, view = null, contain = false } = {}) {
   const v = view || peers(vault, { self, now, persist });
   const root = normPath(projectRoot());
   const here = hostname().split(".")[0];
   const storage = storageOf(projectRoot());
   const common = gitCommonDir();
+  const osPlatform = process.platform;
   const describe = (p, basis) => ({
     session: p.session, host: p.host, harness: p.harness || null, os: p.os || null,
     project_root: p.project_root || null, basis,
@@ -707,7 +714,7 @@ export function sharedTree(vault, { self = null, now = Date.now(), persist = tru
   const siblings = [];
   for (const p of v.peers) {
     if (!p.live || p.self) continue;
-    const sameRoot = p.project_root && normPath(p.project_root) === root;
+    const sameRoot = p.project_root && (contain ? treesOverlap(p.project_root, root, { platform: osPlatform }) : normPath(p.project_root) === root);
     const sameCommon = common && p.common_dir && normPath(p.common_dir) === normPath(common);
     if (sameCommon && !sameRoot) { siblings.push(describe(p, "sibling worktree of this repository")); continue; }
     if (!p.host || p.host === here) continue;

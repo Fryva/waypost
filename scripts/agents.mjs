@@ -34,7 +34,7 @@ import {
   ignoreEpipe,
   pathUnder,
 } from "./lib.mjs";
-import { harnessProcess } from "./presence.mjs";
+import { harnessProcess, processTable } from "./presence.mjs";
 
 // ─── Harness registry ──────────────────────────────────────────────────
 //
@@ -702,6 +702,102 @@ function harnessOfProcess(env) {
     if (word === id || (h.process || []).includes(word)) return id;
   }
   return null;
+}
+
+// ─── The consent gate (the machine-wide-limit ADR, Decision 2) ─────────
+//
+// Reads harness evidence straight off `dirs` — the directories to read, in
+// priority order — rather than through registry(): that loader is memoized
+// and lets a PROJECT'S OWN `.waypost/harnesses/<id>.json` entirely replace a
+// shipped one, including its own env markers and process names, which would
+// let a project quietly weaken the very evidence this gate exists to trust.
+// So a later directory's entry for an id an earlier one already defined may
+// only ADD env markers to it — never replace its kind or its process names,
+// and never remove a marker a shipped entry already carries; an id no
+// earlier directory defined is added outright (nothing shipped to weaken).
+// The first directory is the shipped one and is mandatory: unreadable, this
+// throws, and the caller (bin/waypost) refuses the gated change rather than
+// silently evaluating it with an incomplete or missing harness list. Every
+// other directory (a project's own) is optional, and a file that fails to
+// parse there is simply skipped — the least-trusted data source, so a
+// mistake in it costs information, never a crash.
+function loadGateEntries(dirs) {
+  const byId = new Map();
+  dirs.forEach((dir, i) => {
+    let names;
+    try { names = readdirSync(dir).filter((n) => n.endsWith(".json")).sort(); }
+    catch (e) {
+      if (i === 0) throw new Error(`gateCheck: cannot read the shipped harness registry at ${dir}: ${e.message}`);
+      return;
+    }
+    for (const n of names) {
+      let h;
+      try { h = JSON.parse(readFileSync(join(dir, n), "utf8")); } catch { continue; }
+      const id = h.id || n.replace(/\.json$/, "");
+      const existing = byId.get(id);
+      if (!existing) {
+        byId.set(id, {
+          id, kind: h.kind || null,
+          process: Array.isArray(h.process) ? [...h.process] : [],
+          env: Array.isArray(h.env) ? [...h.env] : [],
+        });
+      } else {
+        for (const k of (Array.isArray(h.env) ? h.env : [])) {
+          if (!existing.env.includes(k)) existing.env.push(k);
+        }
+      }
+    }
+  });
+  return [...byId.values()];
+}
+
+// Whether a harness is running right now, from the WHOLE ancestor chain the
+// live process table shows (not only the nearest non-shell one
+// harnessOfProcess checks — a double-forked or wrapped harness may sit
+// further up) plus every known harness's own env markers — never
+// `WAYPOST_HARNESS`/`WAYPOST_PROC`, which an agent could set to claim there
+// is none. A provider entry (`kind: "provider"`) is never evidence of a
+// harness on its own. Without a process table (Windows today, or a caller
+// that passes `table: null`) the env markers alone decide, and the result
+// says so (`process_table: false`). The nearest matching ancestor wins —
+// walked outward from `ppid`, so the first hit found is always the closest
+// one — capped at 128 levels (deeper than harnessProcess's own 32-level cap:
+// this gate has to see past a double fork or a wrapper a plain attribution
+// lookup does not need to).
+export function gateCheck({ env = process.env, table = processTable(), ppid = process.ppid, dirs } = {}) {
+  if (!Array.isArray(dirs) || !dirs.length) throw new Error("gateCheck: dirs is required");
+  const entries = loadGateEntries(dirs).filter((h) => h.kind !== "provider");
+
+  const ancestors = [];
+  let harness = null;
+  let via = null;
+  if (table) {
+    let pid = ppid;
+    for (let depth = 0; depth < 128 && pid != null && pid > 1; depth++) {
+      const p = table.get(pid);
+      if (!p) break;
+      ancestors.push({ pid: p.pid, comm: p.comm });
+      if (!harness) {
+        // `ps -o comm=` gives the full executable path on macOS
+        // (".../MacOS/claude"), so the first word is taken from the basename.
+        const comm = String(p.comm || "").toLowerCase().split(/[\\/]/).pop();
+        const word = comm.split(/[^a-z0-9]+/)[0];
+        if (word) {
+          const hit = entries.find((h) => word === h.id || h.process.includes(word));
+          if (hit) { harness = hit.id; via = "process"; }
+        }
+      }
+      pid = p.ppid;
+    }
+  }
+
+  const markers = [];
+  for (const h of entries) {
+    for (const k of h.env) if (env[k]) markers.push({ harness: h.id, var: k });
+  }
+  if (!harness && markers.length) { harness = markers[0].harness; via = "env"; }
+
+  return { harness, via, evidence: Boolean(harness), process_table: Boolean(table), ancestors, markers };
 }
 
 // ─── Install / uninstall / status ──────────────────────────────────────

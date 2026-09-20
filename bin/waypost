@@ -10,7 +10,7 @@ import { resolve, dirname, join, sep, basename, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, lstatSync, unlinkSync, rmSync,
-  statfsSync, appendFileSync,
+  statfsSync, appendFileSync, realpathSync, renameSync,
 } from "node:fs";
 import { spawnSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -18,7 +18,7 @@ import { homedir, hostname, setPriority, uptime as osUptime, constants as osCons
 import {
   parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, sessionIdFlag, storyRefOf, expandHome,
   storedVaultPath, resolveVaultPath, bindingInfo, readConfig as readConfigLib, isLinkedWorktree, worktreeTag,
-  machineStateDir, askYesNo,
+  machineStateDir, askYesNo, readCleanupSetting, readLastAutoCleanup, REMOVING_DIR,
 } from "../scripts/lib.mjs";
 
 // Captured before main() (below) pins WAYPOST_SESSION_ID, WAYPOST_HARNESS and
@@ -257,7 +257,8 @@ async function handleSetup(args) {
       const presence = await import(`file://${SCRIPT("presence")}`);
       const dir = slotsDir(presence);
       mkdirSync(dir, { recursive: true });
-      const claim = await claimSlot(dir, ["waypost", "setup", "--audit"], capacity, presence);
+      const where = slotWhere(projectRoot());
+      const claim = await claimSlot(dir, ["waypost", "setup", "--audit"], capacity, presence, where);
       if (!claim.ok) {
         say(`  audit skipped: ${claim.reason} — waypost clean`);
         return;
@@ -932,7 +933,8 @@ async function handleSize(args) {
     } catch (e) { fail(`size --global: ${e.message}`); }
     const dir = slotsDir(presence);
     mkdirSync(dir, { recursive: true });
-    const claim = await claimSlot(dir, ["waypost", "size", "--global"], capacity, presence);
+    const where = slotWhere(process.cwd());
+    const claim = await claimSlot(dir, ["waypost", "size", "--global"], capacity, presence, where);
     if (!claim.ok) {
       process.stderr.write(`waypost size --global: refused — ${claim.reason}\n  retry: waypost size --global\n`);
       process.exitCode = EX_TEMPFAIL;
@@ -1022,7 +1024,21 @@ async function handleSize(args) {
     reg = toolchains.loadRegistry({ projectRoot: dir, platform: process.platform });
     out = sizes.scanProject(dir, { budget, registry: reg });
   } catch (e) { fail(`size: ${e.message}`); }
-  if (json) { process.stdout.write(JSON.stringify({ ...out, notes: reg.notes }, null, 2) + "\n"); return; }
+
+  // waypost-removing/'s own size (the amended machine-wide-limit ADR): never
+  // part of the project scan itself (scanProject never enters a git
+  // directory), reported here as a courtesy — it holds items already handed
+  // to the detached deleter, on their way out.
+  let removingBytes = null;
+  try {
+    const common = slotWhere(dir).common;
+    if (common) {
+      const removingPath = join(common, REMOVING_DIR);
+      if (existsSync(removingPath)) removingBytes = sizes.inspectDir(removingPath, {}).bytes ?? null;
+    }
+  } catch { /* best effort */ }
+
+  if (json) { process.stdout.write(JSON.stringify({ ...out, notes: reg.notes, waypost_removing_bytes: removingBytes }, null, 2) + "\n"); return; }
 
   const totalGb = (out.bytes_at_least / GB).toFixed(1);
   if (out.complete) {
@@ -1030,6 +1046,9 @@ async function handleSize(args) {
   } else {
     process.stdout.write(`≥ ${totalGb} GB (stopped after ${out.entries_visited} entries — `
       + "the entry budget; waypost size --budget <n> to raise it)\n");
+  }
+  if (removingBytes != null) {
+    process.stdout.write(`  ${(removingBytes / GB).toFixed(2)} GB  waypost-removing/ (already handed to the deleter)\n`);
   }
   const sorted = [...out.dirs].sort((a, b) => b.bytes - a.bytes);
   if (!sorted.length) { process.stdout.write("no build artifacts found\n"); return; }
@@ -1128,8 +1147,20 @@ async function isHarnessDetected() {
 // entirely — no profile read, no cache candidates resolved — for a caller
 // that already knows this run has nothing fresh to say about it (`setup`,
 // when discovery did not just refresh the machine profile).
-function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery }, { budget = null, includeMachine = true } = {}) {
-  const root = projectRoot();
+// `root`/`vault` (the amended machine-wide-limit ADR's automatic path):
+// override the project root and the vault instead of deriving them from
+// projectRoot()/readConfig() — the automatic path may call neither
+// (readConfig() calls fail(), which exits the process, and projectRoot()
+// would read whatever WAYPOST_PROJECT_DIR happens to be at the MOMENT this
+// runs, when autoCleanup wants the root it already resolved via slotWhere).
+// `"vault" in opts` distinguishes "the caller resolved vault by hand, even
+// to null" from "the caller never mentioned it" — handleClean and setup's
+// own audit never pass it, and keep today's readConfig()-based lookup.
+// `walk` forwards straight to scanProject (stopAtGit/locators/deadline);
+// every default reproduces today's behaviour exactly.
+function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery }, opts = {}) {
+  const { budget = null, includeMachine = true, walk = {} } = opts;
+  const root = opts.root || projectRoot();
   const home = homedir();
   const stateDir = machineStateDir();
   const platform = process.platform;
@@ -1142,8 +1173,10 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery },
   // path under EITHER root). Every project item is instead run through the
   // SAME vaultRel() a lease went through, and compared as strings — no
   // inversion needed either way.
-  const cfg = readConfig();
-  const vault = cfg && cfg.vault_path && existsSync(cfg.vault_path) ? cfg.vault_path : null;
+  const vault = "vault" in opts ? opts.vault : (() => {
+    const cfg = readConfig();
+    return cfg && cfg.vault_path && existsSync(cfg.vault_path) ? cfg.vault_path : null;
+  })();
 
   const reg = toolchains.loadRegistry({ projectRoot: root, platform });
   const metadataNames = sizes.metadataNamesOf(reg.entries);
@@ -1166,8 +1199,12 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery },
   // so it never enters that batch.
   let projectItems = [];
   let projectEcosystems = [];
+  let scan = null;
   if (!projectScopeRefused) {
-    const scan = sizes.scanProject(root, { registry: reg, rootItem: false, budget });
+    scan = sizes.scanProject(root, {
+      registry: reg, rootItem: false, budget,
+      stopAtGit: walk.stopAtGit, locators: walk.locators, deadline: walk.deadline,
+    });
     const relCandidates = scan.dirs.filter((d) => d.match !== "locator").map((d) => d.path);
     const gf = sizes.gitFacts(root, relCandidates);
     projectItems = scan.dirs.map((d) => {
@@ -1179,6 +1216,7 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery },
         in_nested_repo: d.in_nested_repo, unreadable: d.unreadable, other_fs: d.other_fs, partial: d.partial, match: d.match,
         tool: d.tool, origin: d.origin, regenerable: d.regenerable, stale_days: d.stale_days,
         clean: d.clean, clean_argv: d.clean_argv, dev: d.dev, ino: d.ino,
+        auto: d.auto, holds_package: d.holds_package, package: d.package,
         ignored: d.match === "locator" ? undefined : gf.ignored.has(d.path),
         tracked: d.match === "locator" ? undefined : gf.tracked.has(d.path),
       };
@@ -1282,7 +1320,7 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery },
   }
 
   return {
-    root, home, stateDir, platform, vault, reg, metadataNames, host,
+    root, home, stateDir, platform, vault, reg, metadataNames, host, scan,
     projectItems, machineItems, runningTools, leases, sharedProject,
     projectEcosystems, projectEcosystemRunning, inUseSignal,
   };
@@ -1296,8 +1334,36 @@ function factsFrom(ctx, now) {
   };
 }
 
-function planFromContext(ctx, cleanup, now) {
-  return cleanup.classify([...ctx.projectItems, ...ctx.machineItems], factsFrom(ctx, now), { now });
+// `limit`/`shortfall`/`dev` (the amended machine-wide-limit ADR): the
+// ACTIVE cleanup-limit setting, if any — activeLimitFor() below — so the
+// manual plan's own `picked` marks exactly what the automatic path at the
+// end of `waypost run --heavy` would pick right now, without ever renaming
+// anything itself. Every other caller (setup's own audit, applyClean's
+// re-plan for "should"/an id) omits them, unaffected: `picked` never
+// changes an item's own class or route.
+function planFromContext(ctx, cleanup, now, { limit = null, shortfall = 0, dev = null } = {}) {
+  return cleanup.classify([...ctx.projectItems, ...ctx.machineItems], factsFrom(ctx, now), { now, limit, shortfall, dev });
+}
+
+// The setting `waypost clean --limit` last wrote for this host, resolved to
+// exactly what classify()/pickUnderLimit() need: the limit itself, plus —
+// only for `free:<P>%` — the shortfall against ONE `fs.statfsSync` reading
+// of the root and the root's own device (cleanup.limitNeed's own device
+// restriction). `off`, or no setting at all, is "no limit" — the same as
+// never passing one.
+function activeLimitFor(root, cleanup, presence) {
+  const setting = readCleanupSetting({ host: presence.hostSlug() });
+  if (!setting || !setting.limit || setting.limit.kind === "off") return { limit: null, shortfall: 0, dev: null };
+  const limit = setting.limit;
+  if (limit.kind !== "free") return { limit, shortfall: 0, dev: null };
+  let shortfall = 0;
+  let dev = null;
+  try {
+    const s = statfsSync(root);
+    shortfall = cleanup.shortfallOf({ size: s.blocks * s.bsize, avail: s.bavail * s.bsize }, limit.percent);
+  } catch { /* best effort — statfs failed, need reads as 0 */ }
+  try { dev = lstatSync(root).dev; } catch { /* best effort — no device restriction without it */ }
+  return { limit, shortfall, dev };
 }
 
 function formatPlanItem(it) {
@@ -1327,6 +1393,9 @@ function printCleanPlan(result) {
   process.stdout.write(`root  ${tildeHome(result.root)}\n`);
   if (result.in_use_signal === "recency-only") {
     process.stdout.write("(no live process table — in-use protection is by recent modification time only)\n");
+  }
+  if (result.leftovers && result.leftovers.handed_off.length) {
+    process.stdout.write(`(${result.leftovers.handed_off.length} leftover item(s) from an interrupted run handed to the deleter)\n`);
   }
   let any = false;
   for (const cls of ["should", "can", "keep"]) {
@@ -1364,6 +1433,25 @@ function printAuditSummary(classified, say, inUseSignal) {
       say(`    ${(it.bytes / GB).toFixed(2)} GB  [${it.class}]  ${where}${manualNote}`);
     }
   }
+}
+
+// ─── --limit: parsing ───────────────────────────────────────────────────
+
+// --limit takes an OPTIONAL value: `waypost clean --limit` alone prints the
+// current setting. The shared opt() cannot express that — it fails outright
+// with no value at all, and otherwise takes whatever token follows
+// blindly, which would swallow `--json` in `clean --limit --json`. Parsed
+// by hand instead: `--limit=<v>` inline, or the very next token, but ONLY
+// when it does not itself look like a flag.
+function limitFlagValue(args) {
+  const { head } = splitAtTerminator(args);
+  const eq = head.find((a) => a.startsWith("--limit="));
+  if (eq) return { present: true, value: eq.slice("--limit=".length) };
+  const i = head.indexOf("--limit");
+  if (i === -1) return { present: false, value: null };
+  const next = head[i + 1];
+  if (next !== undefined && !next.startsWith("--")) return { present: true, value: next };
+  return { present: true, value: null };
 }
 
 // ─── --apply: parsing and selecting ────────────────────────────────────
@@ -1456,7 +1544,11 @@ function isDescendantOf(p, ancestor) {
 // sharedTree — all re-read, never carried over from the plan.
 function freshFactsFor(item, ctx, mods, now) {
   const { sizes, cleanup, presence } = mods;
-  const inspected = sizes.inspectDir(item.path, { metadata: ctx.metadataNames });
+  // keepSuffixes: without it inspectDir's own default (empty) means a
+  // package that appeared since the plan was built could never be caught
+  // by a re-check right before removal — the automatic path's own re-check
+  // (autoCleanup) depends on this exactly as much as a manual --apply does.
+  const inspected = sizes.inspectDir(item.path, { metadata: ctx.metadataNames, keepSuffixes: sizes.keepSuffixesOf(ctx.reg.entries) });
   let ignored, tracked;
   if (item.scope === "project" && item.match !== "locator" && inspected.exists && inspected.is_directory) {
     const rel = relative(ctx.root, item.path);
@@ -1612,10 +1704,22 @@ function verifyRemoval(item, ctx, mods, beforeBytes) {
 
 const APFS_FREE_SPACE_NOTE = "free space is read with fs.statfsSync; bavail excludes APFS purgeable space, so freed space can read smaller than what was actually removed";
 
+// Rotated at 1 MiB, keeping one previous file (the amended machine-wide-
+// limit ADR): checked before every append, so the log itself never grows
+// without bound on a machine where `run --heavy` logs one line per job
+// indefinitely. renameSync onto an existing `.1` replaces it on every OS
+// Node supports this on (POSIX rename(2) always replaces; Node's own
+// implementation asks Windows to do the same) — no separate unlink needed.
+const CLEAN_LOG_ROTATE_BYTES = 1024 * 1024;
+
 function appendCleanLog(host, line) {
   const dir = machineStateDir();
   mkdirSync(dir, { recursive: true });
-  appendFileSync(join(dir, `cleanup.${host}.jsonl`), line + "\n", "utf8");
+  const file = join(dir, `cleanup.${host}.jsonl`);
+  try {
+    if (statSync(file).size >= CLEAN_LOG_ROTATE_BYTES) renameSync(file, `${file}.1`);
+  } catch { /* no file yet — nothing to rotate */ }
+  appendFileSync(file, line + "\n", "utf8");
 }
 
 function baseLogItem(item) {
@@ -1624,6 +1728,401 @@ function baseLogItem(item) {
 
 function refusedLogItem(r) {
   return { id: r.id, scope: r.scope, path: r.path, bytes: r.bytes, class: r.class, route: r.route, result: "refused", reason: r.reason, freed_bytes: 0, kept: null };
+}
+
+// ─── the detached deleter (the amended machine-wide-limit ADR, Decision 4) ──
+//
+// Nothing here is a removal call outside this dispatch: renameSync moves an
+// item aside (a rename, not a delete), and the actual removal runs in a
+// SEPARATE, detached process this file spawns and forgets about — so the
+// caller (the automatic path at the end of `run --heavy`, commit C; or a
+// `waypost clean` adopting a leftover) returns without waiting for a
+// multi-gigabyte tree to actually vanish from disk. `waypost-removing/`
+// sits directly in the git common dir, outside ADR-0010's own
+// `waypost/<vault>/` coordination tree, so a coordination-tree sweep and a
+// leftover-deleter sweep can never collide.
+const REMOVING_NAME_RE = /^[0-9a-z]+-\d+-[0-9a-f]{6}$/;
+
+function randomHex6() {
+  return Math.floor(Math.random() * 0x1000000).toString(16).padStart(6, "0");
+}
+
+// One item, renamed aside right before its own removal. The marker (who is
+// about to delete it) is written FIRST, the rename itself second — so a
+// reader only ever sees waypost-removing/ hold a directory with no marker
+// beside it as the result of a crash between these two writes, which
+// leftoversOf() below always treats as adoptable (no marker means nobody's).
+function renameForRemoval(item, removingDir, marker) {
+  mkdirSync(removingDir, { recursive: true });
+  const name = `${Date.now().toString(36)}-${process.pid}-${randomHex6()}`;
+  const markerPath = join(removingDir, `${name}.json`);
+  const dest = join(removingDir, name);
+  try {
+    writeFileAtomic(markerPath, JSON.stringify({ ...marker, from: item.path, id: item.id }, null, 2) + "\n");
+  } catch (e) {
+    return { ok: false, reason: `could not write the removal marker: ${e.message}` };
+  }
+  try {
+    renameSync(item.path, dest);
+  } catch (e) {
+    try { unlinkSync(markerPath); } catch {}
+    if (e.code === "EXDEV") return { ok: false, reason: "another filesystem — the git common dir and this item are not on the same device" };
+    if (e.code === "EPERM" || e.code === "EBUSY") return { ok: false, reason: "a file inside is open" };
+    return { ok: false, reason: e.message };
+  }
+  return { ok: true, name, dest, markerPath };
+}
+
+// Spawns the detached, low-priority deleter for a batch of already-renamed
+// entries sharing one waypost-removing/ directory, then rewrites each
+// entry's own marker's `proc` to name the deleter — NOT the whole marker as
+// a fresh selfMarker() would (started/ticks read here would describe the
+// process that is about to exit, this one, a moment after spawning; nulled
+// rather than left wrong, since a wrong-but-present started/ticks pair
+// would make a live deleter read as a reused pid — processGone()'s own safe
+// fallback for "no timing recorded" is to trust the pid alone). The
+// deleter's own first action (handleInternalDelete below) writes the
+// complete, authoritative marker from ITS OWN selfMarker() once it is
+// actually running and can read its own process-table entry; this rewrite
+// only guarantees the pid is right even if it is killed before that.
+function spawnDeleter(removingDir, names, marker) {
+  const child = spawn(process.execPath, [join(ROOT, "bin", "waypost"), "__waypost-delete", removingDir, ...names],
+    { detached: true, stdio: "ignore", windowsHide: true });
+  child.unref();
+  for (const name of names) {
+    const markerPath = join(removingDir, `${name}.json`);
+    try {
+      const rec = JSON.parse(readFileSync(markerPath, "utf8"));
+      writeFileAtomic(markerPath, JSON.stringify({
+        ...rec, proc: { pid: child.pid, started: null, ticks: null, comm: marker.proc.comm },
+      }, null, 2) + "\n");
+    } catch { /* best effort — the deleter still runs; its own rewrite corrects this */ }
+  }
+  return child.pid;
+}
+
+// Every waypost-removing/ entry an interrupted run or a dead deleter left
+// behind — from this host and any other, since worktrees (and hosts sharing
+// a checkout) share one common dir (ADR-0010). One process table and one
+// boot-identity/authority read for the whole pass, not one per entry.
+// Never removes anything itself — the caller hands adoptable entries to a
+// FRESH deleter through the same rename-and-detach path every other
+// removal already uses (here, that rename already happened; only the
+// deleter is new).
+function leftoversOf(common, capacity, presence) {
+  const dir = join(common, REMOVING_DIR);
+  let names;
+  try { names = readdirSync(dir); } catch { return { adopt: [], leave: [] }; }
+  const table = process.platform === "win32" ? null : presence.processTable();
+  const bootNow = capacity.bootIdentity();
+  const authority = capacity.authorityOnce();
+  const here = hostname().split(".")[0];
+  const isAlive = (marker) => capacity.slotLive(marker, { table, bootNow, authority });
+  const entries = new Set(names.filter((n) => !n.endsWith(".json")));
+  const adopt = [];
+  const leave = [];
+
+  for (const n of names) {
+    if (!n.endsWith(".json")) continue;
+    const base = n.slice(0, -5);
+    const markerPath = join(dir, n);
+    const entryPath = join(dir, base);
+    let marker = null;
+    try { marker = JSON.parse(readFileSync(markerPath, "utf8")); } catch { marker = null; }
+    const hasEntry = entries.has(base);
+
+    if (!hasEntry) {
+      // A marker with no directory beside it: the entry is already gone
+      // (the deleter finished removing it and only failed on the marker's
+      // own unlink) — always adoptable once its owner is dead, since
+      // nothing is left for a live deleter to still be working on.
+      const alive = marker && marker.proc && marker.host === here && isAlive(marker);
+      if (alive) leave.push({ name: base, entry: null, markerPath, marker });
+      else adopt.push({ name: base, entry: null, markerPath, marker });
+      continue;
+    }
+    if (!marker) {
+      // No marker at all — renameForRemoval always writes it BEFORE the
+      // rename, so a crash between those two writes is the only way to
+      // reach this, and it is always adoptable.
+      adopt.push({ name: base, entry: entryPath, markerPath: null, marker: null });
+      continue;
+    }
+    if (marker.host !== here) { leave.push({ name: base, entry: entryPath, markerPath, marker }); continue; }
+    if (isAlive(marker)) leave.push({ name: base, entry: entryPath, markerPath, marker });
+    else adopt.push({ name: base, entry: entryPath, markerPath, marker });
+  }
+  // An entry with no marker file beside it at all (a deleter that failed
+  // partway once unlinked it): adoptable — purgeLeftovers re-marks it, or
+  // leaves and counts it when its name is not one renameForRemoval mints.
+  const markers = new Set(names.filter((n) => n.endsWith(".json")).map((n) => n.slice(0, -5)));
+  for (const base of entries) {
+    if (!markers.has(base)) adopt.push({ name: base, entry: join(dir, base), markerPath: null, marker: null });
+  }
+  return { adopt, leave };
+}
+
+// Right after claiming the slot, for both the plan and --apply (the ADR:
+// "Any cleanup, manual or automatic, first purges what an interrupted run
+// left"). `--limit` never calls this. A marker whose own entry is already
+// gone is simply unlinked here — there is nothing left to hand a new
+// deleter; every adoptable entry that still holds real content is handed
+// to one fresh deleter together.
+function purgeLeftovers(where, { capacity, presence }) {
+  if (!where || !where.common) return { handed_off: [], left: 0 };
+  const { adopt, leave } = leftoversOf(where.common, capacity, presence);
+  if (!adopt.length) return { handed_off: [], left: leave.length };
+  const dir = join(where.common, REMOVING_DIR);
+  for (const a of adopt) {
+    if (!a.entry && a.markerPath) { try { unlinkSync(a.markerPath); } catch {} }
+  }
+  // The deleter only touches a name of the shape renameForRemoval mints that
+  // carries a marker: an entry that lost its marker gets a fresh one here
+  // (adopting it), and a name of any other shape is left and counted.
+  const marker = selfMarker(capacity, presence);
+  const handed = [];
+  let left = leave.length;
+  for (const a of adopt.filter((x) => x.entry)) {
+    if (!REMOVING_NAME_RE.test(a.name)) { left++; continue; }
+    if (!a.marker) {
+      try { writeFileAtomic(join(dir, `${a.name}.json`), JSON.stringify({ ...marker, adopted: true }, null, 2) + "\n"); }
+      catch { left++; continue; }
+    }
+    handed.push(a.name);
+  }
+  if (handed.length) spawnDeleter(dir, handed, marker);
+  return { handed_off: handed, left };
+}
+
+// ─── the internal deleter command itself ────────────────────────────────
+//
+// `waypost __waypost-delete <dir> <name…>` — never invoked by a person,
+// only by spawnDeleter above, detached. Dispatched first thing in main(),
+// before ANY of the session/harness/heartbeat machinery every other
+// command goes through: this is not a session, and none of that applies to
+// a process nobody is watching.
+async function handleInternalDelete(argv) {
+  const [dir, ...names] = argv;
+  if (!dir || basename(dir) !== REMOVING_DIR) { process.exitCode = 1; return; }
+  let st;
+  try { st = lstatSync(dir); } catch { process.exitCode = 1; return; }
+  if (!st.isDirectory() || st.isSymbolicLink()) { process.exitCode = 1; return; }
+  // Strictly validated: only a name matching the exact shape
+  // renameForRemoval mints, AND carrying its own marker, is ever touched —
+  // this command's own argv is not something a person is expected to type,
+  // so it is held to the same standard as any other untrusted input.
+  const valid = names.filter((n) => REMOVING_NAME_RE.test(n) && existsSync(join(dir, `${n}.json`)));
+  if (!valid.length) return;
+
+  try { setPriority(osConstants.priority.PRIORITY_LOW); }
+  catch { /* best effort — a restricted sandbox must not block the deletion */ }
+
+  let marker = null;
+  try {
+    const capacity = await import(`file://${SCRIPT("capacity")}`);
+    const presence = await import(`file://${SCRIPT("presence")}`);
+    marker = selfMarker(capacity, presence);
+  } catch { /* best effort — deletion proceeds either way */ }
+
+  for (const name of valid) {
+    const entry = join(dir, name);
+    const markerPath = join(dir, `${name}.json`);
+    if (marker) {
+      try {
+        const rec = JSON.parse(readFileSync(markerPath, "utf8"));
+        writeFileAtomic(markerPath, JSON.stringify({ ...rec, ...marker }, null, 2) + "\n");
+      } catch { /* best effort — deletion proceeds either way */ }
+    }
+    try { rmSync(entry, { recursive: true, force: true, maxRetries: 3 }); }
+    catch { /* best effort — a leftover here is swept by the next waypost clean */ }
+    // The marker goes only with its entry: a partly removed entry keeps it,
+    // so the next `waypost clean` can adopt it once this deleter is gone.
+    if (!existsSync(entry)) { try { unlinkSync(markerPath); } catch {} }
+  }
+}
+
+// ─── waypost clean --limit (the amended machine-wide-limit ADR, Decision 2) ──
+
+// Names the SPECIFIC evidence a refusal was based on — an ancestor process
+// or an environment marker — not just which harness was found, so a person
+// staring at a refusal for a harness they do not think is running has
+// something to actually check. The basename/word normalisation mirrors
+// gateCheck's own (scripts/agents.mjs) closely enough to usually find the
+// exact matching ancestor; when it cannot (a registry `process` name that
+// differs from the harness id, say), it still names the harness itself.
+function gateEvidenceOf(gateResult) {
+  if (!gateResult) return null;
+  if (gateResult.via === "process") {
+    const norm = (c) => String(c || "").toLowerCase().split(/[\\/]/).pop().split(/[^a-z0-9]+/)[0];
+    const hit = gateResult.ancestors.find((a) => norm(a.comm) === gateResult.harness);
+    return hit ? `an ancestor process "${gateResult.harness}" (pid ${hit.pid})` : `an ancestor process (${gateResult.harness})`;
+  }
+  if (gateResult.via === "env" && gateResult.markers.length) return `the environment variable ${gateResult.markers[0].var}`;
+  return gateResult.harness ? `a harness (${gateResult.harness})` : null;
+}
+
+function gateRefusalMessage(decision, gateResult, gateError) {
+  const evidence = gateEvidenceOf(gateResult);
+  if (evidence) {
+    return `${decision.reason} (${evidence}) — set it from your own terminal, or run `
+      + "\`waypost clean --limit off\` (or a looser value), which works from anywhere";
+  }
+  if (gateError) return `${decision.reason} (the harness check itself failed: ${gateError})`;
+  return decision.reason;
+}
+
+// A read-only look at what the NEW limit would need to free, right now,
+// without renaming anything — printed to stderr before the [y/N] itself, so
+// the person answering it sees exactly what they are agreeing to.
+function printLimitPreview(parsed, mods, now) {
+  const { cleanup } = mods;
+  const root = slotWhere(projectRoot()).root;
+  const home = (() => { try { return realpathSync(homedir()); } catch { return homedir(); } })();
+  if (!root || cleanup.refusePath(root, { home })) {
+    process.stderr.write("(no project here — nothing to preview)\n");
+    return;
+  }
+  let ctx, classified;
+  try {
+    ctx = gatherCleanContext(mods);
+    classified = planFromContext(ctx, cleanup, now);
+  } catch (e) {
+    process.stderr.write(`(could not build a preview: ${e.message})\n`);
+    return;
+  }
+  let shortfall = 0;
+  let dev = null;
+  if (parsed.kind === "free") {
+    try {
+      const s = statfsSync(root);
+      shortfall = cleanup.shortfallOf({ size: s.blocks * s.bsize, avail: s.bavail * s.bsize }, parsed.percent);
+    } catch { /* best effort */ }
+    try { dev = lstatSync(root).dev; } catch { /* best effort */ }
+  }
+  const { counted, need, eligible } = cleanup.limitNeed(classified, parsed, now, { shortfall, dev });
+  process.stderr.write(`This project's build output counts ${(counted / GB).toFixed(2)} GB towards the limit.\n`);
+  if (need <= 0) {
+    process.stderr.write("Nothing would need to be removed right now.\n");
+    return;
+  }
+  process.stderr.write(`${(need / GB).toFixed(2)} GB would need to be freed. Oldest first, right now that is:\n`);
+  let running = 0;
+  for (const it of eligible) {
+    if (running >= need) break;
+    const days = Math.floor((now - it.newest_ms) / (24 * 60 * 60 * 1000));
+    process.stderr.write(`  ${(it.bytes / GB).toFixed(2)} GB  idle ${days}d  ${it.rel || tildeHome(it.path)}\n`);
+    running += it.bytes || 0;
+  }
+}
+
+async function handleCleanLimit(rawValue, mods, json, now) {
+  const { cleanup, capacity, presence } = mods;
+  const host = presence.hostSlug();
+
+  if (rawValue == null) {
+    const setting = readCleanupSetting({ host });
+    const outcome = readLastAutoCleanup({ host });
+    if (json) {
+      process.stdout.write(JSON.stringify({
+        setting: setting || null, last_auto: outcome,
+        choices: { gb: "<N> (e.g. 5, 10, 20, 50) — gigabytes per project", free: "free:<P>% (P 5-50) — keep at least that much of the disk free", off: "off — no automatic cleanup" },
+      }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`cleanup limit: ${cleanup.formatLimit(setting ? setting.limit : null)}`
+      + (setting ? ` (set ${setting.set_at})\n` : "\n"));
+    process.stdout.write(`${cleanup.formatOutcome(outcome)}\n`);
+    process.stdout.write("choices: 5 | 10 | 20 | 50 | <N> (GB per project) | free:<P>% (5-50) | off\n");
+    return;
+  }
+
+  const parsed = cleanup.parseLimit(rawValue);
+  if (!parsed) fail(`clean --limit: invalid value "${rawValue}" — <N> (GB per project), free:<P>% (5-50), or off`);
+
+  const currentSetting = readCleanupSetting({ host });
+  const currentLimit = currentSetting ? currentSetting.limit : null;
+  const { change, gated } = cleanup.limitChange(currentLimit, parsed);
+
+  if (change === "same") {
+    if (json) process.stdout.write(JSON.stringify({ change: "same", limit: parsed }, null, 2) + "\n");
+    else process.stdout.write("unchanged\n");
+    return;
+  }
+
+  let agents;
+  try { agents = await import(`file://${SCRIPT("agents")}`); } catch (e) { fail(`clean --limit: ${e.message}`); }
+
+  // Always run, gated or not: an off/loosen change is never refused by it,
+  // but its own view is still recorded in the setting (the ADR: "every
+  // setting records how it was made"). Pinned to the executable's OWN tree
+  // (ROOT), never WAYPOST_HOME — an agent pointing that elsewhere must not
+  // be able to steer which harness registry the gate itself reads.
+  let gateResult = null;
+  let gateError = null;
+  try {
+    gateResult = agents.gateCheck({
+      env: process.env,
+      dirs: [join(ROOT, "harnesses"), join(projectRoot(), ".waypost", "harnesses")],
+    });
+  } catch (e) { gateError = e.message; }
+
+  const decision = cleanup.limitDecision({
+    gated, harness: gateResult ? gateResult.harness : null,
+    checkError: Boolean(gateError), isTTY: Boolean(process.stdin.isTTY),
+  });
+
+  if (decision.ok === false) {
+    const message = gateRefusalMessage(decision, gateResult, gateError);
+    if (json) process.stdout.write(JSON.stringify({ ok: false, message }, null, 2) + "\n");
+    else process.stderr.write(`waypost clean --limit: ${message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (decision.method === "prompt") {
+    printLimitPreview(parsed, mods, now);
+    const answered = await askYesNo(`Set the cleanup limit to ${cleanup.formatLimit(parsed)}? [y/N] `, { timeoutMs: 60000 });
+    if (!answered) {
+      process.stderr.write("waypost clean --limit: not set\n");
+      process.exitCode = 1;
+      return;
+    }
+  }
+
+  const gateInfo = {
+    required: gated,
+    checked: gateResult ? (gateResult.process_table ? "process-table+env-markers" : "env-markers-only") : "env-markers-only",
+    harness: gateResult ? gateResult.harness : null,
+    via: gateResult ? gateResult.via : null,
+    ancestors: gateResult ? gateResult.ancestors : [],
+    markers: gateResult ? gateResult.markers : [],
+    tty: Boolean(process.stdin.isTTY),
+    answer: decision.method === "prompt" ? true : null,
+  };
+  const setAt = new Date(now).toISOString();
+  const settingRec = {
+    v: 1, host, limit: parsed, set_at: setAt, change, previous: currentLimit,
+    gate: gateInfo, by: { session: process.env.WAYPOST_SESSION_ID || null },
+  };
+  try {
+    mkdirSync(machineStateDir(), { recursive: true });
+    writeFileAtomic(join(machineStateDir(), `cleanup-limit.${host}.json`), JSON.stringify(settingRec, null, 2) + "\n");
+  } catch (e) { fail(`clean --limit: could not write the setting: ${e.message}`); }
+
+  const line = cleanup.logLine({
+    kind: "limit", at: setAt, host, session: settingRec.by.session,
+    from: currentLimit, to: parsed, change, gate: gateInfo,
+  });
+  let logError = null;
+  try { appendCleanLog(host, line); } catch (e) { logError = e.message; }
+
+  if (json) {
+    process.stdout.write(JSON.stringify({ ok: true, ...settingRec, ...(logError ? { log_error: logError } : {}) }, null, 2) + "\n");
+  } else {
+    process.stdout.write(`cleanup limit set to ${cleanup.formatLimit(parsed)} (${change})\n`);
+    if (logError) process.stdout.write(`  log not written: ${logError}\n`);
+  }
+  if (logError) process.exitCode = 1;
 }
 
 function printApplyPreview(items) {
@@ -1795,6 +2294,9 @@ function printApplyResult(result) {
     if (result.log_error) process.stderr.write(`  log not written: ${result.log_error}\n`);
     return;
   }
+  if (result.leftovers && result.leftovers.handed_off.length) {
+    process.stdout.write(`(${result.leftovers.handed_off.length} leftover item(s) from an interrupted run handed to the deleter)\n`);
+  }
   for (const it of result.items) {
     const where = it.path ? tildeHome(it.path) : (it.id || "?");
     process.stdout.write(`  ${it.id || "?"}  ${it.result}  ${where}\n`);
@@ -1815,6 +2317,8 @@ async function handleClean(args) {
   const applySel = parseApplySelection(args);
   if (applySel && applySel.mode === "empty") { fail("clean --apply: needs an id, a list of ids, or should"); return; }
   if (applySel && applySel.mode === "can") { fail("clean --apply can: refused — can items are removed only by id"); return; }
+  const limitFlag = limitFlagValue(args);
+  if (limitFlag.present && applySel) { fail("clean --limit: refused together with --apply"); return; }
 
   let cleanup, sizes, toolchains, capacity, presence, discovery;
   try {
@@ -1827,6 +2331,14 @@ async function handleClean(args) {
   } catch (e) { fail(`clean: ${e.message}`); }
 
   const now = cleanNow();
+
+  // waypost clean --limit — the machine-wide setting (the amended ADR): no
+  // slot needed, decided entirely before the consent/slot machinery below,
+  // which is --apply's own.
+  if (limitFlag.present) {
+    await handleCleanLimit(limitFlag.value, { cleanup, sizes, toolchains, capacity, presence, discovery }, json, now);
+    return;
+  }
 
   // --apply's consent is decided before the machine-wide slot is ever
   // claimed: a harness detected, or no terminal and no --yes --reason, must
@@ -1873,7 +2385,8 @@ async function handleClean(args) {
   // slot is always released.
   const dir = slotsDir(presence);
   mkdirSync(dir, { recursive: true });
-  const claim = await claimSlot(dir, ["waypost", "clean", ...(applySel ? ["--apply"] : []), ...(json ? ["--json"] : [])], capacity, presence);
+  const where = slotWhere(projectRoot());
+  const claim = await claimSlot(dir, ["waypost", "clean", ...(applySel ? ["--apply"] : []), ...(json ? ["--json"] : [])], capacity, presence, where);
   if (!claim.ok) {
     process.stderr.write(`waypost clean: refused — ${claim.reason}\n  retry: waypost clean\n`);
     process.exitCode = EX_TEMPFAIL;
@@ -1881,12 +2394,20 @@ async function handleClean(args) {
   }
   recordAuthority(claim.file, capacity);
 
+  // Any cleanup, manual or automatic, first purges what an interrupted run
+  // left in waypost-removing/ (the amended ADR, Decision 4) — right after
+  // the claim, whatever the conditions below decide about this run's own
+  // plan or apply.
+  let purge = { handed_off: [], left: 0 };
+  try { purge = purgeLeftovers(where, { capacity, presence }); } catch { /* best effort — never blocks the plan/apply below */ }
+
   const mods = { cleanup, sizes, toolchains, presence, discovery };
   let result, error, applyResult = false;
   try {
     if (!applySel) {
       const ctx = gatherCleanContext(mods);
-      const classified = planFromContext(ctx, cleanup, now);
+      const { limit, shortfall, dev } = activeLimitFor(ctx.root, cleanup, presence);
+      const classified = planFromContext(ctx, cleanup, now, { limit, shortfall, dev });
       result = formatPlan(classified, ctx, now);
     } else {
       applyResult = true;
@@ -1898,6 +2419,16 @@ async function handleClean(args) {
     claim.release();
   }
   if (error) fail(`clean: ${error.message}`);
+
+  if (purge.handed_off.length) {
+    const host = presence.hostSlug();
+    const line = cleanup.logLine({
+      kind: "purge", at: new Date(now).toISOString(), host, session: process.env.WAYPOST_SESSION_ID || null,
+      root: where.root, handed_off: purge.handed_off.length,
+    });
+    try { appendCleanLog(host, line); } catch { /* best effort — the purge itself already ran */ }
+  }
+  if (result && typeof result === "object") result.leftovers = { handed_off: purge.handed_off, left: purge.left };
 
   if (applyResult) {
     if (json) process.stdout.write(JSON.stringify(result, null, 2) + "\n");
@@ -2125,10 +2656,67 @@ function releaseLock(lockDir) {
   try { rmSync(lockDir, { recursive: true, force: true }); } catch {}
 }
 
+// The identity fields a slot record, a claimSlot record and a
+// waypost-removing/ marker all share — who and which process, on which
+// boot, since when. Factored out of claimSlot (the amended machine-wide-
+// limit ADR) so the detached deleter's own marker rewrite, and its parent's
+// interim one, write the identical shape without re-deriving it by hand.
+function selfMarker(capacity, presence) {
+  const table = process.platform === "win32" ? null : presence.processTable();
+  const self = table ? table.get(process.pid) : null;
+  return {
+    host: hostname().split(".")[0],
+    proc: { pid: process.pid, started: self ? self.started : null, ticks: presence.startTicks(process.pid), comm: basename(process.execPath) },
+    boot: capacity.bootIdentity(),
+    // What an epoch mismatch is checked against later (WP-18 amendment):
+    // the epoch in `boot` is itself drifted once the machine has slept, so
+    // comparing THAT against a true boot time would delete live records.
+    // null where the platform has no authority — such a record can then
+    // only ever be kept, never pruned, which is the safe half.
+    // The uptime at claim: a later reading below it confirms another boot
+    // with no spawn at all (second amendment). Free on every platform.
+    uptime: osUptime(),
+    started_at: new Date().toISOString(),
+  };
+}
+
+// The working directory a slot is claimed from, and — when it sits inside a
+// repository — that repository's own root and common dir, both resolved to
+// real paths (the amended machine-wide-limit ADR, Decision 4's own slot-
+// record fields). One combined `git rev-parse`, so this costs one spawn, not
+// two, on the path every heavy claim (including `run --heavy`'s own retry
+// loop) goes through; computed BEFORE the slot lock is ever taken — nothing
+// may spawn inside that critical section. Outside a repository, or when git
+// itself is unavailable, `root`/`common` stay null and `cwd` is still
+// reported: a live record with NEITHER is what capacity.blockingHolder
+// treats as an unconditional block, so cwd alone is worth recording even
+// there.
+function slotWhere(dir) {
+  const real = (p) => { try { return realpathSync(p); } catch { return p; } };
+  const cwd = real(dir);
+  let root = null;
+  let common = null;
+  try {
+    const r = spawnSync("git", ["-C", dir, "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+      { encoding: "utf8", timeout: 5000 });
+    if (r.status === 0) {
+      const [top, commonDir] = String(r.stdout).trim().split(/\r?\n/);
+      if (top) root = real(top);
+      if (commonDir) common = real(commonDir);
+    }
+  } catch { /* no git: root/common stay null */ }
+  return { cwd, root, common };
+}
+
 // Under the lock: prune the stale records, measure with the live ones, and
 // either write our own record or report why not. Two processes starting in
-// the same second cannot both pass the cap.
-async function claimSlot(dir, argv, capacity, presence) {
+// the same second cannot both pass the cap. `where` (slotWhere(), computed
+// by the caller before the lock) is carried on the record so a live heavy
+// job can be told apart from one working somewhere unrelated
+// (capacity.blockingHolder) — null when the caller never computed one (kept
+// optional so a caller with nothing meaningful to report, if one is ever
+// added, is not forced to invent a location).
+async function claimSlot(dir, argv, capacity, presence, where = null) {
   const lockDir = await acquireLock(dir, presence, capacity);
   if (!lockDir) {
     return { ok: false, reason: "the slot lock is busy — another `waypost run --heavy` is claiming right now" };
@@ -2140,35 +2728,24 @@ async function claimSlot(dir, argv, capacity, presence) {
     warnIfProbed(m);
     if (m.can_start <= 0) return { ok: false, reason: m.reason || "no heavy job slot available" };
 
-    const table = process.platform === "win32" ? null : presence.processTable();
-    const self = table ? table.get(process.pid) : null;
     const id = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const rec = {
       id,
-      host: hostname().split(".")[0],
-      proc: { pid: process.pid, started: self ? self.started : null, ticks: presence.startTicks(process.pid), comm: basename(process.execPath) },
-      boot: capacity.bootIdentity(),
-      // What an epoch mismatch is checked against later (WP-18 amendment):
-      // the epoch in `boot` is itself drifted once the machine has slept, so
-      // comparing THAT against a true boot time would delete live records.
-      // null where the platform has no authority — such a record can then
-      // only ever be kept, never pruned, which is the safe half.
-      // The uptime at claim: a later reading below it confirms another boot
-      // with no spawn at all (second amendment). Free on every platform.
-      uptime: osUptime(),
+      ...selfMarker(capacity, presence),
       // Filled in by recordAuthority() once the lock is released (third
       // amendment): reading it here cost a refusal 2486 ms against a 2000 ms
       // budget, came back null under load anyway, and moved the timings enough
       // that a claim slipped past a live lock owner in the suite.
       authority: null,
+      cwd: where ? where.cwd : null,
+      root: where ? where.root : null,
       session: process.env.WAYPOST_SESSION_ID || null,
       harness: process.env.WAYPOST_HARNESS || null,
       command: argv.map(shellQuote).join(" "),
-      started_at: new Date().toISOString(),
     };
     const file = join(dir, `${id}.json`);
     writeFileSync(file, JSON.stringify(rec, null, 2) + "\n", "utf8");
-    return { ok: true, file, release: () => { try { unlinkSync(file); } catch {} } };
+    return { ok: true, id, file, release: () => { try { unlinkSync(file); } catch {} } };
   } finally {
     releaseLock(lockDir);
   }
@@ -2217,12 +2794,313 @@ function shellQuote(arg) {
   return process.platform === "win32" ? `"${s.replace(/"/g, '\\"')}"` : `'${s.replace(/'/g, "'\\''")}'`;
 }
 
+// ─── the automatic path at the end of `waypost run --heavy` ────────────
+// (the amended machine-wide-limit ADR, Decision 4)
+
+// WAYPOST_AUTOCLEAN_PROBE overrides the automatic path's own deadline, adds
+// a synchronous pause after each rename, and substitutes for one statfs
+// reading — for hermetic tests only, honoured only under NODE_TEST_CONTEXT
+// (the same posture WAYPOST_CLEAN_NOW/WAYPOST_CAPACITY_PROBE already use),
+// announced on stderr once. `deadline_ms` may only SHORTEN the real 60s
+// deadline, never lengthen it — a test cannot accidentally let a real
+// automatic sweep run longer than the ADR allows.
+let warnedAutoCleanProbe = false;
+function autoCleanProbe() {
+  const raw = process.env.WAYPOST_AUTOCLEAN_PROBE;
+  if (!raw || !process.env.NODE_TEST_CONTEXT) return null;
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { return null; }
+  if (!parsed || typeof parsed !== "object") return null;
+  if (!warnedAutoCleanProbe) {
+    warnedAutoCleanProbe = true;
+    process.stderr.write("waypost: WAYPOST_AUTOCLEAN_PROBE is set — the automatic cleanup path is not running unmodified (tests only)\n");
+  }
+  return parsed;
+}
+
+function autoCleanPause(ms, count) {
+  if (!Number.isFinite(ms) || ms <= 0) return;
+  process.stderr.write(`waypost: test pause after ${count} rename(s)\n`);
+  const sab = new SharedArrayBuffer(4);
+  Atomics.wait(new Int32Array(sab), 0, 0, ms);
+}
+
+// The vault path, read by hand: never readConfig() (which calls fail() —
+// process.exit — on a config that exists but will not parse) and never
+// bindingInfo()'s own throw either, though it does not throw in normal use.
+// `unreadable` (a binding file that EXISTS but will not parse) is the one
+// case the automatic path treats as a reason to skip — a config that is
+// simply absent is an ordinary "no vault here".
+function autoCleanVault() {
+  let p;
+  try { p = bindingInfo().path; } catch { return { vault: null, unreadable: true }; }
+  if (!existsSync(p)) return { vault: null, unreadable: false };
+  try {
+    const cfg = JSON.parse(readFileSync(p, "utf8"));
+    const raw = cfg && typeof cfg === "object" ? cfg.vault_path : null;
+    if (!raw) return { vault: null, unreadable: false };
+    const resolved = resolveVaultPath(raw);
+    return { vault: resolved && existsSync(resolved) ? resolved : null, unreadable: false };
+  } catch { return { vault: null, unreadable: true }; }
+}
+
+// Items whose owning entry keeps them off the automatic path entirely — a
+// generic name, a distributable package inside, or auto: false — distinct
+// from an ordinary "should" item nothing else is wrong with. Named in the
+// report so "why isn't X touched" has an answer beyond "it wasn't picked".
+function autoExcludedReasonOf(item) {
+  if (item.scope !== "project" || item.origin === "project") return null;
+  if (item.match === "generic") return "a generic name — release output lives there too, removed only by id";
+  if (!(item.match === "tag" || item.match === "sure")) return null;
+  if (item.holds_package === true) return `holds a distributable package${item.package ? ` (${item.package})` : ""}`;
+  if (item.auto === false) return "opted out (auto: false)";
+  return null;
+}
+
+function autoCleanupReport(rec) {
+  if (rec.result === "failed") { process.stderr.write(`waypost: automatic cleanup failed — ${rec.reason}\n`); return; }
+  if (rec.result === "skipped") { process.stderr.write(`waypost: automatic cleanup skipped — ${rec.reason}\n`); return; }
+  if (rec.renamed.length) {
+    const bytes = rec.renamed.reduce((s, r) => s + (r.bytes || 0), 0);
+    process.stderr.write(`waypost: automatic cleanup renamed ${rec.renamed.length} item(s), ${(bytes / GB).toFixed(2)} GB, for removal\n`);
+  }
+  const freedBytes = rec.renamed.reduce((s, r) => s + (r.bytes || 0), 0);
+  const stillShort = (rec.need || 0) - freedBytes;
+  if (stillShort > 0) {
+    if (rec.limit.kind === "gb") {
+      process.stderr.write(`waypost: ${(stillShort / GB).toFixed(2)} GB over the limit is protected by the 7-day rule — raise it: \`waypost clean --limit <N>\`\n`);
+    } else {
+      process.stderr.write(`waypost: ${(stillShort / GB).toFixed(2)} GB short of the free-space floor — \`waypost size --global\` (${APFS_FREE_SPACE_NOTE})\n`);
+    }
+  }
+  if (rec.deadline) process.stderr.write("waypost: automatic cleanup stopped at its 60s deadline\n");
+  if (rec.excluded.length) process.stderr.write(`waypost: ${rec.excluded.length} idle item(s) never on the automatic path — waypost clean for detail\n`);
+  if (rec.nested_skipped) process.stderr.write(`waypost: ${rec.nested_skipped} nested repository/repositories never entered\n`);
+}
+
+function safeRealpath(p) {
+  try { return realpathSync(p); } catch { return p; }
+}
+
+// One JSONL line (matching scripts/cleanup.mjs's own logLine shape by
+// hand — see `finish` above) plus the stderr report, for every outcome
+// autoCleanup reaches past the very first (silent) check. A log-write
+// failure here is reported inline, never thrown — the outcome itself was
+// real work already decided, and losing the log must not hide it.
+function logAndReportAuto(rec, host) {
+  const line = JSON.stringify({ v: 1, ...rec });
+  try { appendCleanLog(host, line); }
+  catch (e) { process.stderr.write(`waypost: automatic cleanup's log line was not written: ${e.message}\n`); }
+  autoCleanupReport(rec);
+}
+
+// The whole automatic path, run under the slot `run --heavy` still holds
+// (the ADR, Decision 4), in the exact order the ADR lists its conditions.
+// `ended` carries how the wrapped command finished: `status` (its own exit
+// status, for the log's own `exit` field), `signal` (the signal that
+// actually killed it, if any), `interrupted` (a signal THIS wrapper caught,
+// even when the child then exited on its own terms — a tool trapping
+// Ctrl-C and exiting 130 itself is treated exactly the same as one the
+// signal killed outright), and `spawnFailed`. Every early return past the
+// very first is logged (`kind: "auto"`) and briefly reported on stderr;
+// the very first (no setting at all) is silent — a machine that never set
+// a limit must see nothing from this at all.
+async function autoCleanup({ claim, where, ended, capacity, presence }) {
+  const host = presence.hostSlug();
+  const setting = readCleanupSetting({ host });
+  if (!setting || !setting.limit || setting.limit.kind === "off") return;
+
+  const t0 = Date.now();
+  const probe = autoCleanProbe();
+  const deadlineMs = probe && Number.isFinite(probe.deadline_ms) ? Math.min(60000, probe.deadline_ms) : 60000;
+  const deadline = t0 + deadlineMs;
+  const session = process.env.WAYPOST_SESSION_ID || null;
+  const limit = setting.limit;
+
+  // Builds the log record only — never writes or reports it (logAndReportAuto
+  // does that, right after every call site below): the very first checks run
+  // before `cleanup` is even imported, so this cannot depend on
+  // cleanup.logLine — it matches that function's own shape (v:1, plus every
+  // field given) by hand instead.
+  const finish = (result, reason, fields = {}) => ({
+    kind: "auto", at: new Date().toISOString(), host, session,
+    cwd: where ? where.cwd : null, root: where ? where.root : null,
+    exit: ended.status, limit, result, reason: reason || null,
+    ...fields,
+  });
+
+  try {
+    if (ended.signal || ended.interrupted) return void logAndReportAuto(finish("skipped", `ended by ${ended.signal || ended.interrupted}`), host);
+    if (ended.spawnFailed) return void logAndReportAuto(finish("skipped", "did not start"), host);
+    if (!where || !where.root || !where.common) return void logAndReportAuto(finish("skipped", "not in a git work tree"), host);
+
+    let cleanup;
+    try { cleanup = await import(`file://${SCRIPT("cleanup")}`); }
+    catch (e) { return void logAndReportAuto(finish("failed", e.message), host); }
+
+    // Pinned to the executable's own tree, never WAYPOST_HOME: an agent
+    // pointing that elsewhere must not be able to steer which registry the
+    // automatic path reads, the same reasoning as the gate in `--limit`.
+    process.env.WAYPOST_PROJECT_DIR = where.root;
+    const root = where.root;
+
+    // First, whatever the conditions below decide (the ADR: "Any cleanup,
+    // manual or automatic, first purges what an interrupted run left").
+    const purge = purgeLeftovers(where, { capacity, presence });
+    const adopted = purge.handed_off.length;
+
+    const home = safeRealpath(homedir());
+    if (cleanup.refusePath(root, { home, platform: process.platform })) {
+      return void logAndReportAuto(finish("skipped", "a protected path", { adopted }), host);
+    }
+
+    const storage = presence.storageOf(root);
+    if (storage.kind !== "local") {
+      return void logAndReportAuto(finish("skipped", `on ${storage.provider} (${storage.kind}) — not local storage`, { adopted }), host);
+    }
+
+    let rootDev, commonDev;
+    try { rootDev = statSync(root).dev; commonDev = statSync(where.common).dev; }
+    catch (e) { return void logAndReportAuto(finish("failed", e.message, { adopted }), host); }
+    if (commonDev !== rootDev) {
+      return void logAndReportAuto(finish("skipped", "the git directory is on another filesystem", { adopted }), host);
+    }
+
+    const holdersNow = capacity.readHolders({ dir: slotsDir(presence), authority: bootAuthority(capacity) });
+    const blocking = capacity.blockingHolder(holdersNow.live, { self: claim.id, root, platform: process.platform, canon: safeRealpath });
+    if (blocking) {
+      return void logAndReportAuto(finish("skipped", `another heavy job overlaps this tree (${blocking.holder.id})`, { adopted }), host);
+    }
+
+    const { vault, unreadable } = autoCleanVault();
+    if (unreadable) {
+      return void logAndReportAuto(finish("skipped", "the project binding is unreadable", { adopted }), host);
+    }
+    if (vault) {
+      const shared = presence.sharedTree(vault, { self: process.env.WAYPOST_SESSION_ID || null, contain: true });
+      if (shared.shared) {
+        const who = presence.sharedWith ? presence.sharedWith(shared) : shared.with.map((w) => `${w.session} on ${w.host}`).join("; ");
+        return void logAndReportAuto(finish("skipped", `shared with ${who}`, { adopted }), host);
+      }
+    }
+
+    if (Date.now() > deadline) {
+      return void logAndReportAuto(finish("skipped", "deadline", { adopted }), host);
+    }
+
+    let sizes, toolchains, discovery;
+    try {
+      sizes = await import(`file://${SCRIPT("sizes")}`);
+      toolchains = await import(`file://${SCRIPT("toolchains")}`);
+      discovery = await import(`file://${SCRIPT("discovery")}`);
+    } catch (e) { return void logAndReportAuto(finish("failed", e.message, { adopted }), host); }
+    const mods = { cleanup, sizes, toolchains, presence, discovery };
+
+    // The registry itself, not only its own resolution above: loadRegistry
+    // (inside gatherCleanContext) reads pluginRoot(), which honours
+    // WAYPOST_HOME/CLAUDE_PLUGIN_ROOT — pinned to this executable's own
+    // tree for exactly as long as that one call needs it.
+    const savedHome = process.env.WAYPOST_HOME;
+    process.env.WAYPOST_HOME = ROOT;
+    let ctx;
+    try {
+      ctx = gatherCleanContext(mods, { root, vault, includeMachine: false, walk: { stopAtGit: true, locators: false, deadline } });
+    } finally {
+      if (savedHome === undefined) delete process.env.WAYPOST_HOME; else process.env.WAYPOST_HOME = savedHome;
+    }
+
+    if (ctx.scan && ctx.scan.stopped_by === "deadline") {
+      return void logAndReportAuto(finish("ran", "deadline", {
+        counted: 0, need: 0, shortfall: 0, renamed: [], skipped_items: [], stayed: [], excluded: [],
+        nested_skipped: ctx.scan.nested_skipped, deadline: true, elapsed_ms: Date.now() - t0,
+        deleter_pid: null, adopted, ...(lastCleanNowHonored ? { clock: process.env.WAYPOST_CLEAN_NOW } : {}),
+      }), host);
+    }
+
+    const now = cleanNow();
+    const classified = planFromContext(ctx, cleanup, now);
+
+    let shortfall = 0;
+    let dev = null;
+    if (limit.kind === "free") {
+      if (probe && probe.statfs) {
+        shortfall = cleanup.shortfallOf({ size: probe.statfs.size, avail: probe.statfs.avail }, limit.percent);
+      } else {
+        try {
+          const s = statfsSync(root);
+          shortfall = cleanup.shortfallOf({ size: s.blocks * s.bsize, avail: s.bavail * s.bsize }, limit.percent);
+        } catch { /* best effort — shortfall stays 0 */ }
+      }
+      try { dev = statSync(root).dev; } catch { /* best effort */ }
+    }
+    const { counted, need, eligible } = cleanup.limitNeed(classified, limit, now, { shortfall, dev });
+    // "should" alone would miss a generic name — capped at "can" by
+    // classifyItem itself, never "should", however idle — so this checks
+    // every non-"keep" item instead: the report's own point is "why isn't
+    // this on the automatic path", and a generic name is exactly such a
+    // case, not merely idle.
+    const excludedList = classified
+      .filter((it) => it.class !== "keep" && autoExcludedReasonOf(it))
+      .map((it) => ({ id: it.id, path: it.rel || it.path, reason: autoExcludedReasonOf(it) }));
+
+    const removingDir = join(where.common, REMOVING_DIR);
+    const marker = selfMarker(capacity, presence);
+    const renamed = [];
+    const skippedItems = [];
+    let freed = 0;
+    let deadlineHit = false;
+    let holderBlocked = null;
+    let i = 0;
+    for (; i < eligible.length; i++) {
+      if (freed >= need) break;
+      if (Date.now() > deadline) { deadlineHit = true; break; }
+      const holders = capacity.readHolders({ dir: slotsDir(presence), authority: bootAuthority(capacity) });
+      const hit = capacity.blockingHolder(holders.live, { self: claim.id, root, platform: process.platform, canon: safeRealpath });
+      if (hit) { holderBlocked = hit; break; }
+      const item = eligible[i];
+      const rc = recheckItem(item, ctx, mods, now);
+      if (rc.changed || !cleanup.qualifiesForLimit({ ...rc.item, class: rc.class }, now)) {
+        skippedItems.push({ id: item.id, path: item.rel || item.path, reason: rc.changed ? "changed since the plan was built" : (rc.reason || "no longer qualifies") });
+        continue;
+      }
+      const renResult = renameForRemoval(item, removingDir, marker);
+      if (!renResult.ok) {
+        skippedItems.push({ id: item.id, path: item.rel || item.path, reason: renResult.reason });
+        continue;
+      }
+      const bytes = Number.isFinite(rc.fresh.bytes) ? rc.fresh.bytes : item.bytes;
+      renamed.push({ id: item.id, path: item.rel || item.path, bytes, name: renResult.name });
+      freed += bytes || 0;
+      autoCleanPause(probe && probe.pause_ms, renamed.length);
+    }
+    const stayed = eligible.slice(i).map((it) => ({ id: it.id, path: it.rel || it.path, bytes: it.bytes }));
+    const deleterPid = renamed.length ? spawnDeleter(removingDir, renamed.map((r) => r.name), marker) : null;
+
+    const reason = deadlineHit ? "deadline" : (holderBlocked ? `another heavy job overlaps this tree (${holderBlocked.holder.id})` : null);
+    return void logAndReportAuto(finish("ran", reason, {
+      counted, need, shortfall, renamed, skipped_items: skippedItems.slice(0, 20),
+      stayed: stayed.slice(0, 20), excluded: excludedList.slice(0, 20),
+      nested_skipped: ctx.scan ? ctx.scan.nested_skipped : 0, deadline: deadlineHit,
+      elapsed_ms: Date.now() - t0, deleter_pid: deleterPid, adopted,
+      ...(lastCleanNowHonored ? { clock: process.env.WAYPOST_CLEAN_NOW } : {}),
+    }), host);
+  } catch (e) {
+    return void logAndReportAuto(finish("failed", e.message), host);
+  }
+}
+
 // Lowers waypost's own priority first, so the command and everything it
 // starts inherits it — Node maps PRIORITY_BELOW_NORMAL to nice +10 on POSIX,
 // below-normal on Windows. No shell, except a .cmd/.bat target on Windows,
 // which only cmd.exe can start (the argv is the caller's own command, not
 // data from a registry).
-async function runHeavy(argv, release) {
+// `claim` (not just its own release()) and `where` (the amended machine-
+// wide-limit ADR): the automatic cleanup runs AFTER the wrapped command
+// exits but BEFORE the slot is released, under the same claim — and needs
+// both. Nothing on this whole path may call fail() or readConfig() (both
+// call process.exit): a bug in the cleanup must never take the wrapped
+// command's own already-decided exit status down with it.
+async function runHeavy(argv, claim, where, mods) {
   try { setPriority(osConstants.priority.PRIORITY_BELOW_NORMAL); }
   catch { /* best-effort: a restricted sandbox must not block the run */ }
 
@@ -2244,25 +3122,59 @@ async function runHeavy(argv, release) {
 
   const [cmd, ...cmdArgs] = argv;
   const useShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(cmd);
-  let child;
+
+  // A signal THIS wrapper itself caught — set the moment it arrives, so a
+  // tool that traps Ctrl-C and exits 130 on its own terms (never actually
+  // killed BY the signal, so `signal` below stays null) is treated exactly
+  // the same as one the signal killed outright: either way, cleanup must
+  // never run against a command that did not finish on its own.
+  let interrupted = null;
+  let child = null;
+  const onSigint = () => { interrupted = "SIGINT"; if (child) { try { child.kill("SIGINT"); } catch {} } };
+  const onSigterm = () => { interrupted = "SIGTERM"; if (child) { try { child.kill("SIGTERM"); } catch {} } };
+  process.on("SIGINT", onSigint);
+  process.on("SIGTERM", onSigterm);
+
+  let spawnFailed = false;
+  let code = null;
+  let signal = null;
   try {
     child = spawn(cmd, cmdArgs, { stdio: "inherit", shell: useShell, env: childEnv });
+    [code, signal] = await new Promise((res) => {
+      child.on("exit", (c, s) => res([c, s]));
+      child.on("error", (e) => {
+        spawnFailed = true;
+        process.stderr.write(`waypost run --heavy: ${e.message}\n`);
+        res([127, null]);
+      });
+    });
   } catch (e) {
-    release();
-    fail(`run --heavy: ${e.message}`);
+    spawnFailed = true;
+    process.stderr.write(`waypost run --heavy: ${e.message}\n`);
+    code = 127;
   }
 
-  const forward = (sig) => { try { child.kill(sig); } catch {} };
-  process.on("SIGINT", () => forward("SIGINT"));
-  process.on("SIGTERM", () => forward("SIGTERM"));
+  // Default handling again: a signal that arrives DURING the cleanup below
+  // ends this process at once (the ADR: "A signal that arrives during the
+  // cleanup ends the process at once, with 128+n") — renaming an item
+  // before it is ever actually deleted is what keeps that safe.
+  process.removeListener("SIGINT", onSigint);
+  process.removeListener("SIGTERM", onSigterm);
 
-  const [code, signal] = await new Promise((res) => {
-    child.on("exit", (c, s) => res([c, s]));
-    child.on("error", (e) => { process.stderr.write(`waypost run --heavy: ${e.message}\n`); res([127, null]); });
-  });
+  const status = signal ? 128 + signalNumber(signal) : (code == null ? 1 : code);
+  process.exitCode = status;
 
-  release();
-  process.exitCode = signal ? 128 + signalNumber(signal) : (code == null ? 1 : code);
+  try {
+    await autoCleanup({
+      claim, where, ended: { status, signal, interrupted, spawnFailed },
+      capacity: mods.capacity, presence: mods.presence,
+    });
+  } catch (e) {
+    process.stderr.write(`waypost: automatic cleanup failed: ${e.message}\n`);
+  } finally {
+    claim.release();
+  }
+  process.exitCode = status;
 }
 
 // waypost run --heavy [--wait <Ns|Nm>] -- <argv…>. No wait: refuse at once,
@@ -2291,12 +3203,16 @@ async function handleRun(args) {
   const retryCmd = `waypost run --heavy -- ${argv.map(shellQuote).join(" ")}`;
   const deadline = waitMs != null ? Date.now() + waitMs : null;
   let lastPrinted = 0;
+  // Computed once, before the wait loop: the command's own working directory
+  // never changes while this process waits, and nothing may spawn inside
+  // claimSlot's own lock either way.
+  const where = slotWhere(process.cwd());
 
   for (;;) {
-    const claim = await claimSlot(dir, argv, capacity, presence);
+    const claim = await claimSlot(dir, argv, capacity, presence, where);
     if (claim.ok) {
       recordAuthority(claim.file, capacity);
-      await runHeavy(argv, claim.release);
+      await runHeavy(argv, claim, where, { capacity, presence });
       return;
     }
 
@@ -2323,10 +3239,34 @@ async function handleRun(args) {
 
 // ─── status ────────────────────────────────────────────────────────────
 
-function handleStatus() {
+// The machine-wide cleanup-limit setting and the last automatic outcome
+// (the amended ADR) — a machine-level fact, so it shows even for a project
+// with no vault bound yet. Never throws: a broken read here must not take
+// the rest of `waypost status` down with it.
+async function cleanupStatusLine() {
+  try {
+    const presence = await import(`file://${SCRIPT("presence")}`);
+    const cleanup = await import(`file://${SCRIPT("cleanup")}`);
+    const host = presence.hostSlug();
+    const setting = readCleanupSetting({ host });
+    if (!setting) return "cleanup  none\n";
+    const how = setting.gate && setting.gate.answer === true ? "terminal"
+      : setting.gate && setting.gate.required === false ? "no gate required" : "gate";
+    const checked = setting.gate ? setting.gate.checked : "unknown";
+    let line = `cleanup  ${cleanup.formatLimit(setting.limit)} — set ${String(setting.set_at).slice(0, 10)} (${how}; gate: ${checked})\n`;
+    const outcome = readLastAutoCleanup({ host });
+    if (outcome) line += `        last run ${cleanup.formatOutcome(outcome)}\n`;
+    return line;
+  } catch {
+    return "cleanup  none\n";
+  }
+}
+
+async function handleStatus() {
   const p = configPath();
   const cfg = readConfig();
   process.stdout.write(`waypost ${VERSION}\n`);
+  process.stdout.write(await cleanupStatusLine());
   if (!cfg) {
     process.stdout.write(`config  (none — run \`waypost bind <vault-path>\`)\n        expected at ${p}\n`);
     return;
@@ -2474,6 +3414,13 @@ PROCEDURES
                            on a terminal with no harness detected, asks
                            [y/N] (60s, no otherwise); a harness or no
                            terminal needs --yes --reason
+  clean --limit [<N>|free:<P>%|off]
+                           the machine-wide automatic-cleanup limit — no
+                           value prints the current setting and the last
+                           automatic outcome; setting or tightening it needs
+                           your own terminal, with no harness detected, and
+                           a preview before the [y/N]; off and loosening it
+                           work from anywhere [--json]
   capacity [--json]        the machine's real free resources right now: cores,
                            load, available memory and how many more heavy
                            jobs it can take (never cached) [--json for detail]
@@ -2587,6 +3534,11 @@ async function heartbeat(cmd) {
 
 async function main() {
   const argv = process.argv.slice(2);
+  // The detached deleter's own entry point (spawnDeleter above), dispatched
+  // before anything else in this function: not a session, so none of the
+  // --project/heartbeat/harness-detection machinery below applies to a
+  // process nobody is watching.
+  if (argv[0] === "__waypost-delete") { await handleInternalDelete(argv.slice(1)); return; }
   // --project is recognised ONLY in the leading position, before the command
   // name — not anywhere in argv, or a positional argument that happens to
   // equal it (a search term, say) would be swallowed as a global flag (A-8).
@@ -2688,7 +3640,7 @@ async function main() {
     case "skill": printDoc("skills", positionals(rest)[0], "SKILL.md"); break;
     case "skills": run("skills", rest); break;
     case "launcher": run("launcher", rest); break;
-    case "status": handleStatus(); break;
+    case "status": await handleStatus(); break;
     case "version": case "--version": case "-v": process.stdout.write(`${VERSION}\n`); break;
     case "help": case "--help": case "-h": help(); break;
     default:

@@ -67,3 +67,8 @@ by hand instead of this.
 - `waypost setup`'s own last step offers this same audit once, interactively
   (`[y/N]`, 60s, only on a terminal with no harness detected) — it never
   removes anything without that yes either.
+- `waypost clean --limit [<N>|free:<P>%|off]` sets the machine-wide
+  automatic-cleanup threshold that runs at the end of every `waypost run
+  --heavy`. Only the owner, in their own terminal, may set it or tighten
+  it — you will be refused, on purpose, if you try. You may loosen it or
+  turn it off (`waypost clean --limit off`) on the owner's behalf.

@@ -19,12 +19,13 @@ import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { hostname, tmpdir } from "node:os";
 import {
-  mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, utimesSync,
+  mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, utimesSync, realpathSync,
 } from "node:fs";
 
 import {
   bootIdentity, sameBoot, slotLive, readHolders, measure,
   bootAuthority, authorityOnce, confirmBoot, uptimeSaysOtherBoot, UPTIME_MARGIN_S,
+  blockingHolder,
 } from "../scripts/capacity.mjs";
 import { machineStateDir } from "../scripts/lib.mjs";
 import { hostSlug, processTable, startTicks } from "../scripts/presence.mjs";
@@ -504,6 +505,50 @@ test("run --heavy: the record carries the value a later epoch mismatch is checke
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
+// The amended machine-wide-limit ADR, Decision 4: the slot record's own
+// working directory and (inside a repository) root — slotWhere(), computed
+// before the lock. Outside git the temp HOME the rest of this file already
+// runs from is exactly the "no repository" case: root/common stay null.
+test("run --heavy: the slot record carries cwd; root stays null outside a repository", () => {
+  const home = tmpHome();
+  try {
+    const dir = slotsDirFor(home);
+    const code = "const fs=require('fs'),p=require('path'),d=process.env.WP_SLOTS;"
+      + "const f=fs.readdirSync(d).filter(n=>n.endsWith('.json'))[0];"
+      + "process.stdout.write(fs.readFileSync(p.join(d,f),'utf8'));";
+    const r = runCli(["run", "--heavy", "--", "node", "-e", code], heavyEnv(home, { WP_SLOTS: dir }));
+    assert.equal(r.status, 0, r.stderr);
+    const rec = JSON.parse(r.stdout);
+    assert.equal(typeof rec.cwd, "string");
+    assert.ok(rec.cwd.length > 0, "cwd is recorded even with no repository to name a root in");
+    assert.equal(rec.root, null);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("run --heavy: inside a repository, the record's root is the working tree's own top level, as a real path", () => {
+  const home = tmpHome();
+  const proj = mkdtempSync(join(tmpdir(), "waypost-slots-gitproj-"));
+  try {
+    const init = spawnSync("git", ["init", "-q"], { cwd: proj });
+    assert.equal(init.status, 0, init.stderr);
+    const dir = slotsDirFor(home);
+    const code = "const fs=require('fs'),p=require('path'),d=process.env.WP_SLOTS;"
+      + "const f=fs.readdirSync(d).filter(n=>n.endsWith('.json'))[0];"
+      + "process.stdout.write(fs.readFileSync(p.join(d,f),'utf8'));";
+    const r = spawnSync(process.execPath, [Waypost, "run", "--heavy", "--", "node", "-e", code], {
+      encoding: "utf8", env: heavyEnv(home, { WP_SLOTS: dir }), cwd: proj, timeout: 15000,
+    });
+    assert.equal(r.status, 0, r.stderr);
+    const rec = JSON.parse(r.stdout);
+    const realProj = realpathSync(proj);
+    assert.equal(rec.root, realProj);
+    assert.equal(rec.cwd, realProj);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(proj, { recursive: true, force: true });
+  }
+});
+
 test("run --heavy: the exit code passes through, including a crash", () => {
   const home = tmpHome();
   try {
@@ -859,4 +904,50 @@ test("the stress test: 5 parallel claims against a cap of one — exactly one ru
     assert.equal(ok, 1, `codes: ${JSON.stringify(codes)}`);
     assert.equal(refused, 4, `codes: ${JSON.stringify(codes)}`);
   } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+// ─── blockingHolder (the machine-wide-limit ADR, Decision 4) ──────────────
+//
+// `canon` is the identity function in every test below — hermetic on
+// purpose: none of these paths need to exist for the comparison itself to
+// be exercised, and the default (realpathSync, falling back to the path
+// itself) would behave the same way for a path that does not exist anyway.
+
+test("blockingHolder: the caller's own id is never a blocker, even when its own root would otherwise overlap", () => {
+  const holders = [{ id: "self", root: "/proj" }];
+  assert.equal(blockingHolder(holders, { self: "self", root: "/proj", platform: "linux", canon: (p) => p }), null);
+});
+
+test("blockingHolder: an overlapping root blocks, case-folded on darwin", () => {
+  const holders = [{ id: "other", root: "/PROJ" }];
+  const hit = blockingHolder(holders, { self: null, root: "/proj", platform: "darwin", canon: (p) => p });
+  assert.ok(hit, "case-folded on darwin, so /PROJ overlaps /proj");
+  assert.equal(hit.holder.id, "other");
+});
+
+test("blockingHolder: linux is case-sensitive — a differently-cased root does not overlap", () => {
+  const holders = [{ id: "other", root: "/PROJ" }];
+  assert.equal(blockingHolder(holders, { self: null, root: "/proj", platform: "linux", canon: (p) => p }), null);
+});
+
+test("blockingHolder: root: null falls back to cwd", () => {
+  const holders = [{ id: "other", root: null, cwd: "/proj/sub" }];
+  const hit = blockingHolder(holders, { self: null, root: "/proj", platform: "linux", canon: (p) => p });
+  assert.ok(hit, "the working directory overlaps the root");
+  assert.match(hit.reason, /working directory/);
+});
+
+test("blockingHolder: a record naming neither root nor cwd blocks unconditionally — an older Waypost", () => {
+  const holders = [{ id: "old" }];
+  const hit = blockingHolder(holders, { self: null, root: "/proj", platform: "linux", canon: (p) => p });
+  assert.ok(hit);
+  assert.equal(hit.holder.id, "old");
+  assert.match(hit.reason, /older Waypost/);
+});
+
+test("blockingHolder: a root elsewhere entirely is not a blocker, and no holders at all blocks nothing", () => {
+  const holders = [{ id: "other", root: "/elsewhere" }];
+  assert.equal(blockingHolder(holders, { self: null, root: "/proj", platform: "linux", canon: (p) => p }), null);
+  assert.equal(blockingHolder([], { self: null, root: "/proj" }), null);
+  assert.equal(blockingHolder(undefined, { self: null, root: "/proj" }), null);
 });

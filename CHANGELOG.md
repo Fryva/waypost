@@ -133,6 +133,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one `[y/N]` when there is something to remove; a slot refusal or any
   other audit failure is reported without stopping the rest of setup.
   `waypost prompt cleanup` is the procedure for an agent driving this.
+- The machine-wide limit (WP-17, ADR "Cleanup to a machine-wide limit: set
+  by the owner, idle artifacts oldest first"): `waypost clean --limit
+  [<N>|free:<P>%|off]` sets a per-project GB ceiling or a disk-free-space
+  floor for automatic cleanup, one setting per machine. With no value it
+  prints the current setting, the last automatic outcome, and the choices.
+  Setting a limit where none is set, tightening it, or switching between a
+  GB limit and `free:` needs a person in their own terminal — no harness
+  detected, by the whole ancestor process chain and every harness's own
+  env markers (never `WAYPOST_HARNESS`/`WAYPOST_PROC`) — with a preview of
+  what it would remove right now and a `[y/N]` (60s, no otherwise); `off`
+  and loosening the limit work from anywhere, with the gate's own view
+  still recorded. At the end of every `waypost run --heavy`, once the
+  wrapped command has exited on its own (never after a signal), the
+  automatic path renames idle, exactly-identified project output — never a
+  generic name, an item holding a distributable package, or one marked
+  `auto: false` (`.terraform`) — oldest first, only as many as bring the
+  project back under its limit, only inside a local, non-shared git
+  working tree with no other live heavy job overlapping it. Each renamed
+  item moves into `<git common dir>/waypost-removing/` and is deleted by a
+  detached, low-priority `waypost` process, so the run returns without
+  waiting for a multi-gigabyte tree to actually vanish; any `waypost
+  clean` first adopts whatever an interrupted run or a dead deleter left
+  there. One 60s deadline covers the whole sweep; a short stderr report
+  and one `cleanup.<host>.jsonl` log line (rotated at 1 MiB) cover every
+  outcome, including why nothing could be freed. `waypost size --project`
+  reports `waypost-removing/`'s own size; `waypost status`/`waypost brief`
+  show the active setting and the last automatic outcome.
 
 ### Changed
 - Coordination follows the repository (ADR-0010): inside a git repository,

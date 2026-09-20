@@ -42,16 +42,31 @@
 //   refusePath(abs, { home, root, stateDir, platform }) -> boolean
 //   routeFor(item)                                -> { kind, argv? } | null
 //   classifyItem(item, facts)                     -> { class, reason, route }
-//   classify(items, facts, { now, limit })        -> [{ ...item, id, class,
-//                                                        reason, route, picked }]
+//   classify(items, facts, { now, limit, shortfall, dev }) -> [{ ...item, id,
+//                                                        class, reason, route, picked }]
 //   orderOldestFirst(items)                       -> items, oldest newest_ms first
 //   countedBytes(items)                           -> number
 //   qualifiesForLimit(item, now)                  -> boolean (should + kind + 7-day floor)
-//   pickUnderLimit(classifiedItems, limitBytes, now) -> Set<path> ("should" picks)
-//   recheck(item, freshFacts, facts)              -> { class, reason, route, changed }
+//   pickUnderLimit(classifiedItems, limit, now, { shortfall, dev }) -> Set<path>
+//   recheck(item, freshFacts, facts)              -> { class, reason, route, changed, item }
 //   consent({ yes, reason, isTTY, harnessDetected }) -> { method, ok, reason? }
 //   logLine(entry)                                -> one JSON line, no trailing "\n"
 //   TEN_MINUTES_MS, DAY_MS, DEFAULT_PROJECT_STALE_DAYS, DEFAULT_MACHINE_STALE_DAYS
+//
+// The machine-wide limit (the amended ADR "Cleanup to a machine-wide limit"),
+// all pure:
+//   parseLimit(raw)                    -> { kind: "off" }
+//                                          | { kind: "gb", gb, bytes }
+//                                          | { kind: "free", percent }
+//                                          | null (invalid)
+//   limitChange(cur, next)             -> { change: "same"|"set"|"tighten"
+//                                            |"loosen"|"switch"|"off", gated }
+//   limitDecision({ gated, harness, checkError, isTTY }) -> { method: "none"
+//                                          |"prompt"|"refused", ok, reason? }
+//   shortfallOf({ size, avail }, percent) -> number (bytes still short of the floor)
+//   limitNeed(classified, limit, now, { shortfall, dev }) -> { counted, need, eligible }
+//   formatLimit(limit)                 -> a short line for status/brief/a preview
+//   formatOutcome(outcome)             -> a short line for the last automatic run
 
 import { basename } from "node:path";
 import { createHash } from "node:crypto";
@@ -60,6 +75,7 @@ export const TEN_MINUTES_MS = 10 * 60 * 1000;
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_PROJECT_STALE_DAYS = 7;
 export const DEFAULT_MACHINE_STALE_DAYS = 30;
+const GB = 1024 ** 3;
 
 // A stable, short id for one item: enough of a sha256 of its own absolute
 // path to be practically unique within one plan, prefixed by scope so a
@@ -288,9 +304,18 @@ export function orderOldestFirst(items) {
 // generic name, a machine cache, or anything nobody confirmed ignored never
 // counts, so a limit can never hold hostage to output this plan is not
 // allowed to remove automatically anyway.
+//
+// Two more gates (the amended ADR, Decision 3), both the lead's own call: an
+// item whose owning entry opts it out of the automatic path at all
+// (`auto === false`, read only from the shipped registry — scripts/sizes.mjs's
+// compileArtifacts) never qualifies, and neither does one the age walk found
+// holding a distributable package (`holds_package === true`) — both leave the
+// counted TOTAL too, not merely the picks: a limit must never hold hostage to
+// output this path may not touch at all.
 function qualifiesForLimitKind(item) {
   return item.scope === "project" && item.origin !== "project"
-    && (item.match === "tag" || item.match === "sure") && item.ignored === true;
+    && (item.match === "tag" || item.match === "sure") && item.ignored === true
+    && item.auto !== false && item.holds_package !== true;
 }
 
 // What counts towards a machine-wide limit's OWN total (the amended ADR,
@@ -316,21 +341,48 @@ export function qualifiesForLimit(item, now = Date.now()) {
   return (now - item.newest_ms) / DAY_MS > floorDays;
 }
 
+// How much a machine-wide limit still needs to free, and from which
+// already-classified items it may take it — the one computation GB and
+// `free:<P>%` both reduce to (the amended ADR, Decision 3), so `pickUnderLimit`
+// below needs only a single stopping rule for either kind.
+//   `limit`     — a parseLimit() result, or null/`{kind:"off"}` (nothing needed).
+//   `shortfall` — for `kind: "free"` only: the bytes still short of the floor,
+//                 computed ONCE by the caller via shortfallOf() against a
+//                 single fs.statfsSync reading — never recomputed per item,
+//                 since a filesystem's own free figure can lag a removal.
+//   `dev`       — for `kind: "free"` only: the root's own device id: only
+//                 items on that SAME filesystem count towards covering a
+//                 shortfall measured on it (a GB limit has no such
+//                 restriction — every qualifying project item counts,
+//                 whatever device it happens to live on).
+// Returns `counted` (countedBytes' own total, informational — the report and
+// `doctor`'s warning both read it), `need` (bytes still to free; 0 means the
+// limit already holds), and `eligible` (qualifying items, oldest first, ready
+// for `pickUnderLimit`'s single loop).
+export function limitNeed(classified, limit, now = Date.now(), { shortfall = 0, dev = null } = {}) {
+  const counted = countedBytes(classified);
+  let need = 0;
+  if (limit && limit.kind === "gb") need = Math.max(0, counted - limit.bytes);
+  else if (limit && limit.kind === "free") need = Math.max(0, shortfall);
+  let eligible = orderOldestFirst(classified.filter((it) => qualifiesForLimit(it, now)));
+  if (limit && limit.kind === "free" && dev != null) eligible = eligible.filter((it) => it.dev === dev);
+  return { counted, need, eligible };
+}
+
 // Which already-classified items (classify()'s own per-item output, each
-// carrying `class`) a limit would pick: qualifying items oldest first, only
-// as many as bring the counted total at or under the limit — never a "can"
-// item, whatever the limit. `limitBytes` of null or undefined picks nothing
-// (no limit set).
-export function pickUnderLimit(classifiedItems, limitBytes, now = Date.now()) {
+// carrying `class`) a limit would pick: limitNeed's own eligible items,
+// oldest first, only as many as cover its own `need` — one stopping rule for
+// both a GB limit and `free:<P>%`, never a "can" item either way. `limit` of
+// null/undefined, or `{kind:"off"}`, picks nothing.
+export function pickUnderLimit(classifiedItems, limit, now = Date.now(), { shortfall = 0, dev = null } = {}) {
   const picks = new Set();
-  if (limitBytes == null) return picks;
-  let total = countedBytes(classifiedItems);
-  if (total <= limitBytes) return picks;
-  const eligible = orderOldestFirst(classifiedItems.filter((it) => qualifiesForLimit(it, now)));
+  if (!limit || limit.kind === "off") return picks;
+  const { need, eligible } = limitNeed(classifiedItems, limit, now, { shortfall, dev });
+  let remaining = need;
   for (const it of eligible) {
-    if (total <= limitBytes) break;
+    if (remaining <= 0) break;
     picks.add(it.path);
-    total -= (it.bytes || 0);
+    remaining -= (it.bytes || 0);
   }
   return picks;
 }
@@ -339,14 +391,17 @@ export function pickUnderLimit(classifiedItems, limitBytes, now = Date.now()) {
 // is given, which "should" items it would pick. `facts` is everything
 // bin/waypost gathered outside this module (now, runningTools, leases,
 // sharedProject, home/root/stateDir/platform for refusePath) — merged with
-// `now` here so every item sees the same clock.
-export function classify(items, facts = {}, { now = Date.now(), limit = null } = {}) {
+// `now` here so every item sees the same clock. `limit`/`shortfall`/`dev` are
+// pickUnderLimit's own parameters, passed straight through; the CLI passes no
+// limit until `waypost clean --limit` itself lands (a later commit of this
+// story).
+export function classify(items, facts = {}, { now = Date.now(), limit = null, shortfall = 0, dev = null } = {}) {
   const f = { ...facts, now };
   const classified = items.map((item) => {
     const r = classifyItem(item, f);
     return { ...item, id: itemId(item.scope, item.path), class: r.class, reason: r.reason, route: r.route };
   });
-  const picks = pickUnderLimit(classified, limit, now);
+  const picks = pickUnderLimit(classified, limit, now, { shortfall, dev });
   return classified.map((it) => ({ ...it, picked: picks.has(it.path) }));
 }
 
@@ -358,16 +413,22 @@ export function classify(items, facts = {}, { now = Date.now(), limit = null } =
 // a project item) `ignored`/`tracked` from a gitFacts call scoped to just
 // this path — both optional, so a caller that never re-checked git status
 // (a machine item, or a caller happy with the plan's own facts) still works
-// exactly as before.
+// exactly as before. `fresh.holds_package`/`fresh.package` (the age walk's
+// own re-check, the amended ADR) are merged in the same optional way — the
+// automatic path's own re-check right before a rename must see a package
+// that appeared since the plan was built, not only one the plan already knew
+// about. The merged item itself comes back as `item`, not only the
+// classification: bin/waypost's own removal step needs the fresh facts
+// (bytes, holds_package, …) a class/reason/route triple alone does not carry.
 export function recheck(item, fresh, facts = {}) {
-  if (!fresh || fresh.exists === false) return { class: "keep", reason: "no longer exists", route: null, changed: true };
-  if (fresh.is_symlink) return { class: "keep", reason: "replaced by a symlink", route: null, changed: true };
+  if (!fresh || fresh.exists === false) return { class: "keep", reason: "no longer exists", route: null, changed: true, item };
+  if (fresh.is_symlink) return { class: "keep", reason: "replaced by a symlink", route: null, changed: true, item };
   // A plain file where a directory used to be — inspectDir reports no
   // bytes/newest_ms/dev/ino for this shape, so relying on the identity
   // check below alone would miss it whenever the ORIGINAL item never
   // captured dev/ino either (a budget-cut match, dev: null/ino: null).
   // Caught here explicitly instead, before that check ever runs.
-  if (fresh.is_directory === false) return { class: "keep", reason: "no longer a directory", route: null, changed: true };
+  if (fresh.is_directory === false) return { class: "keep", reason: "no longer a directory", route: null, changed: true, item };
   const identityChanged = item.dev != null && item.ino != null && (fresh.dev !== item.dev || fresh.ino !== item.ino);
   // other_fs (a mount point) must come from `fresh` too — a filesystem
   // mounted inside this item AFTER the plan was built is exactly the case
@@ -378,9 +439,88 @@ export function recheck(item, fresh, facts = {}) {
     other_fs: fresh.other_fs, dev: fresh.dev, ino: fresh.ino,
     ...(fresh.ignored !== undefined ? { ignored: fresh.ignored } : {}),
     ...(fresh.tracked !== undefined ? { tracked: fresh.tracked } : {}),
+    ...(fresh.holds_package !== undefined ? { holds_package: fresh.holds_package } : {}),
+    ...(fresh.package !== undefined ? { package: fresh.package } : {}),
   };
   const result = classifyItem(merged, facts);
-  return { ...result, changed: identityChanged };
+  return { ...result, changed: identityChanged, item: merged };
+}
+
+// ─── the machine-wide limit (the amended ADR) ───────────────────────────
+//
+// `waypost clean --limit [<value>]`'s own value grammar: a bare positive
+// number (gigabytes, per project), `free:<P>%` with P from 5 to 50 (keep at
+// least that much of the disk free), or `off` (no automatic cleanup). Any
+// other spelling is invalid — the caller decides what to do with a null
+// (print the choices again, refuse the flag, …); this function never throws.
+export function parseLimit(raw) {
+  const s = String(raw ?? "").trim();
+  if (s === "off") return { kind: "off" };
+  const free = s.match(/^free:(\d+(?:\.\d+)?)%$/);
+  if (free) {
+    const percent = Number(free[1]);
+    if (!(percent >= 5 && percent <= 50)) return null;
+    return { kind: "free", percent };
+  }
+  const gb = Number(s);
+  if (Number.isFinite(gb) && gb > 0) return { kind: "gb", gb, bytes: gb * GB };
+  return null;
+}
+
+// From the setting already in force (`cur`, a parseLimit() result or null —
+// no limit ever set) to the one just asked for (`next`, already parsed and
+// valid): which of the ADR's six outcomes this is, and whether it needs the
+// gate (Decision 2) — setting a limit where none is set, tightening it (a
+// smaller GB value or a larger P), or switching between a GB limit and
+// `free:`. `off` and loosening (a larger GB value, a smaller P, or `off`
+// itself) never need the gate, from any state.
+export function limitChange(cur, next) {
+  const curKind = cur ? cur.kind : "off";
+  const nextKind = next.kind;
+  if (curKind === nextKind) {
+    if (nextKind === "off") return { change: "same", gated: false };
+    if (nextKind === "gb") {
+      if (next.gb === cur.gb) return { change: "same", gated: false };
+      return next.gb < cur.gb ? { change: "tighten", gated: true } : { change: "loosen", gated: false };
+    }
+    // free:<P>% — a LARGER percent asks for more headroom, so it is the
+    // tighter setting (more may be removed to reach it), the same way a
+    // smaller GB value is tighter.
+    if (next.percent === cur.percent) return { change: "same", gated: false };
+    return next.percent > cur.percent ? { change: "tighten", gated: true } : { change: "loosen", gated: false };
+  }
+  if (nextKind === "off") return { change: "off", gated: false };
+  if (curKind === "off") return { change: "set", gated: true };
+  return { change: "switch", gated: true };
+}
+
+// Whether a gated change may proceed, from facts bin/waypost already
+// gathered — never itself reads a flag, an environment variable or a
+// keystroke, the same posture as consent() above. There is no `--yes
+// --reason` path for this one (Decision 2: "only the owner, in their own
+// terminal"): `method: "prompt"` means the caller still has to actually ask
+// (with an unbounded [y/N], answered false after 60s); everything else is a
+// final answer. `checkError` is set by the caller when the gate itself could
+// not be evaluated (the shipped harness registry was unreadable) — refused,
+// never treated as "no harness found".
+export function limitDecision({ gated = false, harness = null, checkError = false, isTTY = false } = {}) {
+  if (!gated) return { method: "none", ok: true };
+  if (harness) {
+    return { method: "refused", ok: false, reason: `a harness (${harness}) is running — only the owner, in their own terminal, may set or tighten the limit` };
+  }
+  if (checkError) return { method: "refused", ok: false, reason: "could not confirm whether a harness is running — refused" };
+  if (!isTTY) return { method: "refused", ok: false, reason: "no interactive terminal — see `waypost prompt cleanup`" };
+  return { method: "prompt", ok: null };
+}
+
+// The bytes a `free:<P>%` limit is still short of its own floor, from one
+// `fs.statfsSync` reading of the root's filesystem (the ADR: computed once —
+// snapshots can keep freed space from showing at once, so this is never
+// recomputed mid-sweep). `size`/`avail` are that reading's own byte totals
+// (block size × block counts); never negative.
+export function shortfallOf({ size = 0, avail = 0 } = {}, percent) {
+  const want = size * (percent / 100);
+  return Math.max(0, want - avail);
 }
 
 // The yes, decided from facts bin/waypost already gathered (a flag pair, or
@@ -401,7 +541,45 @@ export function consent({ yes = false, reason = null, isTTY = false, harnessDete
 }
 
 // One JSONL log line, as a string with no trailing newline — bin/waypost
-// appends "\n" and the file handle; this module never opens one.
+// appends "\n" and the file handle; this module never opens one. `entry.kind`
+// overrides the default "apply" — "limit" for a setting change, "auto" for
+// an automatic run, "purge" for leftovers handed to the deleter (the amended
+// ADR).
 export function logLine(entry) {
   return JSON.stringify({ v: 1, kind: "apply", ...entry });
+}
+
+// A short line for `status`/`brief`/the `--limit` preview: the setting's
+// VALUE only — a caller wanting "set on <date>" or the gate's own view reads
+// those fields off the stored record itself and adds them.
+export function formatLimit(limit) {
+  if (!limit) return "no limit set";
+  if (limit.kind === "off") return "off — no automatic cleanup";
+  if (limit.kind === "gb") return `${limit.gb} GB per project`;
+  if (limit.kind === "free") return `free:${limit.percent}% — keep at least ${limit.percent}% of the disk free`;
+  return "no limit set";
+}
+
+// A short line for `status`/`brief`/the stderr report, from a `kind: "auto"`
+// log record (readLastAutoCleanup, scripts/lib.mjs) — null when automatic
+// cleanup has never run. `outcome.result` is "ran"/"skipped"/"failed"; the
+// byte counts it carries (renamed/stayed/…) are the ones logLine itself
+// writes (the amended ADR, Decision 4's own report shape).
+export function formatOutcome(outcome) {
+  if (!outcome) return "automatic cleanup: never run";
+  // `at` is the real kind:"auto" log field (an ISO timestamp); `time` was
+  // this function's own guess before that record's exact shape existed —
+  // both are accepted so an older-shaped test fixture still renders.
+  const when = outcome.at || outcome.time ? ` (${outcome.at || outcome.time})` : "";
+  if (outcome.result !== "ran") {
+    return `automatic cleanup: ${outcome.result || "unknown"}${when}${outcome.reason ? ` — ${outcome.reason}` : ""}`;
+  }
+  // `renamed`/`stayed` are arrays in the real log record (the items
+  // themselves, capped); a bare count is accepted too, for the same
+  // pre-shape-knowledge reason as `time` above.
+  const count = (v) => (Array.isArray(v) ? v.length : (Number.isFinite(v) ? v : 0));
+  const renamed = count(outcome.renamed);
+  const stayed = count(outcome.stayed);
+  const deadlineNote = outcome.deadline ? " (stopped at its deadline)" : "";
+  return `automatic cleanup: ran${when}${deadlineNote} — ${renamed} item(s) removed, ${stayed} stayed`;
 }

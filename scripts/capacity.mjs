@@ -18,10 +18,11 @@
 // readers racing here can never delete or clobber each other's record.
 
 import { availableParallelism, loadavg, cpus, totalmem, freemem, uptime } from "node:os";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { processTable, processGone } from "./presence.mjs";
+import { treesOverlap } from "./lib.mjs";
 
 const GB = 1024 ** 3;
 
@@ -492,6 +493,42 @@ export function readHolders({ dir, ...probes } = {}) {
     (slotLive(rec, { ...probes, platform, table, bootNow, authority, uptimeNow }) ? live : stale).push(entry);
   }
   return { live, stale };
+}
+
+// ─── overlapping holders (the machine-wide-limit ADR, Decision 4) ───────
+//
+// Whether some OTHER live slot holder works in the same tree the caller is
+// about to clean up — the automatic path's own "no heavy job overlaps"
+// check, and read fresh right before each item, per the ADR. `self` is this
+// process's own slot id, always skipped. A record naming neither `root` nor
+// `cwd` (an older Waypost, or another install that never claimed one)
+// blocks unconditionally — the ADR's own call: nothing about that holder can
+// be compared, and treating "unknown" as "not overlapping" would let a
+// heavy job with no location on record switch the limit off machine-wide.
+// Otherwise `root` decides when present; `cwd` decides when `root` is null
+// (claimed outside any git repository) — never both, and never falling back
+// from one to the other. `canon` resolves a path to the form the two sides
+// are compared in (real, case-as-the-filesystem-sees-it); the default
+// resolves through the filesystem where it can and falls back to the path
+// itself where it cannot (a path that no longer exists is still worth
+// comparing lexically, not treated as "no opinion").
+function defaultCanon(p) {
+  try { return realpathSync(p); } catch { return p; }
+}
+
+export function blockingHolder(holders, { self = null, root, platform = process.platform, canon = defaultCanon } = {}) {
+  const ours = canon(root);
+  for (const h of holders || []) {
+    if (!h || h.id === self) continue;
+    const hasRoot = typeof h.root === "string" && h.root;
+    const hasCwd = typeof h.cwd === "string" && h.cwd;
+    if (!hasRoot && !hasCwd) return { holder: h, reason: "no location recorded for this holder (an older Waypost) — treated as overlapping" };
+    const theirs = canon(hasRoot ? h.root : h.cwd);
+    if (treesOverlap(theirs, ours, { platform })) {
+      return { holder: h, reason: hasRoot ? "its project root overlaps this one" : "its working directory overlaps this root (it recorded no root)" };
+    }
+  }
+  return null;
 }
 
 // ─── canStart ────────────────────────────────────────────────────────────

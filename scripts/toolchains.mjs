@@ -69,7 +69,16 @@ function sanitizeArtifact(a, i, file, notes) {
   const drop = (field, reason) => notes.push({ file, field: `artifacts[${i}]${field ? `.${field}` : ""}`, reason });
   if (!a || typeof a !== "object" || Array.isArray(a)) { drop(null, "not an object"); return null; }
   for (const key of Object.keys(a)) {
-    if (!ARTIFACT_FIELDS.has(key)) drop(key, key === "pattern" ? "patterns come only from the shipped registry" : "not a recognized artifact field");
+    if (ARTIFACT_FIELDS.has(key)) continue;
+    if (key === "pattern") drop(key, "patterns come only from the shipped registry");
+    // `auto` (the amended machine-wide-limit ADR) opts an artifact OUT of
+    // the automatic path — read only from the shipped registry, the same
+    // reasoning as `pattern`: a project's own data can extend the registry,
+    // never soften or widen what it already governs, and `auto` only ever
+    // narrows (it can never turn automatic removal ON for something the
+    // shipped registry left out).
+    else if (key === "auto") drop(key, "auto comes only from the shipped registry");
+    else drop(key, "not a recognized artifact field");
   }
   const okName = a.name !== undefined ? isSingleSegment(a.name) : null;
   const okPrefix = a.prefix !== undefined ? isSingleSegment(a.prefix) : null;
