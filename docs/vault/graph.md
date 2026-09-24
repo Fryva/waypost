@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-18T21:10:44.435Z
+generated_at: 2026-09-24T19:07:39.260Z
 
 ---
 
@@ -46,6 +46,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md | Runtime coordination moves to the git common dir; old records read for one version | story | done |
 | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md | Shared-checkout detection covers sibling worktrees of one repository | story | done |
 | epics/WP-15/stories/story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit.md | The command on PATH survives a checkout that loses its executable bit | story | planned |
+| epics/WP-15/stories/story-the-merge-driver-regenerates-a-derived-view-without-writing-into-the-worktree.md | The merge driver regenerates a derived view without writing into the worktree | story | planned |
 | epics/WP-16/epic.md | Decisions that check themselves | epic | planned |
 | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md | ADR-0011 accepted: guards and drafted_by in ADR frontmatter | story | done |
 | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md | check guards name the project's own fitness command; doctor prints it and never runs it | story | done |
@@ -100,6 +101,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md |
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md |
 | epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit.md |
+| epics/WP-15/epic.md | epic-contains | epics/WP-15/stories/story-the-merge-driver-regenerates-a-derived-view-without-writing-into-the-worktree.md |
 | epics/WP-15/epic.md | mdlink | adr/0010-coordination-follows-the-repository.md |
 | epics/WP-15/epic.md | mdlink | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md |
 | epics/WP-15/stories/story-adr-0010-accepted-presence-leases-and-claims-in-the-git-common-dir.md | mdlink | epics/WP-15/epic.md |
@@ -109,6 +111,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-15/stories/story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit.md | mdlink | epics/WP-15/epic.md |
+| epics/WP-15/stories/story-the-merge-driver-regenerates-a-derived-view-without-writing-into-the-worktree.md | mdlink | epics/WP-15/epic.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md |

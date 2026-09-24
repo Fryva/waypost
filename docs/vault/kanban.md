@@ -2,13 +2,14 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-18T21:10:44.047Z
+generated_at: 2026-09-24T19:07:38.969Z
 
 ---
 
 ## Backlog
 
 - [ ] [[epics/WP-15/stories/story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit|WP-15: The command on PATH survives a checkout that loses its executable bit]] #p2
+- [ ] [[epics/WP-15/stories/story-the-merge-driver-regenerates-a-derived-view-without-writing-into-the-worktree|WP-15: The merge driver regenerates a derived view without writing into the worktree]] #p2
 - [ ] [[epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot|WP-16: Live verification: Cursor, Gemini CLI and Copilot]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt|WP-17: doctor and next surface build artifacts]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines|WP-17: Verified on Linux and Windows virtual machines]] #p2 #blocked
