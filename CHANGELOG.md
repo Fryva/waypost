@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - cores, capped by a cgroup CPU quota;
   - load, from a CPU sample on Windows;
   - memory available to new work, by each OS's own measure:
-    `kern.memorystatus_level` with a `vm_stat` fallback on macOS, and
+    `vm_stat` pages by the kernel's pressure level on macOS, and
     `MemAvailable` capped by cgroup limits on Linux.
 
   The machine-wide slot that makes sessions queue behind this limit comes
@@ -177,6 +177,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays in the vault (ADR-0004).
 
 ### Fixed
+- `waypost capacity` asked too little memory of a heavy job and, on macOS,
+  saw too much of it free. On a 3.8 GB Linux VM a Rust test build ran beside
+  background agents with a memory share of 0.95 GB (a quarter of the
+  machine), and the harness was killed with it. Now:
+  - a job's share is the smaller of 2 GB and half the memory;
+  - each running heavy job reserves one share, so a second job is not
+    admitted into memory the first has not allocated yet;
+  - on Linux, `waypost run --heavy` makes the job the OOM killer's first
+    choice (`oom_score_adj` 1000), so the build dies, not the harness;
+  - inside a cgroup, inactive page cache no longer counts as used;
+  - on macOS `kern.memorystatus_level` counted resident anonymous memory as
+    available (8.0 of 16 GB with 8 of 9 GB of swap in use). Available memory
+    now follows the kernel's pressure level: `vm_stat` free + inactive +
+    speculative + purgeable at normal, free + file-backed + purgeable at
+    warning, 0 at critical;
+  - the routing block (v3) says "no agents beside it" in the heavy-work rule.
+    `waypost doctor` reports an issue in every project until
+    `waypost agents register` is re-run.
 - A record from a previous boot is recognised for free, which matters most in
   the minutes right after a restart. A slot record now carries the
   `os.uptime()` it was claimed at, and a later reading below that (less a
@@ -234,7 +252,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   — and `merge-derived` no longer splits a path on `/` to identify a folder
   index either (WP-18).
 - Inside a container, `waypost capacity` sizes a heavy job to the container.
-  A job's share is a quarter of the machine, and a cgroup memory limit is the
+  A job's share is a fraction of the machine, and a cgroup memory limit is the
   machine as far as anything inside it is concerned — but the total came from
   the host, so inside a 256 MB container a job was said to need 1.0 GB (a
   quarter of the host's 3.8 GB) and nothing could ever start. A v2

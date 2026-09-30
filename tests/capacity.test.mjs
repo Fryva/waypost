@@ -205,32 +205,96 @@ test("readBusy: win32 busy scales with the idle share that vanished", async () =
 
 // ─── readMemory ──────────────────────────────────────────────────────────
 
-test("readMemory: darwin, kern.memorystatus_level x total, never touches freemem", () => {
+// The owner's Mac on 2026-09-27: swap 8 of 9 GB in use, idle agents' memory
+// compressed; kern.memorystatus_level still said 50 %.
+const LOADED_VM_STAT = `Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                                     5521.
+Pages active:                                 255993.
+Pages inactive:                               255247.
+Pages speculative:                               218.
+Pages throttled:                                   0.
+Pages wired down:                             144003.
+Pages purgeable:                                 229.
+File-backed pages:                            172797.
+Anonymous pages:                              338661.
+Pages stored in compressor:                   817418.
+Pages occupied by compressor:                 351923.
+`;
+const LOADED_AVAILABLE = (5521 + 172797 + 229) * 16384;          // warning: free + file-backed + purgeable
+const LOADED_UNPRESSURED = (5521 + 255247 + 218 + 229) * 16384;  // normal: free + inactive + speculative + purgeable
+
+function darwinAt(level, vmStat = LOADED_VM_STAT, extra = {}) {
+  const map = { vm_stat: vmStat, "sysctl -n kern.memorystatus_level": "50\n", ...extra };
+  if (level != null) map["sysctl -n kern.memorystatus_vm_pressure_level"] = `${level}\n`;
+  return runFrom(map);
+}
+
+test("readMemory: darwin, normal pressure counts inactive pages as available", () => {
   const os = fakeOs({ totalBytes: 16 * GB, freeBytes: -999 }); // poison freemem
-  const run = runFrom({ "sysctl -n kern.memorystatus_level": "81\n" });
-  const r = readMemory({ platform: "darwin", os, run, readFile: () => null });
-  assert.equal(r.probe, "kern.memorystatus_level");
-  assert.equal(r.available, 16 * GB * 0.81);
-  assert.notEqual(r.available, -999);
+  const r = readMemory({ platform: "darwin", os, run: darwinAt(1), readFile: () => null });
+  assert.deepEqual(r, { available: LOADED_UNPRESSURED, total: 16 * GB, probe: "vm_stat" });
 });
 
-test("readMemory: darwin, sysctl refused falls back to vm_stat, never touches freemem", () => {
+test("readMemory: darwin, warning pressure counts only free + file-backed + purgeable; anonymous and compressed memory is not available", () => {
   const os = fakeOs({ totalBytes: 16 * GB, freeBytes: -999 });
-  const vmStat = `Mach Virtual Memory Statistics: (page size of 16384 bytes)
-Pages free:                              73362.
-Pages active:                            234756.
-Pages inactive:                          167742.
-Pages speculative:                         2721.
-Pages throttled:                              0.
-Pages wired down:                        227437.
-Pages purgeable:                           4181.
-`;
-  const run = (cmd) => (cmd === "sysctl" ? null : cmd === "vm_stat" ? vmStat : null);
+  const r = readMemory({ platform: "darwin", os, run: darwinAt(2), readFile: () => null });
+  assert.deepEqual(r, { available: LOADED_AVAILABLE, total: 16 * GB, probe: "vm_stat, memory pressure warning" });
+});
+
+test("readMemory: darwin, an unreadable pressure level takes the stricter formula", () => {
+  const os = fakeOs({ totalBytes: 16 * GB, freeBytes: -999 });
+  const r = readMemory({ platform: "darwin", os, run: darwinAt(null), readFile: () => null });
+  assert.deepEqual(r, { available: LOADED_AVAILABLE, total: 16 * GB, probe: "vm_stat" });
+});
+
+test("measure: on the loaded Mac at warning, 2.7 GB fits one 2 GB job, not two", async () => {
+  const os = fakeOs({ cores: 8, load: 3.46, totalBytes: 16 * GB });
+  const r = await measure({ platform: "darwin", os, run: darwinAt(2), readFile: () => null, env: {} });
+  assert.equal(r.can_start, 1);
+});
+
+test("readMemory: darwin, memory pressure critical means nothing is available; warning is only named", () => {
+  const os = fakeOs({ totalBytes: 16 * GB, freeBytes: -999 });
+  const at = (level) => readMemory({
+    platform: "darwin", os, readFile: () => null,
+    run: runFrom({ vm_stat: LOADED_VM_STAT, "sysctl -n kern.memorystatus_vm_pressure_level": `${level}\n` }),
+  });
+  assert.deepEqual(at(4), { available: 0, total: 16 * GB, probe: "vm_stat, memory pressure critical" });
+  assert.deepEqual(at(2), { available: LOADED_AVAILABLE, total: 16 * GB, probe: "vm_stat, memory pressure warning" });
+});
+
+test("measure: a refusal under critical pressure says so in the reason", async () => {
+  const run = runFrom({ vm_stat: LOADED_VM_STAT, "sysctl -n kern.memorystatus_vm_pressure_level": "4\n" });
+  const r = await measure({ platform: "darwin", os: fakeOs({ cores: 8, load: 0 }), run, readFile: () => null, env: {} });
+  assert.equal(r.reason, "memory: 0.0 GB available, a heavy job needs 2.0 GB (memory pressure critical)");
+});
+
+test("readMemory: darwin, critical pressure zeroes the fallback probe too", () => {
+  const run = runFrom({ "sysctl -n kern.memorystatus_level": "81\n", "sysctl -n kern.memorystatus_vm_pressure_level": "4\n" });
+  const r = readMemory({ platform: "darwin", os: fakeOs({ totalBytes: 16 * GB }), run, readFile: () => null });
+  assert.deepEqual(r, { available: 0, total: 16 * GB, probe: "kern.memorystatus_level (upper bound), memory pressure critical" });
+});
+
+test("readMemory: darwin, 4 KiB pages (Intel) are read from the header", () => {
+  const intel = LOADED_VM_STAT.replace("page size of 16384 bytes", "page size of 4096 bytes");
+  const r = readMemory({ platform: "darwin", os: fakeOs({ totalBytes: 16 * GB }), run: darwinAt(2, intel), readFile: () => null });
+  assert.equal(r.available, (5521 + 172797 + 229) * 4096);
+});
+
+test("readMemory: darwin, vm_stat refused falls back to kern.memorystatus_level, labelled an upper bound", () => {
+  const os = fakeOs({ totalBytes: 16 * GB, freeBytes: -999 });
+  const run = runFrom({ "sysctl -n kern.memorystatus_level": "81\n" });
   const r = readMemory({ platform: "darwin", os, run, readFile: () => null });
-  assert.equal(r.probe, "vm_stat");
-  const expected = (73362 + 167742 + 2721 + 4181) * 16384;
-  assert.equal(r.available, expected);
-  assert.notEqual(r.available, -999);
+  assert.equal(r.probe, "kern.memorystatus_level (upper bound)");
+  assert.equal(r.available, 16 * GB * 0.81);
+});
+
+test("readMemory: darwin, a vm_stat without the file-backed count falls back rather than guessing", () => {
+  const os = fakeOs({ totalBytes: 16 * GB, freeBytes: -999 });
+  const partial = LOADED_VM_STAT.replace(/^File-backed pages:.*\n/m, "");
+  const run = runFrom({ vm_stat: partial, "sysctl -n kern.memorystatus_level": "81\n" });
+  const r = readMemory({ platform: "darwin", os, run, readFile: () => null });
+  assert.equal(r.probe, "kern.memorystatus_level (upper bound)");
 });
 
 test("readMemory: darwin, both sysctl and vm_stat fail falls back to freemem (labelled lower bound)", () => {
@@ -258,8 +322,26 @@ test("readMemory: linux, MemAvailable capped by cgroup v2 memory.max - memory.cu
   assert.equal(r.available, 1 * GB);
 });
 
+test("readMemory: linux, a cgroup's inactive page cache is not counted as used (v2 and v1)", () => {
+  const os = fakeOs({ totalBytes: 16 * GB });
+  const v2 = readMemory({ platform: "linux", os, run: () => null, readFile: readFileFrom({
+    "/proc/meminfo": "MemAvailable:    8000000 kB\n",
+    "/sys/fs/cgroup/memory.max": String(2 * GB) + "\n",
+    "/sys/fs/cgroup/memory.current": String(2 * GB) + "\n",
+    "/sys/fs/cgroup/memory.stat": `anon 1000\ninactive_file ${1 * GB}\nactive_file 5\n`,
+  }) });
+  assert.equal(v2.available, 1 * GB);
+  const v1 = readMemory({ platform: "linux", os, run: () => null, readFile: readFileFrom({
+    "/proc/meminfo": "MemAvailable:    8000000 kB\n",
+    "/sys/fs/cgroup/memory/memory.limit_in_bytes": String(2 * GB) + "\n",
+    "/sys/fs/cgroup/memory/memory.usage_in_bytes": String(2 * GB) + "\n",
+    "/sys/fs/cgroup/memory/memory.stat": `inactive_file 7\ntotal_inactive_file ${1 * GB}\n`,
+  }) });
+  assert.equal(v1.available, 1 * GB);
+});
+
 // WP-18, measured inside a 256 MB cgroup on the Linux VM: the share a heavy job
-// needs is a quarter of the machine, and inside a container the container IS the
+// needs is a fraction of the machine, and inside a container the container IS the
 // machine. Reporting the host's total there made a job "need" 1.0 GB of a 256 MB
 // box, so nothing could ever start.
 test("readMemory: linux, a cgroup v2 limit is the total a job's share is computed from", () => {
@@ -363,6 +445,20 @@ test("measure: inside a small container a job is sized to the container, and can
   assert.ok(r.can_start >= 1, `a job sized to this box must fit in it: ${r.reason}`);
 });
 
+test("measure: the 3.8 GB Linux VM needs half its memory free, not a quarter", async () => {
+  // 2026-09-27: a Rust test build beside background agents, admitted against
+  // a quarter (a 0.95 GB share), was OOM-killed along with the harness.
+  const os = fakeOs({ cores: 4, load: 1, totalBytes: 4006288 * 1024 });
+  const run = (availableKb) => measure({
+    platform: "linux", os, run: () => null, env: {},
+    readFile: readFileFrom({ "/proc/meminfo": `MemAvailable:    ${availableKb} kB\n` }),
+  });
+  const busy = await run(1200000);
+  assert.equal(busy.can_start, 0);
+  assert.match(busy.reason, /^memory: 1\.1 GB available, a heavy job needs 1\.9 GB$/);
+  assert.equal((await run(2657160)).can_start, 1);
+});
+
 test("readMemory: linux, no MemAvailable falls back to freemem (labelled lower bound)", () => {
   const os = fakeOs({ totalBytes: 16 * GB, freeBytes: 555 });
   const r = readMemory({ platform: "linux", os, readFile: () => null, run: () => null });
@@ -384,7 +480,7 @@ test("readMemory: an unknown platform falls back to freemem, labelled a lower bo
 // ─── canStart matrix ───────────────────────────────────────────────────────
 //
 // The owner's defaults: one slot per four cores (>=1); a job's share is
-// cores/4 (>=1) and min(2 GiB, total/4). Exercised at 2, 8 and 32 cores,
+// cores/4 (>=1) and min(2 GiB, total/2). Exercised at 2, 8 and 32 cores,
 // idle and loaded, per the ADR's rules (a) holders vs slots, (b) idle cores
 // vs a job's core share, (c) available memory vs a job's memory share.
 
@@ -410,7 +506,7 @@ test("canStart: 8 cores, idle -> 2 slots, can start 2", () => {
   const r = canStart({ cores: 8, busy: 0, available: total, total, holders: 0 });
   assert.equal(r.slots, 2);
   assert.equal(r.job_cores, 2);
-  assert.equal(r.job_memory, JOB_MEMORY_CAP); // total/4 = 4 GiB > 2 GiB cap
+  assert.equal(r.job_memory, JOB_MEMORY_CAP); // total/2 = 8 GiB > 2 GiB cap
   assert.equal(r.can_start, 2);
 });
 
@@ -487,6 +583,16 @@ test("canStart: busy above the core count clamps idle cores to 0 -> can start 0,
   const r = canStart({ cores: 8, busy: 12, available: total, total, holders: 0 });
   assert.equal(r.can_start, 0);
   assert.match(r.reason, /^cpu:/);
+});
+
+test("canStart: each live holder reserves one memory share, and the reason says so", () => {
+  const total = 16 * GB;
+  // 8 cores, 2 slots, one holder admitted seconds ago: 2.7 GB is free only
+  // because that job has not allocated yet.
+  const r = canStart({ cores: 8, busy: 0, available: 2.7 * GB, total, holders: 1 });
+  assert.equal(r.can_start, 0);
+  assert.equal(r.reason, "memory: 2.7 GB available (2.0 GB reserved for 1 running heavy job(s)), a heavy job needs 2.0 GB");
+  assert.equal(canStart({ cores: 8, busy: 0, available: 4.1 * GB, total, holders: 1 }).can_start, 1);
 });
 
 test("canStart: zero available memory -> can start 0, memory reason", () => {

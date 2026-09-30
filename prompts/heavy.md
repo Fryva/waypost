@@ -60,6 +60,15 @@ this is not scoped to the current project.
    a different repo. The slot is machine-wide: starting a second one anyway
    just makes both compete for the same real, finite resources.
 
+6. **No background agents beside it — in either order.** `capacity`
+   measures memory once, when the job starts. Agents already running keep
+   growing, and an agent spawned afterwards (a critic, a reviewer, an
+   explorer) is memory the job was never sized against. On a 3.8 GB VM a Rust
+   test build beside background agents set off the OOM killer, which took
+   the harness down too. Let the agents finish, then start the job — or the
+   other way round — and check `waypost capacity` before launching several
+   agents at all.
+
 ## Notes
 
 - `waypost capacity --release <id> [--force]` is the recovery path for a slot

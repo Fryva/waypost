@@ -33,6 +33,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes](./disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md) | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | accepted | 2026-09-14 |
 | [heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first](./heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md) | Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first | accepted | 2026-09-14 |
 | [cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first](./cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md) | Cleanup to a machine-wide limit: set by the owner, idle artifacts oldest first | accepted | 2026-09-18 |
+| [memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job](./memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) | Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job | proposed | 2026-09-28 |
 
 ---
 

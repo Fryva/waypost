@@ -474,6 +474,16 @@ test("run --heavy --wait 2s: retries until the deadline, then gives up", () => {
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
+test("run --heavy: on Linux the job is the OOM killer's first choice, not the harness", { skip: process.platform !== "linux" }, () => {
+  const home = tmpHome();
+  try {
+    const code = "process.stdout.write(require('fs').readFileSync('/proc/self/oom_score_adj','utf8'))";
+    const r = runCli(["run", "--heavy", "--", "node", "-e", code], heavyEnv(home));
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout.trim(), "1000");
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
 // ─── the command runs: exit codes, priority, cleanup ──────────────────────
 
 test("run --heavy: the record carries the value a later epoch mismatch is checked against (WP-18)", () => {

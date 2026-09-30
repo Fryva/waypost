@@ -59,7 +59,7 @@ import { harnessProcess, processTable } from "./presence.mjs";
 //                   (`waypost agents show`, or a harness it can spawn) — but
 //                   install writes nothing and doctor must not ask why.
 
-export const AGENT_BLOCK_VERSION = 2;
+export const AGENT_BLOCK_VERSION = 3;
 export const AGENT_BLOCK_MARKER = /<!--\s*waypost:agents v(\d+)/g;
 // Roles register under a waypost- prefix in every harness. Bare names (critic,
 // planner, reviewer) are common enough that a user's own agent would collide;

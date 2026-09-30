@@ -676,7 +676,7 @@ test("doctor reports an older routing-block version as an issue, and --fix rewri
   waypost(proj, ["doctor", "--fix"]);
   const fixed = readFileSync(agents, "utf8");
   assert.ok(!/<!-- waypost:agents v1/.test(fixed), "the stale block was rewritten");
-  assert.ok(fixed.includes("Heavy work: `waypost run --heavy -- <cmd>`."), "the current block carries the rule");
+  assert.ok(fixed.includes("Heavy work: `waypost run --heavy -- <cmd>`; no agents beside it."), "the current block carries the rule");
   assert.ok(fixed.includes("keep me"), "surrounding content survives the rewrite");
 });
 
@@ -1322,7 +1322,7 @@ test("the standing context stays small — it is re-read on every turn", () => {
   assert.ok(block.length < 1400, `routing block is ${block.length} chars — it is in every turn`);
   // WP-18 Decision 3: the heavy-work rule reaches every project through this
   // same block, within the same budget above — not a separate, unbudgeted line.
-  assert.ok(block.includes("Heavy work: `waypost run --heavy -- <cmd>`."),
+  assert.ok(block.includes("Heavy work: `waypost run --heavy -- <cmd>`; no agents beside it."),
     "the block carries the heavy-work rule");
 
   // What a harness injects into the main context is the description of each

@@ -3103,6 +3103,15 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
 async function runHeavy(argv, claim, where, mods) {
   try { setPriority(osConstants.priority.PRIORITY_BELOW_NORMAL); }
   catch { /* best-effort: a restricted sandbox must not block the run */ }
+  // Linux: if memory runs out anyway, the kernel's OOM killer takes this job
+  // first, not the harness beside it (ADR "Memory for heavy work: half the
+  // memory up to 2 GB, …"). Inherited across fork and exec; raising needs no
+  // privilege, lowering would, so a higher value already set is left alone.
+  if (process.platform === "linux") {
+    try {
+      if (Number(readFileSync("/proc/self/oom_score_adj", "utf8")) < 1000) writeFileSync("/proc/self/oom_score_adj", "1000");
+    } catch { /* best-effort, like the priority above */ }
+  }
 
   // The command is arbitrary and may itself invoke `waypost` (this project's
   // own test suite does, extensively): it must see the environment it was
