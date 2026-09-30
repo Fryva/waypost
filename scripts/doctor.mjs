@@ -22,7 +22,7 @@
 
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, accessSync, constants } from "node:fs";
 import { join, basename, resolve, dirname } from "node:path";
-import { homedir } from "node:os";
+import { homedir, platform } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
@@ -62,7 +62,7 @@ import {
   pathUnder,
 } from "./lib.mjs";
 import { uncommittedProjectFiles, lastCommitMs } from "./diff-refs.mjs";
-import { peers as peersOf, readLeases as readLeasesOf } from "./presence.mjs";
+import { peers as peersOf, readLeases as readLeasesOf, processTable } from "./presence.mjs";
 import {
   AGENT_BLOCK_MARKER,
   AGENT_BLOCK_VERSION,
@@ -1817,6 +1817,28 @@ export function checkAgentSkills(proj, cfg) {
   return out;
 }
 
+// A missing process table is not a vault problem and never makes the vault look
+// wrong — which is exactly why it needs saying out loud. Everything that decides
+// "is that session still alive?" degrades to a 24h age guess without it: a
+// session whose harness exited yesterday reads as live until tomorrow, a
+// cleanup run cannot see that a tool is using its cache directory, and the
+// machine-wide-limit consent gate falls back to env markers an agent could set
+// itself. There is no repair to offer, so this is a warning naming the two
+// things worth checking rather than an issue.
+// `table` is injectable so the warning can be asserted on any host: a host
+// whose `ps` speaks another locale cannot be produced on demand, and a check
+// that only ever runs clean is a check nothing holds. An explicit `null` stands
+// for "the parse came back empty".
+export function checkProcessTable(table) {
+  if (platform() === "win32") return [];
+  if (table === undefined) {
+    try { table = processTable(); } catch { table = null; }
+  }
+  if (table) return [];
+  return [finding("install", "warn", "process-table",
+    "No process table: liveness falls back to a 24h age guess — a session whose harness has exited reads as live until then, and a running tool is not seen holding its cache directory. Check that `ps` is on PATH and accepts `ps axo pid=,ppid=,lstart=,comm=`; waypost asks for it in the C locale, so a shell's LC_TIME does not matter (WP-19).")];
+}
+
 export function runInstallChecks(cfg, proj) {
   const out = [...checkConfig(cfg)];
   if (!cfg || !cfg.vault_path) return out;
@@ -1834,6 +1856,7 @@ export function runInstallChecks(cfg, proj) {
     ...checkVaultGit(cfg, proj),
     ...checkMergeDriver(cfg, proj),
     ...checkLineEndings(cfg, proj),
+    ...checkProcessTable(),
     ...checkLauncher(),
   );
   return out;

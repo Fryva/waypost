@@ -277,16 +277,31 @@ test("clean --limit <same value>: 'unchanged', nothing written or logged", () =>
 
 // ─── AC1 (a): WAYPOST_HARNESS/WAYPOST_PROC are never read ─────────────────
 
-test("AC1 (a): an env marker (CLAUDECODE) refuses a gated change even with WAYPOST_HARNESS=unknown and a WAYPOST_PROC naming a shell — neither is ever read", () => {
+test("AC1 (a): an env marker (CLAUDECODE) refuses a gated change, and the variables the gate promises never to read change nothing", () => {
   const home = tmpRoot("waypost-limit-ac1a-home-");
   const proj = tmpRoot("waypost-limit-ac1a-proj-");
-  const env = {
-    ...strippedEnv(machineEnv(home)),
-    CLAUDECODE: "1", WAYPOST_HARNESS: "unknown", WAYPOST_PROC: JSON.stringify({ pid: 1, comm: "zsh" }),
-  };
-  const r = runWaypost(proj, ["clean", "--limit", "5"], env);
-  assert.equal(r.status, 1, r.stderr);
-  assert.match(r.stderr, /claude/i);
+  const base = { ...strippedEnv(machineEnv(home)), CLAUDECODE: "1" };
+
+  // The claim under test is a negative one — the gate never READS
+  // WAYPOST_HARNESS or WAYPOST_PROC — so it is checked by differencing: the
+  // same command with those variables set to lie, and with them absent, must
+  // refuse identically. Asserting WHICH harness is named cannot work here: this
+  // runs bin/waypost in a subprocess, so the gate walks the real ancestor chain,
+  // and on a host where the suite is itself run from inside a harness the real
+  // one legitimately wins over CLAUDECODE. (It used to pass only because the
+  // process table was empty — see WP-19; that accident is what this shape
+  // removes.) The gate's own logic is covered hermetically in
+  // tests/harness.test.mjs, where gateCheck takes a synthetic table.
+  const lying = runWaypost(proj, ["clean", "--limit", "5"], {
+    ...base, WAYPOST_HARNESS: "unknown", WAYPOST_PROC: JSON.stringify({ pid: 1, comm: "zsh" }),
+  });
+  const honest = runWaypost(proj, ["clean", "--limit", "5"], base);
+
+  assert.equal(lying.status, 1, lying.stderr);
+  assert.equal(honest.status, 1, honest.stderr);
+  assert.equal(lying.stderr, honest.stderr,
+    "WAYPOST_HARNESS and WAYPOST_PROC are not evidence: setting them changed the verdict");
+  assert.doesNotMatch(lying.stderr, /\bzsh\b/, "a process the gate promised not to read is not named");
   assert.ok(!existsSync(settingPathOf(home)), "nothing written");
 });
 

@@ -766,6 +766,32 @@ test("a harness started from inside another is detected by its process, not by t
   assert.equal(detectHarness({ ...withProc("opencode"), WAYPOST_HARNESS: "pi" }), "pi", "an explicit WAYPOST_HARNESS still wins");
 });
 
+test("the same rule, through the process table itself rather than a pinned WAYPOST_PROC", () => {
+  // The test above injects the resolved process, which is why it kept passing
+  // while the process table was empty on a host whose ps spoke another locale
+  // (WP-19): nothing in it exercised the walk. This one does, with a synthetic
+  // chain, because no real one can be produced under `node --test` — the nearest
+  // non-shell ancestor of a test process is `node`, which is in no registry
+  // entry. The regression this guards is real in production and invisible here.
+  const both = { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", OPENCODE: "1" };
+  // node (the test process) → zsh (a shell, walked through) → opencode.
+  const chain = (comm) => new Map([
+    [600, { pid: 600, ppid: 700, started: "Tue Sep 15 14:51:13 2026", comm: "/bin/zsh" }],
+    [700, { pid: 700, ppid: 1, started: "Tue Sep 15 14:51:13 2026", comm: `/usr/local/bin/${comm}` }],
+  ]);
+  assert.equal(detectHarness(both, { table: chain("opencode"), ppid: 600 }), "opencode",
+    "the process wins over the inherited Claude Code markers");
+  assert.equal(detectHarness(both, { table: chain("claude"), ppid: 600 }), "claude");
+  assert.equal(detectHarness({ ...both, WAYPOST_HARNESS: "pi" }, { table: chain("opencode"), ppid: 600 }), "pi",
+    "an explicit WAYPOST_HARNESS still wins over the process");
+  assert.equal(detectHarness(both, { table: chain("Electron"), ppid: 600 }), "claude",
+    "an IDE helper says nothing, so env order decides as before");
+  assert.equal(detectHarness(both, { table: new Map(), ppid: 600 }), "claude",
+    "no process evidence at all: env decides, unchanged");
+  assert.equal(detectHarness(both, { table: chain("opencode"), ppid: 900 }), "claude",
+    "a chain that dead-ends before any non-shell ancestor yields no process evidence");
+});
+
 // ─── gateCheck (the machine-wide-limit ADR, Decision 2) ────────────────────
 
 function harnessDir(entries) {

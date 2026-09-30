@@ -177,7 +177,24 @@ const SHELLS = /(^|\/)-?(sh|bash|zsh|fish|dash|ksh|tcsh|csh|nu|pwsh|powershell|s
 export function processTable() {
   if (platform() === "win32") return null;
   let r;
-  try { r = spawnSync("ps", ["axo", "pid=,ppid=,lstart=,comm="], { encoding: "utf8", timeout: 5000 }); } catch { return null; }
+  // `lstart` is the one field of this row whose FORMAT is locale-defined: ps
+  // renders it through LC_TIME, so on a host with any other time locale it comes
+  // back as "вторник, 15 сентября 2026 г. 14:51:13" and the regex below matches
+  // nothing. Every row then fails, the table comes back empty, and processTable()
+  // returns null — which silently switches off presence liveness, harness
+  // attribution, the consent gate, cleanup's in-use signal and the detached
+  // deleter's pid-reuse guard, with `waypost doctor` still reporting a healthy
+  // vault. The parser must never learn a language, so the child is asked for the
+  // C spelling instead: LC_ALL is what ps consults first, and setting it on the
+  // child's env object alone leaves the caller's own locale untouched. The
+  // alternatives (-o start=, -o etimes=) are not localized but are spelled
+  // differently by macOS and Linux ps, and the C format is the one
+  // processGone()'s string comparison already assumes.
+  try {
+    r = spawnSync("ps", ["axo", "pid=,ppid=,lstart=,comm="], {
+      encoding: "utf8", timeout: 5000, env: { ...process.env, LC_ALL: "C" },
+    });
+  } catch { return null; }
   if (!r || r.status !== 0 || !r.stdout) return null;
   const table = new Map();
   for (const line of r.stdout.split("\n")) {
@@ -194,7 +211,12 @@ export function processTable() {
   return table.size ? table : null;
 }
 
-export function harnessProcess(table) {
+// `table` and `ppid` are injectable so the walk can be tested against a chain
+// nobody can produce for real: under `node --test` the nearest non-shell
+// ancestor of the test process is `node`, which is in no registry entry, so
+// every real-table assertion would resolve to "unknown" and pass for the wrong
+// reason. gateCheck already takes both, and took them first.
+export function harnessProcess(table, ppid = process.ppid) {
   // Resolved once by bin/waypost's main(), where process.ppid is the shell or
   // harness, and pinned in WAYPOST_PROC for the scripts it spawns — whose own
   // parent is bin/waypost itself, gone the moment the command ends (G-1).
@@ -203,7 +225,7 @@ export function harnessProcess(table) {
   }
   if (table === undefined) table = processTable();
   if (!table) return null;
-  let pid = process.ppid;
+  let pid = ppid;
   for (let depth = 0; depth < 32 && pid > 1; depth++) {
     const p = table.get(pid);
     if (!p) return null;

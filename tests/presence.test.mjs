@@ -7,7 +7,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, unlinkSync, realpathSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, delimiter } from "node:path";
 import { tmpdir, hostname, platform } from "node:os";
 import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -17,7 +17,7 @@ import {
 } from "../scripts/presence.mjs";
 import { claimsOf, parseDuration } from "../scripts/sessions.mjs";
 import { gitCommonDir } from "../scripts/lib.mjs";
-import { checkPortableNames } from "../scripts/doctor.mjs";
+import { checkPortableNames, checkProcessTable } from "../scripts/doctor.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -945,7 +945,135 @@ test("a live process is not gone because the machine slept: lstart moves, the ti
   assert.equal(processGone(legacy, slept), true);
 });
 
-// ─── cross-OS safety ───────────────────────────────────────────────────
+// ─── the locale of `ps` (WP-19) ─────────────────────────────────────────
+//
+// `lstart` is the one column of `ps axo pid=,ppid=,lstart=,comm=` whose FORMAT
+// is locale-defined. On the owner's machine (LANG=ru_RU.UTF-8) ps answers
+// "вторник, 15 сентября 2026 г. 14:51:13 2026" and the parser matched 0 of 784
+// rows, so processTable() returned null and the whole process layer went quiet
+// while `waypost doctor` still reported a healthy vault.
+//
+// These two cases cannot be produced on an English CI machine, so the locale is
+// injected: a fake `ps` on PATH that answers in Russian UNLESS its own
+// environment says LC_ALL=C. It has to read its own environment — a ps that
+// ignored the locale could not be made to speak English by any fix, so a fake
+// printing Russian unconditionally would be permanently red and prove nothing.
+const FAKE_PS = `#!/bin/sh
+# One row, in the spelling this host's LC_TIME would produce.
+if [ "$LC_ALL" = "C" ]; then
+  printf '  4242     1 Tue Sep 15 14:51:13 2026 /sbin/launchd\\n'
+else
+  printf '  4242     1 \\320\\262\\321\\202\\320\\276\\321\\200\\320\\275\\320\\265\\320\\272, 15 \\321\\201\\320\\265\\320\\277\\321\\202\\320\\265\\320\\261\\321\\200\\321\\215 2026 \\320\\263. 14:51:13 /sbin/launchd\\n'
+fi
+`;
+
+// A `ps` that answers in one spelling whatever it is asked for — the shape a
+// widened "and also accept the localized form" regex would have to survive.
+const FAKE_PS_STUBBORN = `#!/bin/sh
+printf '  4242     1 \\320\\262\\321\\202\\320\\276\\321\\200\\320\\275\\320\\265\\320\\272, 15 \\321\\201\\320\\265\\320\\277\\321\\202\\320\\265\\320\\261\\321\\200\\321\\215 2026 \\320\\263. 14:51:13 /sbin/launchd\\n'
+`;
+
+// PATH is process-wide and `node --test` shares one process per file, so the
+// rest of this file must find its own `git` and `node` again.
+function withFakePs(script, fn) {
+  if (platform() === "win32") return null;      // no process table there to fake
+  const dir = mkdtempSync(join(tmpdir(), "waypost-ps-"));
+  const ps = join(dir, "ps");
+  writeFileSync(ps, script, "utf8");
+  spawnSync("chmod", ["+x", ps]);
+  const prevPath = process.env.PATH;
+  const prevAll = process.env.LC_ALL;
+  process.env.PATH = dir + delimiter + prevPath;
+  process.env.LC_ALL = "ru_RU.UTF-8";            // the default: a localized ps
+  try { return fn(); } finally {
+    if (prevPath === undefined) delete process.env.PATH; else process.env.PATH = prevPath;
+    if (prevAll === undefined) delete process.env.LC_ALL; else process.env.LC_ALL = prevAll;
+  }
+}
+
+test("the process table exists whatever LC_TIME the user's shell is set to", () => {
+  const table = withFakePs(FAKE_PS, () => processTable());
+  if (platform() === "win32") { assert.equal(table, null, "no process table on Windows"); return; }
+  assert.ok(table, "processTable() returned nothing: a localized ps was parsed as an empty table");
+  const row = table.get(4242);
+  assert.ok(row, "the C-locale row was not parsed");
+  assert.equal(row.ppid, 1);
+  assert.equal(row.comm, "/sbin/launchd");
+  assert.equal(row.started, "Tue Sep 15 14:51:13 2026");
+});
+
+test("a ps that will not speak the C locale yields no table at all, never a partial one", () => {
+  const table = withFakePs(FAKE_PS_STUBBORN, () => processTable());
+  if (platform() === "win32") return;
+  assert.equal(table, null,
+    "the parser must never learn a language: an unreadable row is a missing table, not a shorter one");
+});
+
+test("a record's liveness is decided by that table, so --prune reaps a gone session without waiting 24h", () => {
+  // The end of the chain the two tests above start. `processGone` returning null
+  // is what made every liveness reader fall back to the 24h age rule, so this
+  // asserts the answer, not just the table: a live record reads live, and a
+  // record whose pid is gone is reaped at once on a host that never parses a
+  // localized `ps` in the first place.
+  if (platform() === "win32") return;
+  const table = withFakePs(FAKE_PS, () => processTable());
+  assert.ok(table, "the table this case depends on");
+  const me = hostname().split(".")[0];
+  const live = { pid: 4242, started: "Tue Sep 15 14:51:13 2026", comm: "launchd" };
+  assert.equal(processGone({ host: me, proc: live }, table), false);
+  assert.equal(processGone({ host: me, proc: { ...live, pid: 4243 } }, table), true,
+    "a pid the table does not have is a process that is gone, not an unknown one");
+  assert.equal(processGone({ host: me, proc: { ...live, started: "Thu Sep 3 00:00:00 2026" } }, table), true,
+    "the same pid with a different start is the pid-reuse case");
+  assert.equal(processGone({ host: "otherbox", proc: { pid: 4243 } }, table), null,
+    "another device's pid means nothing here");
+
+  // Inside the fake, deliberately: the fake table is what makes 4242 "alive" and
+  // 4243 "gone" mean anything. On this host's real table both pids are absent,
+  // so the same prune would reap both and prove nothing.
+  const { proj, vault } = project();
+  withProject(proj, () => withFakePs(FAKE_PS, () => {
+    peerFile(vault, { session: "gone", host: me, at: new Date().toISOString(),
+      proc: { pid: 4243, started: "Tue Sep 15 14:51:13 2026", comm: "launchd" } });
+    peerFile(vault, { session: "alive", host: me, at: new Date().toISOString(), proc: live });
+    peerFile(vault, { session: "silent", host: me, at: new Date().toISOString() });
+    const removed = prunePresence(vault, { self: "elsewhere" });
+    const left = readdirSync(pdir(vault)).sort();
+    assert.equal(removed, 1, "only the record whose process is gone, and only just now");
+    assert.ok(!left.includes("gone.json"), "a record whose pid is absent is reaped at once, no 24h wait");
+    assert.ok(left.includes("alive.json"),
+      "a record whose pid the table still holds is idle, not gone — a lowered --older-than does not reap it");
+    assert.ok(left.includes("silent.json"),
+      "a record that never recorded a process is left to the age rule, not to this one");
+  }));
+});
+
+test("asking ps in the C locale does not change the caller's own environment", () => {
+  const before = { ...process.env };
+  withFakePs(FAKE_PS, () => processTable());
+  assert.equal(process.env.LC_ALL, before.LC_ALL, "the child's locale is the child's");
+  assert.equal(process.env.LANG, before.LANG);
+});
+
+test("the caller's locale is the reason this was ever a question: a localized ps really is empty", () => {
+  // The negative control for the two tests above, on the real ps of this host:
+  // spawn it the way the code used to and confirm the old failure is real here,
+  // so the fixture above cannot pass for a reason that has nothing to do with
+  // the locale.
+  if (platform() === "win32") return;
+  const asIs = spawnSync("ps", ["axo", "pid=,ppid=,lstart=,comm="], { encoding: "utf8" });
+  const cLocale = spawnSync("ps", ["axo", "pid=,ppid=,lstart=,comm="], {
+    encoding: "utf8", env: { ...process.env, LC_ALL: "C" },
+  });
+  const RE = /^\s*(\d+)\s+(\d+)\s+(\w{3}\s+\w{3}\s+\d+\s+[\d:]+\s+\d{4})\s+(.*)$/;
+  const count = (out) => String(out).split("\n").filter((l) => RE.test(l)).length;
+  const inherited = count(asIs.stdout);
+  const forced = count(cLocale.stdout);
+  assert.ok(forced > 0, "the C locale must parse on every host, or the fix does not work here");
+  assert.ok(inherited === forced || inherited === 0,
+    "an inherited locale either parses identically or not at all — never partially");
+});
+
 
 test("names that cannot survive another OS are reported before that OS sees them", () => {
   const findings = checkPortableNames({}, [
@@ -980,6 +1108,28 @@ test("doctor wires one line-ending policy, so a Windows session cannot rewrite e
   assert.match(readFileSync(join(proj, ".gitattributes"), "utf8"), /^\* text=auto eol=lf$/m);
   const after = JSON.parse(run(["doctor", "--install", "--json"]).stdout);
   assert.ok(!after.some((f) => f.check === "line-endings"));
+});
+
+test("doctor says so when there is no process table, and says nothing when there is one", () => {
+  // The reason this check exists at all: on the host that found WP-19 the table
+  // parsed to nothing, and doctor reported clean. Every liveness decision was
+  // quietly downgraded and no check mentioned it.
+  const findings = checkProcessTable(null);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].check, "process-table");
+  assert.equal(findings[0].level, "warn", "no repair is offered, so it is not an issue");
+  assert.equal(findings[0].group, "install");
+  assert.match(findings[0].message, /24h/);
+  assert.match(findings[0].message, /lstat|age|guess/i);
+  // The action a reader can actually take, and the part that would have saved
+  // the hours this cost: the C locale is asked for, so a shell's LC_TIME is not
+  // the cause and must not be what the message tells them to change.
+  assert.match(findings[0].message, /ps axo/);
+  assert.match(findings[0].message, /C locale/);
+  assert.doesNotMatch(findings[0].message, /LC_ALL=C\n?$/);
+
+  assert.deepEqual(checkProcessTable(new Map([[1, { pid: 1, ppid: 0, started: "x", comm: "init" }]])), [],
+    "a table that parsed says nothing, however small");
 });
 
 test("doctor: `* text=auto` without eol= is reported and repaired in place", () => {

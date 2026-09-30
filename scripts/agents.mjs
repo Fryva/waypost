@@ -676,9 +676,20 @@ function directoryCounts(abs) {
 // actually runs the session is better evidence: when the nearest non-shell
 // ancestor (harnessProcess) is a harness this registry knows, that harness
 // wins; env decides only when the process says nothing.
-export function detectHarness(env = process.env) {
+//
+// `table`/`ppid` exist so that rule is testable. It is not: under `node --test`
+// the nearest non-shell ancestor of the test process is `node`, which is in no
+// registry entry, so a real-table assertion resolves to "unknown" and passes for
+// the wrong reason — and the regression it guards (WP-19) is invisible on a host
+// whose `ps` output the parser cannot read at all. gateCheck took the same two
+// parameters first.
+//
+// A `ppid` on its own is read against the real table, never discarded: a caller
+// asking "where does the walk start?" and getting "unknown" back with no way to
+// tell that from a genuinely empty table has been handed a silent no-op.
+export function detectHarness(env = process.env, { table, ppid } = {}) {
   if (env.WAYPOST_HARNESS) return env.WAYPOST_HARNESS;
-  const byProcess = harnessOfProcess(env);
+  const byProcess = harnessOfProcess(env, table, ppid);
   if (byProcess) return byProcess;
   for (const [id, h] of registry()) {
     if ((h.env || []).some((k) => env[k])) return id;
@@ -686,11 +697,15 @@ export function detectHarness(env = process.env) {
   return "unknown";
 }
 
-function harnessOfProcess(env) {
+function harnessOfProcess(env, table, ppid) {
   let proc = null;
   try {
     if (env.WAYPOST_PROC) proc = JSON.parse(env.WAYPOST_PROC);
-    else if (env === process.env) proc = harnessProcess();
+    // The process is read for a synthetic env only when the caller supplied the
+    // evidence; otherwise env-only, so `detectHarness({CLAUDECODE:"1"})` stays a
+    // pure env question. Supplying a `ppid` counts as supplying evidence: the
+    // real table is what that pid is looked up in.
+    else if (table !== undefined || ppid !== undefined || env === process.env) proc = harnessProcess(table, ppid);
   } catch { proc = null; }
   const comm = proc && proc.comm ? String(proc.comm).toLowerCase() : "";
   if (!comm) return null;
