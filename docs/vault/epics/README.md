@@ -13,6 +13,7 @@
 | [WP-16](./WP-16/epic.md) | Decisions that check themselves | planned | 2026-09-04 |
 | [WP-17](./WP-17/epic.md) | Disk hygiene by discovery | planned | 2026-09-14 |
 | [WP-18](./WP-18/epic.md) | Heavy work sized to the machine | planned | 2026-09-15 |
+| [WP-19](./WP-19/epic.md) | The process layer on any host, and honest harness detection | planned | 2026-09-30 |
 
 ---
 

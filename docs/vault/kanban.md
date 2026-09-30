@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-24T19:07:38.969Z
+generated_at: 2026-09-30T17:15:03.107Z
 
 ---
 
@@ -25,6 +25,7 @@ generated_at: 2026-09-24T19:07:38.969Z
 - [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
 - [ ] [[epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run|WP-17: The machine-wide limit: automatic cleanup at the end of a heavy run]] #p2
 - [ ] [[epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines|WP-18: Capacity verified on Linux and Windows virtual machines]] #p1
+- [ ] [[epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here|WP-19: AGENTS.md is not evidence that codex is used here]] #p1
 
 ## Review
 
@@ -51,6 +52,7 @@ generated_at: 2026-09-24T19:07:38.969Z
 - [x] [[epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work|WP-18: The heavy-work rule in every project, and Waypost's own heavy work]] #p1 #done
 - [x] [[epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os|WP-18: waypost capacity: the machine's real free resources, measured by each OS]] #p1 #done
 - [x] [[epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work|WP-18: waypost run --heavy: a machine-wide slot for heavy work]] #p1 #done
+- [x] [[epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host|WP-19: ps in the C locale, so the process table exists on any host]] #p1 #done
 
 
 
