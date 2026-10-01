@@ -8,7 +8,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: ["coordination", "models"]
-code_refs: ["agents/critic.md", "agents/reviewer.md", "bin/waypost", "docs/harnesses.md", "docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md", "harnesses/claude.json", "harnesses/codex.json", "harnesses/opencode.json", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/commit.mjs", "scripts/doctor.mjs", "scripts/lib.mjs", "scripts/presence.mjs", "scripts/ready.mjs", "scripts/sessions.mjs", "templates/agents-block.md.tmpl", "tests/commits.test.mjs", "tests/harness.test.mjs", "tests/presence.test.mjs"]
+code_refs: ["agents/critic.md", "agents/reviewer.md", "bin/waypost", "docs/harnesses.md", "docs/team-coordination.md", "docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md", "harnesses/claude.json", "harnesses/codex.json", "harnesses/opencode.json", "models/descriptor.schema.json", "models/policy.schema.json", "models/routing.schema.json", "models/strength-sources.json", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/commit.mjs", "scripts/doctor.mjs", "scripts/lib.mjs", "scripts/model-routing.mjs", "scripts/model-strength.mjs", "scripts/presence.mjs", "scripts/ready.mjs", "scripts/sessions.mjs", "scripts/team-cli.mjs", "scripts/team-mcp.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team.mjs", "templates/agents-block.md.tmpl", "tests/commits.test.mjs", "tests/harness.test.mjs", "tests/model-strength.test.mjs", "tests/presence.test.mjs", "tests/team-cli.test.mjs", "tests/team-models.test.mjs", "tests/team-mcp.test.mjs", "tests/team-periodic.test.mjs", "tests/team-routing.test.mjs", "tests/team-store.test.mjs"]
 review_status: reviewed
 reviewed_at: 2026-09-30
 ---
@@ -17,7 +17,7 @@ reviewed_at: 2026-09-30
 
 | Field | Value |
 |---|---|
-| Status | planned; architecture/backlog only |
+| Status | planned epic; first story in progress, implementation incomplete |
 | Priority | p1 |
 | Created / Updated | 2026-09-30 |
 
@@ -31,7 +31,9 @@ Ownership, messages, handover and integration are auditable and recoverable.
 The owner selected architecture and tasks first, and specifically observed
 Claude/OpenCode sessions cannot communicate. Actual addressed message exchange
 between their contexts, in both directions, is a first-release acceptance item.
-No implementation or live messaging is claimed by this architecture work.
+Implementation started after the owner authorized it. Model selection, authority
+logging and cooperative inbox foundations are present; live native messaging and
+reviewed Git integration are not yet verified.
 
 ## Context
 
@@ -40,30 +42,33 @@ safely elect a distributed scheduler. There is no model identity, mailbox,
 assignment or review ledger, and role invoke strings are not native APIs.
 
 Proposed boundaries: one host-local authority; separate participant identities;
-owner-approved exact-model policy; acknowledged stronger-model handover;
+automatically refreshed exact-model evidence policy; acknowledged stronger-model handover;
 cooperative messages plus evidenced native adapters; isolated edits, immutable
 results and independent top-model review; exact reviewed Git integration.
 
 ## Stories
 
-All eight stories are planned; none is implemented, claimed or closed. A fresh
-planner supplies implementation plans at the work-start gate.
+The first story is in progress; the other eight remain planned. No story is
+closed. A fresh planner supplied the initial implementation plan.
 
 | Story | Depends on |
 |---|---|
-| [Participant identity and owner-approved model policy](stories/story-participant-identity-and-owner-approved-model-policy.md) | Owner approval / spec activation |
+| [Participant identity and automatic model strength discovery](stories/story-participant-identity-and-owner-approved-model-policy.md) | Owner approval / spec activation |
 | [Local authority log and crash-safe mutations](stories/story-local-authority-log-and-crash-safe-mutations.md) | 1 |
 | [Addressed messages and verified harness delivery](stories/story-addressed-messages-and-verified-harness-delivery.md) | 2 |
 | [Assignments supervision and stronger-model handover](stories/story-assignments-supervision-and-stronger-model-handover.md) | 1, 2, 3 |
 | [Independent strongest-model review of immutable evidence](stories/story-independent-strongest-model-review-of-immutable-evidence.md) | 1, 3, 4 |
 | [Reviewed integration and team-aware story gates](stories/story-reviewed-integration-and-team-aware-story-gates.md) | 2, 4, 5 |
 | [Team CLI orientation and deterministic diagnostics](stories/story-team-cli-orientation-and-deterministic-diagnostics.md) | 2, 3, 4, 5, 6 |
-| [Live Claude and OpenCode coordination on one task](stories/story-live-claude-and-opencode-coordination-on-one-task.md) | 1, 2, 3, 4, 5, 6, 7 |
+| [Automatic model routing by task complexity and expected cost](stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md) | 1, 2, 4, 5, 6 |
+| [Live Claude, Codex and OpenCode coordination on one task](stories/story-live-claude-and-opencode-coordination-on-one-task.md) | 1, 2, 3, 4, 5, 6, 7, 8 |
 
 
 ## Expected Results
 
 - [ ] Strongest qualified participant automatically leads after policy/enrollment.
+- [ ] Bounded simple tasks use economical qualified executors; complex tasks use
+      strongest execution models, with independent strongest review and cost limits.
 - [ ] One accepted scheduling history despite concurrent requests and crashes.
 - [ ] Sessions exchange assignments, questions, findings and evidence in context;
       wake/autonomy is separately measured, not inferred from a mailbox.
@@ -82,8 +87,8 @@ planner supplies implementation plans at the work-start gate.
 
 ## Open Questions
 
-- Initial exact models and domain-specific priority policy are supplied by owner;
-  no rankings are guessed from names, cost or harness.
+- Automatic evidence ranks exact models on a comparable evaluation scale; missing
+  models require verified calibration. No rankings are guessed from price or harness.
 - Which installed Claude/OpenCode versions and model configurations supply the
   first live adapter evidence? Probe before promising native send/wake/review.
 - Cross-host work in first release? One local authority is the baseline; remote

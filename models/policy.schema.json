@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://waypost.dev/schemas/model-policy",
+  "title": "Task-domain model strength policy",
+  "description": "Automatic policies require dated HTTPS source provenance and expiry. Waypost ships no asserted worldwide ranking. Only exact provider/model/reasoning matches qualify; price and harness never imply strength. Manual mode is an explicit opt-in alternative.",
+  "type": "object", "additionalProperties": false,
+  "required": ["protocol", "revision", "domain", "profiles"],
+  "properties": {
+    "protocol": { "const": 1 },
+    "revision": { "$ref": "#/$defs/positive" },
+    "domain": { "$ref": "#/$defs/text" },
+    "mode": { "enum": ["automatic", "manual"] },
+    "approved_by": { "$ref": "#/$defs/text" },
+    "approved_at": { "$ref": "#/$defs/date" },
+    "generated_at": { "$ref": "#/$defs/date" },
+    "expires_at": { "$ref": "#/$defs/date" },
+    "sources": {
+      "type": "array", "minItems": 1, "maxItems": 1024,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "url", "retrieved_at"],
+        "properties": {
+          "id": { "$ref": "#/$defs/text" },
+          "url": { "type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^https://", "description": "Credentials in URLs are forbidden. Runtime validates URL and unique source ids." },
+          "retrieved_at": { "$ref": "#/$defs/date" }
+        }
+      }
+    },
+    "profiles": {
+      "type": "array", "minItems": 0, "maxItems": 1024,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["provider", "model_id", "reasoning", "priorities", "source", "date"],
+        "properties": {
+          "provider": { "$ref": "#/$defs/text" },
+          "model_id": { "$ref": "#/$defs/text" },
+          "reasoning": { "$ref": "#/$defs/text" },
+          "priorities": {
+            "type": "object", "additionalProperties": false,
+            "required": ["coordinate", "implement", "review"],
+            "properties": {
+              "coordinate": { "$ref": "#/$defs/rank" },
+              "implement": { "$ref": "#/$defs/rank" },
+              "review": { "$ref": "#/$defs/rank" }
+            }
+          },
+          "source": { "type": "string", "minLength": 1, "maxLength": 1024, "description": "In automatic mode this must resolve to a source id." },
+          "date": { "$ref": "#/$defs/date", "description": "Evidence date; retrieval date is not model publication time." }
+        }
+      }
+    },
+    "evidence_floor": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["adapter-observed", "owner-attested"] },
+      "default": ["adapter-observed", "owner-attested"]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["mode"], "properties": { "mode": { "const": "automatic" } } },
+      "then": {
+        "required": ["generated_at", "expires_at", "sources"],
+        "not": { "anyOf": [{ "required": ["approved_by"] }, { "required": ["approved_at"] }] }
+      },
+      "else": {
+        "required": ["approved_by", "approved_at"],
+        "properties": { "profiles": { "minItems": 1 } },
+        "not": { "anyOf": [{ "required": ["generated_at"] }, { "required": ["expires_at"] }, { "required": ["sources"] }] }
+      }
+    }
+  ],
+  "$defs": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "date": { "type": "string", "maxLength": 64, "pattern": "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2}))?$" },
+    "positive": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "rank": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+  }
+}

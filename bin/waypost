@@ -3475,6 +3475,13 @@ WORKING IN SEVERAL HARNESSES AT ONCE
                            (lease list | lease release [path…])
   watch                    stay live: beat on an interval and report who joins,
                            leaves or picks up a story on another device
+  team status [<id>]       experimental host-local task authority and inboxes
+  team refresh <id>        refresh automatic model-strength evidence
+  team watch <id>          periodically check evidence [--interval <seconds>]
+  team route <id>          preview a manifest [--request-file <json>]; no grant
+  team-mcp                cooperative stdio inbox tools; --project, --team,
+                          --credential (absolute paths); no native wake proof
+                           current scope and limits: docs/team-coordination.md
   storage                  what the vault is stored on and how far behind
                            another device's presence can be
   merge-derived <file>     git merge driver: regenerate a derived view instead
@@ -3657,6 +3664,9 @@ async function main() {
   // --project/heartbeat/harness-detection machinery below applies to a
   // process nobody is watching.
   if (argv[0] === "__waypost-delete") { await handleInternalDelete(argv.slice(1)); return; }
+  // A stdio MCP connection is not a new harness session. Keep stdout strictly
+  // protocol-only and do not touch parent membership or advisory presence.
+  if (argv[0] === "team-mcp") { run("team-mcp", argv.slice(1)); return; }
   // --project is recognised ONLY in the leading position, before the command
   // name — not anywhere in argv, or a positional argument that happens to
   // equal it (a search term, say) would be swallowed as a global flag (A-8).
@@ -3747,6 +3757,7 @@ async function main() {
     case "agents": run("agents", rest); break;
     case "harnesses": run("agents", ["harnesses", ...rest]); break;
     case "sessions": run("sessions", rest); break;
+    case "team": run("team-cli", rest); break;
     case "ready": run("ready", rest); break;
     case "brief": await selfInstall(rest); run("brief", rest.filter((a) => a !== "--no-install")); break;
     case "commit": run("commit", rest); break;

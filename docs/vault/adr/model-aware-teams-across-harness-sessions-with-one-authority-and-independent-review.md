@@ -2,7 +2,7 @@
 type: adr
 id: "model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review"
 title: "Model-aware teams across harness sessions with one authority and independent review"
-status: proposed
+status: accepted
 date: 2026-09-30
 authors: ["Ivan Morozov", "Codex (OpenAI)"]
 tags: ["coordination", "models"]
@@ -20,9 +20,9 @@ guards: []
 
 | Field | Value |
 |---|---|
-| Status | proposed; architecture only, no runtime implementation |
+| Status | accepted; implementation authorized, runtime verification pending |
 | Date | 2026-09-30 (owner timezone) |
-| Deciders | Ivan Morozov; detailed proposal awaits owner approval |
+| Deciders | Ivan Morozov; authorized implementation of the reviewed proposal in chat on 2026-09-30 |
 | Supersedes / Superseded by | none / none |
 | Related | ADR-0001, ADR-0003, ADR-0005, ADR-0006, ADR-0007, ADR-0010; WP-20 |
 
@@ -163,3 +163,10 @@ is superseded by this opt-in extension.
 - [One task coordinated across harnesses and AI models](../epics/WP-20/epic.md)
 - [[0006-commit-protocol]], [[0007-shared-vault-presence]],
   [[0010-coordination-follows-the-repository]], [[0005-harness-registry]]
+
+## Owner authorization
+
+On 2026-09-30, after the independently reviewed architecture/backlog was committed
+as 9f7f997, the owner instructed Codex to begin implementation and authorized
+checks between installed Claude, Codex and OpenCode. This records approval of
+the reviewed approach, not proof of its runtime behavior or a model-strength ranking.

@@ -2,14 +2,14 @@
 type: spec
 id: "cross-harness-team-coordination-protocol"
 title: "Cross-harness team coordination protocol"
-status: draft
+status: active
 date: 2026-09-30
 updated: 2026-09-30
 authors: ["Ivan Morozov", "Codex (OpenAI)"]
 tags: ["coordination", "models"]
 external_refs: {}
 adr: ["model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review"]
-stories: ["WP-20/story-participant-identity-and-owner-approved-model-policy", "WP-20/story-local-authority-log-and-crash-safe-mutations", "WP-20/story-addressed-messages-and-verified-harness-delivery", "WP-20/story-assignments-supervision-and-stronger-model-handover", "WP-20/story-independent-strongest-model-review-of-immutable-evidence", "WP-20/story-reviewed-integration-and-team-aware-story-gates", "WP-20/story-team-cli-orientation-and-deterministic-diagnostics", "WP-20/story-live-claude-and-opencode-coordination-on-one-task"]
+stories: ["WP-20/story-participant-identity-and-owner-approved-model-policy", "WP-20/story-local-authority-log-and-crash-safe-mutations", "WP-20/story-addressed-messages-and-verified-harness-delivery", "WP-20/story-assignments-supervision-and-stronger-model-handover", "WP-20/story-independent-strongest-model-review-of-immutable-evidence", "WP-20/story-reviewed-integration-and-team-aware-story-gates", "WP-20/story-team-cli-orientation-and-deterministic-diagnostics", "WP-20/story-live-claude-and-opencode-coordination-on-one-task", "WP-20/story-automatic-model-routing-by-task-complexity-and-expected-cost"]
 review_status: reviewed
 reviewed_at: 2026-09-30
 code_refs: ["bin/waypost", "scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/doctor.mjs", "scripts/ready.mjs", "scripts/lib.mjs", "templates/agents-block.md.tmpl"]
@@ -17,8 +17,8 @@ code_refs: ["bin/waypost", "scripts/presence.mjs", "scripts/sessions.mjs", "scri
 
 # Cross-harness team coordination protocol
 
-Proposed WP-20 contracts, **not existing commands or runtime guarantees**.
-The linked ADR is proposed. Spec activation and owner approval precede implementation.
+Active WP-20 contracts approved for implementation on 2026-09-30.
+These are implementation requirements, **not proof of delivered runtime behavior**.
 Acceptance is additive to the covered stories, not substituted for their criteria.
 
 ## How we solve
@@ -26,7 +26,9 @@ Acceptance is additive to the covered stories, not substituted for their criteri
 Keep presence advisory. Team decisions live at one host-local authority; AI
 participants cooperate through messages and assignments. The strongest eligible
 coordinator supervises actual diffs; independent fresh contexts review immutable
-snapshots. Enrollment permits only this task's messages to enrolled sessions.
+snapshots. Ranking is generated automatically from expiring evaluator evidence,
+including free models, and periodically refreshed. Enrollment permits only this
+task's messages to enrolled sessions.
 
 Version one supports several harnesses/worktrees on one host. Another host needs
 an evidenced route to the same authority; replicas are read-only observations.
@@ -91,14 +93,23 @@ self-declared or unknown. Dynamic aliases/routers stay unknown unless actual
 execution model is pinned/observed. API keys, process names and installed role
 model do not establish identity. No credentials/transcripts in descriptors.
 
-2.3. Owner-approved versioned policy maps exact descriptors to ordered priorities
-for coordinate, implement and review for a named task domain, with source/date.
+2.3. Automatically generated versioned policy maps exact descriptors to ordered
+priorities for coordinate, implement and review for a named task domain. Trusted
+evaluator sources carry publication/retrieval dates, uncertainty and expiring
+evidence. The owner approves algorithm/source policy, not individual ranks.
+See [[automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation]].
 Default identity floor is adapter-observed or owner-attested. Waypost ships no
 asserted worldwide strength order. Unknown models cannot lead or satisfy top
-review; explicitly permitted low-risk execution is possible. No silent weaker
-fallback. Missing policy/identity is a named blocker for owner action.
+review or satisfy an execution capability floor. No silent weaker
+fallback. Missing evidence triggers automatic refresh/calibration discovery; unresolved
+identity remains a named blocker, never inferred ranking. Explicit manual policy
+is an optional override only.
 
-2.4. Recheck model at join and before protected actions where inspection exists;
+2.4. Periodically recheck execution identity AND strength source freshness, and
+check again at join/protected checkpoints. Source refresh does not prove current
+execution model. Active watch must name separate source and identity outcomes;
+without running watch no background check is claimed. Stale policy fails closed.
+Recheck model at join and before protected actions where inspection exists;
 otherwise owner attestation binds this exact protected action and model revision.
 Self-declaration never inherits prior owner-attested evidence strength: without
 new owner attestation/inspection, the protected action is blocked. Operator
@@ -115,6 +126,76 @@ Trusted local agents sharing OS/filesystem rights can still alter/read state:
 no hostile multi-tenant security or cryptographic model-execution proof claimed.
 Remote delivery needs a threat-model review. Message text is data, not code or
 higher-priority instructions. Limits must bound payloads, batches and evidence.
+
+2.6. Task-aware economical routing is separate from strongest-role selection.
+The coordinator approves an immutable assignment manifest with task domain,
+capability floor, complexity/risk, scope/criteria, tools/isolation and token/attempt
+budget. Classification cache binds manifest, classifier/routing and task-class
+calibration/evaluation revisions with expiry; any change reclassifies. Worker text
+is an untrusted signal; coordinator pins classification evidence. Only explicitly bounded reversible work without architecture/security/
+data-loss/publication risk qualifies as routine. Unknown scope or conflicting risk
+is complex; workers cannot downgrade classification. Architecture/complex reasoning
+requires the strongest qualified execution cohort. Final independent review still
+satisfies the strongest admitted review floor, regardless of worker cost.
+
+2.7. Among authorized available executors satisfying fresh exact execution identity,
+comparable task-domain capability, tools and usable quota, choose the lowest
+bounded estimated total cost. Include permitted attempts, context overhead and
+strongest verification; do not invent reliability probability. Free access never
+implies capability or unlimited quota. Unknown/stale tariff is not zero. Prices
+bind execution mode, exact model/configuration, currency/unit, source and expiry;
+subscription CLI usage cannot inherit API prices. Pricing/quota identify verified
+endpoint, opaque billing account, SKU/mode, actual model and shared quota pool;
+model authorship alone is not the billing route. Accounts shared by participants
+share reservations. Cross-currency comparisons need
+fresh conversion evidence. Without a capable affordable route, return a named
+blocker, never lower quality/review to meet budget.
+
+2.8. Serialize route and spend reservation in the authority before dispatch. Pin
+manifest, participant/incarnation, model/policy/price/quota revisions, attempt and
+spend ceilings. The envelope bounds all billable calls, reasoning/output, tool/
+request charges and worst-case in-flight liability; estimated tokens and local
+stop alone do not bound the invoice. Reserve task stages including classification,
+coordinator, retries, escalation and strongest final review. Strict-budget dispatch
+blocks if liability cannot be bounded. Concurrent grants cannot each reserve the
+same account/quota pool or budget. Ambiguous
+timeout leaves usage reserved until collector reconciliation. Actual provider
+fallback/model switch needs fresh admission and amended grant. Failed criteria,
+expanded scope or exhausted bounded attempts triggers coordinator escalation;
+preserve edits and reconcile uncertain execution before replacement. Capability
+floors only stay equal or increase. Preserve semantic requirements, fixed criteria
+and reference qualified identities across evaluation changes; numeric floors on
+incompatible scales are never compared. Re-evaluate or block; owner rebaseline
+requires a new manifest/review. Periodic cost/quota/identity/strength checks
+have separate evidence clocks. Cost-only refresh can reroute queued work but does
+not change coordinator rank or invalidate accepted review by itself. Runtime spend
+caps require a verified adapter accounting/stop capability; otherwise report that
+budget enforcement is unsupported. See
+[[automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets]].
+
+2.9. Task-class qualification comes from a trusted versioned evaluation collector:
+exact isolated model invocations, fixed criteria, independently strongest review,
+provenance/usage, confidence and expiry. Arbitrary supplied qualification JSON or
+overall rank cannot authorize a cheap route. Missing measured qualification returns
+a blocker or the separately authorized strongest baseline. The routing story owns
+collector implementation and live qualification proof.
+
+2.10. Consume each invocation attempt before dispatch; persist nonce and prepared/
+dispatching/running/settled/uncertain/aborted states. Grant deduplication alone does
+not deduplicate provider calls. A crash after send without a returned invocation id
+is uncertain. No same-attempt redispatch without proven no-liability or verified
+endpoint idempotency/reconciliation. New attempts require independent full liability
+reservation within the ceiling. Recheck tariff/quote and quota before sending;
+higher cost needs an increased approved reservation or pause. In-flight price
+changes require a provider maximum-liability bound for strict budget claims.
+
+2.11. Budget scope is explicit: task allocation plus project authority account/pool
+reservations across its teams. It cannot enforce wallet/quota use by unrelated
+projects/devices/direct clients. Cross-authority exclusive quota admission requires
+provider-backed reservation or authenticated shared pool authority; otherwise
+strict global-pool guarantees are unsupported. Baseline savings compares the same
+tasks/criteria/strongest review and includes classification, retries, escalation
+and actual tariffs/usage, not only token sticker price.
 
 ### 3. Leadership, stronger-model promotion and failover
 
@@ -224,8 +305,9 @@ unknown work. Evidence preserves original authorship after another integrates.
 6.1. Store review floor as highest review priority among identity-qualified models
 admitted to this team under its approved policy. It is independent of ready/busy/
 unavailable/left: temporary absence, model switch or departure never automatically
-lowers it. Stronger admission raises floor; only owner can explicitly rebaseline
-with new policy revision and visible acceptance-scope change. Weaker approval
+lowers it. Stronger admission raises floor; compare historical required model identities against current evidence revision;
+unknown historical strongest blocks instead of lowering floor. Explicit owner
+rebaseline is a visible acceptance-scope change, not an automatic downgrade. Weaker approval
 cannot silently satisfy the earlier requirement. Select an available independent
 fresh read-only context at/above that floor. Top model's authoring context is
 excluded; its separately established fresh context can qualify. If none can run,

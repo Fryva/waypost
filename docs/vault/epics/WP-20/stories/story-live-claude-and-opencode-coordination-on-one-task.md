@@ -2,7 +2,7 @@
 type: story
 id: "story-live-claude-and-opencode-coordination-on-one-task"
 epic: "WP-20"
-title: "Live Claude and OpenCode coordination on one task"
+title: "Live Claude, Codex and OpenCode coordination on one task"
 status: planned
 priority: p1
 assignee: "Ivan Morozov"
@@ -15,10 +15,10 @@ specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null
 plan_updated_at: null
-blocked_by: ["WP-20/story-participant-identity-and-owner-approved-model-policy", "WP-20/story-local-authority-log-and-crash-safe-mutations", "WP-20/story-addressed-messages-and-verified-harness-delivery", "WP-20/story-assignments-supervision-and-stronger-model-handover", "WP-20/story-independent-strongest-model-review-of-immutable-evidence", "WP-20/story-reviewed-integration-and-team-aware-story-gates", "WP-20/story-team-cli-orientation-and-deterministic-diagnostics"]
+blocked_by: ["WP-20/story-participant-identity-and-owner-approved-model-policy", "WP-20/story-local-authority-log-and-crash-safe-mutations", "WP-20/story-addressed-messages-and-verified-harness-delivery", "WP-20/story-assignments-supervision-and-stronger-model-handover", "WP-20/story-independent-strongest-model-review-of-immutable-evidence", "WP-20/story-reviewed-integration-and-team-aware-story-gates", "WP-20/story-team-cli-orientation-and-deterministic-diagnostics", "WP-20/story-automatic-model-routing-by-task-complexity-and-expected-cost"]
 ---
 
-# Live Claude and OpenCode coordination on one task
+# Live Claude, Codex and OpenCode coordination on one task
 
 | Field | Value |
 |---|---|
@@ -28,7 +28,7 @@ blocked_by: ["WP-20/story-participant-identity-and-owner-approved-model-policy",
 
 ## Description
 
-Prove the actual feature with concurrently running Claude/OpenCode sessions and different model profiles, independent review and a real integration. Tests/role generation cannot substitute.
+Prove the actual feature with concurrently running Claude/Codex/OpenCode sessions and different model profiles, independent review and a real integration. Tests/role generation cannot substitute.
 
 Architecture/backlog only. No work claim or implementation is asserted.
 
@@ -46,10 +46,13 @@ spec activation. Route through spec contracts 1–8, Acceptance.
 
 ## Acceptance Criteria
 
-- [ ] Claude and OpenCode contexts actually receive addressed assignments/questions/results both ways and return correlated responses on one task.
+- [ ] Claude, Codex and OpenCode contexts actually receive addressed assignments/questions/results both ways and return correlated responses on one task.
 - [ ] Different real model descriptors and policy evidence are recorded; strongest eligible leader visibly supervises weaker model diff.
 - [ ] A stronger arrival hands over without concurrent accepted leaders or unsafe duplicate editing.
 - [ ] Independent strongest-model context rejects a concrete defect, worker revises and new target passes fresh review.
+- [ ] One integrated task demonstrates a routine economical route and a complex
+      strongest route, using actual collector-qualified models and observed
+      whole-cycle usage/cost at the same acceptance quality.
 - [ ] Exact reviewed tree integrates with contributors and trailers; stale/duplicate results and changed target/base cannot pass.
 - [ ] Per-adapter unattended wake either has live evidence or is explicitly unsupported; generic autonomous support is not claimed.
 - [ ] Mac/Windows/Linux and remote evidence are distinguished; full regression suite through heavy gate plus doctor passes before release.
@@ -72,6 +75,7 @@ No live messaging, model identity or cross-platform proof from document creation
 - WP-20/story-independent-strongest-model-review-of-immutable-evidence
 - WP-20/story-reviewed-integration-and-team-aware-story-gates
 - WP-20/story-team-cli-orientation-and-deterministic-diagnostics
+- WP-20/story-automatic-model-routing-by-task-complexity-and-expected-cost
 
 ## Attachments
 

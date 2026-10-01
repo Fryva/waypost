@@ -1,0 +1,24 @@
+{
+  "protocol": 1,
+  "refresh_interval_ms": 86400000,
+  "max_age_ms": 604800000,
+  "timeout_ms": 10000,
+  "max_bytes": 2097152,
+  "max_rows": 2000,
+  "sources": [
+    {
+      "id": "arena-agent",
+      "type": "arena-hf",
+      "url": "https://datasets-server.huggingface.co/rows",
+      "dataset": "lmarena-ai/leaderboard-dataset",
+      "subset": "agent",
+      "category": "overall",
+      "domains": ["coding", "general"],
+      "docs": "https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset",
+      "methodology": "https://arena.ai/blog/arena-leaderboard-dataset",
+      "license": "CC-BY-4.0",
+      "limitations": "Agent Arena aggregate preference evidence; not a direct test of coordination or independent code review ability."
+    }
+  ],
+  "aliases": []
+}

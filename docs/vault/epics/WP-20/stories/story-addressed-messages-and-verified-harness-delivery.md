@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: []
-code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "scripts/agents.mjs", "scripts/presence.mjs", "docs/harnesses.md"]
+code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "scripts/agents.mjs", "scripts/presence.mjs", "scripts/team-mcp.mjs", "scripts/team-cli.mjs", "tests/team-mcp.test.mjs", "docs/team-coordination.md", "docs/harnesses.md"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null
@@ -30,7 +30,9 @@ blocked_by: ["WP-20/story-local-authority-log-and-crash-safe-mutations"]
 
 Provide one neutral addressed queue and capability-gated delivery to actual conversations. Claude/OpenCode bidirectional delivery is required; a mailbox alone is not completion.
 
-Architecture/backlog only. No work claim or implementation is asserted.
+The story remains planned behind its authority blocker. A bounded feasibility
+prototype now provides cooperative MCP inbox tools; it does not complete native
+delivery or claim this story's acceptance criteria.
 
 ## Decomposition
 
@@ -44,6 +46,13 @@ Architecture/backlog only. No work claim or implementation is asserted.
 A fresh planner fills this at the work-start gate after owner ADR approval and
 spec activation. Route through spec contracts 4, 2.5.
 
+Fresh planner feasibility pass (2026-10-01): keep one neutral CLI authority and
+add a stdio MCP adapter with fixed project/team/participant credential. Expose
+only addressed poll/send/ack; no caller-supplied actor/native locator/model or
+owner grants. Surface metadata is descriptive. A globally shared MCP credential
+does not distinguish desktop chats, so tool calls cannot certify native delivery,
+wake or independent review. Native binding/collectors remain subsequent work.
+
 ## Acceptance Criteria
 
 - [ ] Evidence names exact versions/platforms and demonstrates or falsifies each native capability independently; install confidence grants no delivery claim.
@@ -56,6 +65,21 @@ spec activation. Route through spec contracts 4, 2.5.
 ## Final Summary
 
 Pending implementation, evidence and independent review.
+
+Prototype evidence: tests/team-mcp.test.mjs exercises two credential holders,
+UTF-8 framing, argument boundaries, duplicate request replay and stale/foreign
+acks through the real CLI. Own CLI probes answered/continued Claude, Codex and
+OpenCode contexts; these do not establish desktop delivery. Claude Desktop Code
+UI was observed without injecting messages into user conversations. Live desktop
+MCP conversation exchange and autonomous wake remain unverified.
+
+Independent fresh-context reviewer (2026-10-01) accepted the cooperative prototype
+for a checkpoint after regression checks, with full-story gaps explicitly open.
+Findings fixed: compact byte-bounded inbox pages preserve the next unread cursor;
+ack ids travel in structured JSON instead of CLI option values; stdout waits for
+write completion; request-key schema matches the store; CLI failures expose only
+allowlisted safe codes. Regression tests include legal large UTF-8 messages,
+output backpressure, ids beginning with dashes and stale-epoch diagnostics.
 
 ## Technical Notes
 

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://waypost.dev/schemas/model-descriptor",
+  "title": "Observed execution model identity",
+  "description": "Identity evidence is independent of strength. A resolved exact execution model is required; a router alias, price, harness or role pin does not establish it. Credentials and transcripts are not permitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider", "model_id", "reasoning", "model_revision", "resolved", "evidence"],
+  "properties": {
+    "provider": { "$ref": "#/$defs/text" },
+    "model_id": { "$ref": "#/$defs/text" },
+    "reasoning": { "$ref": "#/$defs/text" },
+    "model_revision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "resolved": { "type": "boolean" },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "source", "observed_at"],
+      "properties": {
+        "kind": { "enum": ["adapter-observed", "owner-attested", "self-declared", "unknown"] },
+        "source": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "observed_at": { "$ref": "#/$defs/date" },
+        "action": { "$ref": "#/$defs/text", "description": "Authority-derived exact protected action token. Evidence for another action cannot authorize this one." }
+      }
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^\\s\\u0000-\\u001f\\u007f](?:[^\\u0000-\\u001f\\u007f]*[^\\s\\u0000-\\u001f\\u007f])?$" },
+    "date": { "type": "string", "maxLength": 64, "pattern": "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2}))?$" }
+  }
+}
