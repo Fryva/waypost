@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-01T00:38:26.989Z
+generated_at: 2026-10-01T01:56:49.768Z
 
 ---
 
@@ -14,6 +14,14 @@ generated_at: 2026-10-01T00:38:26.989Z
 - [ ] [[epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt|WP-17: doctor and next surface build artifacts]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines|WP-17: Verified on Linux and Windows virtual machines]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains|WP-17: Detectors: superseded device support, unavailable simulators, duplicate toolchains]] #p2
+- [ ] [[epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery|WP-20: Addressed messages and verified harness delivery]] #p1 #blocked
+- [ ] [[epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover|WP-20: Assignments supervision and stronger-model handover]] #p1 #blocked
+- [ ] [[epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence|WP-20: Independent strongest-model review of immutable evidence]] #p1 #blocked
+- [ ] [[epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task|WP-20: Live Claude and OpenCode coordination on one task]] #p1 #blocked
+- [ ] [[epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations|WP-20: Local authority log and crash-safe mutations]] #p1 #blocked
+- [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and owner-approved model policy]] #p1
+- [ ] [[epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates|WP-20: Reviewed integration and team-aware story gates]] #p1 #blocked
+- [ ] [[epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics|WP-20: Team CLI orientation and deterministic diagnostics]] #p1 #blocked
 
 ## ToDo
 

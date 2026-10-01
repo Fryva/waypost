@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-01T00:55:04.820Z
+generated_at: 2026-10-01T01:56:49.948Z
 
 ---
 
@@ -31,6 +31,7 @@ full typed neighborhood, both directions, in one call.
 | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | adr | accepted |
 | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md | Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first | adr | accepted |
 | adr/memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md | Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job | adr | proposed |
+| adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | Model-aware teams across harness sessions with one authority and independent review | adr | proposed |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
 | epics/WP-14/epic.md | Skills as the portable layer, and the first verified harnesses | epic | planned |
@@ -71,16 +72,32 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md | setup asked the filesystem alone about which harnesses a project uses | story | in-progress |
 | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md | Codex keeps one session and direct installers see the running harness | story | in-progress |
 | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md | ps in the C locale, so the process table exists on any host | story | done |
+| epics/WP-20/epic.md | One task coordinated across harnesses and AI models | epic | planned |
+| epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md | Addressed messages and verified harness delivery | story | planned |
+| epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md | Assignments supervision and stronger-model handover | story | planned |
+| epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | Independent strongest-model review of immutable evidence | story | planned |
+| epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md | Live Claude and OpenCode coordination on one task | story | planned |
+| epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md | Local authority log and crash-safe mutations | story | planned |
+| epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | Participant identity and owner-approved model policy | story | planned |
+| epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
+| epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
 | ops/run-waypost-from-a-checkout-another-operating-system-edits.md | Run waypost from a checkout another operating system edits | runbook | draft |
 | ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
+| specs/cross-harness-team-coordination-protocol.md | Cross-harness team coordination protocol | spec | draft |
 
 ## Edges
 
 | From | Kind | To |
 |------|------|----|
+| adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | mdlink | epics/WP-20/epic.md |
+| adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0005-harness-registry.md |
+| adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0006-commit-protocol.md |
+| adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0007-shared-vault-presence.md |
+| adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0010-coordination-follows-the-repository.md |
+| adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | mdlink | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | adr/0010-coordination-follows-the-repository.md |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | adr/0011-decisions-that-check-themselves.md |
@@ -173,4 +190,54 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md | mdlink | epics/WP-19/epic.md |
+| epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md |
+| epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md |
+| epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md |
+| epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md |
+| epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md |
+| epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md |
+| epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md |
+| epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md |
+| epics/WP-20/epic.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/epic.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md | mdlink | epics/WP-20/epic.md |
+| epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md | mdlink | epics/WP-20/epic.md |
+| epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | mdlink | epics/WP-20/epic.md |
+| epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md | mdlink | epics/WP-20/epic.md |
+| epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md | mdlink | epics/WP-20/epic.md |
+| epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | mdlink | epics/WP-20/epic.md |
+| epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | mdlink | epics/WP-20/epic.md |
+| epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | mdlink | epics/WP-20/epic.md |
+| epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
+| specs/cross-harness-team-coordination-protocol.md | mdlink | epics/WP-20/epic.md |
+| specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md |
+| specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md |
+| specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md |
+| specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md |
+| specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md |
+| specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md |
+| specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md |
+| specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md |
+| specs/cross-harness-team-coordination-protocol.md | spec-implements-adr | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| specs/cross-harness-team-coordination-protocol.md | wikilink | adr/0003-agent-roles-across-harnesses.md |
+| specs/cross-harness-team-coordination-protocol.md | wikilink | adr/0005-harness-registry.md |
+| specs/cross-harness-team-coordination-protocol.md | wikilink | adr/0006-commit-protocol.md |
+| specs/cross-harness-team-coordination-protocol.md | wikilink | adr/0007-shared-vault-presence.md |
+| specs/cross-harness-team-coordination-protocol.md | wikilink | adr/0010-coordination-follows-the-repository.md |
+| specs/cross-harness-team-coordination-protocol.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |

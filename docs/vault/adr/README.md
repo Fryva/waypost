@@ -34,6 +34,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first](./heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md) | Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first | accepted | 2026-09-14 |
 | [cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first](./cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md) | Cleanup to a machine-wide limit: set by the owner, idle artifacts oldest first | accepted | 2026-09-18 |
 | [memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job](./memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) | Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job | proposed | 2026-09-28 |
+| [model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review](./model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md) | Model-aware teams across harness sessions with one authority and independent review | proposed | 2026-09-30 |
 | [setup-asks-the-running-harness-not-only-the-projects-files](./setup-asks-the-running-harness-not-only-the-projects-files.md) | setup asks the running harness, not only the project's files | proposed | 2026-09-30 |
 
 ---

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-01T01:16:29.449Z
+generated_at: 2026-10-01T01:58:33.999Z
 
 ---
 
@@ -18,6 +18,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | [[epics/WP-17/epic\|WP-17]] | Disk hygiene by discovery | planned | `toolchains/`, `scripts/toolchains.mjs`, `scripts/discovery.mjs`, `scripts/sizes.mjs`, `scripts/cleanup.mjs`, `bin/waypost`, `package.json`, `scripts/doctor.mjs`, `scripts/presence.mjs`, `scripts/capacity.mjs`, `scripts/agents.mjs`, `scripts/lib.mjs`, `scripts/brief.mjs`, `tests/slots.test.mjs`, `tests/limit.test.mjs (planned)`, `prompts/cleanup.md`, `skills/waypost-doctor/SKILL.md`, `docs/toolchains.md`, `tests/sizes.test.mjs`, `tests/toolchains.test.mjs`, `tests/discovery.test.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/cleanup.test.mjs`, `README.md`, `AGENTS.md`, `CHANGELOG.md` |
 | [[epics/WP-18/epic\|WP-18]] | Heavy work sized to the machine | planned | `scripts/capacity.mjs`, `scripts/lib.mjs`, `scripts/presence.mjs`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, `bin/waypost`, `AGENTS.md`, `package.json`, `scripts/test.mjs`, `prompts/heavy.md`, `tests/sizes.test.mjs`, `tests/capacity.test.mjs`, `tests/slots.test.mjs`, `tests/test-runner.test.mjs`, `tests/harness.test.mjs`, `tests/presence.test.mjs`, `README.md`, `CHANGELOG.md` |
 | [[epics/WP-19/epic\|WP-19]] | The process layer on any host, and honest harness detection | planned | `scripts/presence.mjs`, `scripts/agents.mjs`, `scripts/skills.mjs`, `scripts/lib.mjs`, `tests/commits.test.mjs`, `tests/predicates.test.mjs`, `scripts/doctor.mjs`, `harnesses/codex.json`, `harnesses/claude.json`, `harnesses/gemini.json`, `bin/waypost`, `tests/presence.test.mjs`, `tests/harness.test.mjs`, `tests/limit.test.mjs`, `docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md` |
+| [[epics/WP-20/epic\|WP-20]] | One task coordinated across harnesses and AI models | planned | `agents/critic.md`, `agents/reviewer.md`, `bin/waypost`, `docs/harnesses.md`, `docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md`, `harnesses/claude.json`, `harnesses/codex.json`, `harnesses/opencode.json`, `scripts/agents.mjs`, `scripts/brief.mjs`, `scripts/commit.mjs`, `scripts/doctor.mjs`, `scripts/lib.mjs`, `scripts/presence.mjs`, `scripts/ready.mjs`, `scripts/sessions.mjs`, `templates/agents-block.md.tmpl`, `tests/commits.test.mjs`, `tests/harness.test.mjs`, `tests/presence.test.mjs` |
 
 ## Story-level refs (files each story touched)
 
@@ -38,3 +39,11 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-19 | setup asked the filesystem alone about which harnesses a project uses | `harnesses/codex.json`, `harnesses/claude.json`, `harnesses/gemini.json`, `scripts/agents.mjs`, `bin/waypost`, `tests/harness.test.mjs`, `docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md` |
 | WP-19 | Codex keeps one session and direct installers see the running harness | `bin/waypost`, `scripts/agents.mjs`, `scripts/skills.mjs`, `scripts/lib.mjs`, `tests/harness.test.mjs`, `tests/commits.test.mjs`, `tests/predicates.test.mjs`, `harnesses/codex.json` |
 | WP-19 | ps in the C locale, so the process table exists on any host | `scripts/presence.mjs`, `scripts/agents.mjs`, `scripts/doctor.mjs`, `tests/presence.test.mjs`, `tests/harness.test.mjs`, `tests/limit.test.mjs` |
+| WP-20 | Addressed messages and verified harness delivery | `harnesses/claude.json`, `harnesses/opencode.json`, `harnesses/codex.json`, `scripts/agents.mjs`, `scripts/presence.mjs`, `docs/harnesses.md` |
+| WP-20 | Assignments supervision and stronger-model handover | `scripts/presence.mjs`, `scripts/sessions.mjs`, `scripts/ready.mjs`, `bin/waypost`, `tests/presence.test.mjs` |
+| WP-20 | Independent strongest-model review of immutable evidence | `agents/critic.md`, `agents/reviewer.md`, `scripts/agents.mjs`, `tests/harness.test.mjs` |
+| WP-20 | Live Claude and OpenCode coordination on one task | `docs/harnesses.md`, `docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md`, `tests/commits.test.mjs`, `tests/presence.test.mjs` |
+| WP-20 | Local authority log and crash-safe mutations | `scripts/presence.mjs`, `scripts/lib.mjs`, `bin/waypost`, `tests/presence.test.mjs` |
+| WP-20 | Participant identity and owner-approved model policy | `scripts/lib.mjs`, `scripts/agents.mjs`, `harnesses/codex.json`, `harnesses/opencode.json`, `agents/critic.md` |
+| WP-20 | Reviewed integration and team-aware story gates | `scripts/commit.mjs`, `scripts/sessions.mjs`, `bin/waypost`, `tests/commits.test.mjs` |
+| WP-20 | Team CLI orientation and deterministic diagnostics | `bin/waypost`, `scripts/brief.mjs`, `scripts/doctor.mjs`, `scripts/sessions.mjs`, `scripts/ready.mjs`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, `tests/harness.test.mjs` |

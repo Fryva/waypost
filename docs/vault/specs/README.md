@@ -8,6 +8,7 @@
 
 | File | Title | Status | Date |
 |------|-------|--------|------|
+| [cross-harness-team-coordination-protocol](./cross-harness-team-coordination-protocol.md) | Cross-harness team coordination protocol | draft | 2026-09-30 |
 
 ---
 
