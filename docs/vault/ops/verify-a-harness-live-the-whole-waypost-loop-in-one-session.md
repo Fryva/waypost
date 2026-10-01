@@ -18,7 +18,7 @@ Turn a registry entry from `documented` into `verified`: run the whole loop insi
 
 - The harness installed and signed in (a headless `run` mode is fine where it exists: `opencode run`, `codex exec`).
 - `waypost` on PATH (0.14 or later).
-- A throwaway project: `git init`, a README, an `AGENTS.md` with one line of your own, then `waypost setup` and `waypost draft epic PS-1 "Verification epic" --write`, committed.
+- A throwaway project: `git init`, a README, then `waypost setup --harness <id>`, `waypost draft epic PS-1 "Verification epic" --write`, committed. Name the harness explicitly and keep the project free of harness files: since the setup evidence fix, `setup` also asks which harness it is running inside, so a bare repo exercises that path, and an `AGENTS.md` in the fixture would make every harness look like a codex project — which is what this runbook used to create on purpose, for a reason that no longer holds.
 
 ## Steps
 
@@ -43,7 +43,9 @@ The throwaway project is deleted; nothing else changes.
 
 ## Common Issues
 
-- **Started from inside another harness** (OpenCode launched from a Claude Code session): env markers of the outer harness are inherited. Since 0.14 detection prefers the ancestor process; before that the session recorded itself as the outer harness.
+- **Started from inside another harness** (OpenCode launched from a Claude Code session): env markers of the outer harness are inherited. Since 0.14 detection prefers the ancestor process; before that the session recorded itself as the outer harness. Measured 2026-09-30: a codex session exports `CODEX_SANDBOX=seatbelt` and `CODEX_SANDBOX_NETWORK_DISABLED=1`, and `CODEX_HOME` is normally unset (the default is `~/.codex`) — so an entry listing only `CODEX_HOME` would not be detected by env alone.
+- **`codex exec` cannot create `.codex/` under its own sandbox**: the default is `workspace-write`, and `agents install` fails with `EPERM: operation not permitted, mkdir '.codex/agents'`. That is codex, not waypost. Run the first `waypost setup` with `--dangerously-bypass-approvals-and-sandbox`, or run it from outside the session; the roles' own `sandbox_mode = "read-only"` is unaffected.
+- **`codex` is not always on PATH**: the CLI ships inside the desktop bundle at `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex` on macOS even when no symlink exists. `codex --version` prints the version it found.
 - **Headless `opencode run` hangs after `init`** with no session created: leftover `opencode run` processes from an earlier run hold its database; `pkill -f <prompt substring>` and retry. Add `--pure` if a global MCP server (for example `codegraph`) is configured and slow to start.
 - **`timeout` is not on macOS** — bound a headless run with the caller's own timeout.
 

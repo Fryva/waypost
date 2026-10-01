@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-09-30T17:14:53.105Z
+generated_at: 2026-10-01T00:34:22.669Z
 
 ---
 
@@ -34,5 +34,5 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-18 | The heavy-work rule in every project, and Waypost's own heavy work | `templates/agents-block.md.tmpl`, `scripts/agents.mjs`, `AGENTS.md`, `prompts/heavy.md`, `package.json`, `scripts/test.mjs`, `bin/waypost`, `tests/harness.test.mjs`, `tests/capacity.test.mjs`, `tests/sizes.test.mjs`, `tests/slots.test.mjs`, `tests/test-runner.test.mjs`, `README.md`, `CHANGELOG.md` |
 | WP-18 | waypost capacity: the machine's real free resources, measured by each OS | `scripts/capacity.mjs`, `scripts/lib.mjs`, `bin/waypost`, `tests/capacity.test.mjs`, `CHANGELOG.md` |
 | WP-18 | waypost run --heavy: a machine-wide slot for heavy work | `bin/waypost`, `scripts/capacity.mjs`, `scripts/lib.mjs`, `scripts/presence.mjs`, `tests/capacity.test.mjs`, `tests/slots.test.mjs`, `CHANGELOG.md` |
-| WP-19 | AGENTS.md is not evidence that codex is used here | `harnesses/codex.json`, `harnesses/claude.json`, `harnesses/gemini.json`, `scripts/agents.mjs`, `bin/waypost`, `tests/harness.test.mjs`, `docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md` |
+| WP-19 | setup asked the filesystem alone about which harnesses a project uses | `harnesses/codex.json`, `harnesses/claude.json`, `harnesses/gemini.json`, `scripts/agents.mjs`, `bin/waypost`, `tests/harness.test.mjs`, `docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md` |
 | WP-19 | ps in the C locale, so the process table exists on any host | `scripts/presence.mjs`, `scripts/agents.mjs`, `scripts/doctor.mjs`, `tests/presence.test.mjs`, `tests/harness.test.mjs`, `tests/limit.test.mjs` |

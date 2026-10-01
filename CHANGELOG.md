@@ -177,6 +177,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays in the vault (ADR-0004).
 
 ### Fixed
+- `waypost setup` asked the filesystem alone which harnesses a project uses, so
+  a project that shows no evidence of any was reported as evidence of none — and
+  the harness you were standing in was not asked. Measured 2026-09-30 inside a
+  live `codex` session (`codex-cli 0.159.2`): codex creates no project-local
+  `.codex/`, and `waypost setup --dry-run` in a repo holding only a README said
+  "no harness detected" while `detectHarness()` said `codex`. `setup` now unions
+  the running harness with the file markers, as `doctor` already did, and passes
+  the list to `agents install` explicitly so a harness found that way is really
+  installed and not merely named. An explicit `--harness` still overrides both.
+  - Escape for an earlier wrong guess, in the two cases that are not the same
+    (both measured 2026-09-30; `agents uninstall` removes waypost's own role
+    files, the `agents/` directory when nothing else is left in it, and the
+    `.codex/` directory when that is all it held — a user's `.codex/config.toml`
+    survives):
+    - `setup` wrote `.codex/` into a project that only kept a **shared**
+      `AGENTS.md`. The routing block went into that root `AGENTS.md`, not into
+      `.codex/AGENTS.md`; and `waypost agents uninstall --harness codex` removes
+      the role files, the emptied `agents/` directory and the `.codex/`
+      directory itself, so `rm -rf .codex` is not needed and would only risk the
+      user's own files. That `AGENTS.md` does keep the routing block —
+      `waypost agents unregister` is what takes it out. `setup` will keep offering codex while `AGENTS.md` remains a codex
+      marker; that over-count is deliberate (it is the vendor's primary project
+      instruction file) and costs one extra install, not a wrong project.
+    - `setup` wrote `.codex/` into a project with **no** marker, found only
+      through the running harness. It writes `.codex/AGENTS.md` with waypost's
+      routing block, which `uninstall` leaves behind — and then `setup` offers
+      codex again. The honest reset there is to remove waypost's own file:
+      ```
+      waypost agents uninstall --harness codex
+      rm -rf .codex                     # only in the marker-less case; check for a .codex/config.toml first
+      ```
+      A marker-less project cannot ask for that state again, so this is a
+      one-time cleanup. `doctor` will not flag any of it, because waypost
+      cannot tell an unjustified install from a justified one.
+  - Reading the harness registry in-process — which is what lets `setup` detect
+    once instead of twice — used to lose both halves of the answer when
+    `WAYPOST_HOME` or `CLAUDE_PLUGIN_ROOT` pointed elsewhere: every spawned
+    script is given this executable's own root, but an in-process import had no
+    such pin, so a project with real markers was told it had no harness, with no
+    reason given. The registry is now read under that pin, and a registry that
+    cannot be read is named on stderr instead of being turned into a silent
+    "no harness detected".
+  - A project holding only waypost's own routing block used to make `setup`
+    promise an install and then fail: the child re-detects, strips the block
+    (E-1), finds nothing, and exits 1 mid-command, leaving the project half
+    configured. The explicit harness list removes that hard abort.
 - `waypost capacity` asked too little memory of a heavy job and, on macOS,
   saw too much of it free. On a 3.8 GB Linux VM a Rust test build ran beside
   background agents with a memory share of 0.95 GB (a quarter of the

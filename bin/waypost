@@ -160,13 +160,42 @@ async function handleSetup(args) {
     step("scaffold any missing layout folders", () => handleScaffold([]));
   }
 
+  // The harness running this command is the one project setup is being run
+  // inside, so it is evidence like any other — the same union doctor already
+  // makes (scripts/doctor.mjs) and the same reason selfInstall reads
+  // detectHarness(). Without it, setup was the one consumer that asked the
+  // filesystem alone, and a real project could look empty to it: measured
+  // 2026-09-30, from inside a live `codex` session (codex-cli 0.159.2) in a
+  // repo with a README and no marker of any kind, `setup --dry-run` answered
+  // "no harness detected" while detectHarness() in the same directory
+  // answered "codex". Codex exports CODEX_SANDBOX and
+  // CODEX_SANDBOX_NETWORK_DISABLED (both declared in harnesses/codex.json) and
+  // never creates a project-local .codex/ of its own, so file markers alone
+  // cannot see it. `AGENTS.md` had been hiding that: a real Codex project
+  // almost always has one, and the marker made the wrong code path give the
+  // right answer.
+  //
+  // This makes no precedence claim between the two sources — they are unioned.
+  // A file marker says the project uses that harness; the running process says
+  // someone is in it right now, and both can be true.
+  //
+  // --harness is read first and short-circuits the detection below entirely: an
+  // explicit choice is a decision, and a decision must not depend on whether the
+  // two sources happened to be readable — or on an ambient process table naming
+  // somebody else's harness.
   const harnesses = opt(args, "--harness");
-  const detected = detectedHarnesses();
+  const detected = harnesses ? [] : [...new Set([
+    ...await detectedHarnesses(),
+    ...await runningHarness().then((h) => (h ? [h] : [])),
+  ])];
   if (harnesses || detected.length) {
-    step(`install roles for ${harnesses || detected.join(", ")}`,
-      () => run("agents", ["install", ...(harnesses ? ["--harness", harnesses] : [])]));
-    step(`install skills for ${harnesses || detected.join(", ")}`,
-      () => run("skills", ["install", ...(harnesses ? ["--harness", harnesses] : [])]));
+    // The list is passed explicitly, not left to the child: `agents install`
+    // re-detects from markers on its own, so a harness found only by the
+    // running process would be named in the label and then skipped.
+    const list = harnesses || detected.join(",");
+    const named = list.split(",").join(", ");      // --harness takes a,b; a human reads a, b
+    step(`install roles for ${named}`, () => run("agents", ["install", "--harness", list]));
+    step(`install skills for ${named}`, () => run("skills", ["install", "--harness", list]));
     step("register the routing block", () => run("agents", ["register"]));
   } else {
     say("no harness detected — run `waypost agents install --harness <id>` once you pick one");
@@ -317,12 +346,78 @@ function guessVault() {
   return join(root, existsSync(join(root, "docs")) ? "docs/vault" : "vault");
 }
 
-function detectedHarnesses() {
+// Both functions below import scripts/agents.mjs in-process, which is the
+// right default and the reason there is one detection instead of two. It
+// costs the thing `run()` gets for free: the child it spawns is given
+// WAYPOST_HOME=ROOT, so pluginRoot() resolves the registry from this
+// executable's own tree whatever the caller's environment says. An in-process
+// import has no such pin, and pluginRoot() honours WAYPOST_HOME — a documented
+// user setting — and CLAUDE_PLUGIN_ROOT, which is itself one of the `env`
+// markers the `claude` registry entry declares. Left unpinned, a foreign root
+// supplies the ids themselves: a project with real markers is named after
+// whatever that root declares, or after nothing at all. Hence withRegistryHome()
+// around every registry read — including main()'s own, which is the first and
+// used to prime the memo every later read inherited — and a diagnostic instead
+// of silence: "no harness detected" with no reason is the one answer that cannot
+// be acted on. `scripts/agents.mjs` keys that memo on the root as well: the pin
+// is what makes this answer right, the key is what stops a second caller from
+// inheriting the first one's.
+function withRegistryHome(fn) {
+  const saved = process.env.WAYPOST_HOME;
+  process.env.WAYPOST_HOME = ROOT;
+  try { return fn(); }
+  finally {
+    if (saved === undefined) delete process.env.WAYPOST_HOME;
+    else process.env.WAYPOST_HOME = saved;
+  }
+}
+
+function registryReadFailed(what, e) {
+  process.stderr.write(`waypost setup: cannot read the harness registry for ${what}: ${e.message}\n`);
+  process.stderr.write("waypost setup: WAYPOST_HOME / CLAUDE_PLUGIN_ROOT may point elsewhere; unset it to use this waypost's own registry.\n");
+}
+
+// The harnesses this project shows evidence of, by the same detector
+// `agents install` uses: a marker counts only when the user's own content
+// remains in it. Reading the `agents harnesses --json` projection and testing
+// each `detect` path with a bare existsSync — which is what this did — is
+// weaker than the detector it stood in for. Measured on the E-1 fixture
+// (`.pi/` + README + an `AGENTS.md` carrying only waypost's routing block),
+// one command printing both sets, with the run pinned to `pi` so nothing
+// ambient is added: before setup, the projection reads `[ 'codex', 'pi' ]`
+// where the module reads `[ 'pi' ]`; after setup, `[ 'antigravity', 'codex',
+// 'pi' ]` where the module still reads `[ 'pi' ]`. The extra ids are exactly
+// the unrequested directories that would be created. Since setup hands the
+// result to the child as an explicit `--harness` list, the difference stops
+// being a label and becomes what gets written.
+async function detectedHarnesses() {
   try {
-    return JSON.parse(run("agents", ["harnesses", "--json"], { capture: true }))
-      .harnesses.filter((h) => (h.detect || []).some((d) => existsSync(join(projectRoot(), d))))
-      .map((h) => h.id);
-  } catch { return []; }
+    const A = await import(`file://${SCRIPT("agents")}`);
+    return withRegistryHome(() => A.detectHarnesses(projectRoot()));
+  } catch (e) {
+    registryReadFailed("the project's harnesses", e);
+    return [];
+  }
+}
+
+// The harness this command is running inside, or null when it cannot be
+// determined. main() has already resolved it into WAYPOST_HARNESS for every
+// non-quiet command (one `ps` per working command, shared with presence and
+// commit), so the first line is the answer and detectHarness() is only the
+// fallback for a quiet command or a detection that threw. It is deliberately a
+// question about *now* and never about the project, which is what
+// detectedHarnesses() answers; callers union the two.
+async function runningHarness() {
+  try {
+    const A = await import(`file://${SCRIPT("agents")}`);
+    return withRegistryHome(() => {
+      const h = process.env.WAYPOST_HARNESS || A.detectHarness();
+      return h && h !== "unknown" && A.harnessIds().includes(h) ? h : null;
+    });
+  } catch (e) {
+    registryReadFailed("the running harness", e);
+    return null;
+  }
 }
 
 function passThrough(args, names) {
@@ -3586,7 +3681,10 @@ async function main() {
   if (!process.env.WAYPOST_HARNESS) {
     try {
       const { detectHarness } = await import(`file://${SCRIPT("agents")}`);
-      const h = detectHarness();
+      // Pinned like every read in handleSetup: this is the first registry read
+      // of the process, and an unpinned one would both take its answer from a
+      // foreign WAYPOST_HOME and prime the memo every later read inherits.
+      const h = withRegistryHome(() => detectHarness());
       if (h && h !== "unknown") process.env.WAYPOST_HARNESS = h;
     } catch { /* detection is best-effort; a null harness is still valid */ }
   }

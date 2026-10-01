@@ -76,9 +76,18 @@ function registryDirs() {
   ];
 }
 
+// Memoized per plugin root, not once per process: every dispatch this CLI makes
+// is given WAYPOST_HOME=ROOT, but an in-process import is not, and pluginRoot()
+// honours WAYPOST_HOME and CLAUDE_PLUGIN_ROOT. Keyed only on first read, the
+// first caller wins — and bin/waypost's own detection runs before anything
+// pins the root, so a foreign root silently supplied the ids the rest of the
+// command then used. Keyed on the root, a second read from a different root is
+// a different registry, which is what every caller means.
 let _registry = null;
+let _registryRoot = null;
 export function registry() {
-  if (_registry) return _registry;
+  const root = pluginRoot();
+  if (_registry && _registryRoot === root) return _registry;
   const out = new Map();
   const dirs = registryDirs();
   for (let i = 0; i < dirs.length; i++) {      // project entries override bundled ones
@@ -108,6 +117,7 @@ export function registry() {
     }
   }
   _registry = out;
+  _registryRoot = root;
   return out;
 }
 

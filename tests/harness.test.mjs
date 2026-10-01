@@ -9,7 +9,7 @@ import { join, dirname, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { detectHarnesses, detectHarness, gateCheck } from "../scripts/agents.mjs";
+import { detectHarnesses, detectHarness, gateCheck, registry } from "../scripts/agents.mjs";
 import { storedVaultPath, resolveVaultPath } from "../scripts/lib.mjs";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
@@ -23,6 +23,16 @@ const mkdtempSync = (prefix) => { const p = fsMkdtemp(prefix); TMP_DIRS.push(p);
 after(() => { for (const p of TMP_DIRS) rmSync(p, { recursive: true, force: true }); });
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
+
+// This file's own process is the one thing no per-spawn env can neutralise: the
+// detectHarness() and gateCheck() calls below run in it, and harnessProcess()
+// reads process.env.WAYPOST_PROC before the table it is handed. So a suite
+// started inside a harness inherited that harness's evidence and answered for
+// every synthetic chain (measured: an inherited WAYPOST_PROC naming opencode
+// turns "claude" into "opencode" in the process-table tests). Cleared once,
+// here, for the whole file — the tests that mean to pin a value pass it in an
+// env object, which is unaffected.
+delete process.env.WAYPOST_PROC;
 
 // A module path for `node -e "import(...)"`. It has to be a file:// URL:
 // on Windows a bare absolute path starts "Y:", which an ESM import reads as
@@ -38,11 +48,26 @@ function project() {
   return proj;
 }
 
+// Harness evidence is emptied for every spawn, not just the ones that ask for
+// a hermetic discovery env: the driving agent's markers reach the child through
+// process.env, and `setup` (since it asks which harness it is running inside)
+// and `doctor` (which always counted the running one) both act on them. So a
+// suite run inside a Claude Code or Codex session would otherwise install that
+// session's roles into every fixture and label the fixtures with it. Measured:
+// 4 failures with an inherited WAYPOST_PROC naming the outer harness, and the
+// same class of leak through every registry env marker. A test that wants a
+// harness to be detected says so in its own `env` and gets it back.
+function withoutHarnessEvidence() {
+  const off = { WAYPOST_HARNESS: "", WAYPOST_PROC: "" };
+  for (const h of registry().values()) for (const v of h.env || []) off[v] = "";
+  return off;
+}
+
 function waypost(proj, args, { expectFail = false, session = null, env = {} } = {}) {
   const r = spawnSync(process.execPath, [Waypost, ...args], {
     encoding: "utf8", cwd: proj, timeout: 30000,
     env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO,
-      ...(session ? { WAYPOST_SESSION_ID: session } : {}), ...env },
+      ...withoutHarnessEvidence(), ...(session ? { WAYPOST_SESSION_ID: session } : {}), ...env },
   });
   if (!expectFail) assert.equal(r.status, 0, `${args.join(" ")}\n${r.stderr}${r.stdout}`);
   return r;
@@ -71,11 +96,18 @@ function realGitPath() {
   if (!_gitPath) _gitPath = spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim();
   return _gitPath;
 }
+// As well as the discovery env below, every spawn gets the harness evidence
+// emptied (see withoutHarnessEvidence()): the driving agent's markers reach the
+// child through process.env, and setup now asks which harness it is running
+// inside, so an inherited one would make the suite install for whoever happens
+// to be running it — green here, failing under a different harness, with role
+// files that depend on the developer. WAYPOST_NO_INSTALL is not the tool for
+// that: it switches off the repair these tests are about.
 function hermeticDiscoveryEnv() {
   const home = mkdtempSync(join(tmpdir(), "waypost-h-home-"));
   const bin = mkdtempSync(join(tmpdir(), "waypost-h-bin-"));
   symlinkSync(realGitPath(), join(bin, "git"));
-  return { HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin };
+  return { HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, ...withoutHarnessEvidence() };
 }
 
 // ─── role definitions ──────────────────────────────────────────────────
@@ -790,6 +822,15 @@ test("the same rule, through the process table itself rather than a pinned WAYPO
     "no process evidence at all: env decides, unchanged");
   assert.equal(detectHarness(both, { table: chain("opencode"), ppid: 900 }), "claude",
     "a chain that dead-ends before any non-shell ancestor yields no process evidence");
+  // The same calls with an inherited WAYPOST_PROC: harnessProcess() reads that
+  // first, before the table it is handed, so an ambient one silently replaces
+  // every synthetic chain above with the harness actually driving the suite.
+  // The tests that pin it deliberately (above, and gateCheck's) keep working;
+  // the ones exercising the table have to say it is not set.
+  assert.equal(detectHarness({ ...both, WAYPOST_PROC: "" }, { table: chain("opencode"), ppid: 900 }), "claude");
+  assert.equal(detectHarness({ ...both, WAYPOST_PROC: "" }, { table: chain("claude"), ppid: 600 }), "claude");
+  assert.equal(detectHarness({ ...both, WAYPOST_PROC: "" }, { table: chain("opencode"), ppid: 600 }), "opencode",
+    "and the table still answers when the ambient one is out of the way");
 });
 
 // ─── gateCheck (the machine-wide-limit ADR, Decision 2) ────────────────────
@@ -1420,6 +1461,181 @@ test("one command leaves a project ready, and says what it did", () => {
 
   const again = waypost(proj, ["setup"], { env: denv }).stdout;
   assert.match(again, /already bound/, "running it twice is safe and says so");
+});
+
+test("setup sees the harness it is running inside, not only the project's files", () => {
+  // Measured 2026-09-30, from inside a real `codex` session (codex-cli
+  // 0.159.2) in a repo containing a README and no marker of any kind:
+  // `setup --dry-run` said "no harness detected" while detectHarness() in the
+  // same directory said "codex". Codex exports CODEX_SANDBOX and
+  // CODEX_SANDBOX_NETWORK_DISABLED and creates no project-local .codex/, so
+  // there was nothing on disk for a file marker to match — the same shape
+  // holds for any harness whose only trace is its own process.
+  const proj = project();
+  writeFileSync(join(proj, "README.md"), "# no harness marker here\n", "utf8");
+  const denv = { ...hermeticDiscoveryEnv(), WAYPOST_HARNESS: "codex" };
+
+  const dry = waypost(proj, ["setup", "--dry-run"], { env: denv }).stdout;
+  assert.match(dry, /would install roles for codex/, "the running harness is evidence on its own");
+  assert.ok(!/no harness detected/.test(dry), "…so the fallback is not printed over it");
+
+  const out = waypost(proj, ["setup"], { env: denv }).stdout;
+  // codex renders TOML, not markdown, so the assertion is over the rendered
+  // set rather than over a filename: what setup promised is on disk.
+  const wrote = readdirSync(join(proj, ".codex", "agents")).filter((n) => n.includes("critic"));
+  assert.equal(wrote.length, 1, `the role file it named is actually written, not only announced: ${wrote}`);
+});
+
+test("a harness found by its env marker alone is seen, with no file and no process", () => {
+  // The live evidence behind the fix: a codex session exports CODEX_SANDBOX
+  // and creates no project file, so the env marker is the only thing there is.
+  // The read this exercises is main()'s detectHarness() (bin/waypost:3672),
+  // which the three tests above sidestep by pinning WAYPOST_HARNESS; setup's
+  // own fallback is covered by the broken-registry-root test below.
+  const proj = project();
+  writeFileSync(join(proj, "README.md"), "# nothing but this\n", "utf8");
+  const denv = { ...hermeticDiscoveryEnv(), CODEX_SANDBOX: "seatbelt" };
+  delete denv.WAYPOST_HARNESS;
+
+  assert.match(waypost(proj, ["setup", "--dry-run"], { env: denv }).stdout,
+    /would install roles for codex/, "the declared env marker is evidence on its own");
+  // And the same project without it is not: the emptying above must disable
+  // detection, not leave it stuck on.
+  assert.match(waypost(proj, ["setup", "--dry-run"], { env: hermeticDiscoveryEnv() }).stdout,
+    /no harness detected/, "and the neutralised env really is neutral");
+});
+
+test("a foreign WAYPOST_HOME costs neither half of the answer, and is said out loud", () => {
+  // pluginRoot() honours WAYPOST_HOME, and every spawn this CLI makes is given
+  // WAYPOST_HOME=ROOT — but an in-process import is not, and reading the
+  // registry in-process is what makes setup's union one detection rather than
+  // two. Three ways that went wrong, all measured, one case each:
+  //
+  //   a root that does not exist     → registry() throws, and both halves
+  //                                    degraded to "no harness detected";
+  //   a root with a valid registry   → no throw at all, so the diagnostic never
+  //                                    fired and the ids came from that root:
+  //                                    this project was offered for a harness
+  //                                    this tool has never heard of, and an
+  //                                    inherited WAYPOST_HARNESS was validated
+  //                                    against the wrong id list;
+  //   registry() is memoized          → main()'s own detection read it first,
+  //                                    so the fix has to cover that read too or
+  //                                    every later read inherits the answer.
+  const proj = project();
+  writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");
+  const denv = { ...hermeticDiscoveryEnv(), WAYPOST_HOME: join(proj, "nope") };
+
+  const dry = waypost(proj, ["setup", "--dry-run"], { env: denv });
+  assert.match(dry.stdout, /^would install roles for claude$/m,
+    `the project's markers still count: ${dry.stdout}`);
+  assert.ok(!/no harness detected/.test(dry.stdout), "…rather than both halves failing together");
+
+  // The running half: when the registry throws on a foreign root, the fallback
+  // path is exercised and the env marker is still read; main()'s detection is
+  // pinned under that same root by withRegistryHome() now.
+  const both = waypost(proj, ["setup", "--dry-run"],
+    { env: { ...denv, CODEX_SANDBOX: "seatbelt", WAYPOST_HARNESS: "" } });
+  assert.match(both.stdout, /^would install roles for claude, codex$/m,
+    `and the harness it is running inside is still asked: ${both.stdout}`);
+
+  // A foreign root that *does* resolve is the case that must not be answered
+  // from it, and it answers nothing by throwing — so nothing is said either.
+  const other = project();
+  mkdirSync(join(other, "harnesses"), { recursive: true });
+  writeFileSync(join(other, "harnesses", "onlymine.json"),
+    `${JSON.stringify({ id: "onlymine", name: "Only Mine", detect: ["CLAUDE.md"] })}\n`, "utf8");
+  const vdenv = { ...hermeticDiscoveryEnv(), WAYPOST_HOME: other };
+  const foreign = waypost(proj, ["setup", "--dry-run"], { env: vdenv });
+  assert.match(foreign.stdout, /^would install roles for claude$/m,
+    `this tool's own registry, not that root's: ${foreign.stdout}`);
+  assert.ok(!/onlymine/.test(foreign.stdout + foreign.stderr),
+    "an id this tool has never heard of is not named");
+
+  // …and an inherited harness is not validated against that root's id list,
+  // which used to discard it silently.
+  const inh = waypost(proj, ["setup", "--dry-run"], { env: { ...vdenv, WAYPOST_HARNESS: "claude" } });
+  assert.match(inh.stdout, /^would install roles for claude$/m,
+    `an inherited harness survives a foreign root: ${inh.stdout}`);
+
+  // A real run must not abort mid-command either: the child rejects an id the
+  // parent invented, which is the half-configured-project shape this fixes.
+  const live = waypost(proj, ["setup"], { env: vdenv });
+  assert.ok(existsSync(join(proj, ".claude", "agents")),
+    `the install completes under a foreign root: ${live.stderr}`);
+
+  // A registry that cannot be parsed is a different failure and gets said —
+  // once per read that wanted it, named, so one half going quiet is visible.
+  mkdirSync(join(proj, ".waypost", "harnesses"), { recursive: true });
+  writeFileSync(join(proj, ".waypost", "harnesses", "x.json"), "not json\n", "utf8");
+  const broken = waypost(proj, ["setup", "--dry-run"], { env: hermeticDiscoveryEnv() });
+  assert.match(broken.stderr, /not valid JSON/, `the reason is on stderr, not swallowed: ${broken.stderr}`);
+  for (const what of ["the project's harnesses", "the running harness"]) {
+    assert.ok(broken.stderr.includes(`cannot read the harness registry for ${what}`),
+      `…attributed per read, and both are reported: ${broken.stderr}`);
+  }
+
+  // An explicit --harness short-circuits the reads entirely, so an explicit
+  // decision neither fails nor complains on a registry it never consults.
+  const decided = waypost(proj, ["setup", "--dry-run", "--harness", "gemini"],
+    { env: { ...hermeticDiscoveryEnv(), WAYPOST_HOME: join(proj, "nope") } });
+  assert.match(decided.stdout, /^would install roles for gemini$/m, `the flag still decides: ${decided.stdout}`);
+  assert.ok(!/harness registry/.test(decided.stderr),
+    `and asks nothing it was told the answer to: ${decided.stderr}`);
+});
+
+test("setup is idempotent in the harness set it writes: two runs, same list", () => {
+  // The shape that breaks: `setup` writes markers (a roles directory, the
+  // shared skills directory, a block-only AGENTS.md) and detection is by
+  // directory, so the guess can make itself true. A second run must not believe
+  // more than the first. Runs on the E-1 fixture — a project holding only
+  // waypost's own routing block, which markerCounts() strips — so a setup that
+  // re-detected with a bare existsSync would conjure codex and opencode here.
+  const proj = project();
+  mkdirSync(join(proj, ".pi"), { recursive: true });
+  writeFileSync(join(proj, "README.md"), "# solo pi\n", "utf8");
+  writeFileSync(join(proj, "AGENTS.md"),
+    "<!-- waypost:agents v3 (managed by waypost — edit outside the markers) -->\n<!-- /waypost:agents -->\n", "utf8");
+  const denv = hermeticDiscoveryEnv();
+
+  const first = waypost(proj, ["setup", "--dry-run"], { env: denv }).stdout;
+  assert.match(first, /would install roles for pi/, "the project's own harness");
+  assert.ok(!/codex/.test(first), "waypost's own block is not a marker (E-1)");
+
+  waypost(proj, ["setup"], { env: denv });
+  const second = waypost(proj, ["setup", "--dry-run"], { env: denv }).stdout;
+  assert.match(second, /would install roles for pi/, "…and the second run agrees with the first");
+  assert.ok(!/codex|opencode/.test(second), "nothing setup itself wrote is mistaken for evidence");
+  assert.ok(!existsSync(join(proj, ".codex")), "and no unrequested directory appears");
+});
+
+test("a harness from the project and the one running are both installed", () => {
+  const proj = project();
+  writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");
+  const denv = { ...hermeticDiscoveryEnv(), WAYPOST_HARNESS: "codex" };
+
+  assert.match(waypost(proj, ["setup", "--dry-run"], { env: denv }).stdout,
+    /would install roles for claude, codex/, "neither source wins; the union is named");
+
+  waypost(proj, ["setup"], { env: denv });
+  assert.ok(existsSync(join(proj, ".claude", "agents", `${PREFIX}critic.md`)), "the one the project shows");
+  const codex = readdirSync(join(proj, ".codex", "agents")).filter((n) => n.includes("critic"));
+  assert.equal(codex.length, 1, `and the one it is running inside, not just the first: ${codex}`);
+});
+
+test("an explicit --harness still overrides what is running and what is on disk", () => {
+  const proj = project();
+  writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");
+  const denv = { ...hermeticDiscoveryEnv(), WAYPOST_HARNESS: "codex" };
+
+  const dry = waypost(proj, ["setup", "--dry-run", "--harness", "gemini"], { env: denv }).stdout;
+  // Anchored at the end of the line, and checked over the whole output: the
+  // unanchored form passes on a union label too ("would install roles for
+  // gemini, claude" contains it), and a prefix split only inspects the
+  // preamble, which cannot name a harness at all — so neither would notice an
+  // override that had stopped overriding.
+  assert.match(dry, /^would install roles for gemini$/m, "the flag is a decision, not a hint");
+  assert.ok(!/claude|codex/.test(dry), `…and neither other source is named anywhere: ${dry}`);
 });
 
 test("re-binding the same vault keeps the language and layout the project chose", () => {

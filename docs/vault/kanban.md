@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-09-30T17:15:03.107Z
+generated_at: 2026-10-01T00:34:22.583Z
 
 ---
 
@@ -25,7 +25,7 @@ generated_at: 2026-09-30T17:15:03.107Z
 - [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
 - [ ] [[epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run|WP-17: The machine-wide limit: automatic cleanup at the end of a heavy run]] #p2
 - [ ] [[epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines|WP-18: Capacity verified on Linux and Windows virtual machines]] #p1
-- [ ] [[epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here|WP-19: AGENTS.md is not evidence that codex is used here]] #p1
+- [ ] [[epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here|WP-19: setup asked the filesystem alone about which harnesses a project uses]] #p1
 
 ## Review
 

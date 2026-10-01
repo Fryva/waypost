@@ -137,7 +137,7 @@ changed under you without waiting for a release.
 | Key | Meaning |
 |-----|---------|
 | `id` | registry key; the value `--harness <id>` takes |
-| `detect` | paths that mean "this project uses this harness" (directory or file) |
+| `detect` | paths that mean "this project uses this harness" (directory or file) — one source of that claim; see *Two sources of evidence* |
 | `instructions` | files the routing block is written into by `waypost agents register` |
 | `invoke` | one line telling a human (and the block) how to reach a role there |
 
@@ -187,6 +187,22 @@ declares no effort" end up being the same rule.
   and it says how a role is reached instead — `waypost agents show <role>`, or a
   harness it can spawn. Install writes nothing and says so; doctor does not ask
   why the roles are missing.
+
+## Two sources of evidence
+
+`detect` paths answer one question: *does this project show evidence of using
+that harness?* They cannot answer "which CLI is running here", and a harness may
+leave nothing on disk. Measured 2026-09-30 inside a live `codex` session
+(`codex-cli 0.159.2`): codex creates no project-local `.codex/` of its own, and
+`waypost setup` in a repo holding only a README answered "no harness detected"
+while `detectHarness()` answered `codex`.
+
+So the harness a command is **running inside** is the second source, read by
+`WAYPOST_HARNESS`, then the process table, then the env markers a registry entry
+declares. `setup` unions it with `detect`; `doctor` counts it; `brief` repairs
+from it on a first run. No precedence between the sources — a file says the
+project uses that harness, a running process says someone is in it now, and both
+can be true. An explicit `--harness` overrides both.
 
 ## Guarantees that hold for every harness
 
