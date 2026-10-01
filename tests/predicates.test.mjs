@@ -1530,3 +1530,12 @@ test("isInsideVault: the guard `story plan|close --write` writes behind (WP-18)"
     "…and the refusal itself still works: outside is still outside");
   assert.equal(isInsideVault(win("Y:/proj/vault"), win("Y:/proj/vault")), true);
 });
+
+test("sessionId: Codex thread precedes terminal fallback while explicit and session ids win", () => {
+  const env = { WAYPOST_HARNESS: "codex", CODEX_THREAD_ID: "thread-one", TERM_SESSION_ID: "shared-terminal" };
+  assert.equal(sessionId([], env), "codex-thread-one");
+  assert.equal(sessionId([], { ...env, CODEX_THREAD_ID: "thread-two" }), "codex-thread-two");
+  assert.equal(sessionId([], { ...env, CODEX_SESSION_ID: "existing-session" }), "codex-existing-session");
+  assert.equal(sessionId([], { ...env, WAYPOST_SESSION_ID: "explicit-session" }), "explicit-session");
+  assert.equal(sessionId(["node", "waypost", "--id", "explicit-flag"], env), "explicit-flag");
+});

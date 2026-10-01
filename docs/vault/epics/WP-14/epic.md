@@ -8,7 +8,7 @@ created: 2026-09-04
 updated: 2026-09-04
 external_refs: {}
 tags: []
-code_refs: []
+code_refs: ["harnesses/codex.json", "harnesses/opencode.json", "README.md", "bin/waypost", "tests/commits.test.mjs", "tests/presence.test.mjs", "tests/harness.test.mjs", "docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md"]
 review_status: pending
 reviewed_at: null
 ---

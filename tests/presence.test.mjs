@@ -1066,12 +1066,15 @@ test("the caller's locale is the reason this was ever a question: a localized ps
     encoding: "utf8", env: { ...process.env, LC_ALL: "C" },
   });
   const RE = /^\s*(\d+)\s+(\d+)\s+(\w{3}\s+\w{3}\s+\d+\s+[\d:]+\s+\d{4})\s+(.*)$/;
-  const count = (out) => String(out).split("\n").filter((l) => RE.test(l)).length;
+  const rows = (out) => String(out).split("\n").filter((l) => /^\s*\d+\s+\d+\s+\S/.test(l));
+  const count = (out) => rows(out).filter((l) => RE.test(l)).length;
   const inherited = count(asIs.stdout);
   const forced = count(cLocale.stdout);
   assert.ok(forced > 0, "the C locale must parse on every host, or the fix does not work here");
-  assert.ok(inherited === forced || inherited === 0,
-    "an inherited locale either parses identically or not at all — never partially");
+  // Processes can start or exit between these snapshots; compare each to its own rows.
+  assert.equal(forced, rows(cLocale.stdout).length, "every C-locale row parses");
+  assert.ok(inherited === rows(asIs.stdout).length || inherited === 0,
+    "an inherited locale either parses all of its own snapshot or not at all");
 });
 
 

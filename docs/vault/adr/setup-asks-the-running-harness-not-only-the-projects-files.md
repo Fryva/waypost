@@ -44,21 +44,19 @@ of any kind:
 | does the session export a marker the registry declares? | yes — `CODEX_SANDBOX=seatbelt`, `CODEX_SANDBOX_NETWORK_DISABLED=1`; `CODEX_HOME` unset |
 | does `waypost setup` see it? | no — "no harness detected", while `detectHarness()` answered `codex` |
 
-`setup` was the only consumer that *wrote* on the strength of file markers
+Before this revision, `setup` wrote on the strength of file markers
 alone. `doctor` already unioned the running harness into the harnesses it
 considered in use, and `selfInstall` already installed a first-run harness's
 roles from `detectHarness()`, with no file marker involved at all.
 
-The scope of this decision is `setup` only, and that is deliberate rather than
-complete: `waypost agents install` and `waypost skills install` still ask the
-filesystem alone, so a user who reaches them directly in a marker-less project
-still gets "no harness detected — name one". The user-visible dead end that
-follows from that is measured, not assumed: in a marker-less project `doctor`
-says "opencode is used by this project but has no waypost roles → `waypost agents
-install`", and that command exits 1. Making the installer union as well is the
-obvious follow-up and is left to it; what is decided here is that `setup`, the
-one command whose job is to configure a project for the first time, is not the
-place to leave a harness invisible.
+The original implementation scope was `setup` only. At that point direct
+`waypost agents install` and `waypost skills install` still asked the filesystem
+alone: in a marker-less project `doctor` suggested installation, which exited 1.
+That historical follow-up is now implemented by the in-progress WP-19 story
+[Codex keeps one session and direct installers see the running harness](../epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md).
+Direct installation unions the running harness with the same E-1-aware marker
+detector; explicit `--harness` still wins and uninstall remains marker-only.
+The decision's setup rationale is unchanged, and its status remains proposed.
 
 The report that prompted the investigation was the mirror image: `AGENTS.md` is
 a `detect` marker for `codex` and for no other entry, while being the
@@ -353,12 +351,16 @@ the over-count is one extra `agents install` in a project that keeps a file all
       pair, the short-circuit asserted, and `guards` added so the decision
       checks itself
 - [ ] A fourth critic pass over this revision, before `accepted`
-- [ ] A full live-loop run of the runbook on a real codex session, reaching
-      `Waypost-Harness: codex` on the commit — that also closes WP-14
+- [x] A full live-loop run on a real Codex session, reaching
+      `Waypost-Harness: codex` — verified on macOS, CLI 0.159.2, with scoped
+      approvals; evidence in the live-harness runbook. WP-14 remains open
+      for the independent OpenCode run; native TOML-role invocation was
+      outside the nine CLI steps.
 - [ ] `waypost agents uninstall` leaving no evidence behind, so the recovery is
       one command rather than a documented `rm -rf`
-- [ ] `waypost agents install` / `skills install` asking the running harness as
-      well, which closes the `doctor` → `install` → exit 1 dead end
+- [x] Direct installers ask the running harness as well — evidence: the Codex
+      follow-up story above, direct-installer regressions (8/8), npm test
+      (816 pass / 0 fail / 5 skipped), live desktop direct installation.
 - [ ] The registry field, if it is ever wanted, as its own story
 
 ## References

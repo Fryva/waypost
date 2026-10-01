@@ -1477,7 +1477,7 @@ export function renderVaultSkeleton(facts) {
 //
 // The harness name is prefixed when known, so `waypost sessions` reads as who is
 // working rather than as a list of numbers.
-const TERMINAL_ENV = ["WAYPOST_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID",
+const TERMINAL_ENV = ["WAYPOST_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID", "CODEX_THREAD_ID",
   "TERM_SESSION_ID", "ITERM_SESSION_ID", "TMUX_PANE", "WT_SESSION", "KITTY_WINDOW_ID", "SSH_TTY"];
 
 // `--id` and WAYPOST_SESSION_ID are sanitised with the same allowlist

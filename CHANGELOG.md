@@ -177,6 +177,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays in the vault (ADR-0004).
 
 ### Fixed
+- Story plan/close now report failed claim/release writes instead of silently
+  presenting a partially completed gate as coordinated. The story remains
+  written; the warning names the coordination permission needed to retry.
+- Direct `agents install` and `skills install` now include the running harness
+  alongside project markers, matching setup and the action suggested by next.
+  Explicit harness selection still wins; uninstall keeps marker-only selection.
+- Codex desktop's `CODEX_THREAD_ID` supplies a stable session when no existing
+  harness session id is exported, preserving claims and leases across shells.
+- `brief` pins self-install to its executable's own registry and checks only
+  the current harness. Failed repairs report their cause and possible partial
+  writes on stderr without suppressing the orientation.
 - `waypost setup` asked the filesystem alone which harnesses a project uses, so
   a project that shows no evidence of any was reported as evidence of none — and
   the harness you were standing in was not asked. Measured 2026-09-30 inside a

@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-01T00:34:22.583Z
+generated_at: 2026-10-01T00:38:26.989Z
 
 ---
 
@@ -26,6 +26,7 @@ generated_at: 2026-10-01T00:34:22.583Z
 - [ ] [[epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run|WP-17: The machine-wide limit: automatic cleanup at the end of a heavy run]] #p2
 - [ ] [[epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines|WP-18: Capacity verified on Linux and Windows virtual machines]] #p1
 - [ ] [[epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here|WP-19: setup asked the filesystem alone about which harnesses a project uses]] #p1
+- [ ] [[epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness|WP-19: Codex keeps one session and direct installers see the running harness]] #p2
 
 ## Review
 

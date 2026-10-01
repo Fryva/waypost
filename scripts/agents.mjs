@@ -707,6 +707,14 @@ export function detectHarness(env = process.env, { table, ppid } = {}) {
   return "unknown";
 }
 
+// Install needs both project evidence and the session asking for the roles.
+// Keep uninstall and the marker detector independent of ambient harnesses.
+export function installHarnesses(proj = projectRoot()) {
+  const seen = detectHarnesses(proj);
+  const running = detectHarness();
+  return [...new Set([...seen, ...(harnessIds().includes(running) ? [running] : [])])];
+}
+
 function harnessOfProcess(env, table, ppid) {
   let proc = null;
   try {
@@ -982,9 +990,9 @@ export function uninstall(harnesses, { proj = projectRoot() } = {}) {
 // not against the source alone: the render also depends on the config's model
 // and on the adapters, and a check that ignores those reports "current" for a
 // file that no longer matches anything.
-export function status({ proj = projectRoot(), cfg = readConfig() } = {}) {
+export function status({ proj = projectRoot(), cfg = readConfig(), ids = harnessIds() } = {}) {
   const roster = rosterFor(cfg);
-  return harnessIds().map((id) => {
+  return ids.map((id) => {
     if (!hasRoleFiles(id)) {
       return { harness: id, dir: null, roles: roster.map((name) => ({ role: name, state: "n/a", path: null })) };
     }
@@ -1143,12 +1151,12 @@ function die(msg) {
 // No detection and no --harness is NOT "then do all of them": that used to
 // create .claude/, .opencode/ and .codex/ in a project that uses none, and
 // detection is by directory, so the guess made itself true forever after.
-function harnessArg(rest, cfg) {
+function harnessArg(rest, cfg, { running = false } = {}) {
   const i = rest.indexOf("--harness");
   const raw = i !== -1 ? rest[i + 1] : null;
   if (raw === "all") return HARNESSES;
   if (!raw) {
-    const seen = detectHarnesses();
+    const seen = running ? installHarnesses() : detectHarnesses();
     if (seen.length) return seen;
     // The old second line named three of now twenty-one detect paths (C-4) —
     // the id list above is already self-sufficient; `--json` (unfiltered,
@@ -1300,7 +1308,7 @@ function main() {
       return;
     }
     case "install": {
-      const res = install(harnessArg(rest, cfg), { cfg });
+      const res = install(harnessArg(rest, cfg, { running: true }), { cfg });
       if (json) { process.stdout.write(JSON.stringify(res, null, 2) + "\n"); return; }
       for (const r of res) {
         process.stdout.write(`${r.action.padEnd(18)} ${r.path || r.harness}\n`);

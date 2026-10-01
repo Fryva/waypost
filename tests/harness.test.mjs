@@ -784,7 +784,7 @@ test("`waypost harnesses` shows the skills directory and --json carries the obje
   assert.equal(out.harnesses.find((h) => h.id === "qm").skills, null);
   assert.match(out.harnesses.find((h) => h.id === "qm").skills_note, /deployment directory/);
   const text = waypost(proj, ["harnesses", "--all"]).stdout;
-  assert.match(text, /codex\s+documented\s+\.codex\/agents\s+\.agents\/skills/);
+  assert.match(text, /codex\s+verified\s+\.codex\/agents\s+\.agents\/skills/);
   assert.match(text, /qm\s+documented\s+— no role files\s+— no skills/);
 });
 
@@ -1871,4 +1871,86 @@ test("instructionTargets: an own file with no import keeps today's behaviour (bo
   assert.ok(targets.includes("AGENTS.md"));
   assert.ok(targets.includes(".claude/CLAUDE.md"),
     "with no import, .claude/CLAUDE.md must still get the block — Claude Code has no other way to see it");
+});
+
+// The command next recommends must work in a session with no file markers.
+test("direct installers include the running harness but uninstall remains marker-only", () => {
+  for (const kind of ["agents", "skills"]) {
+    const { proj } = bound();
+    const env = { CODEX_SANDBOX: "seatbelt" };
+    const noFiles = waypost(proj, [kind, "uninstall"], { env, expectFail: true });
+    assert.equal(noFiles.status, 1, "uninstall does not infer targets from the session");
+    assert.match(noFiles.stderr, /no harness detected/);
+    const result = JSON.parse(waypost(proj, [kind, "install", "--json"], { env }).stdout);
+    assert.ok(result.some((r) => r.action === "created"));
+    assert.ok(existsSync(join(proj, kind === "agents" ? ".codex/agents/waypost-critic.toml" : ".agents/skills/waypost-story/SKILL.md")));
+    assert.ok(!existsSync(join(proj, ".claude")));
+    assert.ok(!existsSync(join(proj, ".antigravity")));
+  }
+});
+
+test("direct installers union project and running evidence and explicit harness wins", () => {
+  for (const kind of ["agents", "skills"]) {
+    const { proj } = bound();
+    writeFileSync(join(proj, "CLAUDE.md"), "# User instructions\n");
+    const env = { WAYPOST_HARNESS: "codex" };
+    const mixed = JSON.parse(waypost(proj, [kind, "install", "--json"], { env }).stdout);
+    assert.ok(existsSync(join(proj, ".claude", kind === "agents" ? "agents/waypost-critic.md" : "skills/waypost-story/SKILL.md")));
+    assert.ok(existsSync(join(proj, kind === "agents" ? ".codex/agents/waypost-critic.toml" : ".agents/skills/waypost-story/SKILL.md")));
+    const paths = mixed.filter((r) => r.path).map((r) => r.path);
+    assert.equal(paths.length, new Set(paths).size, "one install per file");
+
+    const other = bound().proj;
+    const explicit = waypost(other, [kind, "install", "--harness", "claude"], { env });
+    assert.equal(explicit.status, 0);
+    assert.ok(!existsSync(join(other, ".codex")));
+    assert.ok(!existsSync(join(other, ".agents")));
+  }
+});
+
+test("direct installers refuse neutral, unknown and provider sessions without markers", () => {
+  for (const kind of ["agents", "skills"]) for (const h of ["unknown", "not-a-harness", providerIds()[0]]) {
+    const { proj } = bound();
+    const result = waypost(proj, [kind, "install"], { env: { WAYPOST_HARNESS: h }, expectFail: true });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /no harness detected/);
+    assert.ok(!existsSync(join(proj, ".codex")));
+  }
+});
+
+test("brief uses its executable registry even with a foreign WAYPOST_HOME", () => {
+  const { proj } = bound();
+  const foreign = mkdtempSync(join(tmpdir(), "waypost-foreign-"));
+  const env = { WAYPOST_HARNESS: "codex", WAYPOST_HOME: foreign };
+  const first = waypost(proj, ["brief"], { env });
+  assert.match(first.stdout, /installed 5 role file/);
+  assert.match(first.stdout, /installed 10 skill/);
+  assert.match(first.stdout, /## Where things live/);
+  assert.equal(first.stderr, "");
+  const again = waypost(proj, ["brief"], { env });
+  assert.doesNotMatch(again.stdout, /installed/);
+});
+
+test("brief reports partial repair failures without losing orientation", () => {
+  const { proj } = bound();
+  mkdirSync(join(proj, ".agents"));
+  writeFileSync(join(proj, ".agents", "skills"), "not a directory\n");
+  const result = waypost(proj, ["brief"], { env: { WAYPOST_HARNESS: "codex" } });
+  assert.match(result.stdout, /## Where things live/);
+  assert.match(result.stderr, /waypost brief: could not repair codex:/);
+  assert.match(result.stderr, /Some files may have been installed/);
+  assert.match(result.stderr, /rerun `waypost brief`/);
+  assert.ok(existsSync(join(proj, ".codex", "agents", "waypost-critic.toml")), "failure happened after roles were installed");
+});
+
+test("role status can inspect one harness without scanning foreign role paths", async () => {
+  const { proj } = bound();
+  const { status } = await import("../scripts/agents.mjs");
+  const all = status({ proj });
+  assert.deepEqual(status({ proj, ids: ["codex"] }), all.filter((r) => r.harness === "codex"));
+  mkdirSync(join(proj, ".opencode", "agents", "waypost-critic.md"), { recursive: true });
+  assert.throws(() => status({ proj }), /EISDIR/);
+  const brief = waypost(proj, ["brief"], { env: { WAYPOST_HARNESS: "codex" } });
+  assert.equal(brief.stderr, "");
+  assert.match(brief.stdout, /installed 5 role file/);
 });

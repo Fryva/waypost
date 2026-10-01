@@ -8,7 +8,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: []
-code_refs: ["scripts/presence.mjs", "scripts/agents.mjs", "scripts/doctor.mjs", "harnesses/codex.json", "harnesses/claude.json", "harnesses/gemini.json", "bin/waypost", "tests/presence.test.mjs", "tests/harness.test.mjs", "tests/limit.test.mjs", "docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md"]
+code_refs: ["scripts/presence.mjs", "scripts/agents.mjs", "scripts/skills.mjs", "scripts/lib.mjs", "tests/commits.test.mjs", "tests/predicates.test.mjs", "scripts/doctor.mjs", "harnesses/codex.json", "harnesses/claude.json", "harnesses/gemini.json", "bin/waypost", "tests/presence.test.mjs", "tests/harness.test.mjs", "tests/limit.test.mjs", "docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md"]
 review_status: pending
 reviewed_at: null
 ---
@@ -28,15 +28,17 @@ reviewed_at: null
 
 Two guarantees that the rest of the coordination layer stands on:
 
-- **The process table exists on every host.** `ps` is asked for its output in
-  the C locale, so the fields waypost parses come back in the spelling the
-  parser reads, whatever `LC_TIME` the user's shell is set to.
-- **A shared instruction file is not one harness's fingerprint.** `AGENTS.md`
-  is read by all 21 registry entries, so its presence is never evidence that any
-  one of them — Codex least of all — is the harness in use. The repo already
-  records this position (ADR-0005, on `kimi`'s `.agents/`) and already records
-  its opposite (a test named "E-1 does not over-correct"); settling that is part
-  of the work, not a footnote to it.
+- **Localized ps output is readable on supported POSIX hosts.** When `ps` is
+  available and permitted, it is asked for output in the C locale, so the parser
+  receives the spelling it expects regardless of `LC_TIME`. Windows has no table
+  support here; on supported POSIX hosts doctor reports an unavailable table,
+  including restricted sandboxes.
+- **Project markers and a running harness answer different questions.** The
+  initial investigation below proposed removing the shared `AGENTS.md` marker.
+  The later proposed ADR "setup asks the running harness, not only the project's
+  files" instead preserves it deliberately and unions markers with the running
+  harness. The historical diagnosis below is not the current implementation
+  goal. Direct installers and stable Codex session identity are the follow-up.
 
 ## Context
 
@@ -100,20 +102,22 @@ OpenCode is only the harness whose live run happened to surface them.
 
 | Story | Status | Description |
 |-------|--------|-------------|
-| `story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host` | planned | ask `ps` for the spelling the parser reads; cover locale in a test |
-| `story-agents-md-is-not-evidence-that-codex-is-used-here` | planned | stop a shared instruction file from fingerprinting one harness |
+| [ps in the C locale, so the process table exists on any host](stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md) | done | ask `ps` for the spelling the parser reads; cover locale in a test |
+| [setup asked the filesystem alone about which harnesses a project uses](stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md) | in-progress | union project markers and the running harness in setup |
+| [Codex keeps one session and direct installers see the running harness](stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md) | in-progress | direct installers, thread identity and brief self-install |
 
 ## Expected Results
 
-- [ ] `processTable()` returns a table on a host with a non-English `LC_TIME`,
+- [ ] `processTable()` returns a table on a supported POSIX host with available
+      and permitted `ps` and a non-English `LC_TIME`,
       and every path it feeds is live again: presence liveness and `--prune`,
       harness attribution, the consent gate, cleanup's in-use signal, the
       detached deleter's pid-reuse guard and heavy-slot liveness.
 - [ ] `waypost doctor` says when there is no process table, so the next cause of
       the same silence (a `ps` that rejects the format, a stripped `PATH`) is not
       also invisible.
-- [ ] A project with a user-authored `AGENTS.md` and no harness is not reported
-      as using Codex, and `setup` installs nothing on its own initiative.
+- [ ] Setup and direct installers account for the running harness without losing
+      the E-1 protection; explicit selection overrides both evidence sources.
 - [ ] The repo's two recorded positions on shared instruction files — ADR-0005
       and the "E-1 does not over-correct" test — are reconciled by a decision on
       the record, not by one of them quietly disappearing.
@@ -124,7 +128,7 @@ OpenCode is only the harness whose live run happened to surface them.
 
 ## Open Questions
 
-- [ ] Dropping `AGENTS.md` from `codex`'s `detect` means a Codex project that
+- [ ] Historical alternative (not the implemented direction): dropping `AGENTS.md` from `codex`'s `detect` means a Codex project that
       has only `AGENTS.md` and no `.codex/` is no longer auto-detected. Is
       `AGENTS.md` alone evidence of Codex at all, or is `.codex/` (or an
       explicit `--harness`) the honest threshold? Owner decision — it changes

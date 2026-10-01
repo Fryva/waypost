@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { composeMessage, storyRef, detectSessionHarness, leasesOverStaged } from "../scripts/commit.mjs";
 import { storyRefOf, storyPathOf } from "../scripts/lib.mjs";
+import { processTable } from "../scripts/presence.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -255,7 +256,7 @@ test("the story gate claims on plan and releases on close", () => {
 // each script bin/waypost spawned computed its OWN id from ITS OWN parent (bin/waypost
 // itself, a different pid every call), so a story opened in one call was
 // "claimed by a stranger" by the very next.
-const TERMINAL_ENV_VARS = ["WAYPOST_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID",
+const TERMINAL_ENV_VARS = ["WAYPOST_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_SESSION_ID", "CODEX_THREAD_ID",
   "TERM_SESSION_ID", "ITERM_SESSION_ID", "TMUX_PANE", "WT_SESSION", "KITTY_WINDOW_ID", "SSH_TTY"];
 
 function withoutSessionEnv(proj) {
@@ -454,4 +455,51 @@ test("the merge driver re-derives a view rather than merging it, board and folde
     assert.match(r.stderr, /regenerated/);
     assert.match(readFileSync(a, "utf8"), marker, `${view} was re-derived into the file git asked for`);
   }
+});
+
+test("Codex thread preserves claims and leases across distinct command parents", () => {
+  const proj = repo();
+  // Each wrapper stays alive while its child runs, like the harness's shell tool.
+  // Unlike spawning waypost directly, these calls really have different ppids.
+  const wrapper = 'const {spawnSync}=require("node:child_process"); const r=spawnSync(process.execPath,process.argv.slice(1),{encoding:"utf8"}); process.stdout.write(r.stdout||""); process.stderr.write(r.stderr||""); process.exit(r.status??1);';
+  // Keep liveness anchored to this test, not the short-lived wrapper.
+  const owner = processTable()?.get(process.pid);
+  const call = (args, thread = "thread-one") => {
+    const env = { ...withoutSessionEnv(proj), WAYPOST_HARNESS: "codex", CODEX_THREAD_ID: thread, WAYPOST_PROC: owner ? JSON.stringify(owner) : "" };
+    const r = spawnSync(process.execPath, ["-e", wrapper, Waypost, ...args], { cwd: proj, env, encoding: "utf8", timeout: 30000 });
+    assert.equal(r.status, 0, r.stderr);
+    return r;
+  };
+  const first = JSON.parse(call(["sessions", "--json"]).stdout).session_id;
+  assert.equal(first, "codex-thread-one");
+  assert.equal(JSON.parse(call(["sessions", "--json"]).stdout).session_id, first);
+  assert.notEqual(JSON.parse(call(["sessions", "--json"], "thread-two").stdout).session_id, first);
+  call(["draft", "story", "PS-1", "Thread identity", "--write"]);
+  const story = join(proj, "vault", "epics", "PS-1", "stories", "story-thread-identity.md");
+  call(["story", "plan", story, "--write"]);
+  writeFileSync(join(proj, "README.md"), "# Thread identity\n");
+  const dry = call(["commit", "-m", "thread", "--story", "PS-1/story-thread-identity", "--dry-run", "--", "README.md"]);
+  assert.doesNotMatch(dry.stderr, /is claimed by/);
+  call(["lease", "README.md"]);
+  assert.ok(JSON.parse(call(["sessions", "--json"]).stdout).leases.some((l) => l.path === "README.md" && l.mine));
+  call(["lease", "release"]);
+  assert.equal(JSON.parse(call(["sessions", "--json"]).stdout).leases.length, 0);
+});
+
+
+test("story gate reports failed coordination after writing the story", () => {
+  const proj = repo();
+  waypost(proj, ["draft", "story", "PS-1", "Coordination failure", "--write"]);
+  // A file where a presence directory belongs fails portably, including Windows.
+  const dir = join(proj, ".git", "waypost", "vault", "presence");
+  rmSync(dir, { recursive: true, force: true });
+  writeFileSync(dir, "not a directory\n");
+  const story = join(proj, "vault", "epics", "PS-1", "stories", "story-coordination-failure.md");
+  const result = waypost(proj, ["story", "plan", story, "--write"]);
+  assert.match(readFileSync(story, "utf8"), /status: in-progress/);
+  assert.match(result.stderr, /story updated, but claim failed; coordination is incomplete/);
+  assert.match(result.stderr, /Retry the story command with write access/);
+  const closed = waypost(proj, ["story", "close", story, "--write"]);
+  assert.match(closed.stderr, /story updated, but release failed/);
+  assert.match(closed.stderr, /Retry with `waypost sessions --release`/);
 });

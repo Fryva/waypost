@@ -19,7 +19,7 @@ waypost agents install                  # …or into whatever this project uses
 | `claude` | Claude Code | Anthropic | `.claude/agents/waypost-<role>.md` | subagent/rule | verified |
 | `cline` | Cline | Cline | `.clinerules/workflows/waypost-<role>.md` | prompt/rule | documented |
 | `codebuddy` | CodeBuddy Code (腾讯云代码助手) | Tencent | `.codebuddy/agents/waypost-<role>.md` | subagent/rule | documented |
-| `codex` | Codex CLI | OpenAI | `.codex/agents/waypost-<role>.toml` | agent (TOML) | documented |
+| `codex` | Codex CLI | OpenAI | `.codex/agents/waypost-<role>.toml` | agent (TOML) | verified |
 | `copilot` | GitHub Copilot (VS Code) | GitHub / Microsoft | `.github/agents/waypost-<role>.agent.md` | subagent/rule | documented |
 | `cursor` | Cursor | Anysphere | `.cursor/rules/waypost-<role>.mdc` | subagent/rule | documented |
 | `dsh` | DeepSeek Harness (dsh) | DeepSeek | `— (no role files)` | routing block only | documented |
@@ -199,10 +199,23 @@ while `detectHarness()` answered `codex`.
 
 So the harness a command is **running inside** is the second source, read by
 `WAYPOST_HARNESS`, then the process table, then the env markers a registry entry
-declares. `setup` unions it with `detect`; `doctor` counts it; `brief` repairs
+declares. `setup` and direct `agents install` / `skills install` union it with
+`detect`; `doctor` counts it; `brief` repairs
 from it on a first run. No precedence between the sources — a file says the
 project uses that harness, a running process says someone is in it now, and both
-can be true. An explicit `--harness` overrides both.
+can be true. An explicit `--harness` overrides both. Uninstall remains based on
+project markers unless an explicit harness is supplied.
+
+Codex desktop can provide `CODEX_THREAD_ID` without `CODEX_SESSION_ID`. Waypost
+uses that thread id before terminal/PID fallback, preserving claims and leases
+across separate command shells. Explicit `--id` / `WAYPOST_SESSION_ID` and
+existing harness session ids retain their precedence.
+
+`brief` reads roles, skills and the registry from its own executable tree even
+when an ambient `WAYPOST_HOME` points elsewhere. It checks only the running
+harness for self-install; a failed repair reports the cause on stderr and keeps
+the orientation available. Partial writes may precede a failure; rerun after
+fixing the cause.
 
 ## Guarantees that hold for every harness
 

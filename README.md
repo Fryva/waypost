@@ -153,15 +153,16 @@ approval-gated `waypost` flow.
 
 `waypost harnesses` marks every entry `verified`, `documented` or `inferred`
 (see [docs/harnesses.md](docs/harnesses.md)). Verified means the whole loop —
-setup, brief, a story, a commit, sessions, leases, doctor — was run inside that
-tool, from its own session, on the date given. The runbook is in the vault
+a real prerequisite setup followed by brief, a story, a commit, sessions,
+leases and doctor driven from that tool's own session on the date given.
+Setup may be prepared by the caller where protected configuration needs approval. The runbook is in the vault
 (`ops/`: "Verify a harness live").
 
 | Tool | Status | Date | What was exercised |
 |---|---|---|---|
 | Claude Code | verified | 2026-09-04 | the whole loop, daily, on this repository and a second project |
 | OpenCode | documented, run partially | 2026-09-04 | headless `opencode run --pure` executed `waypost brief` and `waypost next` with permissions auto-allowed; the full loop still needs an interactive session |
-| Codex CLI | documented | — | not installed on the verifying machine yet |
+| Codex CLI 0.159.2 | verified | 2026-09-30 | independent `codex exec --approve-for-me` on macOS: real setup, all nine runbook steps, autonomous skills, codex/story trailers, claim and lease; scoped metadata approvals; sandbox process-table warning |
 | the other 18 | documented / inferred | — | formats from vendor docs; see the registry `notes` |
 
 ## Working across tools, machines and people
