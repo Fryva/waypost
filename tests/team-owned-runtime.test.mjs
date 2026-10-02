@@ -57,3 +57,16 @@ test('stop capability rejects an incorrect token without affecting the active ca
 test('factory launch failure cannot silently certify possible unreturned children',async()=>{
  const f=fixture();try{await assert.rejects(f.runtime.run({kind:'inspect'},async s=>{await s.native(async()=>{throw new Error('factory crashed');});}),/stop-unconfirmed/);assert.ok(!readdirSync(f.options.directory).some(n=>n.endsWith('.closed.json')));}finally{f.cleanup();}
 });
+test('fenced startup closes its own unstarted intent without claiming historical work',async()=>{
+ const f=fixture();let entered=false;
+ try{
+  // run persists intent synchronously, then yields while opening its capability.
+  const running=f.runtime.run({kind:'inspect',operation:'fenced-start'},async()=>{entered=true;});
+  const rejected=assert.rejects(running,/operation-stopped/);
+  await assert.rejects(stopOwnedRuntime(f.options),/prepared-operation-stop-unconfirmed/);
+  await rejected;assert.equal(entered,false);
+  const closed=record(f,'.closed.json');assert.equal(closed.callback_started,false);assert.deepEqual(closed.consumptions,[]);assert.deepEqual(closed.closure_proofs,[]);
+  assert.equal((await stopOwnedRuntime(f.options)).stopped,true);
+  await assert.rejects(stopOwnedRuntime({...f.options,requiredOperations:['unrelated-consumed']}),/historical-consumption-stop-unconfirmed/);
+ }finally{f.cleanup();}
+});

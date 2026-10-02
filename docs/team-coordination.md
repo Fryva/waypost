@@ -172,12 +172,23 @@ MCP handshake or tool calls as receipts from a particular native conversation.
 Stopping the bridge does not leave the team, release claims or remove leases.
 It grants no assignment, leader, execution-model attestation or review tools.
 
-Claude Desktop Chat and the Claude Code desktop tab have separate MCP settings
-([official desktop documentation](https://code.claude.com/docs/en/desktop)).
-Do not copy CLI configuration and call desktop support verified. MCP framing
+Claude Desktop Code reads project `.mcp.json` alongside CLI configuration.
+Current [official desktop documentation](https://code.claude.com/docs/en/desktop)
+also says local Code sessions receive servers from Chat's
+`claude_desktop_config.json`; that definition wins a same-name conflict. The
+standalone CLI does not read that Chat file. A shared server may therefore expose
+one participant credential to several conversations and surfaces. Configuration
+discovery is not native identity or delivery verification. MCP framing
 follows the [stdio transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 and [tools protocol](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
 No global desktop config has been modified automatically.
+
+Live macOS observation (2026-10-01): a dedicated Claude Desktop Code conversation
+returned a test token, then recalled it on a second turn without the token in
+that prompt. No visible tool calls occurred. The weekly all-model badge showed
+100% during both successful replies; that badge is not provider exhaustion
+evidence. This verifies interactive desktop continuity only, not Waypost MCP
+exchange, native execution reasoning, independent review or unattended wake.
 
 Confirmed on macOS: fixture MCP clients exchange addressed questions/answers
 through the real CLI, retain idempotent retries and reject foreign/stale acks.
@@ -238,6 +249,9 @@ external servers, workspace-write backends and custom executables block automati
 stop. Candidate handover checks use authority-bound read-only control in the target
 epoch; they do not reopen old work admission. A negative quota record observed
 within an operation defers redistribution until that operation drains.
+If fencing arrives before callback entry, the still-live launcher records an
+unstarted closure with no consumptions or native processes. An abandoned intent
+cannot receive that proof from recovery, age or a missing PID; it stays blocked.
 
 POSIX closure verifies held roots and their original process groups. Escaped
 descendants are outside that proof; the default contract is limited to the standard
@@ -246,10 +260,6 @@ unverified and blocked. Uncertain dispatches and unresolved invoices remain held
 during redistribution. CLI `redistribute` reports the exact missing capability.
 Desktop quota badges alone are not provider evidence.
 
-On macOS, 2026-10-01, an owned Claude Desktop Code session returned a nonce and
-recalled it on a second turn without the nonce in the second request; its visible
-history contained no tool calls. The weekly badge showed 100% while both responses
-succeeded. This exercises desktop conversation continuity, not MCP team binding,
-executed reasoning identity or unattended wake. An independent owned Codex CLI
+On macOS, 2026-10-01, an independent owned Codex CLI
 probe exercised whole-operation closure with actual `gpt-6.1-sol / low`, verified
 context isolation and a durable stopped receipt after the callback/process ended.

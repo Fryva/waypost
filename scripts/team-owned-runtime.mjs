@@ -25,9 +25,12 @@ export function createOwnedRuntime(options){
   if(exists(barrier))throw fail('epoch-stopped');
   const base=join(d,prefix+'.operation-'+operation),intent={protocol:1,scope,operation,kind,created_at:new Date().toISOString()};
   write(base+'.intent.json',intent);
+  // Only this still-live launcher can attest that callback entry never happened.
+  // Recovery must never infer this from an abandoned intent or a missing PID.
+  const closeUnstarted=()=>write(base+'.closed.json',{protocol:1,scope,operation,kind,closed_at:new Date().toISOString(),stopped:true,callback_drained:true,callback_started:false,consumptions:[],native_ids:[],closure_proofs:[]});
   // The barrier must be checked after durable intent: concurrent enumeration
   // either sees the intent or fences its launch. An unknown intent blocks proof.
-  if(exists(barrier))throw fail('epoch-stopped-after-intent');
+  if(exists(barrier)){closeUnstarted();throw fail('epoch-stopped-after-intent');}
   let stopped=false,done=false,failedStop=false;const factories=new Set(),endpoints=new Set(),effects=[];
   let finishDrain;const drained=new Promise(resolve=>{finishDrain=resolve;});
   function assertActive(){if(stopped||exists(barrier))throw fail('operation-stopped');}
@@ -52,7 +55,7 @@ export function createOwnedRuntime(options){
   server.requestTimeout=5000;server.headersTimeout=5000;
   let url;
   try{url=await listen(server);write(base+'.capability.json',{protocol:1,scope,operation,url,token});assertActive();}
-   catch(error){stopped=true;server.close();finishDrain();throw error;}
+   catch(error){stopped=true;try{closeUnstarted();}finally{server.close();finishDrain();}throw error;}
   const operationScope={assertActive,get stopRequested(){return stopped||exists(barrier);},
    annotate(command){assertActive();if(!command||typeof command!=='object'||Array.isArray(command))throw fail('command-required');
     if(typeof command.type==='string'&&(/consume/.test(command.type)||command.type==='work-dispatch-ack-v1')){
