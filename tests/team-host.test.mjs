@@ -156,9 +156,25 @@ function quotaFixtureState(f){
 function exhaustedQuota(request){
  const ms=Date.now();return {protocol:1,...request,route:{endpoint:'https://fixture.invalid/quota',account:'fixture-account',sku:'fixture-sku',mode:'api',pool:'fixture-pool',model:request.model},status:'exhausted',available_calls:0,provider_confirmed:true,evidence_kind:'provider-quota',reason:'provider-quota-exhausted',scope:'provider-account-model',observation_id:'provider-observation',source:'https://fixture.invalid/quota',observed_at:new Date(ms).toISOString(),expires_at:new Date(ms+60000).toISOString()};
 }
-test('quota observation without trusted provider callback rejects before inference',async t=>{
+test('host renews expiring positive permission before native inference and blocks failed renewal',async t=>{
+ for(const reject of [false,true]){
+  let reads=0;
+  const f=fixture(t,{dependencies:{observeProviderQuota:({descriptor,...request})=>{
+   reads++;if(reject)throw new Error('metadata-unavailable');
+   return {...exhaustedQuota(request),status:'available',available_calls:1,reason:'provider-quota-available'};
+  }}});
+  await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+  f.team.quota_policy={protocol:1,automatic_redistribution:true};
+  const p=f.team.participants.participant,model={provider:p.model.provider,model_id:p.model.model_id,reasoning:p.model.reasoning};
+  p.quota_observation={...exhaustedQuota({participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,model}),status:'available',available_calls:1,reason:'provider-quota-available',expires_at:new Date(Date.now()+1000).toISOString()};
+  if(reject){await assert.rejects(f.host.inspect({action:'fresh',nonce:'fresh'}),/metadata-unavailable/);assert.equal(f.calls.includes('native-send'),false);}
+  else{await f.host.inspect({action:'fresh',nonce:'fresh'});assert.ok(f.calls.indexOf('quota-capture-v1')<f.calls.indexOf('native-send'));}
+  assert.equal(reads,1);
+ }
+});
+test('default quota observation refuses an unbound execution identity before inference',async t=>{
  const f=fixture(t);await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});quotaFixtureState(f);
- await assert.rejects(f.host.observeQuota(),{code:'host-provider-quota-observer-unavailable'});
+ await assert.rejects(f.host.observeQuota(),/quota-native-execution-identity-unverified/);
  assert.equal(f.calls.includes('native-create'),false);assert.equal(f.calls.includes('quota-capture-v1'),false);
 });
 test('confirmed quota exhaustion is persisted with safe capability blocker and no inference',async t=>{

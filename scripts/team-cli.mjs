@@ -154,6 +154,18 @@ export async function main(argv = process.argv.slice(2)) {
         let v = loaded(), t = v.state?.teams[target]; if (!t) throw new Error('team-not-found');
         const cred = loadCredential(resolve(opt('--owner-credential') || defaultOwner));
         const actor = authorizeActor(v.state, target, cred); if (!actor.startsWith('owner:')) throw new Error('owner-required');
+        const quotaInspections=[];
+        if(t.quota_policy?.automatic_redistribution){
+          const {createTeamHost}=await import('./team-host.mjs');
+          for(const p of Object.values(t.participants).filter(p=>p.native_binding&&!p.revoked&&p.availability!=='left')){
+            const b=p.native_binding;
+            try{
+              const host=createTeamHost({authorityRoot:root,projectRoot:projectRoot(),vaultPath:cfg.vault_path,team:target,hostDir:join(root,'host',target),ownerCredential:resolve(opt('--owner-credential')||defaultOwner),collectorPath:b.collector_file,endpointPath:b.endpoint_file,participant:p.id});
+              const receipt=await host.observeQuota();quotaInspections.push({participant:p.id,verified:true,...receipt});
+            }catch(error){quotaInspections.push({participant:p.id,verified:false,blocker:String(error.code||error.message).slice(0,256)});}
+          }
+          v=loaded();t=v.state.teams[target];
+        }
         const inspections = [];
         for (const p of Object.values(t.participants).filter(p => nativeInspectionDue(p))) {
           // A strict budget needs a provider-backed control reservation. Never
@@ -186,7 +198,7 @@ export async function main(argv = process.argv.slice(2)) {
         }
         v = latest; t = currentTeam;
         const at = new Date().toISOString();
-        const check = { at, ok: result.ok, blockers: result.blockers, unclassified: result.unclassified, profile_proofs: result.profile_proofs || [], native_inspections:inspections, cache };
+        const check = { at, ok: result.ok, blockers: result.blockers, unclassified: result.unclassified, profile_proofs: result.profile_proofs || [], native_inspections:inspections, quota_inspections:quotaInspections, cache };
         if (Buffer.byteLength(JSON.stringify(check)) > 200000) throw new Error('strength-evidence-exceeds-authority-budget');
         let command = { type: 'strength-check', actor, team: target, at, check };
         let changed = false;
@@ -203,9 +215,12 @@ export async function main(argv = process.argv.slice(2)) {
           print({ refreshed: false, retry: error.code });
           await sleep(1000); continue;
         }
-        print({ refreshed: Boolean(command.policy), priorities_changed: changed, ...out, blockers: result.blockers, unclassified: result.unclassified, native_inspections:inspections, identity_inspection: 'managed bound endpoints checked when due; unbound sessions remain unverified' });
+        print({ refreshed: Boolean(command.policy), priorities_changed: changed, ...out, blockers: result.blockers, unclassified: result.unclassified, native_inspections:inspections, quota_inspections:quotaInspections, identity_inspection: 'managed bound endpoints checked when due; unbound sessions remain unverified' });
         if (mode !== 'watch') break;
-        for (let elapsed = 0; elapsed < interval && !stopped; elapsed++) await sleep(1000);
+        // Provider permission lasts at most 60s. Renew before expiry, independently
+        // of the owner's longer strength polling interval (discovery uses cache).
+        const delay=t.quota_policy?.automatic_redistribution?Math.min(interval,30):interval;
+        for (let elapsed = 0; elapsed < delay && !stopped; elapsed++) await sleep(1000);
       } while (!stopped);
     } finally { process.removeListener('SIGINT', stop); process.removeListener('SIGTERM', stop); }
     return;

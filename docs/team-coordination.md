@@ -208,9 +208,24 @@ review admissions remain intact; status exposes historical/effective floors and
 quota revision. Review/grant/publication bindings reject stale quota revisions.
 Reset time and expiry do not restore quota; a fresh positive proof is required.
 
-Provider observation, owned-process stop and credential-bound adoption adapters
-are injected trusted host capabilities. CLI operations `observe-quota` and
-`redistribute` report named blockers when these capabilities are unavailable;
-the current generic native endpoints do not fabricate account/model quota data.
+Codex has a default nonbillable collector: a dedicated owned app-server reads
+account and rate-limit metadata twice, checks authorization continuity, and
+closes without creating a thread. Account identifiers are hashed; emails are not
+persisted. Exact model scope is required for model-level permission. Backend
+workspace exhaustion can establish account scope only when all reported credit
+alternatives are explicitly depleted. Unknown model aliases, credits or account
+metadata produce named blockers, never inferred exhaustion. Availability is a
+fresh permission to attempt, not an invoice or a guaranteed call allocation.
+Other providers still require injected trusted observers.
+
+With automatic redistribution enabled, watch waits at most 30s between inspection
+passes; slow probes can outlive permission TTL and checkpoint renewal then blocks
+stale dispatch.
+cached strength discovery retains its source freshness rules. Before inference,
+hosts renew existing positive permission within 15s of expiry. Failed renewal
+blocks dispatch. Expired negatives stay exhausted until a fresh positive proof.
+Owned-process stop and credential-bound adoption adapters remain injected trusted
+host capabilities. CLI operations `observe-quota` and `redistribute` report named
+blockers when these capabilities are unavailable.
 Uncertain dispatches and unresolved invoices remain held during redistribution.
 Desktop quota badges alone are not provider evidence.

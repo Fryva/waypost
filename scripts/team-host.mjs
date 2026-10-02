@@ -8,6 +8,7 @@ import { reduceTeamEvent, authorizeActor } from './team-state.mjs';
 import { routingDigest } from './model-routing.mjs';
 import { createRoutingGrant, serializeRoutingGrant } from './team-evidence.mjs';
 import { collectQuotaObservation, serializeQuotaObservation, quotaEligible } from './team-quota.mjs';
+import { observeNativeProviderQuota } from './team-quota-native.mjs';
 import { createNativeEndpoint, validateNativeDescriptor } from './team-transport.mjs';
 import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest } from './team-integration.mjs';
 import { leasesOverStaged } from './commit.mjs';
@@ -52,7 +53,18 @@ export function createTeamHost(config, dependencies={}) {
   return d;
  }
  function record(name){return join(hostDir,portable(name)+'.json');}
+ async function ensureQuotaFresh() {
+  const {t}=getTeam();if(!t.quota_policy?.automatic_redistribution)return;
+  const d=endpoint(),p=t.participants[d.participant],q=p?.quota_observation;
+  // Exhaustion remains sticky. Only existing positive permission is renewed;
+  // missing proof retains the versioned bootstrap behavior, never a fake grant.
+  if(q?.status==='available'&&Date.parse(q.expires_at)<=Date.parse(now())+15000){
+   await observeQuota();
+   if(!quotaEligible(getTeam().t.participants[d.participant],Date.parse(now())))fail('host-quota-refresh-unavailable');
+  }
+ }
  async function prepareControl({purpose,action,nonce,workId,receipt,transport}) {
+  await ensureQuotaFresh();
   const {t}=getTeam();if(!t.routing?.required)return null;
   if(typeof dependencies.prepareControlGrant!=='function'||typeof dependencies.collectBoundedUsage!=='function'||typeof dependencies.admitBoundedDispatch!=='function')fail('host-bounded-control-provider-unavailable');
   const d=endpoint(),p=t.participants[d.participant],w=workId?t.work[workId]:undefined;
@@ -108,6 +120,7 @@ export function createTeamHost(config, dependencies={}) {
   return {collector:seed.collector,endpoint_bound:Boolean(descriptor)};
  }
  async function inspect({action,nonce=randomUUID(),keepAlive=false}={}) {
+  await ensureQuotaFresh();
   portable(nonce);const o=owner(),c=collector(),d=endpoint();const {t}=getTeam();const p=t.participants[d.participant];if(!p||p.revoked||!quotaEligible(p,Date.parse(now())))fail('participant-unavailable');
   if(typeof action!=='string'||!action||action.length>1024)fail('runtime-action-required');
   const prior=t.runtime_requests?.[nonce];
@@ -275,6 +288,7 @@ export function createTeamHost(config, dependencies={}) {
   return mutate('routing-grant-capture-v1',{payload},c);
  }
  async function dispatchRouted({workId,attempt=1,invocationId='invoke-'+randomUUID(),reserveKey=randomUUID()}={}) {
+  await ensureQuotaFresh();
   // No provider charges before the host has a real bounded usage collector.
   if(typeof dependencies.collectBoundedUsage!=='function')fail('host-bounded-provider-usage-unavailable');
   if(typeof dependencies.admitBoundedDispatch!=='function')fail('host-provider-dispatch-admission-unavailable');
@@ -387,8 +401,9 @@ export function createTeamHost(config, dependencies={}) {
  async function observeQuota() {
   owner();const d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   if(!t.quota_policy?.automatic_redistribution)fail('host-quota-policy-disabled');
-  if(typeof dependencies.observeProviderQuota!=='function')fail('host-provider-quota-observer-unavailable');
-  const observation=await collectQuotaObservation({participant:p,observe:request=>dependencies.observeProviderQuota({...request,descriptor:d.descriptor}),now:()=>Date.parse(now())});
+  const observe=dependencies.observeProviderQuota||(({descriptor})=>observeNativeProviderQuota({descriptor,participant:p,now:()=>Date.parse(now())}));
+  if(typeof observe!=='function')fail('host-provider-quota-observer-unavailable');
+  const observation=await collectQuotaObservation({participant:p,observe:request=>observe({...request,descriptor:d.descriptor}),now:()=>Date.parse(now())});
   const result=mutate('quota-capture-v1',{participant_id:p.id,observation:serializeQuotaObservation(observation)},collector());
   const redistribution_required=getTeam().t.status==='handover';
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}

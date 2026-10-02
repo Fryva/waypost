@@ -26,6 +26,13 @@ function observation(s,id,status='exhausted',time=at){
  return {protocol:1,observation_id:id+'-'+status+'-'+Date.parse(time),participant:id,incarnation:p.incarnation,model_revision:p.model.model_revision,model,route:{endpoint:'https://fixture.invalid/quota',account:'account',sku:'sku',mode:'api',pool:'pool',model},scope:'provider-account-model',reason:status==='exhausted'?'provider-quota-exhausted':'provider-quota-available',status,available_calls:status==='exhausted'?0:10,provider_confirmed:true,evidence_kind:'provider-quota',source:'https://fixture.invalid/quota',observed_at:time,expires_at:new Date(Date.parse(time)+60000).toISOString()};
 }
 function capture(s,id,status='exhausted',time=at){return reduceTeamEvent(s,command(s,'quota-capture-v1',{participant_id:id,observation:observation(s,id,status,time),at:time},'collector:host')).state;}
+test('positive renewal before expiry retains quota revision and role bindings',()=>{
+ let s=capture(enable(fixture()),'strong','available');const revision=s.teams.team.quota_revision;
+ for(const seconds of [30,60,90,120]){
+  s=capture(s,'strong','available',new Date(now+seconds*1000).toISOString());
+  assert.equal(s.teams.team.quota_revision,revision);assert.equal(s.teams.team.leader,'strong');
+ }
+});
 test('opt-in quota evidence chooses strongest remaining leader and preserves historical floor',()=>{
  const legacy=fixture();assert.equal(legacy.teams.team.quota_revision,undefined);
  let s=enable(legacy),t=s.teams.team;assert.equal(t.review_floor,3);assert.equal(Object.keys(t.review_admissions).length,2);

@@ -3,18 +3,18 @@ type: story
 id: "story-quota-exhaustion-redistributes-leadership-and-independent-review-safely"
 epic: "WP-20"
 title: "Quota exhaustion redistributes leadership and independent review safely"
-status: planned
+status: in-progress
 priority: p1
 assignee: "Ivan Morozov"
 created: 2026-10-01
-updated: 2026-10-01
+updated: 2026-10-02
 external_refs: {}
 tags: []
-code_refs: ["scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-workflow.mjs", "scripts/team-host.mjs", "tests/team-quota.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-host.test.mjs"]
+code_refs: ["scripts/team-host.mjs", "scripts/team-quota-native.mjs", "scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-workflow.mjs", "tests/team-host.test.mjs", "tests/team-quota-native.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-quota.test.mjs"]
 specs: []
-started_at: null
+started_at: "2026-10-02T00:57:09.984Z"
 closed_at: null
-plan_updated_at: null
+plan_updated_at: "2026-10-02T00:57:09.984Z"
 ---
 
 # Quota exhaustion redistributes leadership and independent review safely

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-01T20:23:17.716Z
+generated_at: 2026-10-02T00:57:10.857Z
 
 ---
 
@@ -83,7 +83,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md | Live Claude, Codex and OpenCode coordination on one task | story | planned |
 | epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md | Local authority log and crash-safe mutations | story | planned |
 | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | Participant identity and automatic model strength discovery | story | in-progress |
-| epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely.md | Quota exhaustion redistributes leadership and independent review safely | story | planned |
+| epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely.md | Quota exhaustion redistributes leadership and independent review safely | story | in-progress |
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
