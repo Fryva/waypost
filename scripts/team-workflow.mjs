@@ -1,4 +1,5 @@
 // Versioned protected workflow extensions. Old transitions retain their replay.
+import { validateParticipantHostBinding } from './team-host-registry.mjs';
 import { validateQuotaObservation, quotaEligible } from './team-quota.mjs';
 import { createHash } from 'node:crypto';
 import { rankParticipant, validateDescriptor } from './team.mjs';
@@ -79,6 +80,10 @@ export function applyWorkflow(s,t,c,now,H) {
   const records={runtime:t.runtime_requests,review:t.review_requests,delivery:t.deliveries},r=records[c.operation]?.[c.nonce];
   if(!r || r.collector!==c.actor || (c.operation==='delivery'?!['dispatching','uncertain'].includes(r.state):!r.consumed||r.captured||r.output_digest))fail('uncertain-native-operation-required');
   r.reconciled_stopped=true;r.stop_evidence_digest=c.evidence_digest;if(c.operation==='delivery')r.state='stopped';result={stopped:c.nonce};
+ }else if(c.type==='participant-host-register-v1') {
+  H.owner(s,c);const p=H.participant(t,c.participant_id),binding=validateParticipantHostBinding(bounded(c.binding,8192),{participant:p});
+  if(p.host_binding && !same(p.host_binding,binding))fail('host-registry-change-requires-new-participant');
+  p.host_binding=binding;result={registered:p.id};
  }else if(c.type==='native-binding-v1') {
   H.owner(s,c);const p=H.participant(t,c.participant_id),b=bounded(c.binding,8192);
   if(typeof b.endpoint_file!=='string' || !/^(\/|[A-Za-z]:[\\/])/.test(b.endpoint_file) || typeof b.collector_file!=='string' || !/^(\/|[A-Za-z]:[\\/])/.test(b.collector_file) || !s.collectors?.[b.collector_id] || s.collectors[b.collector_id].team!==t.id)fail('host-native-binding-required');

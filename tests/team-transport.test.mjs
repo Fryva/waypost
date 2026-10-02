@@ -126,3 +126,61 @@ test('OpenCode numeric abort errors retain uncertain outcome and cannot be retri
  const endpoint=await createNativeEndpoint({harness:'opencode',cwd,managed:true,url:'http://127.0.0.1:4096',password:'secret',native_id:'owned',read_only_enforced:true},{fetchImpl});
  try{await assert.rejects(endpoint.send('probe',{id:'one'}),/native-outcome-uncertain/);await assert.rejects(endpoint.send('retry',{id:'two'}),/native-outcome-uncertain/);}finally{endpoint.close();}
 });
+function codexStartup(m,emit){
+ if(m.method==='initialize')emit({id:m.id,result:{}});
+ if(m.method==='thread/start')emit({id:m.id,result:{thread:{id:'owned'},model:'fixture',modelProvider:'openai',reasoningEffort:'low',sandbox:{type:'readOnly'}}});
+}
+test('Codex and Claude stopAndWait returns only after the held child closes',async()=>{
+ for(const harness of ['codex','claude']){
+  let closed=false;const signals=[];
+  const endpoint=await createNativeEndpoint({harness,cwd,managed:true},{spawnProcess:()=>{
+   const child=childMock(codexStartup);child.kill=signal=>{signals.push(signal);setTimeout(()=>{closed=true;child.emit('close',0);},20);return true;};return child;
+  }});
+  const pending=endpoint.stopAndWait({timeoutMs:200,killAfterMs:100});assert.equal(closed,false);
+  assert.deepEqual(await pending,{stopped:true,owned_processes:1,process_group_closed:true});assert.equal(closed,true);assert.deepEqual(signals,['SIGTERM']);
+  assert.deepEqual(await endpoint.stopAndWait(),{stopped:true,owned_processes:1,process_group_closed:true});
+ }
+});
+test('unconfirmed native shutdown escalates and returns an explicit blocker',async()=>{
+ for(const harness of ['codex','claude']){
+  const signals=[];
+  const endpoint=await createNativeEndpoint({harness,cwd,managed:true},{spawnProcess:()=>{const child=childMock(codexStartup);child.kill=signal=>{signals.push(signal);return true;};return child;}});
+  await assert.rejects(endpoint.stopAndWait({timeoutMs:100,killAfterMs:10}),/native-process-stop-unconfirmed/);assert.deepEqual(signals,['SIGTERM','SIGKILL']);
+  await assert.rejects(endpoint.send('later',{id:'new'}),/native-endpoint-closed/);
+ }
+});
+test('Codex configuration replacement waits for original child closure before spawning',async()=>{
+ let originalClosed=false,spawned=0;
+ const endpoint=await createNativeEndpoint({harness:'codex',cwd,managed:true},{spawnProcess:()=>{
+  const first=++spawned===1;if(!first)assert.equal(originalClosed,true);
+  const child=childMock(codexStartup,first?{mcp_servers:{fixture:{enabled:true}}}:{mcp_servers:{}});
+  if(first)child.kill=()=>{setTimeout(()=>{originalClosed=true;child.emit('close',0);},20);return true;};return child;
+ }});
+ assert.equal(spawned,2);await endpoint.stopAndWait();
+});
+test('null, arrays and primitive native stdio frames reject and await explicit closure',async()=>{
+ for(const value of [null,[],1,true,'bad']){
+  const endpoint=await createNativeEndpoint({harness:'claude',cwd,managed:true},{spawnProcess:()=>childMock((_m,emit)=>emit(value))});
+  await assert.rejects(endpoint.send('probe',{id:'first'}),/invalid-native-frame/);
+  assert.equal((await endpoint.stopAndWait()).stopped,true);
+ }
+});
+function ownedServerFixture(closeOnKill){
+ let spawned,closed=false;const signals=[];
+ return {signals,get closed(){return closed;},spawnProcess:(_exe,_args,opts)=>{
+  spawned=opts;const child=childMock(()=>{});child.kill=signal=>{signals.push(signal);if(closeOnKill)setTimeout(()=>{closed=true;child.emit('close',0);},20);return true;};queueMicrotask(()=>child.stdout.write('http://127.0.0.1:43210\n'));return child;
+ },fetchImpl:async(url,opts)=>{const value=url.pathname==='/global/health'?{healthy:true,version:'test'}:url.pathname==='/config'?JSON.parse(spawned.env.OPENCODE_CONFIG_CONTENT):url.pathname==='/session'?{id:'own',directory:cwd}:opts.method==='GET'?[]:{info:{role:'assistant',sessionID:'own'},parts:[]};return {ok:true,body:[Buffer.from(JSON.stringify(value))]};}};
+}
+test('owned OpenCode server shutdown waits for closure and never fabricates timeout proof',async()=>{
+ for(const closes of [true,false]){
+  const f=ownedServerFixture(closes),endpoint=await createNativeEndpoint({harness:'opencode',managed:true,cwd,spawn_server:true},f);
+  const stopped=endpoint.stopAndWait({timeoutMs:100,killAfterMs:50});
+  if(closes){assert.equal(f.closed,false);assert.equal((await stopped).stopped,true);assert.equal(f.closed,true);}
+  else{await assert.rejects(stopped,/native-process-stop-unconfirmed/);assert.deepEqual(f.signals,['SIGTERM','SIGKILL']);}
+ }
+});
+test('an externally bound OpenCode server cannot receive an owned process stop proof',async()=>{
+ const fetchImpl=async url=>({ok:true,body:[Buffer.from(JSON.stringify(url.pathname==='/global/health'?{healthy:true,version:'test'}:{id:'own',directory:cwd}))]});
+ const endpoint=await createNativeEndpoint({harness:'opencode',cwd,managed:true,url:'http://127.0.0.1:43210',password:'secret',native_id:'own',read_only_enforced:true},{fetchImpl});
+ await assert.rejects(endpoint.stopAndWait(),/native-process-stop-unverified-external-server/);
+});

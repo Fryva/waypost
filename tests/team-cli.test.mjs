@@ -53,6 +53,17 @@ test('join retries preserve participant and credential without duplicate enrollm
  writeFileSync(join(f.root,'bad.json'),JSON.stringify(credential));
  assert.equal(f.run('leader-ack','fixture-team','--credential','bad.json').status,1);
 });
+test('CLI awaits owned checkout and candidate failures and registers private participant hosts',()=>{
+ const f=fixture(),joined=f.ok('join','fixture-team','--model','model.json','--credential','a.json'),id=joined.result.participant;
+ writeFileSync(join(f.root,'native.json'),JSON.stringify({managed:true,harness:'codex',cwd:f.root,mode:'read-only'}));
+ const args=['host','fixture-team','--participant',id,'--credential','a.json'];
+ f.ok(...args,'--operation','bootstrap','--descriptor-file','native.json');
+ f.ok(...args,'--operation','register-participant-host');
+ assert.ok(f.ok('status','fixture-team').teams[0].participants[id].host_binding);
+ for(const operation of ['checkout','candidate']){
+  const result=f.run(...args,'--operation',operation,'--work','missing');assert.equal(result.status,1);assert.notEqual(result.stdout.trim(),'{}');assert.match(result.stderr,/work|candidate|scope/);
+ }
+});
 test('routing CLI preview grants no authority and enabled routing cannot use legacy assignment',()=>{
  const f=fixture();const joined=f.ok('join','fixture-team','--model','model.json','--credential','a.json');
  f.ok('leader-ack','fixture-team','--credential','a.json');

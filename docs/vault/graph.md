@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-02T00:57:10.857Z
+generated_at: 2026-10-02T01:50:24.833Z
 
 ---
 
@@ -248,6 +248,7 @@ full typed neighborhood, both directions, in one call.
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md |
+| specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-implements-adr | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |

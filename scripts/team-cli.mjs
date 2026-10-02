@@ -76,11 +76,12 @@ export async function main(argv = process.argv.slice(2)) {
       participant: opt('--participant'), leaderCredential:opt('--leader-credential') ? resolve(opt('--leader-credential')) : undefined, leaderEndpointPath: opt('--leader-endpoint-file') ? resolve(opt('--leader-endpoint-file')) : undefined, participantCredential: opt('--credential') ? resolve(opt('--credential')) : undefined,
       dispatcher: resolve(dirname(fileURLToPath(import.meta.url)), '../bin/waypost') });
     if (operation === 'bootstrap') print(await host.bootstrap({ participant: opt('--participant'), descriptor: opt('--descriptor-file') ? json(resolve(opt('--descriptor-file'))) : undefined }));
+    else if (operation === 'register-participant-host') print(await host.registerParticipantHost());
     else if (operation === 'inspect') print(await host.inspect({ action: opt('--action'), ...(opt('--nonce') ? { nonce: opt('--nonce') } : {}) }));
     else if (operation === 'relay') print(await host.relay({ limit: Number(opt('--limit') || 10), pollMs: Number(opt('--poll-ms') || 1000), maxPolls: Number(opt('--max-polls') || 1) }));
     else if (operation === 'review') print(await host.review({ workId: opt('--work'), ...(opt('--nonce') ? { nonce: opt('--nonce') } : {}) }));
-    else if (operation === 'checkout') print(host.checkout({ workId: opt('--work') }));
-    else if (operation === 'candidate') print(host.candidate({ workId: opt('--work') }));
+    else if (operation === 'checkout') print(await host.checkout({ workId: opt('--work') }));
+    else if (operation === 'candidate') print(await host.candidate({ workId: opt('--work') }));
     else if (operation === 'dispatch') print(await host.dispatchRouted({ workId:opt('--work'),attempt:Number(opt('--attempt') || 1),...(opt('--invocation')?{invocationId:opt('--invocation')}:{}),...(opt('--request-key')?{reserveKey:opt('--request-key')}: {}) }));
     else if (operation === 'publish') {
       const request = json(resolve(opt('--request-file') || ''));
@@ -88,7 +89,7 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:bootstrap|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:bootstrap|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
     return;
   }
   if (mode === 'status') {
@@ -254,7 +255,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
     command = { ...command, request_key: seed.request_key, at: seed.join_at }; 
   } else {
-    const ownerModes = new Set(['quota-policy-enable-v1','policy','attest','revoke','close','routing-enable','routing-enable-v2','collector-register-v1','collector-revoke-v1','control-invocation-reserve-v1','native-binding-v1','runtime-request-v1','begin-handover-v1','deferred-apply-v1','deferred-discard-v1','close-v1']);
+    const ownerModes = new Set(['participant-host-register-v1','quota-policy-enable-v1','policy','attest','revoke','close','routing-enable','routing-enable-v2','collector-register-v1','collector-revoke-v1','control-invocation-reserve-v1','native-binding-v1','runtime-request-v1','begin-handover-v1','deferred-apply-v1','deferred-discard-v1','close-v1']);
     cred = loadCredential(resolve(opt(ownerModes.has(mode) ? '--owner-credential' : '--credential') || (ownerModes.has(mode) ? defaultOwner : '')));
     command = { ...supplied, type: mode, team };
     if (mode === 'policy') command.policy = json(resolve(opt('--policy') || ''));

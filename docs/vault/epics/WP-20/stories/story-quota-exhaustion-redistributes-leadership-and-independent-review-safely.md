@@ -10,8 +10,8 @@ created: 2026-10-01
 updated: 2026-10-02
 external_refs: {}
 tags: []
-code_refs: ["scripts/team-host.mjs", "scripts/team-quota-native.mjs", "scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-workflow.mjs", "tests/team-host.test.mjs", "tests/team-quota-native.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-quota.test.mjs"]
-specs: []
+code_refs: ["scripts/team-host-registry.mjs", "scripts/team-host.mjs", "scripts/team-owned-runtime.mjs", "scripts/team-quota-native.mjs", "scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-transport.mjs", "scripts/team-workflow.mjs", "tests/team-host-registry.test.mjs", "tests/team-host.test.mjs", "tests/team-owned-runtime.test.mjs", "tests/team-quota-native.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-quota.test.mjs", "tests/team-transport.test.mjs"]
+specs: ["cross-harness-team-coordination-protocol"]
 started_at: "2026-10-02T00:57:09.984Z"
 closed_at: null
 plan_updated_at: "2026-10-02T00:57:09.984Z"

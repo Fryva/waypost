@@ -10,6 +10,8 @@ import { createRoutingGrant, serializeRoutingGrant } from './team-evidence.mjs';
 import { collectQuotaObservation, serializeQuotaObservation, quotaEligible } from './team-quota.mjs';
 import { observeNativeProviderQuota } from './team-quota-native.mjs';
 import { createNativeEndpoint, validateNativeDescriptor } from './team-transport.mjs';
+import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
+import { createOwnedRuntime, stopOwnedRuntime } from './team-owned-runtime.mjs';
 import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest } from './team-integration.mjs';
 import { leasesOverStaged } from './commit.mjs';
 import { sessionId } from './lib.mjs';
@@ -34,12 +36,15 @@ export function createTeamHost(config, dependencies={}) {
  portable(team);const hostDir=safe(config.hostDir||join(authorityRoot,'host',team));mkdirSync(hostDir,{recursive:true,mode:0o700});
  const load=dependencies.load||(()=>readAuthority(authorityRoot,reduceTeamEvent));
  const now=dependencies.now||(()=>new Date().toISOString());
- const native=dependencies.createNativeEndpoint||createNativeEndpoint;
+ let activeOperation=null,operationBusy=false;
+ const native=descriptor=>activeOperation?activeOperation.native(()=>createNativeEndpoint(descriptor)):(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor);
  const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,...dependencies.integration};
+ async function closeNative(transport){if(transport?.stopAndWait&&transport.owns_process!==false)await transport.stopAndWait();else transport?.close();}
  function getTeam(){const v=load();const t=v.state?.teams[team];if(!t)fail('team-not-found');return {v,t};}
  function mutate(type,fields,c,key=randomUUID()) {
   const {v,t}=getTeam();const actor=authorizeActor(v.state,team,c);
   const command={...fields,type,team,actor,incarnation:c.incarnation||null,epoch:fields.epoch??t.epoch,at:fields.at||now(),request_key:key};
+  activeOperation?.annotate(command);
   const result=(dependencies.mutate||mutateAuthority)(authorityRoot,{actor,key,expected_revision:v.revision,command},reduceTeamEvent,{authorize:s=>{if(authorizeActor(s,team,c)!==actor)fail('host-actor-changed');}});
   if(result.result?.deferred)fail('host-command-deferred-no-external-dispatch');
   return result;
@@ -53,6 +58,26 @@ export function createTeamHost(config, dependencies={}) {
   return d;
  }
  function record(name){return join(hostDir,portable(name)+'.json');}
+ async function managedOperation(kind,fn,{handoverControl=false}={}) {
+  if(operationBusy)fail('host-operation-busy');
+  operationBusy=true;
+  try{
+  // Trusted injected transports retain their test/provider integration contract.
+  // External OpenCode sessions have no owned process to supervise.
+  if(dependencies.createNativeEndpoint)return await fn();
+  const d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
+  if(d.descriptor.mode==='workspace-write'||(d.descriptor.executable&&!['codex','claude','opencode'].includes(d.descriptor.executable)))fail('host-owned-supervision-verified-read-only-adapter-required');
+  if(d.descriptor.harness==='opencode'&&!d.descriptor.spawn_server)return await fn();
+  let epoch=t.epoch;
+  if(handoverControl){
+   if(t.status!=='handover'||t.candidate!==p.id||!t.handover||t.handover.target_epoch!==t.epoch+1)fail('host-authority-bound-handover-control-required');
+   epoch=t.handover.target_epoch;
+  }
+  const registered=p.host_binding?readParticipantHost({state:load().state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)}):null;
+  const runtime=createOwnedRuntime({directory:join(registered?dirname(registered.binding.host_file):hostDir,'runtime'),team,participant:p.id,incarnation:p.incarnation,epoch,descriptorDigest:routingDigest(d.descriptor)});
+  return await runtime.run({kind},async scope=>{activeOperation=scope;try{return await fn();}finally{activeOperation=null;}});
+  }finally{operationBusy=false;}
+ }
  async function ensureQuotaFresh() {
   const {t}=getTeam();if(!t.quota_policy?.automatic_redistribution)return;
   const d=endpoint(),p=t.participants[d.participant],q=p?.quota_observation;
@@ -119,6 +144,39 @@ export function createTeamHost(config, dependencies={}) {
   }
   return {collector:seed.collector,endpoint_bound:Boolean(descriptor)};
  }
+ function registerParticipantHost({participantCredentialFile=participantCredential}={}) {
+  const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
+  if(!participantCredentialFile||!config.vaultPath)fail('host-explicit-participant-credential-and-vault-required');
+  const pc=credential(participantCredentialFile);
+  if(authorizeActor(load().state,team,pc)!==p.id||pc.incarnation!==p.incarnation)fail('host-participant-credential-binding-required');
+  const manifest={protocol:1,team,participant:p.id,incarnation:p.incarnation,authority_root:resolve(authorityRoot),project_root:resolve(projectRoot),vault_path:resolve(config.vaultPath),participant_credential_file:resolve(participantCredentialFile),endpoint_file:resolve(endpointPath),collector_file:resolve(collectorPath),descriptor_digest:routingDigest(d.descriptor)};
+  const path=record('participant-host-'+portable(p.id));
+  const binding=createParticipantHostBinding({hostFile:path,manifest,participant:p});
+  if(existsSync(path)){if(routingDigest(read(path,true))!==binding.host_digest)fail('host-participant-manifest-already-bound');}else write(path,manifest);
+  return mutate('participant-host-register-v1',{participant_id:p.id,binding},o);
+ }
+ function resolveParticipantHost(id) {
+  const {manifest:m,binding}=readParticipantHost({state:load().state,teamId:team,participantId:id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)});
+  return createTeamHost({...config,hostDir:dirname(binding.host_file),participant:id,participantCredential:m.participant_credential_file,endpointPath:m.endpoint_file,collectorPath:m.collector_file},dependencies);
+ }
+ async function stopParticipant({participant:p,epoch}) {
+  const {v,t}=getTeam();
+  // Registration proves explicit ownership of the participant credential and
+  // descriptor. Historical consumes without whole-operation ledgers block stop.
+  const {descriptor,binding}=readParticipantHost({state:v.state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)});
+  if(descriptor.harness==='opencode'&&!descriptor.spawn_server)fail('native-process-stop-unverified-external-server');
+  if(descriptor.mode==='workspace-write'||(descriptor.executable&&!['codex','claude','opencode'].includes(descriptor.executable)))fail('host-owned-supervision-verified-read-only-adapter-required');
+  const required=[...Object.values(t.runtime_requests||{}).filter(r=>r.participant===p.id&&r.incarnation===p.incarnation&&r.epoch===epoch&&r.consumed).map(r=>r.nonce),...Object.values(t.review_requests||{}).filter(r=>r.reviewer===p.id&&r.epoch===epoch&&r.consumed).map(r=>r.nonce),...Object.values(t.deliveries||{}).filter(r=>r.participant===p.id&&r.incarnation===p.incarnation&&r.epoch===epoch).map(r=>r.nonce)];
+  for(const x of Object.values(v.state.invocations||{})){
+   if(x.team!==team||x.epoch!==epoch||['prepared','aborted'].includes(x.state))continue;
+   const grant=t.routing_evidence?.[x.evidence_digest]?.grant;
+   if(grant?.participant===p.id&&grant.incarnation===p.incarnation)required.push(x.id);
+   else if(!grant&&t.work[x.work_id]?.worker===p.id)required.push(x.id);
+  }
+  for(const w of Object.values(t.work||{}))if(w.worker===p.id&&w.epoch===epoch&&w.invocation_id)required.push(w.invocation_id);
+  if(Object.values(t.work||{}).some(w=>w.worker===p.id&&w.epoch===epoch&&!['assigned','integrated','cancelled'].includes(w.status)&&!w.invocation_id))fail('host-legacy-work-owned-operation-stop-unverified');
+  return stopOwnedRuntime({directory:join(dirname(binding.host_file),'runtime'),team,participant:p.id,incarnation:p.incarnation,epoch,descriptorDigest:p.native_binding.descriptor_digest,requiredOperations:[...new Set(required)]});
+ }
  async function inspect({action,nonce=randomUUID(),keepAlive=false}={}) {
   await ensureQuotaFresh();
   portable(nonce);const o=owner(),c=collector(),d=endpoint();const {t}=getTeam();const p=t.participants[d.participant];if(!p||p.revoked||!quotaEligible(p,Date.parse(now())))fail('participant-unavailable');
@@ -150,8 +208,8 @@ export function createTeamHost(config, dependencies={}) {
    const observation={...receipt,invocation_id:nonce,observed_at:now(),correlation:{nonce,invocation_id:nonce}};
    if(keepAlive)return {captured,transport,receipt:observation};
    return {...captured,nonce};
-  }catch(e){uncertainControl(control);transport?.close();write(record('uncertain-'+nonce),{protocol:1,nonce,state:'uncertain',error_code:e.code||'host-native-outcome-uncertain',at:now()});throw e;}
-  finally{if(!keepAlive)transport?.close();}
+  }catch(e){uncertainControl(control);await closeNative(transport);write(record('uncertain-'+nonce),{protocol:1,nonce,state:'uncertain',error_code:e.code||'host-native-outcome-uncertain',at:now()});throw e;}
+  finally{if(!keepAlive)await closeNative(transport);}
  }
  function workRecord(workId){return record('work-'+portable(workId));}
  function checkout({workId}) {
@@ -226,7 +284,7 @@ export function createTeamHost(config, dependencies={}) {
    if(typeof output!=='string')fail('host-review-output-required');
    write(record('review-receipt-'+nonce),{protocol:1,nonce,output,output_digest:sha(output),actual_model,context_id:manifest.context_id});
    return mutate('review-capture-v1',{nonce,context_id:manifest.context_id,actual_model,output,output_digest:sha(output)},c);
-  }catch(error){uncertainControl(control);throw error;}finally{transport.close();}
+  }catch(error){uncertainControl(control);throw error;}finally{await closeNative(transport);}
  }
  async function relay({limit=10,pollMs=1000,maxPolls=1}={}) {
   for(const [v,min,max] of [[limit,1,100],[pollMs,0,60000],[maxPolls,1,1000]])if(!Number.isSafeInteger(v)||v<min||v>max)fail('host-invalid-relay-bounds');
@@ -279,7 +337,7 @@ export function createTeamHost(config, dependencies={}) {
     receipts.push({message_id:message.id,nonce,native_id:transport.native_id});delivered++;
    }
    return {delivered,recovered,polled,native_id:transport.native_id,receipts,continuation:'same managed native context during this bounded relay invocation'};
-  }finally{transport.close();}
+  }finally{await closeNative(transport);}
  }
  function installRoutingGrant({manifest,verifiedEvidence}={}) {
   owner();const c=collector(),{t}=getTeam();
@@ -337,7 +395,7 @@ export function createTeamHost(config, dependencies={}) {
    write(record('patch-'+invocationId),{protocol:1,work_id:workId,invocation_id:invocationId,native_id:receipt.native_id,context_id:receipt.context_manifest?.id||null,paths:[...seen],patch_digest:sha(patch)});
    return {invocation_id:invocationId,usage_settled:true,provider_invocation_id:usage.provider_invocation_id,paths:[...seen],checkout:owned.path,candidate_required:true};
   }catch(error){if(!settled){try{mutate('invocation-settle-v1',{invocation_id:invocationId,outcome:'uncertain'},c);}catch{}}throw error;}
-  finally{transport?.close();}
+  finally{await closeNative(transport);}
  }
  function recoverPublication({gitChildStopped=false}={}) {
   owner();const c=collector(),{t}=getTeam(),r=t.integration;if(!r||r.state!=='publishing')fail('publishing-reservation-required');
@@ -354,25 +412,28 @@ export function createTeamHost(config, dependencies={}) {
   if(!t.candidate)fail('host-no-available-handover-candidate');
   // Stopping an owned process and signing a receipt require no model inference.
   // No UI badge, timeout or owner assertion substitutes for this host capability.
-  if(typeof dependencies.stopOwnedParticipant!=='function'||typeof dependencies.resolveParticipantHost!=='function')fail('host-nonbillable-handover-capability-unavailable');
+  // A legacy unregistered host cannot manufacture an owned-process receipt.
+  if(!dependencies.stopOwnedParticipant&&!t.participants[t.leader]?.host_binding)fail('host-nonbillable-handover-capability-unavailable');
+  const stopOwnedParticipant=dependencies.stopOwnedParticipant||stopParticipant;
+  const resolveHost=dependencies.resolveParticipantHost||resolveParticipantHost;
   if(!t.handover)mutate('begin-handover-v1',{},o);
   t=getTeam().t;
   const pending=Object.values(t.work).filter(w=>!['integrated','cancelled'].includes(w.status));
   for(const id of new Set([t.handover.old_leader,...pending.map(w=>w.worker)])) {
    if(t.handover.acks[id]?.stopped)continue;
    const p=t.participants[id];
-   const proof=await dependencies.stopOwnedParticipant({team:t.id,participant:p,epoch:t.handover.old_epoch});
+   const proof=await stopOwnedParticipant({team:t.id,participant:p,epoch:t.handover.old_epoch});
    if(!proof||proof.stopped!==true||proof.participant!==id||proof.incarnation!==p.incarnation||proof.epoch!==t.handover.old_epoch||!proof.evidence_digest)fail('host-bound-owned-process-stop-required');
    mutate('quiesce-capture-v1',{participant_id:id,participant_incarnation:p.incarnation,epoch:t.handover.old_epoch,stopped:true,evidence_digest:proof.evidence_digest},collector());
   }
-  const candidate=await dependencies.resolveParticipantHost(t.candidate);
+  const candidate=await resolveHost(t.candidate);
   if(!candidate||typeof candidate.inspect!=='function'||typeof candidate.acknowledgeHandover!=='function')fail('host-candidate-handover-capability-unavailable');
   // The candidate supplies its own credential. No exhausted-leader paid relay.
   for(const w of pending) {
    const latest=getTeam().t,adoption=latest.handover?.adoptions[w.id],current=latest.work[w.id];
    if(adoption&&(adoption.candidate!==latest.candidate||adoption.incarnation!==latest.participants[latest.candidate].incarnation||adoption.model_revision!==latest.participants[latest.candidate].model.model_revision||adoption.policy_revision!==latest.policy.revision||adoption.generation!==current.generation))fail('host-handover-adoption-binding-changed');
    if(adoption?.ack)continue;
-   const worker=await dependencies.resolveParticipantHost(w.worker);
+   const worker=await resolveHost(w.worker);
    if(!worker||typeof worker.acknowledgeAdoption!=='function')fail('host-retained-work-adoption-capability-unavailable');
    if(!adoption)await candidate.acknowledgeHandover({workId:w.id});
    await worker.acknowledgeAdoption({workId:w.id});
@@ -390,7 +451,7 @@ export function createTeamHost(config, dependencies={}) {
   const work=workId?t.work[workId]:undefined;
   const key='handover-'+sha([type,t.id,t.handover.target_epoch,p.id,p.incarnation,p.model.model_revision,t.policy.revision,workId||null,work?.generation||null]);
   const action=[type,t.id,p.id,p.incarnation,p.model.model_revision,t.policy.revision,key].join(':');
-  await inspect({action,nonce:'inspect-'+sha(key)});
+  await managedOperation('handover-control',()=>inspect({action,nonce:'inspect-'+sha(key)}),{handoverControl:true});
   const w=workId?getTeam().t.work[workId]:undefined;
   return mutate(type,w?{work_id:w.id,base:w.base,paths:w.paths,target_digest:w.result?.target_digest||null}:{},c,key);
  }
@@ -406,8 +467,9 @@ export function createTeamHost(config, dependencies={}) {
   const observation=await collectQuotaObservation({participant:p,observe:request=>observe({...request,descriptor:d.descriptor}),now:()=>Date.parse(now())});
   const result=mutate('quota-capture-v1',{participant_id:p.id,observation:serializeQuotaObservation(observation)},collector());
   const redistribution_required=getTeam().t.status==='handover';
+  if(redistribution_required&&activeOperation)fail('host-redistribution-deferred-until-operation-drained');
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,inspect,checkout,candidate,publish,review,relay,installRoutingGrant,dispatchRouted,recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

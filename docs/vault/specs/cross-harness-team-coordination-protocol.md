@@ -9,7 +9,7 @@ authors: ["Ivan Morozov", "Codex (OpenAI)"]
 tags: ["coordination", "models"]
 external_refs: {}
 adr: ["model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review"]
-stories: ["WP-20/story-participant-identity-and-owner-approved-model-policy", "WP-20/story-local-authority-log-and-crash-safe-mutations", "WP-20/story-addressed-messages-and-verified-harness-delivery", "WP-20/story-assignments-supervision-and-stronger-model-handover", "WP-20/story-independent-strongest-model-review-of-immutable-evidence", "WP-20/story-reviewed-integration-and-team-aware-story-gates", "WP-20/story-team-cli-orientation-and-deterministic-diagnostics", "WP-20/story-live-claude-and-opencode-coordination-on-one-task", "WP-20/story-automatic-model-routing-by-task-complexity-and-expected-cost"]
+stories: ["WP-20/story-addressed-messages-and-verified-harness-delivery", "WP-20/story-assignments-supervision-and-stronger-model-handover", "WP-20/story-automatic-model-routing-by-task-complexity-and-expected-cost", "WP-20/story-independent-strongest-model-review-of-immutable-evidence", "WP-20/story-live-claude-and-opencode-coordination-on-one-task", "WP-20/story-local-authority-log-and-crash-safe-mutations", "WP-20/story-participant-identity-and-owner-approved-model-policy", "WP-20/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely", "WP-20/story-reviewed-integration-and-team-aware-story-gates", "WP-20/story-team-cli-orientation-and-deterministic-diagnostics"]
 review_status: reviewed
 reviewed_at: 2026-09-30
 code_refs: ["bin/waypost", "scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/doctor.mjs", "scripts/ready.mjs", "scripts/lib.mjs", "templates/agents-block.md.tmpl", "scripts/team-state.mjs", "scripts/team-workflow.mjs", "scripts/team-store.mjs", "scripts/team-transport.mjs", "scripts/team-evidence.mjs", "scripts/team-host.mjs", "scripts/team-integration.mjs", "scripts/team-legacy.mjs", "scripts/team-diagnostics.mjs", "tests/team-end-to-end.test.mjs"]
@@ -366,6 +366,18 @@ re-review revised target. Artifact critics and code reviewers share protocol,
 not acceptance targets. Component changes invalidate composite final approval.
 
 ### 7. Git, stories and compatibility
+
+Managed host stop records cover the whole operation, including post-response
+invoice/patch handling. Before stop enumeration a durable epoch barrier forbids
+further old work. Stopped proof requires ledger coverage of all consumed ids and
+callback drain after held native roots/process groups close. Parent loss, missing
+ledgers and legacy unsupervised work block adoption; an invoice alone is insufficient.
+Explicit owner-authorized participant host manifests bind private credentials and
+runtime directories. Internal read-only handover controls bind the candidate and
+target epoch without reopening old edit admission. External servers, custom
+executables, workspace-write adapters, escaped descendants and unsupported Windows
+tree closure are outside the automatic stop contract. A quota change within a live
+operation defers the redistribution driver until that operation drains.
 
 7.1. Teams bind existing artifact/story without giving all members a legacy claim.
 Unrelated live story owner requires explicit handoff; team creation cannot erase

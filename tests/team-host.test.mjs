@@ -27,6 +27,7 @@ function fixture(t,options={}) {
   if(c.type==='begin-handover-v1')team.handover={old_leader:team.leader,old_epoch:team.epoch,target_epoch:team.epoch+1,acks:{},adoptions:{}};
   if(c.type==='quiesce-capture-v1')team.handover.acks[c.participant_id]={stopped:c.stopped,evidence_digest:c.evidence_digest};
   if(c.type==='native-binding-v1')team.participants[c.participant_id].native_binding=c.binding;
+  if(c.type==='participant-host-register-v1')team.participants[c.participant_id].host_binding=c.binding;
   if(c.type==='collector-register-v1')state.collectors[c.collector.id]={...c.collector,team:'team'};
   if(c.type==='runtime-request-v1')team.runtime_requests[c.nonce]={participant:c.participant_id,action:c.action,consumed:false};
   if(c.type==='runtime-consume-v1')team.runtime_requests[c.nonce].consumed=true;
@@ -34,20 +35,30 @@ function fixture(t,options={}) {
   if(c.type==='delivery-capture-v1'){const delivery=team.deliveries[c.nonce];delivery.state=c.outcome==='uncertain'?'uncertain':'received';if(c.outcome!=='uncertain')Object.assign(delivery,{native_id:c.native_id,output:c.output,output_digest:c.output_digest,actual_model:c.actual_model,received_at:c.at});}
   if(c.type==='send')answers.push({key:request.key,...structuredClone(c)});
   if(c.type==='ack')team.messages.find(m=>m.id===c.message).ack={at:c.at};
-  if(c.type==='runtime-capture-v1'){team.runtime_requests[c.nonce].captured=true;team.participants.participant.model=c.model;}
+  if(c.type==='runtime-capture-v1'){team.runtime_requests[c.nonce].captured=true;team.participants[team.runtime_requests[c.nonce].participant].model=c.model;}
+  if(c.type==='handover-accept-v1'){team.leader=team.candidate;team.candidate=null;team.status='active';team.epoch++;}
   const result={type:c.type};accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};
  };
  const native=async()=>{
   calls.push('native-create');
-  return {native_id:'owned-native',async send(prompt,invocation){calls.push('native-send');if(options.failure)throw new Error('timeout');return {output:invocation.id,native_id:'owned-native',actualModel:{provider:options.provider||'openai',model_id:'model',reasoning:'low'},context_manifest:{id:'ctx',model_provider_is_billing_route:options.billingRoute||false}};},close(){calls.push('native-close');}};
+  return {native_id:'owned-native',async send(prompt,invocation){calls.push('native-send');if(options.failure)throw new Error('timeout');return {output:invocation.id,native_id:'owned-native',actualModel:{provider:options.provider||'openai',model_id:'model',reasoning:'low'},context_manifest:{id:'ctx',model_provider_is_billing_route:options.billingRoute||false}};},close(){calls.push('native-close');},...(options.stopWait?{async stopAndWait(){calls.push('native-stop-wait');await options.stopWait();calls.push('native-stopped');}}:{})};
  };
- const host=createTeamHost({authorityRoot:root,projectRoot:root,team:'team',ownerCredential:owner,collectorPath:collector,endpointPath:endpoint,leaderEndpointPath:endpoint,participant:'participant',participantCredential},{load,mutate,createNativeEndpoint:native,...options.dependencies});
- return {root,host,team,calls,endpoint,collector,requests,answers};
+ const dependencies={load,mutate,createNativeEndpoint:native,...options.dependencies};
+ const host=createTeamHost({authorityRoot:root,projectRoot:root,vaultPath:options.vaultPath?root:undefined,team:'team',ownerCredential:owner,collectorPath:collector,endpointPath:endpoint,leaderEndpointPath:endpoint,participant:'participant',participantCredential},dependencies);
+ return {root,host,team,state,calls,endpoint,collector,requests,answers,dependencies};
 }
 test('host bootstrap persists private collector and endpoint with owner registration',async t=>{
  const f=fixture(t);await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
  assert.equal(f.calls[0],'collector-register-v1');assert.ok(existsSync(f.collector));assert.equal(JSON.parse(readFileSync(f.endpoint)).participant,'participant');
  await f.host.bootstrap();assert.equal(f.calls.filter(x=>x==='collector-register-v1').length,1);
+});
+test('explicit participant host registration stores credential locator privately and binds immutable manifest',async t=>{
+ const f=fixture(t,{vaultPath:true});await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+ await f.host.registerParticipantHost();const binding=f.team.participants.participant.host_binding;
+ const manifest=JSON.parse(readFileSync(binding.host_file));assert.equal(manifest.participant,'participant');assert.equal(manifest.incarnation,'incarnation');
+ assert.ok(manifest.participant_credential_file.endsWith('participant.json'));assert.equal(JSON.stringify(binding).includes('token'),false);
+ await f.host.registerParticipantHost();assert.equal(f.calls.filter(x=>x==='participant-host-register-v1').length,2);
+ await assert.rejects(async()=>f.host.registerParticipantHost({participantCredentialFile:f.collector}),/credential-binding|invalid-credential|actor/);
 });
 test('runtime consumption precedes native launch and send; capture pins observed model',async t=>{
  const f=fixture(t);await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
@@ -56,6 +67,20 @@ test('runtime consumption precedes native launch and send; capture pins observed
  assert.equal(f.team.participants.participant.model.evidence.action,'coordinate:exact-key');
  assert.equal(f.team.participants.participant.model.evidence.kind,'adapter-observed');
  await f.host.inspect({action:'coordinate:exact-key',nonce:'nonce1'});assert.equal(f.calls.filter(x=>x==='native-send').length,1);
+});
+test('host invocation waits for confirmed endpoint shutdown before returning',async t=>{
+ let release;const closure=new Promise(r=>release=r);const f=fixture(t,{stopWait:()=>closure});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+ let returned=false;const result=f.host.inspect({action:'shutdown-proof',nonce:'shutdown'}).then(()=>returned=true);
+ await new Promise(r=>setImmediate(r));assert.equal(returned,false);assert.ok(f.calls.includes('native-stop-wait'));
+ release();await result;assert.equal(returned,true);assert.ok(f.calls.includes('native-stopped'));assert.equal(f.calls.includes('native-close'),false);
+});
+test('simultaneous public host operations cannot bypass the first callback drain',async t=>{
+ let release;const closure=new Promise(r=>release=r),f=fixture(t,{stopWait:()=>closure});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+ const first=f.host.inspect({action:'first',nonce:'first'});
+ await assert.rejects(f.host.inspect({action:'second',nonce:'second'}),/host-operation-busy/);
+ await new Promise(r=>setImmediate(r));release();await first;assert.equal(f.calls.filter(x=>x==='native-send').length,1);
 });
 test('a publication-deferred consumption cannot trigger external inference',async t=>{
  const f=fixture(t,{deferredType:'runtime-consume-v1'});await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
@@ -182,6 +207,13 @@ test('confirmed quota exhaustion is persisted with safe capability blocker and n
  const result=await f.host.observeQuota();assert.equal(result.redistribution_required,true);assert.equal(result.redistribution_blocker,'host-nonbillable-handover-capability-unavailable');
  assert.equal(f.team.participants.participant.quota_observation.status,'exhausted');assert.equal(f.calls.includes('begin-handover-v1'),false);assert.equal(f.calls.includes('native-create'),false);
 });
+test('default stop refuses legacy routed consumption with no whole-operation ledger',async t=>{
+ const f=fixture(t,{vaultPath:true});await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});f.host.registerParticipantHost();quotaFixtureState(f);
+ f.team.work.legacy={id:'legacy',worker:'participant',epoch:0,status:'uncertain',invocation_id:'legacy-charge'};
+ f.state.invocations={'legacy-charge':{id:'legacy-charge',team:'team',epoch:0,state:'settled',work_id:'legacy'}};
+ await assert.rejects(f.host.driveQuotaHandover(),/historical-consumption-stop-unconfirmed/);
+ assert.equal(f.calls.includes('quiesce-capture-v1'),false);assert.equal(f.calls.includes('native-create'),false);
+});
 test('quota driver requires bound stop proofs before retained work adoption without old leader inference',async t=>{
  let f;const events=[],proofs=[];
  const candidate={inspect(){throw new Error('driver must delegate candidate acknowledgement');},async acknowledgeHandover(fields){events.push(fields);assert.ok(f.team.handover.acks.participant.stopped);assert.ok(f.team.handover.acks.worker.stopped);if(fields.accept){f.team.leader='successor';f.team.status='active';f.team.epoch++;}}};
@@ -192,6 +224,16 @@ test('quota driver requires bound stop proofs before retained work adoption with
  const result=await f.host.driveQuotaHandover();assert.deepEqual(result,{redistributed:true,leader:'successor',epoch:1});
  assert.deepEqual(proofs,[{team:'team',participant:'participant',incarnation:'incarnation',epoch:0},{team:'team',participant:'worker',incarnation:'worker-inc',epoch:0}]);
  assert.deepEqual(events,[{workId:'retained'},{adoption:'retained'},{accept:true}]);assert.equal(f.calls.includes('native-create'),false);assert.equal(f.calls.filter(x=>x==='quiesce-capture-v1').length,2);
+});
+test('quota driver resolves a registered successor with its actual credential without resolver injection',async t=>{
+ const f=fixture(t,{vaultPath:true,dependencies:{stopOwnedParticipant:({participant,epoch})=>({stopped:true,participant:participant.id,incarnation:participant.incarnation,epoch,evidence_digest:'a'.repeat(64)})}});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});quotaFixtureState(f);
+ f.team.participants.successor.credential_hash=sha('c'.repeat(64));
+ const pc=join(f.root,'successor-credential.json');writeFileSync(pc,JSON.stringify({protocol:1,role:'participant',participant:'successor',incarnation:'successor-inc',token:'c'.repeat(64)}),{mode:0o600});
+ const candidate=createTeamHost({authorityRoot:f.root,projectRoot:f.root,vaultPath:f.root,team:'team',hostDir:f.root,ownerCredential:join(f.root,'owner.json'),collectorPath:join(f.root,'successor-collector.json'),endpointPath:join(f.root,'successor-endpoint.json'),participant:'successor',participantCredential:pc},f.dependencies);
+ await candidate.bootstrap({participant:'successor',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});candidate.registerParticipantHost();
+ const result=await f.host.driveQuotaHandover();assert.equal(result.redistributed,true);assert.equal(result.leader,'successor');
+ const acceptance=f.requests.find(x=>x.command.type==='handover-accept-v1');assert.equal(acceptance.command.actor,'successor');assert.equal(acceptance.command.incarnation,'successor-inc');
 });
 for(const mismatch of ['stopped','participant','incarnation','epoch','evidence_digest'])test('quota driver refuses uncertain or misbound stop proof: '+mismatch,async t=>{
  let resolutions=0;const proof={stopped:true,participant:'participant',incarnation:'incarnation',epoch:0,evidence_digest:'a'.repeat(64)};

@@ -224,8 +224,32 @@ stale dispatch.
 cached strength discovery retains its source freshness rules. Before inference,
 hosts renew existing positive permission within 15s of expiry. Failed renewal
 blocks dispatch. Expired negatives stay exhausted until a fresh positive proof.
-Owned-process stop and credential-bound adoption adapters remain injected trusted
-host capabilities. CLI operations `observe-quota` and `redistribute` report named
-blockers when these capabilities are unavailable.
-Uncertain dispatches and unresolved invoices remain held during redistribution.
+Register each participant explicitly with its own credential:
+`waypost team host <team> --operation register-participant-host --participant <id> --credential <file> --collector-credential <file> --endpoint-file <file>`.
+The owner-bound private manifest fixes the participant's credentials and runtime
+directory. The resolver never searches for credentials or imports personal chats.
+
+Standard managed read-only CLI hosts now supervise whole operations. A private
+authenticated loopback stop capability waits for native closure and the outer
+callback, including invoice and patch handling. Durable epoch barriers fence new
+work before enumeration. Consumed ids require ledger coverage even after invoice
+settlement. Missing records, vanished parents, legacy unsupervised running work,
+external servers, workspace-write backends and custom executables block automatic
+stop. Candidate handover checks use authority-bound read-only control in the target
+epoch; they do not reopen old work admission. A negative quota record observed
+within an operation defers redistribution until that operation drains.
+
+POSIX closure verifies held roots and their original process groups. Escaped
+descendants are outside that proof; the default contract is limited to the standard
+read-only adapters with isolated tools. Windows process-tree closure remains
+unverified and blocked. Uncertain dispatches and unresolved invoices remain held
+during redistribution. CLI `redistribute` reports the exact missing capability.
 Desktop quota badges alone are not provider evidence.
+
+On macOS, 2026-10-01, an owned Claude Desktop Code session returned a nonce and
+recalled it on a second turn without the nonce in the second request; its visible
+history contained no tool calls. The weekly badge showed 100% while both responses
+succeeded. This exercises desktop conversation continuity, not MCP team binding,
+executed reasoning identity or unattended wake. An independent owned Codex CLI
+probe exercised whole-operation closure with actual `gpt-6.1-sol / low`, verified
+context isolation and a durable stopped receipt after the callback/process ended.
