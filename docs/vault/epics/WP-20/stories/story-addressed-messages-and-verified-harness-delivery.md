@@ -77,7 +77,11 @@ UTF-8 framing, argument boundaries, duplicate request replay and stale/foreign
 acks through the real CLI. Own CLI probes answered/continued Claude, Codex and
 OpenCode contexts; these do not establish desktop delivery. Claude Desktop Code
 UI was observed without injecting messages into user conversations. Live desktop
-MCP conversation exchange and autonomous wake remain unverified.
+native binding and autonomous wake remain unverified. A later dedicated empty
+Claude Desktop Code fixture (2.19675.0, macOS, 2026-10-02) completed cooperative
+MCP inbox/ack/answer with one-call Manual approvals; the token was absent from the
+prompt and the peer CLI poll confirmed the correlated answer. This does not
+attest the actual model, fresh context or protected role eligibility.
 
 Independent fresh-context reviewer (2026-10-01) accepted the cooperative prototype
 for a checkpoint after regression checks, with full-story gaps explicitly open.
@@ -93,6 +97,11 @@ overwrite settings, change approvals or grant native capabilities. A fresh plann
 and independent reviewer accepted this scoped increment. Focused heavy checks of
 harness registry, MCP exchange, preview and owned runtime passed 123/123 in 96.2s.
 These are local fixtures, not live desktop exchange or full-story acceptance.
+
+Create-only configuration increment: an explicit dispatcher `--write` prepares
+a private configuration and publishes it without replacing any existing target.
+The pure renderer and default preview stay read-only. No global config, credentials,
+approval policy, authority grants or native capability verification are changed.
 
 ## Technical Notes
 

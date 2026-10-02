@@ -10,10 +10,10 @@ import { resolve, dirname, join, sep, basename, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, lstatSync, unlinkSync, rmSync,
-  statfsSync, appendFileSync, realpathSync, renameSync,
+  statfsSync, appendFileSync, realpathSync, renameSync, openSync, closeSync, fsyncSync, linkSync,
 } from "node:fs";
 import { spawnSync, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { withTeamArtifactGate } from '../scripts/team-legacy.mjs';
 import { homedir, hostname, setPriority, uptime as osUptime, constants as osConstants } from "node:os";
 import {
@@ -71,6 +71,63 @@ function runJson(script, args = []) {
     process.stdout.write(out);
     fail(`${script}: expected JSON on stdout`);
   }
+}
+
+// Create-only project installation. Never merge user settings or read credentials.
+function installMcpConfig(argv) {
+  const writes = argv.filter(value => value === "--write").length;
+  if (!writes) { run("team-mcp-config", argv); return; }
+  if (writes !== 1) fail("MCP config: duplicate --write");
+  if (argv.indexOf("--write") % 2 !== 0) fail("MCP config: --write cannot replace an option value");
+  const args = argv.filter(value => value !== "--write");
+  const preview = runJson("team-mcp-config", args);
+  let temporary, fd, ownTemporary = false, published = false, cleanupFailed = false;
+  try {
+    const project = preview.execution.args[2];
+    const rootInfo = lstatSync(project);
+    if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) throw new Error("project-directory-required");
+    const root = realpathSync(project);
+    const offset = relative(project, preview.target.file);
+    const parts = offset.split(sep);
+    if (!offset || parts.some(p => !p || p === "." || p === ".." || /[<>:"|?*]/.test(p) || /[. ]$/.test(p) ||
+        /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p) || [".git", ".waypost"].includes(p.toLowerCase())) ||
+        (preview.harness !== "claude" && parts.some(p => p.toLowerCase() === ".claude"))) throw new Error("unsafe-project-target");
+    let parent = root;
+    for (const part of parts.slice(0, -1)) {
+      const next = join(parent, part);
+      try { mkdirSync(next, { mode: 0o700 }); } catch (error) { if (error.code !== "EEXIST") throw error; }
+      const info = lstatSync(next);
+      if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("unsafe-project-parent");
+      parent = realpathSync(next);
+      const inside = relative(root, parent);
+      if (inside === ".." || inside.startsWith(".." + sep) || resolve(root, inside) !== parent) throw new Error("unsafe-project-parent");
+    }
+    const target = join(parent, parts.at(-1));
+    // lstat also detects dangling links; linkSync is the final no-overwrite gate.
+    try { lstatSync(target); throw new Error("config-already-exists-use-preview-to-merge"); }
+    catch (error) { if (error.code !== "ENOENT") throw error; }
+    temporary = join(parent, ".waypost-mcp-config-" + randomUUID() + ".tmp");
+    fd = openSync(temporary, "wx", 0o600); ownTemporary = true;
+    writeFileSync(fd, preview.snippet, "utf8");
+    fsyncSync(fd); closeSync(fd); fd = undefined;
+    linkSync(temporary, target); published = true;
+  } catch (error) {
+    // No paths, credential contents or arbitrary filesystem diagnostics.
+    const code = error.code === "EEXIST" ? "config-already-exists-use-preview-to-merge" :
+      ["project-directory-required", "unsafe-project-target", "unsafe-project-parent", "config-already-exists-use-preview-to-merge"].includes(error.message) ? error.message : "config-installation-failed";
+    process.stderr.write("waypost MCP config: " + code + "\n"); process.exitCode = 1;
+  } finally {
+    if (fd !== undefined) { try { closeSync(fd); } catch {} }
+    if (ownTemporary) { try { unlinkSync(temporary); } catch (error) { if (error.code !== "ENOENT") cleanupFailed = true; } }
+  }
+  if (published) {
+    const result = { ...preview, preview_only: false, written: true, cleanup_pending: cleanupFailed,
+      limitations: preview.limitations.filter(value => !value.includes("Nothing was written.")) };
+    result.limitations.push("Only a new project config was created; credentials and existing settings were not read. No approvals or native capabilities changed.",
+      "Hard-link publication requires filesystem support. POSIX modes do not verify Windows ACLs. Parent checks are best-effort on a trusted filesystem, not protection against hostile concurrent ancestor replacement.");
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    if (cleanupFailed) process.stderr.write("waypost MCP config: installed; private temporary cleanup pending\n");
+  } else if (cleanupFailed) process.stderr.write("waypost MCP config: installation failed; private temporary cleanup pending\n");
 }
 
 function projectRoot() {
@@ -3490,7 +3547,8 @@ WORKING IN SEVERAL HARNESSES AT ONCE
   team-mcp                cooperative stdio inbox tools; --project, --team,
                           --credential (absolute paths); no native wake proof
   team-mcp-config         preview project MCP snippet; --harness, --project,
-                          --team, --credential, --name; never writes settings
+                          --team, --credential, --name; --write creates only
+                          an absent project config, never overwrites settings
                            current scope and limits: docs/team-coordination.md
   storage                  what the vault is stored on and how far behind
                            another device's presence can be
@@ -3677,7 +3735,7 @@ async function main() {
   // A stdio MCP connection is not a new harness session. Keep stdout strictly
   // protocol-only and do not touch parent membership or advisory presence.
   if (argv[0] === "team-mcp") { run("team-mcp", argv.slice(1)); return; }
-  if (argv[0] === "team-mcp-config") { run("team-mcp-config", argv.slice(1)); return; }
+  if (argv[0] === "team-mcp-config") { installMcpConfig(argv.slice(1)); return; }
   // --project is recognised ONLY in the leading position, before the command
   // name — not anywhere in argv, or a positional argument that happens to
   // equal it (a search term, say) would be swallowed as a global flag (A-8).

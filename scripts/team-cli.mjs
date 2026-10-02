@@ -53,7 +53,7 @@ function publicTeam(t) {
     p.delivery_capabilities = { native_session_binding: p.native_binding ? 'managed-endpoint-bound' : 'unverified', send_existing: 'unsupported', wake: 'unverified', inspect_model: p.identity_checked_at ? (p.model.resolved ? 'adapter-observed' : 'partial-observation') : 'unverified', desktop_delivery:'unverified' };
   }
   result.policy_stale = result.policy.mode === 'automatic' && Date.now() >= Date.parse(result.policy.expires_at);
-  result.delivery = 'cooperative inboxes and explicitly managed native endpoints; desktop delivery unverified';
+  result.delivery = 'cooperative inboxes (including MCP) and explicitly managed native endpoints; desktop native binding and wake unverified';
   return result;
 }
 export async function main(argv = process.argv.slice(2)) {

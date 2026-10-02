@@ -179,9 +179,23 @@ arguments. The command reads neither credentials nor existing settings and works
 without a vault or an existing team. Merge the snippet into settings after checking
 the name and participant; preserve other servers. Do not commit a machine-specific
 credential path into shared settings. Trust, tool approvals and startup discovery
-remain the harness's responsibility. No settings are written and no native
+remain the harness's responsibility. The default preview writes no settings and no native
 capability becomes verified. A unique name helps avoid collisions but does not
 prove that other chats cannot access the credential.
+
+Add `--write` to create an absent project configuration using the same arguments.
+The dispatcher prepares a private file, flushes it and publishes it with an
+exclusive hard link. Existing files, directories and symlinks are refused, even
+if their content matches the snippet; use the preview for a manual merge instead.
+Only project settings are eligible: Git/Waypost metadata and another harness's
+`.claude` directory are rejected. Parent directories are checked for symlinks;
+these checks assume a trusted local filesystem and do not prevent hostile
+concurrent ancestor replacement. Hard-link support is required; POSIX `0600`
+does not establish Windows ACL protection. No credentials, approval policy or
+native capabilities are changed. A successful result sets `written: true` and
+`preview_only: false`; `cleanup_pending` reports a leftover private temporary
+file separately from installation success. A crash before publication can leave
+a private temporary file; directory durability after power loss is not certified.
 
 This proves only actions by a participant credential holder. A global MCP config
 can expose one credential to multiple chats: those chats share an inbox and are
