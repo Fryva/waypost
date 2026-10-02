@@ -14,6 +14,10 @@ import { readAuthority, mutateAuthority, explainRecovery, recoverLock } from './
 import { proposeModelRoute } from './model-routing.mjs';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+export function nativeInspectionDue(participant, now = Date.now()) {
+  return Boolean(participant.native_binding && !participant.revoked && participant.availability !== 'left' &&
+    (!Number.isFinite(Date.parse(participant.identity_checked_at)) || now - Date.parse(participant.identity_checked_at) >= 900000));
+}
 function json(path) {
   if (!path || lstatSync(path).isSymbolicLink() || lstatSync(path).size > 256 * 1024) throw new Error('safe-bounded-json-file-required');
   return JSON.parse(readFileSync(path, 'utf8'));
@@ -46,10 +50,10 @@ function publicTeam(t) {
   for (const p of Object.values(result.participants)) {
     delete p.credential_hash;
     p.surface ??= 'unknown';
-    p.delivery_capabilities = { native_session_binding: 'unverified', send_existing: 'unverified', wake: 'unverified', inspect_model: 'unverified' };
+    p.delivery_capabilities = { native_session_binding: p.native_binding ? 'managed-endpoint-bound' : 'unverified', send_existing: 'unsupported', wake: 'unverified', inspect_model: p.identity_checked_at ? (p.model.resolved ? 'adapter-observed' : 'partial-observation') : 'unverified', desktop_delivery:'unverified' };
   }
   result.policy_stale = result.policy.mode === 'automatic' && Date.now() >= Date.parse(result.policy.expires_at);
-  result.delivery = 'cooperative; native delivery not yet verified';
+  result.delivery = 'cooperative inboxes and explicitly managed native endpoints; desktop delivery unverified';
   return result;
 }
 export async function main(argv = process.argv.slice(2)) {
@@ -61,6 +65,32 @@ export async function main(argv = process.argv.slice(2)) {
   const loaded = () => readAuthority(root, reduceTeamEvent);
   const defaultOwner = join(projectRoot(), '.waypost', 'team-owner.json');
   const print = value => process.stdout.write(JSON.stringify(value, null, flag('--compact') ? 0 : 2) + '\n');
+  if (mode === 'host') {
+    const { createTeamHost } = await import('./team-host.mjs');
+    const operation = opt('--operation');
+    const directory = join(root, 'host', target || '');
+    const host = createTeamHost({ authorityRoot: root, projectRoot: projectRoot(), vaultPath:cfg.vault_path, team: target,
+      hostDir: directory, ownerCredential: resolve(opt('--owner-credential') || defaultOwner),
+      collectorPath: resolve(opt('--collector-credential') || join(directory, 'collector.json')),
+      endpointPath: resolve(opt('--endpoint-file') || join(directory, opt('--participant') ? 'endpoint-' + opt('--participant') + '.json' : 'endpoint.json')),
+      participant: opt('--participant'), leaderCredential:opt('--leader-credential') ? resolve(opt('--leader-credential')) : undefined, leaderEndpointPath: opt('--leader-endpoint-file') ? resolve(opt('--leader-endpoint-file')) : undefined, participantCredential: opt('--credential') ? resolve(opt('--credential')) : undefined,
+      dispatcher: resolve(dirname(fileURLToPath(import.meta.url)), '../bin/waypost') });
+    if (operation === 'bootstrap') print(await host.bootstrap({ participant: opt('--participant'), descriptor: opt('--descriptor-file') ? json(resolve(opt('--descriptor-file'))) : undefined }));
+    else if (operation === 'inspect') print(await host.inspect({ action: opt('--action'), ...(opt('--nonce') ? { nonce: opt('--nonce') } : {}) }));
+    else if (operation === 'relay') print(await host.relay({ limit: Number(opt('--limit') || 10), pollMs: Number(opt('--poll-ms') || 1000), maxPolls: Number(opt('--max-polls') || 1) }));
+    else if (operation === 'review') print(await host.review({ workId: opt('--work'), ...(opt('--nonce') ? { nonce: opt('--nonce') } : {}) }));
+    else if (operation === 'checkout') print(host.checkout({ workId: opt('--work') }));
+    else if (operation === 'candidate') print(host.candidate({ workId: opt('--work') }));
+    else if (operation === 'dispatch') print(await host.dispatchRouted({ workId:opt('--work'),attempt:Number(opt('--attempt') || 1),...(opt('--invocation')?{invocationId:opt('--invocation')}:{}),...(opt('--request-key')?{reserveKey:opt('--request-key')}: {}) }));
+    else if (operation === 'publish') {
+      const request = json(resolve(opt('--request-file') || ''));
+      print(await host.publish({ workId: opt('--work'), message: request.message, trailers: request.trailers, commitIdentity: request.commit_identity }));
+    } else if (operation === 'observe-quota') print(await host.observeQuota());
+    else if (operation === 'redistribute') print(await host.driveQuotaHandover());
+    else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
+    else throw new Error('host-operation-required:bootstrap|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    return;
+  }
   if (mode === 'status') {
     const v = loaded(); const t = v.state?.teams[target];
     if (target && !t) throw new Error('team-not-found');
@@ -75,8 +105,19 @@ export async function main(argv = process.argv.slice(2)) {
   }
   if (mode === 'recover') {
     if (!flag('--owner-confirmed-stopped')) { print(explainRecovery(root)); return; }
-    const v = loaded(), cred = loadCredential(resolve(opt('--owner-credential') || defaultOwner));
-    if (authorizeActor(v.state, target, cred) !== 'owner:' + v.state.owner_hash) throw new Error('owner-required');
+    const v = loaded(), proof=explainRecovery(root).owner;
+    if(!v.state && proof?.actor==='legacy') {
+      if(!Number.isSafeInteger(proof.pid))throw new Error('legacy-lock-process-proof-required');
+      try {process.kill(proof.pid,0);throw new Error('legacy-lock-process-still-running');}
+      catch(e){if(e.code!=='ESRCH')throw e;}
+      print(recoverLock(root,{ownerConfirmedStopped:true}));return;
+    }
+    const cred = loadCredential(resolve(opt('--owner-credential') || defaultOwner));
+    if (v.state) {
+      if (authorizeActor(v.state, target, cred) !== 'owner:' + v.state.owner_hash) throw new Error('owner-required');
+    } else {
+      if(cred.role!=='owner' || proof?.actor!=='owner:'+cred.token_hash)throw new Error('initialization-owner-proof-required');
+    }
     print(recoverLock(root, { ownerConfirmedStopped: true })); return;
   }
   if (mode === 'poll') {
@@ -113,6 +154,25 @@ export async function main(argv = process.argv.slice(2)) {
         let v = loaded(), t = v.state?.teams[target]; if (!t) throw new Error('team-not-found');
         const cred = loadCredential(resolve(opt('--owner-credential') || defaultOwner));
         const actor = authorizeActor(v.state, target, cred); if (!actor.startsWith('owner:')) throw new Error('owner-required');
+        const inspections = [];
+        for (const p of Object.values(t.participants).filter(p => nativeInspectionDue(p))) {
+          // A strict budget needs a provider-backed control reservation. Never
+          // turn a periodic freshness check into an unaccounted paid call.
+          if (t.routing?.required) { inspections.push({ participant:p.id, verified:false, blocker:'bounded-control-invocation-required' }); continue; }
+          const { createTeamHost } = await import('./team-host.mjs');
+          const b = p.native_binding;
+          try {
+            const host = createTeamHost({ authorityRoot:root, projectRoot:projectRoot(), vaultPath:cfg.vault_path,
+              team:target, hostDir:join(root,'host',target), ownerCredential:resolve(opt('--owner-credential') || defaultOwner),
+              collectorPath:b.collector_file, endpointPath:b.endpoint_file, participant:p.id,
+              dispatcher:resolve(dirname(fileURLToPath(import.meta.url)),'../bin/waypost') });
+            const receipt = await host.inspect({ action:'periodic-identity:'+target+':'+p.id+':'+randomUUID() });
+            inspections.push({ participant:p.id, verified:true, nonce:receipt.nonce });
+          } catch (error) {
+            inspections.push({ participant:p.id, verified:false, blocker:String(error.code || error.message).slice(0,256) });
+          }
+        }
+        v=loaded(); t=v.state.teams[target];
         const historical = (t.required_review_models || []).map(([provider, model_id, reasoning]) => ({ provider, model_id, reasoning }));
         const result = await discoverStrength({ participants: [...Object.values(t.participants), ...historical], domain: t.policy.domain, config, cache, now: Date.now() });
         cache = result.cache;
@@ -126,7 +186,7 @@ export async function main(argv = process.argv.slice(2)) {
         }
         v = latest; t = currentTeam;
         const at = new Date().toISOString();
-        const check = { at, ok: result.ok, blockers: result.blockers, unclassified: result.unclassified, profile_proofs: result.profile_proofs || [], cache };
+        const check = { at, ok: result.ok, blockers: result.blockers, unclassified: result.unclassified, profile_proofs: result.profile_proofs || [], native_inspections:inspections, cache };
         if (Buffer.byteLength(JSON.stringify(check)) > 200000) throw new Error('strength-evidence-exceeds-authority-budget');
         let command = { type: 'strength-check', actor, team: target, at, check };
         let changed = false;
@@ -137,13 +197,13 @@ export async function main(argv = process.argv.slice(2)) {
           command = { ...command, type: changed ? 'policy' : 'strength-check', policy };
         }
         let out;
-        try { out = mutateAuthority(root, { key: randomUUID(), actor, expected_revision: v.revision, command }, reduceTeamEvent); }
+        try { out = mutateAuthority(root, { key: randomUUID(), actor, expected_revision: v.revision, command }, reduceTeamEvent, {authorize: state => { if(authorizeActor(state,target,cred)!==actor)throw new Error('owner-changed'); }}); }
         catch (error) {
           if (mode !== 'watch' || !['authority-stale-revision', 'authority-locked'].includes(error.code)) throw error;
           print({ refreshed: false, retry: error.code });
           await sleep(1000); continue;
         }
-        print({ refreshed: Boolean(command.policy), priorities_changed: changed, ...out, blockers: result.blockers, unclassified: result.unclassified, identity_inspection: 'unverified; refresh evaluates currently enrolled exact descriptors' });
+        print({ refreshed: Boolean(command.policy), priorities_changed: changed, ...out, blockers: result.blockers, unclassified: result.unclassified, native_inspections:inspections, identity_inspection: 'managed bound endpoints checked when due; unbound sessions remain unverified' });
         if (mode !== 'watch') break;
         for (let elapsed = 0; elapsed < interval && !stopped; elapsed++) await sleep(1000);
       } while (!stopped);
@@ -162,7 +222,7 @@ export async function main(argv = process.argv.slice(2)) {
     const task = taskKey(target, cfg); team = opt('--id') || 'team-' + randomUUID();
     const foreign = claimsOf(cfg.vault_path).filter(x => x.session !== sessionId() && x.story && task.endsWith(x.story.split('/').at(-1) + '.md'));
     if (foreign.length) throw new Error('foreign-story-claim-requires-handoff');
-    command = { type: 'create', team, task, owner_hash: cred.token_hash, policy: opt('--policy') ? json(resolve(opt('--policy'))) : bootPolicy(at) };
+    command = { type: 'create', team, task, owner_hash: cred.token_hash, quota_policy:{protocol:1,automatic_redistribution:true}, policy: opt('--policy') ? json(resolve(opt('--policy'))) : bootPolicy(at) };
   } else if (mode === 'join') {
     cred = loadCredential(resolve(opt('--owner-credential') || defaultOwner));
     const path = opt('--credential'); if (!path) throw new Error('join-needs-credential-output-path');
@@ -179,7 +239,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
     command = { ...command, request_key: seed.request_key, at: seed.join_at }; 
   } else {
-    const ownerModes = new Set(['policy','attest','revoke','close','routing-enable']);
+    const ownerModes = new Set(['quota-policy-enable-v1','policy','attest','revoke','close','routing-enable','routing-enable-v2','collector-register-v1','collector-revoke-v1','control-invocation-reserve-v1','native-binding-v1','runtime-request-v1','begin-handover-v1','deferred-apply-v1','deferred-discard-v1','close-v1']);
     cred = loadCredential(resolve(opt(ownerModes.has(mode) ? '--owner-credential' : '--credential') || (ownerModes.has(mode) ? defaultOwner : '')));
     command = { ...supplied, type: mode, team };
     if (mode === 'policy') command.policy = json(resolve(opt('--policy') || ''));
@@ -193,7 +253,13 @@ export async function main(argv = process.argv.slice(2)) {
   const actor = authorizeActor(v.state, team, cred);
   command = { ...command, actor, incarnation: cred.incarnation || null, epoch: command.epoch ?? supplied.epoch ?? Number(opt('--epoch') ?? v.state?.teams[team]?.epoch ?? 0), request_key: command.request_key || key, at: command.at || supplied.at || at };
   const revision = Number(opt('--revision') ?? v.revision);
-  print(mutateAuthority(root, { key: command.request_key, actor, expected_revision: revision, command }, reduceTeamEvent, { confirmedLocal: flag('--confirm-local') }));
+  print(mutateAuthority(root, { key: command.request_key, actor, expected_revision: revision, command }, reduceTeamEvent, {
+    confirmedLocal: flag('--confirm-local'),
+    authorize: state => {if(authorizeActor(state,team,cred)!==actor)throw new Error('authority-actor-changed');},
+    validateNew: (_state,c) => {
+      if(c.type==='create' && claimsOf(cfg.vault_path).some(x=>x.session!==sessionId() && x.story && c.task.endsWith(x.story.split('/').at(-1)+'.md')))throw new Error('foreign-story-claim-requires-handoff');
+    },
+  }));
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch(e => { process.stderr.write('waypost team: ' + e.message + '\n'); process.exitCode = 1; });

@@ -5,12 +5,28 @@ import { tmpdir, hostname } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { readAuthority, mutateAuthority, explainRecovery, recoverLock } from '../scripts/team-store.mjs';
+import { readAuthority, mutateAuthority, explainRecovery, recoverLock, withAuthorityGate } from '../scripts/team-store.mjs';
 
 const reducer = (state, cmd) => ({ state: { count: (state?.count || 0) + cmd.add }, result: { count: (state?.count || 0) + cmd.add } });
 const request = (key = 'one', expected_revision = 0, add = 1) => ({ key, actor: 'owner', expected_revision, command: { add } });
 function fixture(t) { const temp = realpathSync(mkdtempSync(join(tmpdir(), 'waypost-authority-'))); t.after(() => rmSync(temp, { recursive: true, force: true })); return join(temp, 'authority'); }
 const mutate = (root, req = request(), options = {}) => mutateAuthority(root, req, reducer, { confirmedLocal: true, ...options });
+
+test('authorization runs under mutex before cached idempotent reply',t=>{
+ const root=fixture(t);mutate(root);
+ assert.throws(()=>mutate(root,request(),{authorize:()=>{throw new Error('revoked');}}),/revoked/);
+ assert.equal(readAuthority(root,reducer).revision,1);
+});
+test('legacy gate serializes writes with initial authority creation',t=>{
+ const root=fixture(t);
+ withAuthorityGate(root,reducer,state=>{
+  assert.equal(state,null);
+  assert.throws(()=>mutate(root),/authority-locked/);
+ });
+ mutate(root);
+ withAuthorityGate(root,reducer,state=>assert.equal(state.count,1));
+ assert.equal(explainRecovery(root).locked,false);
+});
 
 test('authority serializes replay and stale authenticated idempotency keys', t => {
   const root = fixture(t);

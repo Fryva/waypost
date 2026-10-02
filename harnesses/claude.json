@@ -71,5 +71,33 @@
     "docs": "https://code.claude.com/docs/en/skills",
     "notes": "Nested `.claude/skills/` below the working directory are read too (a monorepo package's own skills); `/skill-name` invokes one directly."
   },
-  "notes": "Frontmatter verified against the current docs: name, description, tools, disallowedTools, model (sonnet/opus/haiku/fable/full id/inherit), effort (low…max), and more. Project agents live in .claude/agents/ and are meant to be committed. `instructions` lists .claude/CLAUDE.md first: a project that keeps its rules there (a common layout) would otherwise never receive the routing block, since the block only goes into instruction files that exist."
+  "notes": "Frontmatter verified against the current docs: name, description, tools, disallowedTools, model (sonnet/opus/haiku/fable/full id/inherit), effort (low…max), and more. Project agents live in .claude/agents/ and are meant to be committed. `instructions` lists .claude/CLAUDE.md first: a project that keeps its rules there (a common layout) would otherwise never receive the routing block, since the block only goes into instruction files that exist.",
+  "coordination": {
+    "protocol": 1,
+    "adapter": "claude-stream-json",
+    "confidence": "documented",
+    "docs": "https://code.claude.com/docs/en/cli-reference",
+    "surfaces": [
+      "managed-cli"
+    ],
+    "capabilities": {
+      "send_existing": {
+        "confidence": "unsupported"
+      },
+      "wake": {
+        "confidence": "unverified"
+      },
+      "inspect_model": {
+        "confidence": "documented",
+        "notes": "Returned runtime metadata only. Missing reasoning stays unknown; provider may be billing route."
+      },
+      "fresh_review": {
+        "confidence": "unverified"
+      },
+      "remote_authority": {
+        "confidence": "unsupported"
+      }
+    },
+    "notes": "Owned print-mode stream-json context, empty tools and strict empty MCP config. Claude Desktop chat and Code UI delivery unverified."
+  }
 }

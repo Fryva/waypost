@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: []
-code_refs: ["agents/critic.md", "agents/reviewer.md", "scripts/agents.mjs", "tests/harness.test.mjs"]
+code_refs: ["agents/critic.md", "agents/reviewer.md", "scripts/agents.mjs", "tests/harness.test.mjs", "scripts/team-host.mjs", "scripts/team-workflow.mjs", "tests/team-end-to-end.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null

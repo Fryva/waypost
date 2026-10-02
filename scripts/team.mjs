@@ -183,7 +183,7 @@ export function rankParticipant(participant, policy, role, { action, now = Date.
   } catch { return null; }
   if (approved.mode === "automatic" && (!Number.isFinite(now)
       || now < Date.parse(approved.generated_at) || now >= Date.parse(approved.expires_at))) return null;
-  if (!descriptor.resolved || !approved.evidence_floor.includes(descriptor.evidence.kind)) return null;
+  if (!descriptor.resolved || [descriptor.provider,descriptor.model_id,descriptor.reasoning].includes('unknown') || !approved.evidence_floor.includes(descriptor.evidence.kind)) return null;
   if (action !== undefined && (typeof action !== "string" || !action || descriptor.evidence.action !== action)) return null;
   const profile = approved.profiles.find((candidate) => modelKey(candidate) === modelKey(descriptor));
   return profile ? profile.priorities[role] : null;

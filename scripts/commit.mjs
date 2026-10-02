@@ -37,6 +37,7 @@
 //      node commit.mjs --log [--story <id>] [--session <id>] [--harness <id>]
 //                            [--provider <id>] [-n <count>]
 
+import { withTeamCommitGate } from './team-legacy.mjs';
 import { existsSync, readFileSync, mkdtempSync, copyFileSync, rmSync } from "node:fs";
 import { join, relative, basename, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
@@ -143,8 +144,8 @@ export function leasesOverStaged(staged, cfg, self) {
 }
 
 function stagedFiles(opts = {}) {
-  const r = git(["diff", "--cached", "--name-only"], opts);
-  return (r.stdout || "").split("\n").filter(Boolean);
+  const r = git(["diff", "--cached", "--name-only", "--no-renames", "-z"], opts);
+  return (r.stdout || "").split("\0").filter(Boolean);
 }
 
 // A dry run stages into a copy of the real index, in a temporary directory
@@ -255,7 +256,8 @@ function main() {
     return;
   }
 
-  const r = git(["commit", "-F", "-"], { input: message });
+  const commit=()=>git(['commit','-F','-'],{input:message});
+  const r=cfg?.vault_path ? withTeamCommitGate(cfg.vault_path,()=>stagedFiles(io),commit,{ artifactPath: story ? join(cfg.vault_path,'epics',story.split('/')[0],'stories',story.split('/').slice(1).join('/')+'.md') : undefined }) : commit();
   process.stdout.write(r.stdout || "");
   if (r.status !== 0) {
     process.stderr.write(r.stderr || "");

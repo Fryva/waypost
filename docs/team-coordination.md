@@ -1,10 +1,61 @@
 # Team coordination: implementation status
 
-The `team` CLI is an experimental foundation for WP-20. Its authority and addressed
-inboxes work across harness identifiers on one local host. Native session delivery,
-execution-model inspection, independent review collection and reviewed Git
-publication remain unfinished. A mailbox acknowledgement is not proof that a
-model processed a message.
+The `team` CLI is experimental WP-20 coordination on one local host. Addressed
+inboxes and managed native endpoints use the same immutable authority. Native
+receipts, protected handover, independent review and dedicated Git publication
+have versioned transitions and host operations. Their availability depends on
+observed adapter capabilities. A mailbox acknowledgement alone does not prove
+that a model processed a message; CLI/backend receipts do not prove desktop delivery.
+
+## Managed host operations
+
+Enroll each participant with its own credential, then bind an owner-approved
+descriptor in a private endpoint file. Use separate endpoint paths for different
+participants. Descriptors never attach implicitly to personal conversations.
+
+```sh
+waypost team host TEAM --operation bootstrap --participant PARTICIPANT \
+  --descriptor-file native.json --endpoint-file endpoint.json
+waypost team host TEAM --operation inspect --participant PARTICIPANT \
+  --endpoint-file endpoint.json --action EXACT_ACTION_TOKEN
+waypost team host TEAM --operation relay --participant PARTICIPANT \
+  --endpoint-file endpoint.json --credential participant.json \
+  --limit 10 --max-polls 20 --poll-ms 1000
+```
+
+Codex descriptors use `managed: true`, `harness: "codex"`, an absolute `cwd`,
+`mode: "read-only"` and optional exact `model_id`/`reasoning`. Claude uses the
+same shape, with tools and MCP disabled. OpenCode can use `spawn_server: true`
+to start a separate authenticated loopback server with deny-all permissions.
+All secret descriptor and credential files must be private. The host closes only
+its own processes. An existing desktop socket without a verified protocol is refused.
+
+Relay keeps one native context throughout a bounded polling invocation. It consumes
+each addressed question before inference, captures the unedited answer and actual
+model metadata, then sends a correlated participant answer and acknowledgement.
+Uncertain inference is retained and never silently retried. Budget-required teams
+refuse unbudgeted relay calls.
+
+Host operations `checkout`, `candidate`, `review`, `publish`, and
+`recover-publication` assemble and publish from a dedicated owned worktree/ref.
+Candidate reconciliation precedes immutable review. A candidate without collected
+tests explicitly records `tests_status: not-executed`; missing acceptance evidence
+must be rejected by the critic. Review requires a collector-verified fresh read-only
+native context, exact actual model and the historical strongest review floor.
+Publication requires current supervision/review and a persisted project fence;
+recovery requires confirmation that the Git child stopped and exact Git facts.
+
+Versioned handover records stopped old contexts, exact retained work, candidate
+identity and worker adoption acknowledgements. A revoked previous member needs
+collector stop evidence. Legacy story writes, claims and attributed commits are
+serialized with task binding and refused while that artifact belongs to an active
+team. Close the resolved team before using the legacy artifact lifecycle again.
+
+Invocation reservations retain confirmed spend and uncertain liabilities across
+the project pool and task budget. A grant binds the exact model, incarnation,
+manifest, route, attempt and policy; the whole provider-quoted maximum is reserved.
+Provider pricing/maximum-liability adapters remain necessary for strict dispatch.
+An unknown subscription price or unverified maximum cannot authorize a free call.
 
 ## Periodic model-strength checks
 
@@ -33,10 +84,11 @@ in the immutable authority history for restart and audit.
 The first evaluator is the official Arena agent dataset, with confidence-interval
 partial-order levels. Its overall results are a proxy for coordination and code
 review. Unknown models, unconfirmed reasoning and ambiguous identifiers remain
-unclassified; free access never implies a lower rank. Runtime inspection of the
-actual execution model is a separate adapter capability and is currently reported
-as unverified. Automatic enrollment/checkpoint refresh and verified calibration
-execution remain pending.
+unclassified; free access never implies a lower rank. Runtime inspection is a separate adapter capability. Bound managed endpoints are
+checked on refresh/watch when observations are at least fifteen minutes old;
+strict-budget checks require provider-backed control grants. Unbound conversations
+remain unverified. Unknown reasoning is unresolved and cannot gain protected rank.
+Enrollment of existing personal conversations is unsupported.
 
 ## Current commands
 
@@ -45,8 +97,10 @@ authority initialization); `join` enrolls a unique participant with a separate
 credential; `leader-ack` acknowledges the strongest eligible candidate. `send`,
 `poll` and `ack` provide addressed cooperative messages. `assign`, `work-ack`,
 `submit`, `supervise` and `cancel` provide initial assignment transitions with
-explicit model evidence. Handover reconciliation and review/integration transitions
-remain pending, so a team with work cannot yet be closed.
+explicit model evidence. Versioned handover, immutable review and integration
+retain exact generation/model/policy bindings. `close-v1` requires integrated or
+cancelled work, resolved liabilities and captured or stopped native operations.
+An owner may discard a stale deferred command with a recorded reason.
 
 Use `--request-file <json>` for command payloads. Retrying an accepted request
 requires the identical request key and original payload, including epoch/time.
@@ -69,17 +123,22 @@ round upward and include permitted attempts plus reserved coordinator/review cos
 Synthetic collector fixtures test this algorithm; they do not demonstrate billing
 or runtime qualification.
 
-The current CLI has no trusted task-class, tariff/quota or invocation collectors,
+The CLI preview has no installed provider billing capabilities,
 so it returns concrete blockers and a proposal-only result. It accepts no external
 qualification/price file or `trusted: true` admission. `team routing-enable <id>`
 requires the owner credential and no unfinished legacy work. It prevents legacy
-assignments from bypassing routing. `assign-routed-v1` cannot grant execution until
-the required collector/reservation capabilities are installed. These explicit new
+assignments from bypassing routing. `routing-enable-v2`, collector-sealed grants
+and `assign-routed-v2` bind qualifications and reservations. These explicit new
 transitions preserve replay of prior non-routing events.
 
-Real economical dispatch, account-pool reservations, consume-before-dispatch
-recovery and measured savings remain pending. Strongest coordinator/final critics
-are separate from executor cost selection.
+The host API exposes bounded executor dispatch and typed runtime/review/delivery
+control grants. Trusted provider adapters must prove the exact endpoint/account/SKU
+route and applicable ceiling before dispatch, then reconcile exact invoices.
+Worker and control calls consume reservations before inference. Confirmed cost
+and uncertain liabilities remain charged; workers protect the unspent control
+reserve. Unsupported subscription liability is refused. Native billing adapters
+and measured live savings remain unverified. Strongest coordinator/final critics
+remain separate from executor cost selection.
 
 ## Desktop and cooperative MCP inboxes
 
@@ -133,3 +192,25 @@ bound native session addresses, unattended wake, actual-model inspection and the
 full cross-harness execution/review/integration loop. OpenCode Desktop installation
 was not found in the inspected `/Applications` directory or enabled app inventory;
 other installation locations were not ruled out.
+
+## Provider quota and role redistribution
+
+New CLI teams opt into versioned automatic quota redistribution. Existing teams
+can enable it with the owner-authorized `quota-policy-enable-v1` transition once outstanding legacy work has been reconciled. The transition refuses unfinished work rather than stranding existing review approvals.
+The host `observeQuota` callback admits provider observations, and automatically
+drives `driveQuotaHandover` when a strongest available successor exists. Neither
+operation invokes the exhausted coordinator to obtain permission to stop.
+
+Only an explicit provider account/model or pool exhaustion proof can exclude a
+model. Task budgets, local allocations, reservations, generic 429, timeouts and
+UI usage percentages do not establish this fact. Historical strength and stable
+review admissions remain intact; status exposes historical/effective floors and
+quota revision. Review/grant/publication bindings reject stale quota revisions.
+Reset time and expiry do not restore quota; a fresh positive proof is required.
+
+Provider observation, owned-process stop and credential-bound adoption adapters
+are injected trusted host capabilities. CLI operations `observe-quota` and
+`redistribute` report named blockers when these capabilities are unavailable;
+the current generic native endpoints do not fabricate account/model quota data.
+Uncertain dispatches and unresolved invoices remain held during redistribution.
+Desktop quota badges alone are not provider evidence.

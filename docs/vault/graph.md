@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-01T14:25:40.799Z
+generated_at: 2026-10-01T20:23:17.716Z
 
 ---
 
@@ -28,6 +28,7 @@ full typed neighborhood, both directions, in one call.
 | adr/0010-coordination-follows-the-repository.md | Coordination follows the repository: presence and leases in the git common dir | adr | accepted |
 | adr/0011-decisions-that-check-themselves.md | Decisions that check themselves: guards and provenance in ADRs | adr | accepted |
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | Automatic model strength discovery with expiring evidence and periodic revalidation | adr | proposed |
+| adr/automatic-role-redistribution-on-verified-model-quota-exhaustion.md | Automatic role redistribution on verified model quota exhaustion | adr | proposed |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | Automatic task-aware model routing with capability floors and cost budgets | adr | proposed |
 | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md | Cleanup to a machine-wide limit: set by the owner, idle artifacts oldest first | adr | accepted |
 | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | adr | accepted |
@@ -82,6 +83,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md | Live Claude, Codex and OpenCode coordination on one task | story | planned |
 | epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md | Local authority log and crash-safe mutations | story | planned |
 | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | Participant identity and automatic model strength discovery | story | in-progress |
+| epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely.md | Quota exhaustion redistributes leadership and independent review safely | story | planned |
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
@@ -205,6 +207,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md |
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md |
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md |
+| epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely.md |
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md |
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md |
 | epics/WP-20/epic.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |

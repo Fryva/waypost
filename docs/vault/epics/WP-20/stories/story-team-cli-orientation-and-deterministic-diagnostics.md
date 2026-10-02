@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: []
-code_refs: ["bin/waypost", "scripts/brief.mjs", "scripts/doctor.mjs", "scripts/sessions.mjs", "scripts/ready.mjs", "scripts/agents.mjs", "templates/agents-block.md.tmpl", "tests/harness.test.mjs"]
+code_refs: ["bin/waypost", "scripts/brief.mjs", "scripts/doctor.mjs", "scripts/sessions.mjs", "scripts/ready.mjs", "scripts/agents.mjs", "templates/agents-block.md.tmpl", "tests/harness.test.mjs", "scripts/team-diagnostics.mjs", "scripts/team-cli.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null

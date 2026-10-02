@@ -18,11 +18,15 @@ import { readConfig, gatherVaultFacts, renderVaultSkeleton, ignoreEpipe, readCle
 import { peers, readLeases, sharedTree, sharedWith, SHARED_TREE_ADVICE, hostSlug } from "./presence.mjs";
 import { sessionId } from "./sessions.mjs";
 import { formatLimit, formatOutcome } from "./cleanup.mjs";
+import { teamOrientation } from "./team-diagnostics.mjs";
 
 export async function brief(cfg, opts = {}) {
   const facts = await gatherVaultFacts(cfg, opts);
   const full = renderVaultSkeleton(facts);
-  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) + cleanupLine() };
+  const teams=teamOrientation(cfg.vault_path);
+  if(teams.facts.length)facts.teams=teams.facts;
+  if(teams.error)facts.team_authority_error=teams.error;
+  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) + teams.text + cleanupLine() };
 }
 
 // The machine-wide cleanup-limit setting (the amended machine-wide-limit

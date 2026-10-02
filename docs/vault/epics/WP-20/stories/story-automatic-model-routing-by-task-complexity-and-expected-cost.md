@@ -10,7 +10,7 @@ created: 2026-10-01
 updated: 2026-10-01
 external_refs: {}
 tags: ["models", "routing", "cost"]
-code_refs: ["scripts/model-routing.mjs", "models/routing.schema.json", "scripts/team-state.mjs", "scripts/team-cli.mjs", "tests/team-routing.test.mjs", "tests/team-cli.test.mjs", "docs/team-coordination.md"]
+code_refs: ["scripts/model-routing.mjs", "models/routing.schema.json", "scripts/team-state.mjs", "scripts/team-cli.mjs", "tests/team-routing.test.mjs", "tests/team-cli.test.mjs", "docs/team-coordination.md", "scripts/team-evidence.mjs", "scripts/team-host.mjs", "scripts/team-workflow.mjs", "tests/team-evidence.test.mjs", "tests/team-end-to-end.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null

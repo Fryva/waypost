@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-01T14:25:40.615Z
+generated_at: 2026-10-01T20:23:17.498Z
 
 ---
 
@@ -22,6 +22,7 @@ generated_at: 2026-10-01T14:25:40.615Z
 - [ ] [[epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates|WP-20: Reviewed integration and team-aware story gates]] #p1 #blocked
 - [ ] [[epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics|WP-20: Team CLI orientation and deterministic diagnostics]] #p1 #blocked
 - [ ] [[epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost|WP-20: Automatic model routing by task complexity and expected cost]] #p1 #blocked
+- [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
 
 ## ToDo
 

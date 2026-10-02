@@ -37,6 +37,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation](./automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md) | Automatic model strength discovery with expiring evidence and periodic revalidation | proposed | 2026-09-30 |
 | [model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review](./model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md) | Model-aware teams across harness sessions with one authority and independent review | accepted | 2026-09-30 |
 | [setup-asks-the-running-harness-not-only-the-projects-files](./setup-asks-the-running-harness-not-only-the-projects-files.md) | setup asks the running harness, not only the project's files | proposed | 2026-09-30 |
+| [automatic-role-redistribution-on-verified-model-quota-exhaustion](./automatic-role-redistribution-on-verified-model-quota-exhaustion.md) | Automatic role redistribution on verified model quota exhaustion | proposed | 2026-10-01 |
 | [automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets](./automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md) | Automatic task-aware model routing with capability floors and cost budgets | proposed | 2026-10-01 |
 
 ---

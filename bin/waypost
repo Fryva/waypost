@@ -14,6 +14,7 @@ import {
 } from "node:fs";
 import { spawnSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { withTeamArtifactGate } from '../scripts/team-legacy.mjs';
 import { homedir, hostname, setPriority, uptime as osUptime, constants as osConstants } from "node:os";
 import {
   parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, sessionIdFlag, storyRefOf, expandHome,
@@ -705,7 +706,11 @@ function handleStory(args) {
     fail(`${out.path} changed since it was read — re-run`);
   }
   // sweep:false — same reasoning as handleDraft's write.
-  writeFileAtomic(out.path, out.content, { sweep: false });
+  withTeamArtifactGate(cfg.vault_path,out.path,mode,()=>{
+    const latest=readFileSync(out.path,'utf8');
+    if(createHash('sha256').update(latest,'utf8').digest('hex')!==out.original_sha256)throw new Error('story-changed-before-write');
+    writeFileAtomic(out.path, out.content, { sweep: false });
+  });
   process.stdout.write(`${mode}  ${out.path}\n  ${(out.notes || []).join("\n  ")}\n`);
   // Opening a story claims it for this session; closing it releases the claim.
   // Other harnesses on the same vault read that registry, so the gate is also
@@ -3479,6 +3484,9 @@ WORKING IN SEVERAL HARNESSES AT ONCE
   team refresh <id>        refresh automatic model-strength evidence
   team watch <id>          periodically check evidence [--interval <seconds>]
   team route <id>          preview a manifest [--request-file <json>]; no grant
+  team host <id>           managed endpoints, relay, review and owned Git flow
+                           --operation bootstrap|inspect|relay|review|checkout|
+                           candidate|dispatch|publish|recover-publication
   team-mcp                cooperative stdio inbox tools; --project, --team,
                           --credential (absolute paths); no native wake proof
                            current scope and limits: docs/team-coordination.md

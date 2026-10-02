@@ -108,7 +108,7 @@ export function readAuthority(root, reducer) {
   return { revision, state, requests };
 }
 
-export function mutateAuthority(root, request, reducer, { host = hostname(), confirmedLocal = false, fault } = {}) {
+export function mutateAuthority(root, request, reducer, { host = hostname(), confirmedLocal = false, fault, authorize, validateNew } = {}) {
   root = safePath(root);
   locality(root);
   const { key, actor, expected_revision } = request;
@@ -136,7 +136,7 @@ export function mutateAuthority(root, request, reducer, { host = hostname(), con
     try { fault(stage); } catch (e) { simulatedCrash = true; throw e; }
   }
   try {
-    writeNew(join(lock, 'owner.json'), { protocol: PROTOCOL, nonce, host, pid: process.pid, process_started: performance.timeOrigin, command: key });
+    writeNew(join(lock, 'owner.json'), { protocol: PROTOCOL, nonce, host, pid: process.pid, process_started: performance.timeOrigin, command: key, actor });
     flushDir(lock); flushDir(root);
     boundary('after-lock');
     // Check again under the one mutex; initialization is part of serialization.
@@ -151,12 +151,16 @@ export function mutateAuthority(root, request, reducer, { host = hostname(), con
     if (!existsSync(events)) { mkdirSync(events, { mode: 0o700 }); flushDir(root); }
     directory(events);
     const current = readAuthority(root, reducer);
+    // Recheck credentials under the serialization boundary, including retries.
+    // A credential revoked after the CLI read cannot recover a cached result.
+    if (authorize) authorize(structuredClone(current.state));
     const completed = current.requests.find(r => r.actor === actor && r.key === key);
     if (completed) {
       if (completed.digest !== requestDigest) fail('authority-request-key-reused', { revision: current.revision });
       return { revision: completed.revision, result: completed.result, replayed: true };
     }
     if (expected_revision !== current.revision) fail('authority-stale-revision', { revision: current.revision, refresh: 'read authority state and retry with a new request key' });
+    if (validateNew) validateNew(structuredClone(current.state), structuredClone(command));
     // New timed transitions use the host clock; replay remains anchored to the
     // accepted event time. A caller cannot backdate an action to bypass expiry.
     if (Object.hasOwn(command, 'at') && (!Number.isFinite(Date.parse(command.at)) || Math.abs(Date.now() - Date.parse(command.at)) > 30000)) fail('authority-invalid-action-time');
@@ -203,6 +207,30 @@ export function explainRecovery(root) {
   try { if (existsSync(join(lock, 'owner.json'))) owner = jsonFile(join(lock, 'owner.json'), 4096); }
   catch (e) { if (e.code === 'authority-symlink') throw e; corrupt = true; }
   return { locked: true, owner, corrupt, requires: 'explicit owner confirmation command and any children stopped', ttl_recovery: false };
+}
+// Serialize a legacy write with team creation. No event is necessary for an
+// operation which is refused while the artifact is bound to an active team.
+export function withAuthorityGate(root, reducer, callback) {
+  root=safePath(root);
+  // Teams cannot be created on nonlocal storage; legacy advisory workflows
+  // there remain usable when no authority exists.
+  if(!existsSync(root) && storageOf(root).kind!=='local')return callback(null);
+  locality(root);
+  if(!existsSync(root))mkdirSync(root,{recursive:true,mode:0o700});
+  directory(root);
+  if(existsSync(join(root,'identity.json')))identity(root,hostname());
+  const lock=join(root,'lock'),nonce=randomUUID();
+  try{mkdirSync(lock,{mode:0o700});}catch(e){if(e.code==='EEXIST')fail('authority-locked');throw e;}
+  try{
+    writeNew(join(lock,'owner.json'),{protocol:PROTOCOL,nonce,host:hostname(),pid:process.pid,command:'legacy-gate',actor:'legacy'});
+    flushDir(lock);flushDir(root);
+    const result=callback(readAuthority(root,reducer).state);
+    if(result?.then)fail('authority-gate-must-be-synchronous');
+    return result;
+  }finally{
+    const own=jsonFile(join(lock,'owner.json'),4096);if(own.nonce!==nonce)fail('authority-lock-owner-changed');
+    unlinkSync(join(lock,'owner.json'));rmdirSync(lock);flushDir(root);
+  }
 }
 export function recoverLock(root, { ownerConfirmedStopped = false, host = hostname() } = {}) {
   root = safePath(root); locality(root);

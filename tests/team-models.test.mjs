@@ -104,6 +104,8 @@ test("strength uses exact qualified identity and role, never harness, alias, pri
   }
   assert.equal(rankParticipant({ ...base, harness: "expensive-vendor", price: 999 }, policy(), "coordinate"), 1);
   assert.equal(rankParticipant(base, null, "coordinate"), null);
+  const unresolvedPolicy=policy();unresolvedPolicy.profiles[0].reasoning='unknown';
+  assert.equal(rankParticipant({...base,model:descriptor('fixture-basic',{reasoning:'unknown'})},unresolvedPolicy,'coordinate'),null);
 });
 
 test("protected actions require exact fresh attestation token, not inherited declaration", () => {

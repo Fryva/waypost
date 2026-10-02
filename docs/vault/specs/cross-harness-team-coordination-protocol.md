@@ -12,7 +12,7 @@ adr: ["model-aware-teams-across-harness-sessions-with-one-authority-and-independ
 stories: ["WP-20/story-participant-identity-and-owner-approved-model-policy", "WP-20/story-local-authority-log-and-crash-safe-mutations", "WP-20/story-addressed-messages-and-verified-harness-delivery", "WP-20/story-assignments-supervision-and-stronger-model-handover", "WP-20/story-independent-strongest-model-review-of-immutable-evidence", "WP-20/story-reviewed-integration-and-team-aware-story-gates", "WP-20/story-team-cli-orientation-and-deterministic-diagnostics", "WP-20/story-live-claude-and-opencode-coordination-on-one-task", "WP-20/story-automatic-model-routing-by-task-complexity-and-expected-cost"]
 review_status: reviewed
 reviewed_at: 2026-09-30
-code_refs: ["bin/waypost", "scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/doctor.mjs", "scripts/ready.mjs", "scripts/lib.mjs", "templates/agents-block.md.tmpl"]
+code_refs: ["bin/waypost", "scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/doctor.mjs", "scripts/ready.mjs", "scripts/lib.mjs", "templates/agents-block.md.tmpl", "scripts/team-state.mjs", "scripts/team-workflow.mjs", "scripts/team-store.mjs", "scripts/team-transport.mjs", "scripts/team-evidence.mjs", "scripts/team-host.mjs", "scripts/team-integration.mjs", "scripts/team-legacy.mjs", "scripts/team-diagnostics.mjs", "tests/team-end-to-end.test.mjs"]
 ---
 
 # Cross-harness team coordination protocol
@@ -313,6 +313,24 @@ fresh read-only context at/above that floor. Top model's authoring context is
 excluded; its separately established fresh context can qualify. If none can run,
 block with strongest-independent-review-unavailable. Lower reviews are preliminary.
 
+6.1a. Versioned owner opt-in `quota-policy-enable-v1` permits an availability
+exception to 6.1 only for exact provider-confirmed account/model quota exhaustion.
+Task budget, local allocation/reservations, rate limits, generic 429, UI percentages
+and timeouts cannot lower the floor. Keep the historical base floor and stable
+admission identities separately from the effective floor. Every original admission
+binding must have a matching exhaustion proof; model switch, revoke/departure or
+missing admission evidence preserves the earlier requirement. A healthy same-model
+peer preserves it. Monotonic quota revision pins requests, grants, reviews and
+publication reservations, rejecting late approval after eligibility changes.
+Provider observations have original bounded freshness and source IDs; reject older
+or conflicting evidence for the exact route/account binding. Expiry/reset never
+restores an exhausted participant; a fresh positive provider proof is required.
+The host automatically drives owned-process quiescence without paid relay, retains
+work for acknowledged adoption, and obtains the strongest available candidate's
+acknowledgement. Missing provider/stop/adoption capabilities report blockers;
+uncertain invocations retain their liabilities. Publishing defers quota changes
+until exact acknowledgement/reconciliation. Legacy replay keeps its prior policy.
+
 6.2. Review context receives pinned target, acceptance and relevant rules, not
 author conversation, private chain of thought or coordinator's verdict. Bind
 review invocation/context identity, model revision and provenance; no author/implementer context
@@ -434,7 +452,10 @@ Proposed seams, to validate with a fresh planner before coding:
 - bin/waypost dispatch/write boundary; existing modules query team state.
 - tests/team*.test.mjs: reducer, concurrent CLI, fault and integration tests.
 
-These proposed files are not code_refs claims of present implementation.
+Implemented module references are listed in frontmatter. Runtime support depends
+on native identity, isolation and provider billing capabilities; unsupported
+desktop binding or invoice ceilings remain explicit blockers. Unit fixtures do
+not establish live cross-harness or desktop acceptance.
 
 ## Testing
 

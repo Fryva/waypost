@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: []
-code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "scripts/agents.mjs", "scripts/presence.mjs", "scripts/team-mcp.mjs", "scripts/team-cli.mjs", "tests/team-mcp.test.mjs", "docs/team-coordination.md", "docs/harnesses.md"]
+code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "scripts/agents.mjs", "scripts/presence.mjs", "scripts/team-mcp.mjs", "scripts/team-cli.mjs", "tests/team-mcp.test.mjs", "docs/team-coordination.md", "docs/harnesses.md", "scripts/team-transport.mjs", "scripts/team-host.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null

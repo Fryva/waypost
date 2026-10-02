@@ -78,6 +78,7 @@ import {
 } from "./agents.mjs";
 import { status as skillsStatus, skillNames } from "./skills.mjs";
 import { stories as vaultStories } from "./ready.mjs";
+import { checkTeamAuthority } from './team-diagnostics.mjs';
 import { inspect as inspectLauncher, repairCommand as launcherRepair } from "./launcher.mjs";
 
 function finding(group, level, check, message, file) {
@@ -1909,6 +1910,7 @@ export function runVaultChecks(cfg) {
   );
   // Outside the stop-on-throw loop by design (ADR-0011): a guard's failure to
   // evaluate is its own finding, never a reason to hide the other checks.
+  findings.push(...checkTeamAuthority(cfg.vault_path));
   try { findings.push(...checkGuards(artifacts, projectRoot())); }
   catch (e) { findings.push(finding("vault", "warn", "adr-guard", `guards not evaluated: ${e.message}`)); }
   return findings;

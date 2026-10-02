@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-10-01
 external_refs: {}
 tags: []
-code_refs: ["scripts/team.mjs", "scripts/model-strength.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team-cli.mjs", "models/strength-sources.json", "models/policy.schema.json", "models/descriptor.schema.json", "tests/team-models.test.mjs", "tests/team-store.test.mjs", "tests/model-strength.test.mjs", "tests/team-periodic.test.mjs", "tests/team-cli.test.mjs"]
+code_refs: ["scripts/team.mjs", "scripts/model-strength.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team-cli.mjs", "models/strength-sources.json", "models/policy.schema.json", "models/descriptor.schema.json", "tests/team-models.test.mjs", "tests/team-store.test.mjs", "tests/model-strength.test.mjs", "tests/team-periodic.test.mjs", "tests/team-cli.test.mjs", "scripts/team-transport.mjs", "scripts/team-host.mjs", "scripts/team-evidence.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: "2026-10-01T02:15:04.752Z"
 closed_at: null

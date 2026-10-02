@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: []
-code_refs: ["scripts/presence.mjs", "scripts/lib.mjs", "bin/waypost", "tests/presence.test.mjs"]
+code_refs: ["scripts/presence.mjs", "scripts/lib.mjs", "bin/waypost", "tests/presence.test.mjs", "scripts/team-store.mjs", "scripts/team-state.mjs", "scripts/team-workflow.mjs", "tests/team-store.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null

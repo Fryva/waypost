@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: []
-code_refs: ["scripts/commit.mjs", "scripts/sessions.mjs", "bin/waypost", "tests/commits.test.mjs"]
+code_refs: ["scripts/commit.mjs", "scripts/sessions.mjs", "bin/waypost", "tests/commits.test.mjs", "scripts/team-integration.mjs", "scripts/team-legacy.mjs", "scripts/team-host.mjs", "scripts/team-workflow.mjs", "tests/team-integration.test.mjs", "tests/team-end-to-end.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null

@@ -29,6 +29,8 @@
 //      no flag = list the sessions active in the last 30 minutes.
 
 import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { withTeamArtifactGate } from './team-legacy.mjs';
 import { fileURLToPath } from "node:url";
 import {
   beat, clearPresence, peers, storageOf, readLeases, acquire, release, vaultRel, prunePresence,
@@ -116,10 +118,10 @@ function main() {
     // Normalise to the same reference the commit trailer uses, so a claim made
     // from a path and a commit made from an id are talking about one story.
     const ref = storyRefOf(args[ci + 1], vault) || args[ci + 1];
-    beat(vault, sid, {
+    withTeamArtifactGate(vault, join(vault,'epics',ref.split('/')[0],'stories',ref.split('/').slice(1).join('/')+'.md'),'claim',()=>beat(vault, sid, {
       harness: process.env.WAYPOST_HARNESS || null,
       claim: { story: ref, at: new Date().toISOString() },
-    });
+    }));
     out.claimed = ref;
   }
   if (args.includes("--release")) {

@@ -1,8 +1,11 @@
 // Deterministic team transitions. Authentication and file IO belong to the CLI/store.
 import { validatePolicy, validateDescriptor, rankParticipant, selectCoordinator, updateReviewFloor, policyStrengthShape } from './team.mjs';
 import { proposeModelRoute } from './model-routing.mjs';
+import { applyWorkflow } from './team-workflow.mjs';
+import { quotaEligible, effectiveReviewFloor } from './team-quota.mjs';
 const clone = structuredClone;
 const KINDS = new Set(['question', 'answer', 'progress', 'result', 'assignment', 'ack', 'quiesce', 'handover', 'review-request', 'review-result', 'cancel']);
+const DEFERRED = new Set(['quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
 function fail(message) { throw new Error(message); }
 function text(v, name, max = 256) { if (typeof v !== 'string' || !v || v.length > max || /[\x00-\x1f]/.test(v)) fail('invalid-' + name); return v; }
 function id(v) { if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(v || '') || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(v)) fail('invalid-team-id'); return v; }
@@ -11,6 +14,7 @@ function owner(s, c) { if (c.actor !== 'owner:' + s.owner_hash) fail('owner-requ
 function member(t, c) { const p = participant(t, c.actor); if (p.incarnation !== c.incarnation) fail('participant-incarnation-mismatch'); return p; }
 function leader(t, c) { const p = member(t, c); if (t.status !== 'active' || t.leader !== p.id || c.epoch !== t.epoch) fail('current-acknowledged-leader-required'); return p; }
 function qualified(t, p, role, c) {
+  if(t.quota_policy?.automatic_redistribution && !quotaEligible(p,Date.parse(c.at)))fail('participant-quota-unavailable');
   const action = [c.type, t.id, p.id, p.incarnation, p.model.model_revision, t.policy.revision, c.request_key].join(':');
   if (rankParticipant(p, t.policy, role, { action, now: Date.parse(c.at) }) === null) fail('action-bound-model-evidence-required:' + action);
 }
@@ -24,9 +28,24 @@ function floor(t, at) {
   const historical = t.required_review_models.map(([provider, model_id, reasoning]) => t.policy.profiles.find(x => x.provider === provider && x.model_id === model_id && x.reasoning === reasoning));
   t.review_floor = historical.some(x => !x) ? null : Math.max(current ?? -1, ...historical.map(x => x.priorities.review));
   t.review_blocker = historical.some(x => !x) ? 'previous-review-model-unclassified' : t.review_floor < 0 ? 'no-qualified-review-model' : null;
+  if(t.quota_policy?.automatic_redistribution){
+    t.review_admissions ||= {};
+    for(const p of ps.filter(p=>rankParticipant(p,t.policy,'review',{now:Date.parse(at)})!==null)){
+      const model={provider:p.model.provider,model_id:p.model.model_id,reasoning:p.model.reasoning},key=JSON.stringify(Object.values(model));
+      const admission={participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,model};
+      const admissions=t.review_admissions[key] ||= [];
+      if(!admissions.some(x=>JSON.stringify(x)===JSON.stringify(admission)))admissions.push(admission);
+    }
+    t.historical_review_floor=t.review_floor;t.historical_review_blocker=t.review_blocker;
+    const effective=effectiveReviewFloor(t,Date.parse(at));t.review_floor=effective.floor;t.review_blocker=effective.blocked;t.quota_floor_evidence=effective;
+    const binding=JSON.stringify([t.policy.revision,ps.map(p=>[p.id,p.incarnation,p.model.model_revision,p.model.provider,p.model.model_id,p.model.reasoning]),t.review_floor,t.review_blocker]);
+    if(t.quota_binding_signature!==undefined && t.quota_binding_signature!==binding)t.quota_revision=(t.quota_revision||0)+1;
+    t.quota_binding_signature=binding;
+  }
 }
+function eligibleParticipants(t,now){return Object.values(t.participants).filter(p=>!t.quota_policy?.automatic_redistribution || quotaEligible(p,now));}
 function propose(t, at) {
-  const selected = selectCoordinator(Object.values(t.participants), t.policy, t.leader, { now: Date.parse(at) });
+  const selected = selectCoordinator(eligibleParticipants(t,Date.parse(at)), t.policy, t.leader, { now: Date.parse(at) });
   if (!selected) { t.status = 'paused'; t.candidate = null; return; }
   if (selected.id === t.leader && t.status === 'active') return;
   t.candidate = selected.id;
@@ -40,7 +59,7 @@ function envelope(t, c, sender, kind, to, payload, correlation = null) {
   t.messages.push(message); return message;
 }
 export function reduceTeamEvent(previous, command, authority = {}) {
-  const c = clone(command);
+  let c = clone(command);
   if (authority.accepted_at) c.at = authority.accepted_at;
   const now = Date.parse(c.at); if (!Number.isFinite(now)) fail('invalid-event-time');
   let s = previous ? clone(previous) : { protocol: 1, owner_hash: c.owner_hash, teams: {}, task_bindings: {} };
@@ -53,9 +72,32 @@ export function reduceTeamEvent(previous, command, authority = {}) {
     if (s.teams[c.team]) fail('team-already-exists');
     const policy = validatePolicy(c.policy);
     s.teams[c.team] = { id: c.team, task: c.task, policy, participants: {}, messages: [], work: {}, status: 'forming', epoch: 0, leader: null, candidate: null, review_floor: null, required_review_models: [], review_blocker: 'no-qualified-review-model' };
+    if(c.quota_policy!==undefined){
+      if(c.quota_policy?.protocol!==1 || c.quota_policy.automatic_redistribution!==true || Object.keys(c.quota_policy).some(k=>!['protocol','automatic_redistribution'].includes(k)))fail('invalid-quota-policy');
+      Object.assign(s.teams[c.team],{quota_policy:clone(c.quota_policy),quota_revision:0,review_admissions:{}});
+    }
     s.task_bindings[c.task] = c.team; result = { team: c.team, status: 'forming' };
   } else {
     const t = s.teams[c.team]; if (!t || t.status === 'closed') fail('team-not-active');
+    if(c.type==='deferred-discard-v1') {
+      owner(s,c);if(s.publication_fence)fail('publication-still-in-progress');
+      text(c.reason,'discard-reason',4096);
+      const pending=s.deferred_commands?.find(x=>x.id===c.deferred_id && x.command.team===t.id);if(!pending)fail('deferred-command-not-found');
+      s.deferred_commands=s.deferred_commands.filter(x=>x.id!==pending.id);
+      return {state:s,result:{discarded:pending.id,reason:c.reason}};
+    }
+    if(c.type==='deferred-apply-v1') {
+      owner(s,c);if(s.publication_fence)fail('publication-still-in-progress');
+      const pending=s.deferred_commands?.find(x=>x.id===c.deferred_id && x.command.team===t.id);if(!pending)fail('deferred-command-not-found');
+      s.deferred_commands=s.deferred_commands.filter(x=>x.id!==pending.id);
+      c={...clone(pending.command),at:c.at,request_key:c.request_key};
+    }
+    if(s.publication_fence?.team===t.id && DEFERRED.has(c.type)) {
+      if(c.actor.startsWith('owner:'))owner(s,c);else if(c.actor.startsWith('collector:')){const x=s.collectors?.[c.actor.slice(10)];if(!x || x.revoked || x.team!==t.id)fail('collector-required');}else member(t,c);
+      s.deferred_commands ||= [];if(s.deferred_commands.length>=128)fail('deferred-command-limit');
+      s.deferred_commands.push({id:c.request_key,command:clone(c)});
+      return {state:s,result:{deferred:true,id:c.request_key,reason:'publication-fence'}};
+    }
     if (c.type === 'join') {
       owner(s, c); const p = clone(c.participant);
       id(p.id); text(p.incarnation, 'incarnation'); text(p.session, 'session'); text(p.harness, 'harness'); text(p.root, 'root', 4096);
@@ -95,13 +137,13 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       floor(t, c.at); propose(t, c.at); result = { participant: p.id, model_revision: model.model_revision };
     } else if (c.type === 'availability') {
       const p = member(t, c); if (!['ready', 'busy', 'unavailable', 'left'].includes(c.availability)) fail('invalid-availability');
-      p.availability = c.availability; propose(t, c.at); result = { availability: p.availability };
+      p.availability = c.availability; if(t.quota_policy?.automatic_redistribution)floor(t,c.at); propose(t, c.at); result = { availability: p.availability };
     } else if (c.type === 'revoke') {
       owner(s, c); const p = participant(t, c.participant_id); p.revoked = true;
       for (const w of Object.values(t.work)) if (w.worker === p.id && !['integrated','cancelled'].includes(w.status)) w.status = 'uncertain';
-      propose(t, c.at); result = { revoked: p.id };
+      if(t.quota_policy?.automatic_redistribution)floor(t,c.at); propose(t, c.at); result = { revoked: p.id };
     } else if (c.type === 'leader-ack') {
-      const p = member(t, c); const best = selectCoordinator(Object.values(t.participants), t.policy, t.leader, { now });
+      const p = member(t, c); const best = selectCoordinator(eligibleParticipants(t,now), t.policy, t.leader, { now });
       if (!best || best.id !== p.id || t.candidate !== p.id) fail('strongest-candidate-required');
       // No implicit transfer of outstanding execution on leader change.
       if (Object.values(t.work).some(w => !['integrated', 'cancelled', 'blocked'].includes(w.status))) fail('outstanding-work-requires-handover-reconciliation');
@@ -135,6 +177,7 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       if (t.routing?.required) fail('routed-assignment-required');
       const p = leader(t, c); qualified(t, p, 'coordinate', c); const w = clone(c.work);
       id(w.id); if (t.work[w.id]) fail('work-already-assigned'); const worker = participant(t, w.worker);
+      if(t.quota_policy?.automatic_redistribution && !quotaEligible(worker,now))fail('worker-quota-unavailable');
       if (rankParticipant(worker, t.policy, 'implement', { now }) === null) fail('worker-model-unclassified');
       text(w.base, 'work-base', 128); text(w.goal, 'goal', 8192);
       if (!Array.isArray(w.paths) || !w.paths.length || w.paths.some(x => typeof x !== 'string' || x.startsWith('/') || x.includes('..') || x.includes('\\') || /[\x00-\x1f*?]/.test(x))) fail('concrete-relative-paths-required');
@@ -167,14 +210,22 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       owner(s, c); if (Object.values(t.work).some(w => w.status !== 'integrated' && w.status !== 'cancelled')) fail('unfinished-team-work');
       if (Object.keys(t.work).length) fail('reviewed-integration-not-implemented');
       t.status = 'closed'; delete s.task_bindings[t.task]; result = { closed: t.id };
-    } else fail('unsupported-team-transition');
+    } else {
+      const advanced=applyWorkflow(s,t,c,now,{owner,member,leader,qualified,participant,selectCoordinator:(ps,policy,current,opts)=>selectCoordinator(ps.filter(p=>!t.quota_policy?.automatic_redistribution || quotaEligible(p,opts.now)),policy,current,opts),envelope,floor,propose});
+      if(!advanced.handled)fail('unsupported-team-transition');result=advanced.result;
+    }
   }
   return { state: s, result };
 }
 export function authorizeActor(state, teamId, credential) {
   if (!credential || typeof credential.token_hash !== 'string') fail('credential-required');
-  if (!state) return 'owner:' + credential.token_hash;
+  if (!state) { if(credential.role!=='owner')fail('owner-required');return 'owner:' + credential.token_hash; }
   if (credential.role === 'owner' && credential.token_hash === state.owner_hash) return 'owner:' + state.owner_hash;
+  if(credential.role==='collector') {
+    const x=state.collectors?.[credential.collector];
+    if(!x || x.revoked || x.team!==teamId || x.credential_hash!==credential.token_hash)fail('invalid-collector-credential');
+    return 'collector:'+x.id;
+  }
   const t = state.teams[teamId], p = t?.participants[credential.participant];
   if (!p || p.revoked || p.availability === 'left' || p.credential_hash !== credential.token_hash || p.incarnation !== credential.incarnation) fail('invalid-participant-credential');
   return p.id;
