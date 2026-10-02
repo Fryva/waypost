@@ -6,11 +6,29 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { createMcpHandler, cliInvoker, serveStdio } from '../scripts/team-mcp.mjs';
+import { createMcpHandler, cliInvoker, serveStdio, parseMcpArgs } from '../scripts/team-mcp.mjs';
 import { mutateAuthority } from '../scripts/team-store.mjs';
 import { reduceTeamEvent } from '../scripts/team-state.mjs';
 const cli = fileURLToPath(new URL('../bin/waypost', import.meta.url));
 const roots = []; after(() => roots.forEach(p => rmSync(p, {recursive:true,force:true})));
+test('startup options are unique exact pairs and preserve literal paths',()=>{
+ const pairs=[['--project','/tmp/project "quotes" $() 界'],['--team','test-team'],['--credential','/tmp/private "file".json']];
+ for(const order of [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]])assert.deepEqual(parseMcpArgs(order.flatMap(i=>pairs[i])),{project:pairs[0][1],team:pairs[1][1],credential:pairs[2][1]});
+ const valid=pairs.flat();
+ for(const argv of [[...valid,'extra'],[...valid,'--write','yes'],...pairs.map(p=>[...valid,...p]),valid.slice(0,-1),['--project=x',...valid.slice(2)],['--project','',...valid.slice(2)]])assert.throws(()=>parseMcpArgs(argv));
+ for(const value of ['relative','/tmp/a\nsecret','/tmp/a\x7f','/'+ 'a'.repeat(4096)]){
+  assert.throws(()=>parseMcpArgs(['--project',value,...valid.slice(2)]));
+  assert.throws(()=>cliInvoker({project:pairs[0][1],team:'test',credential:value}));
+ }
+ assert.throws(()=>cliInvoker({project:'/tmp/p',team:123,credential:'/tmp/c'}));
+});
+test('invalid direct or dispatcher startup is silent on stdout and hides supplied values',()=>{
+ const script=fileURLToPath(new URL('../scripts/team-mcp.mjs',import.meta.url));
+ for(const entry of [[script],[cli,'team-mcp']]){
+  const r=spawnSync(process.execPath,[...entry,'--project','/tmp/secret-path','--project','/tmp/other','--team','t','--credential','/tmp/private-token.json'],{encoding:'utf8'});
+  assert.equal(r.status,1);assert.equal(r.stdout,'');assert.ok(!/secret-path|private-token|other/.test(r.stderr));
+ }
+});
 async function start(invoke) {
  const h = createMcpHandler(invoke);
  const request = (method,params,id=1) => h({jsonrpc:'2.0',id,method,params});
@@ -38,12 +56,24 @@ test('stdio frames split UTF-8 safely and return only JSON-RPC; oversized lines 
  await done();assert.equal(JSON.parse(text).id,'кириллица');
  input.write('x'.repeat(65537));await done();assert.equal(text.trim().split('\n').length,2);
 });
+test('malformed UTF-8 never reaches handler; valid replacement character and CRLF survive',async()=>{
+ const input=new PassThrough(),output=new PassThrough();let text='',calls=0;output.on('data',b=>text+=b);
+ const done=serveStdio(async r=>{calls++;return {jsonrpc:'2.0',id:r.id,result:{}};},input,output);
+ const prefix=Buffer.from('{"jsonrpc":"2.0","id":"'),suffix=Buffer.from('","method":"ping"}\n');
+ for(const bytes of [[0x80],[0xc0,0xaf],[0xe2,0x82]])input.write(Buffer.concat([prefix,Buffer.from(bytes),suffix]));
+ input.write(Buffer.concat([Buffer.from([0xef,0xbb,0xbf]),Buffer.from('{"jsonrpc":"2.0","id":1,"method":"ping"}\n')]));
+ await done();assert.equal(calls,0);assert.equal(text.trim().split('\n').length,4);
+ assert.ok(text.trim().split('\n').every(line=>JSON.parse(line).error.code===-32700));
+ input.write(JSON.stringify({jsonrpc:'2.0',id:'\ufffd',method:'ping'})+'\r\n');await done();assert.equal(calls,1);
+ assert.equal(JSON.parse(text.trim().split('\n').at(-1)).id,'\ufffd');
+});
 test('dispatcher MCP handshake is protocol-only and does not need or create a vault',()=>{
  const root=realpathSync(mkdtempSync(join(tmpdir(),'waypost-mcp-dispatch-')));roots.push(root);
- const frames=[{jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2024-11-05'}},{jsonrpc:'2.0',method:'notifications/initialized'},{jsonrpc:'2.0',id:2,method:'tools/list'}];
+ const frames=[{jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2024-11-05'}},{jsonrpc:'2.0',method:'notifications/initialized'},{jsonrpc:'2.0',id:2,method:'tools/list'},{jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'waypost_inbox',arguments:{}}}];
  const r=spawnSync(process.execPath,[cli,'team-mcp','--project',root,'--team','test','--credential',join(root,'missing.json')],{cwd:root,encoding:'utf8',input:frames.map(x=>JSON.stringify(x)).join('\n')+'\n',timeout:5000});
  assert.equal(r.status,0,r.stderr);const messages=r.stdout.trim().split('\n').map(x=>JSON.parse(x));
- assert.equal(messages.length,2);assert.equal(messages[0].result.protocolVersion,'2024-11-05');assert.equal(messages[1].result.tools.length,3);
+ assert.equal(messages.length,3);assert.equal(messages[0].result.protocolVersion,'2024-11-05');assert.equal(messages[1].result.tools.length,3);
+ assert.match(messages[0].result.instructions,/do not authenticate/);assert.equal(messages[2].result.isError,true);
 });
 test('stdio waits for output consumption before admitting the next operation',async()=>{
  const input=new PassThrough();let release,calls=0;
@@ -92,4 +122,8 @@ test('two MCP holders exchange addressed messages through the real CLI, preserve
  assert.equal(new Set([...first.messages,...next.messages].map(m=>m.id)).size,25);
  const dash=value(await A.call('waypost_send',{to:b,kind:'question',payload:{},request_key:'--dash-message',epoch:0,at:new Date().toISOString()}));
  value(await B.call('waypost_ack',{message:dash.result.id,request_key:'dash-ack',epoch:0,at:new Date().toISOString()}));
+ writeFileSync(join(root,'wrong-incarnation.json'),JSON.stringify({...JSON.parse(readFileSync(join(root,'b.json'),'utf8')),incarnation:'wrong-incarnation'}));
+ const wrong=await client('wrong-incarnation.json');assert.equal((await wrong.call('waypost_inbox',{})).result.content[0].text,'invalid-participant-credential');
+ run('revoke','mcp-team','--participant',b);
+ assert.equal((await B.call('waypost_inbox',{})).result.content[0].text,'invalid-participant-credential');
 });

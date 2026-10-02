@@ -189,6 +189,12 @@ not independently identified. Use dedicated test participants and do not treat
 MCP handshake or tool calls as receipts from a particular native conversation.
 Stopping the bridge does not leave the team, release claims or remove leases.
 It grants no assignment, leader, execution-model attestation or review tools.
+Initialization and tool discovery do not authenticate membership: call
+`waypost_inbox` to verify current participant access. The authority rechecks the
+credential and incarnation for every subsequent action, including after revocation.
+Startup accepts exactly one project, team and credential argument; duplicate or
+unknown flags fail before protocol output. Invalid UTF-8 frames are parse errors,
+not silently repaired messages.
 
 Claude Desktop Code reads project `.mcp.json` alongside CLI configuration.
 Current [official desktop documentation](https://code.claude.com/docs/en/desktop)
@@ -216,11 +222,19 @@ Codex and OpenCode contexts. Claude reported `claude-opus-5-5`; Codex reported
 model. These probes are not desktop delivery evidence. Claude Desktop's Code UI
 was observed, but no message was sent to an existing user conversation.
 
-Pending: live bridge calls from dedicated desktop conversations, independently
-bound native session addresses, unattended wake, actual-model inspection and the
-full cross-harness execution/review/integration loop. OpenCode Desktop installation
-was not found in the inspected `/Applications` directory or enabled app inventory;
-other installation locations were not ruled out.
+Live macOS observation (2026-10-02, Claude Desktop 2.19675.0): a new local Code
+conversation in an empty synthetic project discovered its project `.mcp.json`
+server. With one-call approvals in Manual mode, it read an addressed question,
+acknowledged it, refreshed the inbox and sent an answer with the original
+`reply_to`. The random token was absent from the user prompt. The peer's real CLI
+poll confirmed the returned token and sender at authority revision 6, epoch 0.
+This verifies a cooperative desktop MCP round trip in that observed conversation.
+Its 65.5k context and displayed model/effort are not fresh-context or execution-model
+attestations. The fixture used unknown models and granted no protected roles.
+
+Pending: independently bound native session addresses, unattended wake,
+actual-model inspection and the full cross-harness execution/review/integration
+loop. OpenCode on this laptop is CLI-only, as confirmed by the owner.
 
 ## Provider quota and role redistribution
 
