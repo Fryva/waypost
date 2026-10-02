@@ -87,5 +87,12 @@
       }
     },
     "notes": "Explicit authenticated loopback endpoint and owned session only; existing desktop session delivery requires separately verified endpoint binding. No session listing."
+  },
+  "mcp": {
+    "format": "json-local-mcp",
+    "project_file": "opencode.json",
+    "confidence": "documented",
+    "docs": "https://opencode.ai/docs/mcp-servers/",
+    "notes": "Project cooperative stdio configuration only. Shared credentials do not bind native conversations; discovery, trust, approvals and desktop delivery need separate evidence."
   }
 }

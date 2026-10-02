@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: []
-code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "scripts/agents.mjs", "scripts/presence.mjs", "scripts/team-mcp.mjs", "scripts/team-cli.mjs", "tests/team-mcp.test.mjs", "docs/team-coordination.md", "docs/harnesses.md", "scripts/team-transport.mjs", "scripts/team-host.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs"]
+code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "scripts/agents.mjs", "scripts/presence.mjs", "scripts/team-mcp.mjs", "scripts/team-cli.mjs", "tests/team-mcp.test.mjs", "docs/team-coordination.md", "docs/harnesses.md", "scripts/team-transport.mjs", "scripts/team-host.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs", "scripts/team-mcp-config.mjs", "tests/team-mcp-config.test.mjs", "bin/waypost"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null
@@ -53,6 +53,12 @@ owner grants. Surface metadata is descriptive. A globally shared MCP credential
 does not distinguish desktop chats, so tool calls cannot certify native delivery,
 wake or independent review. Native binding/collectors remain subsequent work.
 
+Fresh planner configuration pass (2026-10-02): add a preview-only MCP renderer
+before session detection/heartbeat, with format and project target in registry
+data. Use absolute Node and bundled script, separate argv, strict options, and no
+credential/config reads or writes. Project discovery and cooperative tool access
+remain separate from native identity, protected role eligibility and wake.
+
 ## Acceptance Criteria
 
 - [ ] Evidence names exact versions/platforms and demonstrates or falsifies each native capability independently; install confidence grants no delivery claim.
@@ -80,6 +86,13 @@ ack ids travel in structured JSON instead of CLI option values; stdout waits for
 write completion; request-key schema matches the store; CLI failures expose only
 allowlisted safe codes. Regression tests include legal large UTF-8 messages,
 output backpressure, ids beginning with dashes and stale-epoch diagnostics.
+
+Configuration prototype (2026-10-02): `team-mcp-config` renders project snippets
+for Claude, Codex and OpenCode from registry data. It does not read credentials,
+overwrite settings, change approvals or grant native capabilities. A fresh planner
+and independent reviewer accepted this scoped increment. Focused heavy checks of
+harness registry, MCP exchange, preview and owned runtime passed 123/123 in 96.2s.
+These are local fixtures, not live desktop exchange or full-story acceptance.
 
 ## Technical Notes
 

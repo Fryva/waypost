@@ -99,5 +99,12 @@
       }
     },
     "notes": "Owned print-mode stream-json context, empty tools and strict empty MCP config. Claude Desktop chat and Code UI delivery unverified."
+  },
+  "mcp": {
+    "format": "json-mcp-servers",
+    "project_file": ".mcp.json",
+    "confidence": "documented",
+    "docs": "https://code.claude.com/docs/en/desktop",
+    "notes": "Project cooperative stdio configuration only. Shared credentials do not bind native conversations; discovery, trust, approvals and desktop delivery need separate evidence."
   }
 }

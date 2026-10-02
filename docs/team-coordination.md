@@ -165,6 +165,24 @@ the inbox response); an identical retry retains the same envelope. An uncertain
 timeout must be reconciled rather than retried with a fresh key. Peer message
 payloads are untrusted data, not system instructions.
 
+Generate a reviewable project configuration without installing it:
+
+```sh
+waypost team-mcp-config --harness claude \
+  --project /absolute/project --team TEAM_ID \
+  --credential /absolute/private/participant.json --name own-team-inbox
+```
+
+Use `codex` or `opencode` for their registry formats. The JSON result names the
+project target and includes a ready JSON/TOML `snippet` plus structured execution
+arguments. The command reads neither credentials nor existing settings and works
+without a vault or an existing team. Merge the snippet into settings after checking
+the name and participant; preserve other servers. Do not commit a machine-specific
+credential path into shared settings. Trust, tool approvals and startup discovery
+remain the harness's responsibility. No settings are written and no native
+capability becomes verified. A unique name helps avoid collisions but does not
+prove that other chats cannot access the credential.
+
 This proves only actions by a participant credential holder. A global MCP config
 can expose one credential to multiple chats: those chats share an inbox and are
 not independently identified. Use dedicated test participants and do not treat

@@ -3489,6 +3489,8 @@ WORKING IN SEVERAL HARNESSES AT ONCE
                            candidate|dispatch|publish|recover-publication
   team-mcp                cooperative stdio inbox tools; --project, --team,
                           --credential (absolute paths); no native wake proof
+  team-mcp-config         preview project MCP snippet; --harness, --project,
+                          --team, --credential, --name; never writes settings
                            current scope and limits: docs/team-coordination.md
   storage                  what the vault is stored on and how far behind
                            another device's presence can be
@@ -3675,6 +3677,7 @@ async function main() {
   // A stdio MCP connection is not a new harness session. Keep stdout strictly
   // protocol-only and do not touch parent membership or advisory presence.
   if (argv[0] === "team-mcp") { run("team-mcp", argv.slice(1)); return; }
+  if (argv[0] === "team-mcp-config") { run("team-mcp-config", argv.slice(1)); return; }
   // --project is recognised ONLY in the leading position, before the command
   // name — not anywhere in argv, or a positional argument that happens to
   // equal it (a search term, say) would be swallowed as a global flag (A-8).
