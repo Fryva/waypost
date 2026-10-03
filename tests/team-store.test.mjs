@@ -164,3 +164,11 @@ test('accepted transition time is stamped under authority and remains stable dur
  assert.equal(mutateAuthority(root, request, clockReducer).replayed, true);
  assert.throws(() => mutateAuthority(root, { ...request, key: 'backdate', expected_revision: 1, command: { at: '2000-01-01T00:00:00Z' } }, clockReducer), { code: 'authority-invalid-action-time' });
 });
+
+test('inventory canonical nonce keys stay immutable across intervening captures and replay',t=>{
+ const root=fixture(t),make=(nonce,revision,add)=>({key:'inventory-'+nonce,actor:'collector:peer',expected_revision:revision,command:{type:'native-model-inventory-capture-v1',request_key:'inventory-'+nonce,add}});
+ mutate(root,make('A',0,1));mutate(root,make('B',1,2));
+ assert.throws(()=>mutate(root,make('A',2,3)),{code:'authority-request-key-reused'});
+ assert.throws(()=>mutate(root,{...make('A',2,3),key:'alternate'}),{code:'inventory-store-request-key-mismatch'});
+ assert.equal(readAuthority(root,reducer).state.count,3);assert.equal(readAuthority(root,reducer).revision,2);
+});

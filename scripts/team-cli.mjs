@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { inventoryDue } from './team-model-inventory.mjs';
 // Team CLI. The caller owns credentials; the immutable store owns accepted state.
 import { existsSync, readFileSync, writeFileSync, mkdirSync, lstatSync, realpathSync } from 'node:fs';
 import { resolve, join, dirname, relative } from 'node:path';
@@ -45,13 +46,14 @@ function taskKey(input, cfg) {
   if (!fm?.type || !fm?.id) throw new Error('artifact-type-and-id-required');
   return relative(vault, actual).replace(/\\/g, '/');
 }
-function publicTeam(t) {
+function publicTeam(t, includeInventory = false) {
   const result = structuredClone(t);
   for (const p of Object.values(result.participants)) {
     delete p.credential_hash;
     p.surface ??= 'unknown';
     p.delivery_capabilities = { native_session_binding: p.native_binding ? 'managed-endpoint-bound' : 'unverified', send_existing: 'unsupported', wake: 'unverified', inspect_model: p.identity_checked_at ? (p.model.resolved ? 'adapter-observed' : 'partial-observation') : 'unverified', desktop_delivery:'unverified' };
   }
+  if(!includeInventory)for(const entry of Object.values(result.model_inventory||{}))if(entry.snapshot){entry.snapshot.projected.candidate_count=entry.snapshot.projected.candidates.length;delete entry.snapshot.projected.candidates;}
   result.policy_stale = ['automatic','automatic-calibration'].includes(result.policy.mode) && Date.now() >= Date.parse(result.policy.expires_at);
   result.delivery = 'cooperative inboxes (including MCP) and explicitly managed native endpoints; desktop native binding and wake unverified';
   if(t.accounting?.mode==='subscription-tokens')result.accounting_capabilities={mode:'subscription-tokens',ledger:t.accounting.protocol===2?'bootstrap-and-fixed-calibration-trials':'bootstrap-only',billing_policy:t.accounting.billing_policy||'verified-route-v1',default_execution_context_collector:t.accounting.protocol===2?'codex-opencode-owned-native-counter':'unavailable',native_dispatch:t.accounting.protocol===2?'bounded-codex-opencode-identity-and-fixed-trials':'blocked',calibration_policy_activation:t.policy.protocol===2,protected_native_actions:false,provider_enforced_spend:false,exclusive_provider_quota:false};
@@ -81,6 +83,7 @@ export async function main(argv = process.argv.slice(2)) {
     else if (operation === 'calibration-cohort-open') print(host.openCalibrationCohort(json(resolve(opt('--request-file') || ''))));
     else if (operation === 'calibration-trial') print(await host.subscriptionCalibrationTrial({cohortId:opt('--cohort'),caseId:opt('--case'),nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000'}));
     else if (operation === 'calibration-summary') print(host.calibrationSummary({cohortId:opt('--cohort')}));
+    else if (operation === 'model-inventory') print(await host.observeModelInventory());
     else if (operation === 'native-policy-install') print(await host.installNativePolicy({cohortId:opt('--cohort'),expectedPolicyRevision:Number(opt('--policy-revision'))}));
     else if (operation === 'calibration-policy-proposal') print(await host.calibrationPolicyProposal({cohortId:opt('--cohort'),revision:Number(opt('--revision')||1)}));
     else if (operation === 'register-participant-host') print(await host.registerParticipantHost());
@@ -96,13 +99,13 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
     return;
   }
   if (mode === 'status') {
     const v = loaded(); const t = v.state?.teams[target];
     if (target && !t) throw new Error('team-not-found');
-    print({ revision: v.revision, authority: root, teams: t ? [publicTeam(t)] : Object.values(v.state?.teams || {}).map(publicTeam) }); return;
+    print({ revision: v.revision, authority: root, teams: t ? [publicTeam(t,flag('--model-inventory'))] : Object.values(v.state?.teams || {}).map(team=>publicTeam(team,flag('--model-inventory'))) }); return;
   }
   if (mode === 'route') {
     const v = loaded(), t = v.state?.teams[target]; if (!t) throw new Error('team-not-found');
@@ -162,6 +165,17 @@ export async function main(argv = process.argv.slice(2)) {
         let v = loaded(), t = v.state?.teams[target]; if (!t) throw new Error('team-not-found');
         const cred = loadCredential(resolve(opt('--owner-credential') || defaultOwner));
         const actor = authorizeActor(v.state, target, cred); if (!actor.startsWith('owner:')) throw new Error('owner-required');
+        const inventoryInspections=[],inventoryScopes=new Set();
+        for(const p of Object.values(t.participants).filter(p=>p.native_binding&&!p.revoked&&p.availability!=='left'&&inventoryDue(t.model_inventory?.[p.id]))){
+          const {createTeamHost}=await import('./team-host.mjs'),b=p.native_binding;
+          if(inventoryScopes.has(b.descriptor_digest))continue;
+          inventoryScopes.add(b.descriptor_digest);
+          try{
+            const host=createTeamHost({authorityRoot:root,projectRoot:projectRoot(),vaultPath:cfg.vault_path,team:target,hostDir:join(root,'host',target),ownerCredential:resolve(opt('--owner-credential')||defaultOwner),collectorPath:b.collector_file,endpointPath:b.endpoint_file,participant:p.id});
+            const observation=await host.observeModelInventory();inventoryInspections.push({participant:p.id,...observation});
+          }catch{inventoryInspections.push({participant:p.id,inventory:false,blocker:'inventory-host-unavailable'});}
+        }
+        v=loaded();t=v.state.teams[target];
         const quotaInspections=[];
         if(t.quota_policy?.automatic_redistribution){
           const {createTeamHost}=await import('./team-host.mjs');
@@ -175,7 +189,7 @@ export async function main(argv = process.argv.slice(2)) {
           v=loaded();t=v.state.teams[target];
         }
         const inspections = [];
-        for (const p of Object.values(t.participants).filter(p => nativeInspectionDue(p))) {
+        for (const p of Object.values(t.participants).filter(p => t.policy.protocol!==2 && nativeInspectionDue(p))) {
           // A strict budget needs a provider-backed control reservation. Never
           // turn a periodic freshness check into an unaccounted paid call.
           if (t.routing?.required) { inspections.push({ participant:p.id, verified:false, blocker:'bounded-control-invocation-required' }); continue; }
@@ -193,6 +207,19 @@ export async function main(argv = process.argv.slice(2)) {
           }
         }
         v=loaded(); t=v.state.teams[target];
+        if(t.policy.protocol===2){
+          const at=new Date().toISOString(),expired=Date.now()>=Date.parse(t.policy.expires_at);
+          const check={at,ok:!expired,kind:'native-calibration',blockers:expired?['native-calibration-expired-new-measurement-required']:[],inventory_inspections:inventoryInspections,native_inspections:inspections};
+          if(Buffer.byteLength(JSON.stringify(check))>200000)throw new Error('strength-evidence-exceeds-authority-budget');
+          const command={type:'strength-check',team:target,actor,at,check};
+          try{
+            const out=mutateAuthority(root,{key:randomUUID(),actor,expected_revision:v.revision,command},reduceTeamEvent,{authorize:state=>{if(authorizeActor(state,target,cred)!==actor)throw new Error('owner-changed');}});
+            print({refreshed:false,calibration_renewed:false,inventory_inspections:inventoryInspections,...out});
+          }catch(error){if(mode!=='watch'||!['authority-stale-revision','authority-locked'].includes(error.code))throw error;print({refreshed:false,retry:error.code});}
+          if(mode!=='watch')break;
+          for(let elapsed=0;elapsed<Math.min(interval,60)&&!stopped;elapsed++)await sleep(1000);
+          continue;
+        }
         const historical = (t.required_review_models || []).map(([provider, model_id, reasoning]) => ({ provider, model_id, reasoning }));
         const result = await discoverStrength({ participants: [...Object.values(t.participants), ...historical], domain: t.policy.domain, config, cache, now: Date.now() });
         cache = result.cache;
@@ -206,7 +233,7 @@ export async function main(argv = process.argv.slice(2)) {
         }
         v = latest; t = currentTeam;
         const at = new Date().toISOString();
-        const check = { at, ok: result.ok, blockers: result.blockers, unclassified: result.unclassified, profile_proofs: result.profile_proofs || [], native_inspections:inspections, quota_inspections:quotaInspections, cache };
+        const check = { at, ok: result.ok, blockers: result.blockers, unclassified: result.unclassified, profile_proofs: result.profile_proofs || [], native_inspections:inspections, quota_inspections:quotaInspections, inventory_inspections:inventoryInspections, cache };
         if (Buffer.byteLength(JSON.stringify(check)) > 200000) throw new Error('strength-evidence-exceeds-authority-budget');
         let command = { type: 'strength-check', actor, team: target, at, check };
         let changed = false;
@@ -223,11 +250,11 @@ export async function main(argv = process.argv.slice(2)) {
           print({ refreshed: false, retry: error.code });
           await sleep(1000); continue;
         }
-        print({ refreshed: Boolean(command.policy), priorities_changed: changed, ...out, blockers: result.blockers, unclassified: result.unclassified, native_inspections:inspections, quota_inspections:quotaInspections, identity_inspection: 'managed bound endpoints checked when due; unbound sessions remain unverified' });
+        print({ refreshed: Boolean(command.policy), priorities_changed: changed, ...out, blockers: result.blockers, unclassified: result.unclassified, native_inspections:inspections, quota_inspections:quotaInspections, inventory_inspections:inventoryInspections, identity_inspection: 'managed bound endpoints checked when due; unbound sessions remain unverified' });
         if (mode !== 'watch') break;
         // Provider permission lasts at most 60s. Renew before expiry, independently
         // of the owner's longer strength polling interval (discovery uses cache).
-        const delay=t.quota_policy?.automatic_redistribution?Math.min(interval,30):interval;
+        const delay=t.quota_policy?.automatic_redistribution?Math.min(interval,30):Math.min(interval,60);
         for (let elapsed = 0; elapsed < delay && !stopped; elapsed++) await sleep(1000);
       } while (!stopped);
     } finally { process.removeListener('SIGINT', stop); process.removeListener('SIGTERM', stop); }

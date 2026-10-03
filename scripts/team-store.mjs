@@ -100,6 +100,7 @@ export function readAuthority(root, reducer) {
     if (typeof e.actor !== 'string' || typeof e.key !== 'string' || e.request_digest !== digest({ actor: e.actor, command: e.command })) fail('authority-request-integrity', { revision });
     if (requests.some(r => r.actor === e.actor && r.key === e.key)) fail('authority-duplicate-request', { revision });
     if (!Number.isFinite(Date.parse(e.accepted_at))) fail('authority-invalid-event-time', { revision });
+    if(e.command.type?.startsWith('native-model-inventory-')&&e.command.request_key!==e.key)fail('inventory-store-request-key-mismatch');
     const next = bounded(reducer(structuredClone(state), structuredClone(e.command), { accepted_at: e.accepted_at, revision }), MAX_EVENT, 'authority-state-too-large');
     if (!next || !Object.hasOwn(next, 'state') || !Object.hasOwn(next, 'result') || digest(next.state) !== e.state_digest || digest(next.result) !== digest(e.result)) fail('authority-replay-mismatch', { revision });
     state = next.state; revision = e.seq; previous = hash;
@@ -160,6 +161,7 @@ export function mutateAuthority(root, request, reducer, { host = hostname(), con
       return { revision: completed.revision, result: completed.result, replayed: true };
     }
     if (expected_revision !== current.revision) fail('authority-stale-revision', { revision: current.revision, refresh: 'read authority state and retry with a new request key' });
+    if(command.type?.startsWith('native-model-inventory-')&&command.request_key!==key)fail('inventory-store-request-key-mismatch');
     if (validateNew) validateNew(structuredClone(current.state), structuredClone(command));
     // New timed transitions use the host clock; replay remains anchored to the
     // accepted event time. A caller cannot backdate an action to bypass expiry.

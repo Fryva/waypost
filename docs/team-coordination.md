@@ -536,3 +536,33 @@ execute work or create an independent review context. Architecture and implement
 coverage remain absent; legacy protected actions and policy downgrade are refused.
 New action admission, typed quota handover and full native execution remain separate
 work. Original capture expiry applies and recompilation does not renew observations.
+
+### Periodic native model inventory
+
+`waypost team host TEAM --operation model-inventory` gathers advisory model
+metadata through a separate owned Codex app-server or OpenCode server. Codex uses
+`model/list`, including every page; OpenCode uses health and `/provider`. No thread,
+session or model turn is started. Selected execution models and reasoning settings
+are omitted from this metadata descriptor. Claude has no verified inventory adapter
+and records an unsupported result before launch.
+
+`waypost team refresh TEAM` and `watch` check each due bound descriptor scope at
+most once per cycle. Inventory is due every 15 minutes, including after a failed
+attempt; successful observations expire after one hour. Failed, oversized,
+malformed, partial or late replies preserve the previous successful snapshot and
+its original expiry. Catalogue removals require a complete valid response in the
+same descriptor, adapter/schema and filter scope. A disconnected provider remains
+advertised, with its connection status recorded separately.
+
+`waypost team status TEAM --model-inventory` includes candidate details; ordinary
+status shows candidate counts. Entries contain native route/model IDs, advertised
+requested reasoning/variant options and explicit native input/output price hints.
+Unknown currency, price units, authorship and effective reasoning remain unknown.
+An advertised zero price is neither quota availability nor permission to run.
+Raw credentials, provider options, descriptions and responses are not published.
+
+Inventory cannot change policy, calibration expiry, retained strongest review
+requirements or role admission. Protocol-v2 periodic refresh only checks original
+calibration freshness and reselects candidates; it does not run identity inference,
+fetch proxy scores or silently purchase a new calibration cohort. Fresh calibrated
+execution admission and economical worker dispatch still require their own gates.

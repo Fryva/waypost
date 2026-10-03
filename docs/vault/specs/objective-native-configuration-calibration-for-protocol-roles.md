@@ -158,8 +158,38 @@ project review remains fresh, independent and strongest qualified.
     requirements; future policy cohorts must freshly cover it on their common scale.
     Missing/incomparable history blocks, and numeric priority never transfers.
 
+17. Periodic native model inventory uses only metadata requests on separately
+    owned read-only backends. Codex model/list and OpenCode GET /provider provide
+    advertised configurations; metadata-only initialization must work before a
+    selected model can start a thread. No turns, personal-session listings or
+    provider-auth/config secrets enter collection. Unsupported harnesses, including
+    Claude until a verified inventory API exists, remain explicitly unsupported.
+18. Inventory records bounded sanitized native route/model IDs, requested options,
+    advertised availability/modalities and price hints. Native route is not model
+    author; supported reasoning is not observed execution reasoning. Advertised
+    zero price is advisory for the stated input/output buckets and grants no
+    permission, exclusive quota, role rank or profile identity. Catalog candidates
+    require fresh calibration; they cannot enter active policy directly.
+19. A bound runtime collector records inventory separately from strength policy
+    and calibration, with original collection clocks, nonce and descriptor binding.
+    Periodic watch checks inventory freshness independently. A failed/unsupported
+    attempt preserves previous observation/expiry, and cache reads do not renew it.
+    Capture binds purpose/schema, team, participant/incarnation, runtime collector,
+    descriptor and collection nonce, with bounded original TTL and monotonic
+    last-success. Out-of-order responses cannot replace newer snapshots. Complete
+    means all native pages and allowlisted rows passed validation without limits,
+    truncation, missing pages or skipped invalid rows. Errors preserve the previous
+    snapshot; only complete success in the identical adapter/schema/descriptor/
+    filter scope establishes removal. Connected-route absence is not model removal.
+    Raw provider responses, auth/options/env fields and raw errors/logs are never
+    stored. Price hints preserve native units/currency when available, else unknown.
+    No inventory
+    refresh may renew calibration/admission or silently initiate paid trials.
+
 ## Modules & files on disk
 
+- `scripts/team-model-inventory.mjs`: advisory native catalogue projection and freshness.
+- `tests/team-model-inventory.test.mjs`: binding, secrets, partial replies and original clocks.
 - `scripts/native-model-profile.mjs`: already-budgeted trusted observations.
 - `scripts/team-role-suite.mjs`: installed generator/reference grader.
 - `scripts/team-role-calibration.mjs`: admission-bound capture/cohort.

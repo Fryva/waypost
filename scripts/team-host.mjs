@@ -11,7 +11,9 @@ import { createProtocolRoleSuite, formatProtocolTrial, summarizeProtocolRole } f
 import { createRoutingGrant, serializeRoutingGrant } from './team-evidence.mjs';
 import { collectQuotaObservation, serializeQuotaObservation, quotaEligible } from './team-quota.mjs';
 import { observeNativeProviderQuota } from './team-quota-native.mjs';
-import { createNativeEndpoint, validateNativeDescriptor } from './team-transport.mjs';
+import { createNativeEndpoint, createNativeModelInventoryEndpoint, nativeInventoryFailureClosure, validateNativeDescriptor } from './team-transport.mjs';
+import { harness as harnessDefinition } from './agents.mjs';
+import { collectModelInventory, metadataDescriptor } from './team-model-inventory.mjs';
 import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
 import { createOwnedRuntime, stopOwnedRuntime } from './team-owned-runtime.mjs';
 import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest } from './team-integration.mjs';
@@ -135,6 +137,28 @@ export function createTeamHost(config, dependencies={}) {
  async function installNativePolicy({cohortId,expectedPolicyRevision}={}) {
   const credential=owner();
   return mutate('native-policy-install-v2',{cohort_id:cohortId,expected_policy_revision:expectedPolicyRevision,scope:'waypost-protocol'},credential);
+ }
+ async function observeModelInventory(){
+  owner();const d=endpoint(),{t}=getTeam(),p=t.participants[d.participant],c=collector();
+  const actor=authorizeActor(load().state,team,c),registered=load().state.collectors?.[c.collector];
+  if(actor!=='collector:'+p.native_binding?.collector_id||!registered?.purposes?.includes('runtime'))fail('host-inventory-bound-runtime-collector-required');
+  const nonce=randomUUID(),startedAt=Date.parse(now());let transport;
+  try{
+    if(harnessDefinition(d.descriptor.harness).model_inventory?.supported!==true)fail('native-model-inventory-unsupported');
+    const factory=async()=>{
+      try{return await (dependencies.createNativeModelInventoryEndpoint||createNativeModelInventoryEndpoint)(metadataDescriptor(d.descriptor));}
+      catch(error){
+        const proof=nativeInventoryFailureClosure(error);if(!proof)throw error;
+        return {owns_process:true,listModelConfigurations:async()=>{throw error;},close(){},stopAndWait:async()=>proof};
+      }
+    };
+    transport=activeOperation?await activeOperation.native(factory):await factory();
+    const capture=await collectModelInventory({transport,team,participant:p,descriptor:d.descriptor,collector:c.collector,nonce,startedAt,now:()=>Date.parse(now())});
+    return mutate('native-model-inventory-capture-v1',{capture},c,'inventory-'+nonce).result;
+  }catch(error){
+    const blocker=typeof error.code==='string'&&/^(native|inventory|host)-[a-z0-9-]+$/.test(error.code)?error.code:'inventory-collection-failed';
+    return mutate('native-model-inventory-attempt-v1',{participant_id:p.id,participant_incarnation:p.incarnation,descriptor_digest:routingDigest(d.descriptor),nonce,started_at:new Date(startedAt).toISOString(),blocker},c,'inventory-failure-'+nonce).result;
+  }finally{if(transport)await closeNative(transport);}
  }
  async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
@@ -611,5 +635,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,subscriptionCalibrationTrial:options=>managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options)),subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:options=>managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options)),subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

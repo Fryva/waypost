@@ -94,5 +94,12 @@
     "confidence": "documented",
     "docs": "https://opencode.ai/docs/mcp-servers/",
     "notes": "Project cooperative stdio configuration only. Shared credentials do not bind native conversations; discovery, trust, approvals and desktop delivery need separate evidence."
+  },
+  "model_inventory": {
+    "protocol": 1,
+    "supported": true,
+    "confidence": "documented",
+    "docs": "https://opencode.ai/docs/server/",
+    "notes": "Metadata-only advertised configurations; no role strength or quota permission."
   }
 }

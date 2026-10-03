@@ -24,7 +24,7 @@ function fixture(t,options={}) {
   if(failOnce===c.type){failOnce=null;throw new Error('interrupted '+c.type);}
   if(accepted.has(request.key)){const prior=accepted.get(request.key);assert.deepEqual(c,prior.command);return {result:prior.result,revision,replayed:true};}
   revision++;
-  if(c.type.startsWith('subscription-')||c.type==='native-calibration-cohort-open-v2'){const next=reduceTeamEvent(state,c);Object.assign(team,next.state.teams.team);Object.assign(state,next.state);state.teams.team=team;const result=next.result;accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};}
+  if(c.type.startsWith('subscription-')||c.type==='native-calibration-cohort-open-v2'||c.type.startsWith('native-model-inventory-')){const next=reduceTeamEvent(state,c);Object.assign(team,next.state.teams.team);Object.assign(state,next.state);state.teams.team=team;const result=next.result;accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};}
   if(options.deferredType===c.type)return {result:{deferred:true},revision};
   if(c.type==='quota-capture-v1'){team.participants[c.observation.participant].quota_observation=c.observation;team.status='handover';}
   if(c.type==='begin-handover-v1')team.handover={old_leader:team.leader,old_epoch:team.epoch,target_epoch:team.epoch+1,acks:{},adoptions:{}};
@@ -430,4 +430,27 @@ test('native policy installation sends only owner selectors through CAS without 
 });
 test('deferred native installation never continues to external inference',async t=>{
  const f=fixture(t,{deferredType:'native-policy-install-v2'});await assert.rejects(f.host.installNativePolicy({cohortId:'cohort',expectedPolicyRevision:1}),/deferred-no-external-dispatch/);assert.deepEqual(f.calls,['native-policy-install-v2']);
+});
+
+function inventoryResponse(){return {protocol:1,harness:'codex',source:{method:'model/list',url:'https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/json/v2/ModelListResponse.json'},version:'unknown',version_provenance:'unknown',pages:1,complete:true,filters:{includeHidden:true},response:{data:[{id:'model',model:'model',hidden:false,isDefault:true,defaultReasoningEffort:'low',supportedReasoningEfforts:[{reasoningEffort:'low',description:'private-description'}],apiKey:'private-secret'}],nextCursor:null}};}
+test('host inventory uses metadata descriptor and reducer capture without inference or role changes',async t=>{
+ let descriptor,closed=0;const f=fixture(t,{dependencies:{createNativeModelInventoryEndpoint:async d=>{descriptor=d;return {owns_process:true,listModelConfigurations:async()=>inventoryResponse(),close(){closed++;}};}}});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only',model_id:'selected-model',reasoning:'low'}});
+ const model=structuredClone(f.team.participants.participant.model),policy=structuredClone(f.team.policy);
+ const result=await f.host.observeModelInventory();assert.equal(result.candidates,1);assert.equal(result.protected_roles_granted,false);assert.equal(closed,1);
+ assert.equal(descriptor.model_id,undefined);assert.equal(descriptor.reasoning,undefined);assert.equal(f.calls.includes('native-send'),false);assert.equal(f.calls.includes('native-create'),false);
+ assert.deepEqual(f.team.policy,policy);assert.deepEqual(f.team.participants.participant.model,model);
+ assert.equal(JSON.stringify(f.team.model_inventory).includes('private-'),false);assert.equal(f.team.model_inventory.participant.snapshot.projected.candidates[0].effective_reasoning,'unknown');
+});
+test('host inventory failure preserves successful expiry and sanitizes backend exceptions',async t=>{
+ let failing=false;const f=fixture(t,{dependencies:{createNativeModelInventoryEndpoint:async()=>({owns_process:true,listModelConfigurations:async()=>{if(failing)throw new Error('private-api-key');return inventoryResponse();},close(){}})}});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+ await f.host.observeModelInventory();const original=structuredClone(f.team.model_inventory.participant.snapshot);failing=true;
+ const result=await f.host.observeModelInventory();assert.equal(result.blocker,'inventory-collection-failed');assert.deepEqual(f.team.model_inventory.participant.snapshot,original);
+ assert.equal(JSON.stringify(f.requests).includes('private-api-key'),false);assert.equal(f.calls.includes('native-send'),false);
+});
+test('unsupported Claude inventory records a bounded failure before metadata process launch',async t=>{
+ let launched=false;const f=fixture(t,{dependencies:{createNativeModelInventoryEndpoint:async()=>{launched=true;throw new Error('unexpected');}}});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'claude',cwd:f.root,mode:'read-only'}});
+ const result=await f.host.observeModelInventory();assert.equal(result.blocker,'native-model-inventory-unsupported');assert.equal(launched,false);assert.equal(f.team.model_inventory.participant.snapshot,undefined);
 });

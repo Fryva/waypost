@@ -102,5 +102,12 @@
     "confidence": "documented",
     "docs": "https://learn.chatgpt.com/docs/extend/mcp?surface=cli",
     "notes": "Project cooperative stdio configuration only. Shared credentials do not bind native conversations; discovery, trust, approvals and desktop delivery need separate evidence."
+  },
+  "model_inventory": {
+    "protocol": 1,
+    "supported": true,
+    "confidence": "documented",
+    "docs": "https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/json/v2/ModelListResponse.json",
+    "notes": "Metadata-only advertised configurations; no role strength or quota permission."
   }
 }

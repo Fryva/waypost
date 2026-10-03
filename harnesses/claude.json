@@ -106,5 +106,12 @@
     "confidence": "documented",
     "docs": "https://code.claude.com/docs/en/desktop",
     "notes": "Project cooperative stdio configuration only. Shared credentials do not bind native conversations; discovery, trust, approvals and desktop delivery need separate evidence."
+  },
+  "model_inventory": {
+    "protocol": 1,
+    "supported": false,
+    "confidence": "inferred",
+    "docs": "https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/client.py",
+    "notes": "No verified native model inventory API; aliases are not discovery."
   }
 }

@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-10-01
 external_refs: {}
 tags: []
-code_refs: ["scripts/team.mjs", "scripts/model-strength.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team-cli.mjs", "models/strength-sources.json", "models/policy.schema.json", "models/descriptor.schema.json", "tests/team-models.test.mjs", "tests/team-store.test.mjs", "tests/model-strength.test.mjs", "tests/team-periodic.test.mjs", "tests/team-cli.test.mjs", "scripts/team-transport.mjs", "scripts/team-host.mjs", "scripts/team-evidence.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs", "scripts/native-model-profile.mjs", "tests/native-model-profile.test.mjs", "scripts/team-role-suite.mjs", "tests/team-role-suite.test.mjs", "scripts/team-role-calibration.mjs", "tests/team-role-calibration.test.mjs", "scripts/team-subscription.mjs", "tests/team-subscription.test.mjs", "tests/calibration-policy.test.mjs", "tests/native-policy-models.test.mjs", "tests/native-policy-state.test.mjs", "tests/helpers/native-calibration.mjs"]
+code_refs: ["scripts/team.mjs", "scripts/model-strength.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team-cli.mjs", "models/strength-sources.json", "models/policy.schema.json", "models/descriptor.schema.json", "tests/team-models.test.mjs", "tests/team-store.test.mjs", "tests/model-strength.test.mjs", "tests/team-periodic.test.mjs", "tests/team-cli.test.mjs", "scripts/team-transport.mjs", "scripts/team-host.mjs", "scripts/team-evidence.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs", "scripts/native-model-profile.mjs", "tests/native-model-profile.test.mjs", "scripts/team-role-suite.mjs", "tests/team-role-suite.test.mjs", "scripts/team-role-calibration.mjs", "tests/team-role-calibration.test.mjs", "scripts/team-subscription.mjs", "tests/team-subscription.test.mjs", "tests/calibration-policy.test.mjs", "tests/native-policy-models.test.mjs", "tests/native-policy-state.test.mjs", "tests/helpers/native-calibration.mjs", "scripts/team-model-inventory.mjs", "tests/team-model-inventory.test.mjs", "tests/native-model-inventory-transport.test.mjs", "tests/team-model-inventory-cli.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol", "objective-native-configuration-calibration-for-protocol-roles"]
 started_at: "2026-10-01T02:15:04.752Z"
 closed_at: null
@@ -79,3 +79,18 @@ No live messaging, model identity or cross-platform proof from document creation
 ## Attachments
 
 - [[model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review]]
+
+
+### Native catalogue discovery increment (2026-10-03)
+
+Codex/OpenCode metadata-only owned endpoints now feed a bound advisory catalogue.
+Periodic refresh checks original inventory clocks independently of calibration;
+protocol-v2 refresh cannot initiate identity inference or renew measurement expiry.
+Complete same-scope snapshots alone establish removals; route/price/option hints
+remain unranked. Claude inventory is explicitly unsupported until verified.
+Fresh independent critic returned scoped ship after capture alias, durable nonce
+key and watch cadence corrections. Focused integration/compatibility run:259/259
+pass; doctor0 issues/0 warnings. Live metadata collection waits for resources:
+Waypost refused launch and a60s resource wait (CPU unavailable). No new native
+catalogue, full calibrated cohort or protected execution is claimed. Full story
+acceptance and economical calibrated dispatch remain open.
