@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-02T23:57:00.096Z
+generated_at: 2026-10-03T04:49:37.434Z
 
 ---
 
@@ -35,6 +35,7 @@ full typed neighborhood, both directions, in one call.
 | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md | Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first | adr | accepted |
 | adr/memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md | Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job | adr | proposed |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | Model-aware teams across harness sessions with one authority and independent review | adr | accepted |
+| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | Native configuration profiles ranked by fresh role-specific calibration | adr | proposed |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | Subscription CLI token accounting with separate strict billing enforcement | adr | proposed |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
@@ -109,6 +110,9 @@ full typed neighborhood, both directions, in one call.
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0007-shared-vault-presence.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0010-coordination-follows-the-repository.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
+| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | mdlink | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/automatic-role-redistribution-on-verified-model-quota-exhaustion.md |

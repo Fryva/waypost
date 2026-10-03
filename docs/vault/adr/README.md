@@ -40,6 +40,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [automatic-role-redistribution-on-verified-model-quota-exhaustion](./automatic-role-redistribution-on-verified-model-quota-exhaustion.md) | Automatic role redistribution on verified model quota exhaustion | proposed | 2026-10-01 |
 | [automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets](./automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md) | Automatic task-aware model routing with capability floors and cost budgets | proposed | 2026-10-01 |
 | [subscription-cli-token-accounting-with-separate-strict-billing-enforcement](./subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md) | Subscription CLI token accounting with separate strict billing enforcement | proposed | 2026-10-02 |
+| [native-configuration-profiles-ranked-by-fresh-role-specific-calibration](./native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md) | Native configuration profiles ranked by fresh role-specific calibration | proposed | 2026-10-03 |
 
 ---
 
