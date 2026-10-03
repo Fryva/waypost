@@ -419,15 +419,24 @@ be repaired by a later frame or interpreted as zero usage.
 
 A terminal failure retains its bounded original receipt when counters are
 available. Complete describes observed terminal token buckets, not an invoice,
-provider-global quota or every hidden provider attempt. Native dollar estimates
-are ignored. The distinction between per-turn main-loop `usage` and accumulated
+provider-global quota or every hidden provider attempt. Native dollar estimates and the documented `costBasis` pricing-table marker
+are ignored. Optional native `thinkingTokens` must be a nonnegative safe integer
+within output tokens and is never added to the total. The distinction between per-turn main-loop `usage` and accumulated
 whole-call `modelUsage` makes the fresh single-turn boundary essential.
 See [Claude SDK usage tracking](https://code.claude.com/docs/en/agent-sdk/cost-tracking).
 
 Claude subscription Host admission remains unsupported: nonbillable pre-inference
 isolation inspection has not been verified. Transport telemetry does not enable
 bootstrap, calibration, coordinator acknowledgement or protected task execution.
-Desktop and live native telemetry require their own observations.
+Desktop telemetry requires its own observation. On 2026-10-03, a separate owned
+Claude Code 2.1.286 CLI session returned `OK` with observed
+`anthropic / claude-opus-5-5`, unknown reasoning, empty native tools and a complete
+first-turn span of 1,851 tokens (2 input, 4 output, 0 cache creation, 1,845 cache
+read). Owned process-group closure was confirmed. Two earlier smoke calls stayed
+partial until the observed `thinkingTokens` and documented `costBasis` fields were
+handled; their receipts were not reclassified. This verifies transport telemetry,
+not Host subscription admission, calibrated strength, role election or desktop
+execution.
 
 
 ### Native configuration observation foundation (protocol 2)

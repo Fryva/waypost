@@ -311,7 +311,7 @@ async function claudeEndpoint(d, spawnProcess) {
   const camel = ['inputTokens','outputTokens','cacheCreationInputTokens','cacheReadInputTokens'];
   const counters = (value,keys) => value && typeof value === 'object' && !Array.isArray(value) && keys.every(key => Number.isSafeInteger(value[key]) && value[key] >= 0) ? keys.map(key => value[key]) : null;
   const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
-  const modelFields = [...camel,'webSearchRequests','costUSD','contextWindow','maxOutputTokens','canonicalModel','provider'];
+  const modelFields = [...camel,'webSearchRequests','costUSD','contextWindow','maxOutputTokens','canonicalModel','provider','thinkingTokens','costBasis'];
   let initTools = null, gap = false, isolationGap = false, sends = 0, outputSeen = false;
   const terminals = new Map();
   // A late init cannot retroactively certify an earlier output. Stream gaps are
@@ -367,6 +367,7 @@ async function claudeEndpoint(d, spawnProcess) {
         gap = true; isolationGap = true;
       }
       if (!bounded(model,256) || /[\x00-\x1f\x7f]/.test(model) || !values || Object.keys(row).some(key => !modelFields.includes(key) || (row[key] !== null && typeof row[key] === 'object'))) { aggregate = null; continue; }
+      if ((Object.hasOwn(row,'thinkingTokens') && (!Number.isSafeInteger(row.thinkingTokens) || row.thinkingTokens < 0 || row.thinkingTokens > row.outputTokens)) || (Object.hasOwn(row,'costBasis') && !['list','managed','unknown'].includes(row.costBasis))) { aggregate = null; continue; }
       if (aggregate) values.forEach((n,i) => { aggregate[i] += BigInt(n); });
     }
     const sum = top?.reduce((total,n) => total + BigInt(n),0n);

@@ -104,3 +104,12 @@ test('malformed token rows cannot hide server-tool activity in this or a later m
   const r=await f.endpoint.send('probe',{id:'one'});assert.equal(r.usage_span.coverage,'partial');assert.equal(r.context_manifest.read_only,false);assert.equal(r.context_manifest.fresh_review_verified,false);await f.endpoint.stopAndWait();
  }
 });
+
+test('observed Claude 2.1.286 row metadata does not double count thinking or turn pricing into accounting',async t=>{
+ const f=await fixture(t,(user,emit)=>{emit(init(user));const r=terminal(user.session_id);Object.assign(r.modelUsage['claude-sonnet-4'],{thinkingTokens:4,costBasis:'list'});emit(r);});
+ assert.equal((await f.endpoint.send('probe',{id:'one'})).usage_span.actual_tokens,'25');
+ for(const extra of [{thinkingTokens:6},{thinkingTokens:-1},{thinkingTokens:'0'},{costBasis:'unrecognized'},{costBasis:{price:0}}]){
+  const bad=await fixture(t,(user,emit)=>{emit(init(user));const r=terminal(user.session_id);Object.assign(r.modelUsage['claude-sonnet-4'],extra);emit(r);});
+  assert.equal((await bad.endpoint.send('probe',{id:'one'})).usage_span.coverage,'partial');await bad.endpoint.stopAndWait();
+ }
+});
