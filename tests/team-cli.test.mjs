@@ -106,7 +106,9 @@ test('owner selects inherited-native v2 with local token telemetry capability an
  writeFileSync(join(f.root,'native-accounting.json'),JSON.stringify({policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1,at:new Date().toISOString()}));
  const result=f.ok('subscription-accounting-enable-v2','fixture-team','--request-file','native-accounting.json','--request-key','native-mode');
  assert.equal(result.result.billing_policy,'inherited-native');const status=f.ok('status','fixture-team').teams[0];
- assert.equal(status.accounting.protocol,2);assert.equal(status.accounting_capabilities.native_dispatch,'bounded-codex-opencode-identity-probe-only');
+ assert.equal(status.accounting_capabilities.calibration_policy_activation,false);
+ assert.match(f.run('host','fixture-team','--operation','calibration-summary','--cohort','missing').stderr,/opened-cohort-required/);
+ assert.equal(status.accounting.protocol,2);assert.equal(status.accounting_capabilities.native_dispatch,'bounded-codex-opencode-identity-and-fixed-trials');
  assert.equal(status.accounting_capabilities.provider_enforced_spend,false);assert.equal(status.accounting_capabilities.exclusive_provider_quota,false);
  assert.match(f.run('routing-enable','fixture-team').stderr,/subscription-mode-migration-required/);
 });

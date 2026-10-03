@@ -2,6 +2,7 @@
 // authorization: only an installed host's lookup of an already budgeted receipt.
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
+import { verifyProtocolRoleSuite,formatProtocolTrial } from './team-role-suite.mjs';
 
 const minted = new WeakMap();
 const TTL = 15 * 60 * 1000;
@@ -42,7 +43,7 @@ function receiptContext(result) {
   return ctx;
 }
 
-export async function collectNativeModelProfile({participant,observe,adapter_revision,requested_configuration,execution_environment,now=Date.now}={}) {
+async function collectProfile({participant,observe,adapter_revision,requested_configuration,execution_environment,suite,trial_id,now=Date.now}={},kind) {
   const binding = participantBinding(participant);
   if (typeof observe !== 'function') fail('trusted-observer-required');
   if (!text(adapter_revision,128)) fail('adapter-revision-required');
@@ -53,7 +54,23 @@ export async function collectNativeModelProfile({participant,observe,adapter_rev
   const ctx = receiptContext(result), correlation = boundedObject(result.correlation,4096);
   const expected = {...binding,native_id:result.native_id,context_id:ctx.id};
   if (Object.entries(expected).some(([key,value])=>correlation[key] !== value) || !text(correlation.nonce,128) || !text(correlation.invocation_id,128) || result.invocation_id !== correlation.invocation_id) fail('observation-binding-mismatch');
-  if ((result.text !== undefined && typeof result.text !== 'string') || (result.output !== undefined && typeof result.output !== 'string') || (result.text !== undefined && result.output !== undefined && result.text !== result.output) || typeof (result.output ?? result.text) !== 'string' || (result.output ?? result.text).trim() !== correlation.nonce) fail('nonce-receipt-mismatch');
+  if ((result.text !== undefined && typeof result.text !== 'string') || (result.output !== undefined && typeof result.output !== 'string') || (result.text !== undefined && result.output !== undefined && result.text !== result.output) || typeof (result.output ?? result.text) !== 'string' || Buffer.byteLength(result.output ?? result.text)>8192) fail('native-answer-required');
+  const output=result.output ?? result.text;
+  let admission=null,measurement=null,sealedReceiptDigest=null;
+  if(kind==='identity'){
+    if(output.trim() !== correlation.nonce)fail('nonce-receipt-mismatch');
+  }else{
+    verifyProtocolRoleSuite(suite);
+    const trial=suite.trials.find(t=>t.id===trial_id);if(!trial)fail('measurement-trial-required');
+    admission=boundedObject(result.admission,8192);measurement=boundedObject(admission.measurement,4096);
+    const expectedMeasurement={kind:'objective-role-trial',cohort_id:suite.cohort,role:trial.role,case_id:trial.id,profile_id:measurement.profile_id,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,prompt_digest:digest(formatProtocolTrial(suite,trial.id))};
+    if(digest(measurement)!==digest(expectedMeasurement)||!suite.profiles.includes(measurement.profile_id))fail('measurement-binding-mismatch');
+    if(admission.purpose!=='calibration'||admission.state!=='settled'||admission.context_quarantined!==false||admission.billing_policy!=='inherited-native'||admission.nonce!==correlation.invocation_id||correlation.nonce!==correlation.invocation_id||admission.invocation_id!=='subscription-'+admission.nonce||admission.native_id!==result.native_id||Object.entries(binding).some(([key,value])=>admission[key]!==value))fail('settled-measurement-admission-required');
+    const span=result.usage_span;
+    if(span?.coverage!=='complete'||span.native_id!==result.native_id||!text(span.turn_id,128)||typeof span.actual_tokens!=='string'||!/^[1-9][0-9]{0,17}$/.test(span.actual_tokens)||admission.actual_tokens!==span.actual_tokens)fail('measurement-complete-usage-required');
+    sealedReceiptDigest=digest({invocation_id:result.invocation_id,native_id:result.native_id,usage_span:span,actualModel:result.actualModel,context_manifest:ctx,output});
+    if(admission.output_digest!==digest(output)||admission.native_receipt_digest!==sealedReceiptDigest||admission.observed_at!==result.observed_at)fail('sealed-measurement-receipt-mismatch');
+  }
   const ms = clock(now), observed = Date.parse(result.observed_at);
   if (!text(result.observed_at,64) || !Number.isFinite(observed) || observed > ms || ms - observed > 30000 || (result.actualModel?.observed_at !== undefined && Date.parse(result.actualModel.observed_at) !== observed)) fail('stale-or-clock-mismatch');
   const actual = result.actualModel;
@@ -73,12 +90,14 @@ export async function collectNativeModelProfile({participant,observe,adapter_rev
       environment_digest:digest(environment)}
   };
   const profile_digest = digest(profile);
+  if(measurement && measurement.profile_id!=='native-profile-'+profile_digest)fail('measurement-observed-profile-changed');
   const observation = {
     protocol:2,identity_kind:'native-configuration',profile_id:'native-profile-'+profile_digest,profile_digest,profile,
     ...binding,native_id:result.native_id,context_id:ctx.id,nonce:correlation.nonce,invocation_id:correlation.invocation_id,
     observed_at:new Date(observed).toISOString(),expires_at:new Date(observed+TTL).toISOString(),
     receipt_digest:digest({invocation_id:result.invocation_id,output:result.output ?? result.text,actualModel:actual,context_manifest:ctx}),
-    provenance:'trusted-host-budgeted-native-receipt',roles:[],rank_eligible:false,
+    provenance:kind==='identity'?'trusted-host-budgeted-native-receipt':'trusted-host-settled-objective-measurement',roles:[],rank_eligible:false,
+    ...(measurement?{measurement,admission_id:admission.invocation_id,admission_digest:digest(admission),sealed_native_receipt_digest:sealedReceiptDigest}:{}),
     limitations:['Observed native configuration is not proof of a stable hidden backend, effective requested settings, authored model, billing or role qualification.']
   };
   observation.observation_id='native-observation-'+digest(observation);
@@ -86,6 +105,11 @@ export async function collectNativeModelProfile({participant,observe,adapter_rev
   minted.set(observation,digest(observation));
   return observation;
 }
+
+// The identity path keeps its literal nonce contract. Measurement has a separate
+// installed-suite/sealed-admission contract and never substitutes token output.
+export async function collectNativeModelProfile(options={}) {return collectProfile(options,'identity');}
+export async function collectNativeMeasurementProfile(options={}) {return collectProfile(options,'measurement');}
 
 export function verifyNativeModelProfile(observation,{participant,invocation_id,nonce,native_id,context_id,now=Date.now}={}) {
   if (!minted.has(observation) || minted.get(observation) !== digest(observation)) fail('collector-provenance-required');

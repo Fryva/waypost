@@ -1,5 +1,6 @@
 // Versioned local subscription token accounting. No native adapter or privilege is minted here.
 import { routingDigest } from './model-routing.mjs';
+import { applyProtocolCalibration,validateProtocolMeasurement,consumeProtocolMeasurement,sealProtocolMeasurement } from './team-role-calibration.mjs';
 const fail = code => { throw new Error(code); };
 const clone = value => structuredClone(value);
 const same = (a,b) => routingDigest(a) === routingDigest(b);
@@ -7,7 +8,7 @@ const digest = value => { if(typeof value !== 'string'||! /^[a-f0-9]{64}$/.test(
 const id = value => { if(typeof value !== 'string'||! /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value))fail('subscription-id-required'); return value; };
 const decimal = value => { if(typeof value !== 'string'||! /^(0|[1-9][0-9]{0,17})$/.test(value))fail('subscription-token-integer-required'); return BigInt(value); };
 const revision = value => { if(!Number.isSafeInteger(value)||value<1)fail('subscription-revision-required'); return value; };
-const bounded = value => { if(!value||typeof value!=='object'||Array.isArray(value)||Buffer.byteLength(JSON.stringify(value))>16384)fail('subscription-evidence-limit'); return clone(value); };
+const bounded = (value,max=16384) => { if(!value||typeof value!=='object'||Array.isArray(value)||Buffer.byteLength(JSON.stringify(value))>max)fail('subscription-evidence-limit'); return clone(value); };
 function fields(value,allowed) { if(Object.keys(value).some(key=>!allowed.includes(key)))fail('subscription-unknown-evidence-field'); }
 function tuple(value,allowUnknown=false) {
  const x=bounded(value);fields(x,['provider','model_id','reasoning']);
@@ -59,6 +60,7 @@ function admissionCurrent(t,x,p,allocation,now) {
  freshContext(x.context,now);exhausted(p);
 }
 export function applySubscriptionAccounting(s,t,c,now,H) {
+ const calibration=applyProtocolCalibration(s,t,c,now,H);if(calibration)return calibration;
  if (typeof c.type==='string' && c.type.endsWith('-v2')) {const advanced=applyInheritedNativeAccounting(s,t,c,now,H);if(advanced)return advanced;}
  if(!['subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','subscription-usage-v1','subscription-uncertain-v1','subscription-abort-v1'].includes(c.type))return null;
  bounded(c);let result;
@@ -188,7 +190,7 @@ function nativeAdmissionCurrent(t,x,p,allocation,now) {
 function applyInheritedNativeAccounting(s,t,c,now,H) {
  const kinds=['subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-context-retire-v2','subscription-reserve-v2','subscription-consume-v2','subscription-usage-v2','subscription-uncertain-v2','subscription-abort-v2'];
  if(!kinds.includes(c.type))return null;
- bounded(c);let result;
+ bounded(c,98304);let result;
  if(c.type==='subscription-accounting-enable-v2') {
   H.owner(s,c);const policy=bounded(c.policy);fields(policy,['bootstrap','billing_policy']);
   if(policy.bootstrap!==true||policy.billing_policy!=='inherited-native')fail('subscription-inherited-native-owner-policy-required');
@@ -223,7 +225,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    t.subscription_contexts||={};t.subscription_contexts[context.id]=value;result={context:context.id,billing_policy:'inherited-native'};
   } else if(c.type==='subscription-reserve-v2') {
    H.owner(s,c);const r=bounded(c.reservation);
-   fields(r,['id','participant','incarnation','context_id','purpose','requested_model','nonce','suite_digest','max_calls','timeout_ms','estimate_tokens','epoch','quota_revision','mode_revision','allocation_revision']);
+   fields(r,['id','participant','incarnation','context_id','purpose','requested_model','nonce','suite_digest','max_calls','timeout_ms','estimate_tokens','epoch','quota_revision','mode_revision','allocation_revision','measurement']);
    id(r.id);id(r.nonce);digest(r.suite_digest);tuple(r.requested_model);decimal(r.estimate_tokens);
    if(!['identity','calibration'].includes(r.purpose)||r.max_calls!==1||!Number.isInteger(r.timeout_ms)||r.timeout_ms<100||r.timeout_ms>300000)fail('subscription-bounded-bootstrap-required');
    const p=participant(t,r.participant),context=t.subscription_contexts?.[r.context_id],allocation=context&&s.subscription_allocations?.[context.unit_digest];
@@ -234,6 +236,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    if(s.subscription_invocations?.[r.id]||Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.nonce===r.nonce))fail('subscription-invocation-already-reserved');
    const used=totals(s,context.unit_digest);if(used.overshoot)fail('subscription-unreconciled-token-overshoot');if(used.uncertain)fail('subscription-uncertain-usage-blocks-admission');
    if(used.actual+used.reserved+decimal(r.estimate_tokens)>decimal(allocation.max_tokens))fail('subscription-token-allocation-exceeded');
+   const measurement=validateProtocolMeasurement(s,t,r,p,context,now);if(measurement)stored.measurement=measurement;
    s.subscription_invocations||={};s.subscription_invocations[r.id]=stored;result={reserved:r.id,bootstrap_only:true};
   } else if(c.type==='subscription-abort-v2') {
    H.owner(s,c);const x=s.subscription_invocations?.[c.invocation_id];
@@ -247,13 +250,14 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
     const used=totals(s,x.unit_digest),allocation=s.subscription_allocations[x.unit_digest];
     if(used.overshoot)fail('subscription-unreconciled-token-overshoot');
     if(used.uncertain||used.actual+used.reserved>decimal(allocation.max_tokens))fail('subscription-token-allocation-exceeded');
+    consumeProtocolMeasurement(s,t,x,now,c);
     x.state='consumed';x.consumed_at=c.at;result={consumed:x.id,bootstrap_only:true};
    } else if(c.type==='subscription-uncertain-v2') {
     if(!['consumed','uncertain'].includes(x.state))fail('subscription-consumed-invocation-required');x.state='uncertain';result={uncertain:x.id,reservation_retained:true};
    } else {
     if(!['consumed','uncertain','settled'].includes(x.state))fail('subscription-consumed-invocation-required');
-    const receipt=bounded(c.receipt);
-    fields(receipt,['nonce','context_id','native_id','incarnation','unit_scope','counter_schema','turn_id','billing_before','billing_after','observed_model','coverage','before','after','actual_tokens','isolation_verified']);
+    const receipt=bounded(c.receipt,65536);
+    fields(receipt,['nonce','context_id','native_id','incarnation','unit_scope','counter_schema','turn_id','billing_before','billing_after','observed_model','coverage','before','after','actual_tokens','isolation_verified','measurement']);
     if(receipt.nonce!==x.nonce||receipt.context_id!==x.context.id||receipt.native_id!==x.context.native_id||receipt.incarnation!==x.incarnation||!same(validateNativeCounterUnit(receipt.unit_scope,t.id),x.context.unit_scope)||receipt.counter_schema!==x.context.unit_scope.counter_schema)fail('subscription-terminal-native-binding-mismatch');
     if(receipt.turn_id!==null)id(receipt.turn_id);const beforeBilling=validateBillingObservation(receipt.billing_before),afterBilling=validateBillingObservation(receipt.billing_after);
     if(receipt.observed_model!==null)tuple(receipt.observed_model,true);
@@ -275,19 +279,27 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
       if(lower<previousUpper&&upper>previousLower||lower===previousLower&&upper===previousUpper)fail('subscription-native-span-already-accounted');
      }
     }
+    let measurementSeal=null,measurementBlocker=null;
+    try{measurementSeal=sealProtocolMeasurement(t,x,receipt,now);}catch(error){
+     // Optional calibration evidence cannot erase validated native accounting.
+     // Retain the immutable consumed slot, without a capture or qualification.
+     measurementBlocker=/^calibration-[a-z0-9-]{1,128}$/.test(error.message||'')?error.message:'calibration-seal-unavailable';
+    }
     // Validate the whole receipt before mutation; genuine billing changes remain usage.
     if(receipt.coverage==='complete'&&!changed) {
      const refined={...derived};for(const key of ['provider','model_id','reasoning'])if(knownModelField(receipt.observed_model?.[key]))refined[key]=receipt.observed_model[key];
      t.subscription_native_identity||={};t.subscription_native_identity[identityKey]=refined;
     }
     x.binding_changes=binding_changes;
+    if(measurementBlocker)x.measurement_blocker=measurementBlocker;
     if(changed)for(const context of Object.values(t.subscription_contexts||{}))if(context.protocol===2&&context.native_id===x.context.native_id&&context.collector===x.collector)context.quarantined=true;
     if(receipt.coverage!=='complete') {x.state='uncertain';x.partial_receipt=receipt;result={uncertain:x.id,reservation_retained:true,binding_changes,context_quarantined:changed};}
     else {
+     if(measurementSeal)x.measurement_seal=measurementSeal;
      x.state='settled';x.receipt=receipt;x.charged_tokens=receipt.actual_tokens;x.settled_at=c.at;
      if(actual>decimal(x.estimate_tokens))x.overshoot_allocation_revision=s.subscription_allocations[x.unit_digest].revision;
      const used=totals(s,x.unit_digest),allocation=s.subscription_allocations[x.unit_digest];
-     result={settled:x.id,actual_tokens:x.charged_tokens,overshoot:actual>decimal(x.estimate_tokens),allocation_blocked:used.overshoot||used.actual+used.reserved>decimal(allocation.max_tokens),binding_changes,context_quarantined:changed};
+     result={settled:x.id,actual_tokens:x.charged_tokens,overshoot:actual>decimal(x.estimate_tokens),allocation_blocked:used.overshoot||used.actual+used.reserved>decimal(allocation.max_tokens),binding_changes,context_quarantined:changed,...(measurementBlocker?{measurement_blocker:measurementBlocker}:{})};
     }
    }
   }

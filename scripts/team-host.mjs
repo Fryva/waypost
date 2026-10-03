@@ -7,6 +7,7 @@ import { readAuthority, mutateAuthority } from './team-store.mjs';
 import { reduceTeamEvent, authorizeActor } from './team-state.mjs';
 import { validateBillingObservation } from './team-subscription.mjs';
 import { routingDigest } from './model-routing.mjs';
+import { createProtocolRoleSuite, formatProtocolTrial, summarizeProtocolRole } from './team-role-suite.mjs';
 import { createRoutingGrant, serializeRoutingGrant } from './team-evidence.mjs';
 import { collectQuotaObservation, serializeQuotaObservation, quotaEligible } from './team-quota.mjs';
 import { observeNativeProviderQuota } from './team-quota-native.mjs';
@@ -82,6 +83,49 @@ export function createTeamHost(config, dependencies={}) {
   }finally{operationBusy=false;}
  }
  async function subscriptionBootstrap({nonce,estimateTokens='16000',maxTokens='20000'}={}) {
+  return subscriptionSingleCall({nonce,estimateTokens,maxTokens});
+ }
+ function calibrationBundle(cohort) {
+  const suite=createProtocolRoleSuite({seed:cohort.seed,cohort:cohort.id,profiles:cohort.members.map(m=>m.profile_id)});
+  if(suite.suite_digest!==cohort.suite_digest||suite.grading_digest!==cohort.criteria_digest)fail('host-calibration-installed-suite-changed');
+  return suite;
+ }
+ function calibrationCohort(cohortId) {
+  const {t}=getTeam();
+  if(typeof cohortId!=='string'||!Object.hasOwn(t.native_calibration_cohorts||{},cohortId))fail('host-calibration-opened-cohort-required');
+  return t.native_calibration_cohorts[cohortId];
+ }
+ function openCalibrationCohort(request) {
+  if(!request||typeof request!=='object'||Array.isArray(request)||Buffer.byteLength(JSON.stringify(request))>32768||Object.keys(request).some(k=>!['id','seed','members','roles','unit_allocations','expires_at'].includes(k)))fail('host-calibration-bounded-cohort-required');
+  const suite=createProtocolRoleSuite({seed:request.seed,cohort:request.id,profiles:request.members?.map(m=>m.profile_id)});
+  return mutate('native-calibration-cohort-open-v2',{cohort:{...request,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest}},owner()).result;
+ }
+ async function subscriptionCalibrationTrial({cohortId,caseId,nonce,estimateTokens='16000'}={}) {
+  const cohort=calibrationCohort(cohortId),suite=calibrationBundle(cohort),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
+  const member=cohort.members.find(m=>m.participant===p.id&&m.incarnation===p.incarnation&&m.model_revision===p.model.model_revision&&m.descriptor_digest===routingDigest(d.descriptor));
+  if(!member)fail('host-calibration-current-member-required');
+  const trial=suite.trials.find(x=>x.id===caseId&&cohort.roles.includes(x.role));if(!trial)fail('host-calibration-installed-case-required');
+  if(Date.parse(cohort.expires_at)<=Date.parse(now()))fail('host-calibration-cohort-expired');
+  const prompt=formatProtocolTrial(suite,trial.id);
+  const measurement={kind:'objective-role-trial',cohort_id:cohort.id,role:trial.role,case_id:trial.id,profile_id:member.profile_id,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,prompt_digest:routingDigest(prompt)};
+  const slot=routingDigest({profile:member.profile_id,role:trial.role,case:trial.id});
+  if(cohort.slots?.[slot]||Object.values(load().state.subscription_invocations||{}).some(x=>x.team===team&&x.state!=='aborted'&&x.measurement?.cohort_id===cohort.id&&x.measurement.profile_id===member.profile_id&&x.measurement.case_id===trial.id))fail('host-calibration-trial-slot-already-recorded-no-replay');
+  return subscriptionSingleCall({nonce,estimateTokens,trialBinding:{cohort,suite,trial,member,measurement,prompt}});
+ }
+ function calibrationSummary({cohortId}={}) {
+  const cohort=calibrationCohort(cohortId),suite=calibrationBundle(cohort),{t}=getTeam(),at=Date.parse(now());
+  const profiles=cohort.members.map(member=>{
+   const p=t.participants[member.participant],current=p&&!p.revoked&&p.availability!=='left'&&p.incarnation===member.incarnation&&p.model?.model_revision===member.model_revision&&p.native_binding?.descriptor_digest===member.descriptor_digest;
+   return {profile_id:member.profile_id,participant:member.participant,roles:cohort.roles.map(role=>{
+    const captures=Object.values(cohort.captures||{}).filter(c=>c.measurement.profile_id===member.profile_id&&c.measurement.role===role);
+    const summary=summarizeProtocolRole(suite,role,captures.map(c=>({trial_id:c.measurement.case_id,raw_answer:c.original_output})));
+    const fresh=current&&at<Date.parse(cohort.expires_at)&&captures.every(c=>at<Date.parse(c.expires_at));
+    return {...summary,current:fresh,qualification_candidate:fresh&&summary.qualified,authority_granted:false};
+   })};
+  });
+  return {cohort:cohort.id,expires_at:cohort.expires_at,profiles,policy_applied:false,protected_roles_granted:false};
+ }
+ async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('host-subscription-v2-owner-opt-in-required');
   if(!['codex','opencode'].includes(d.descriptor.harness)||d.descriptor.mode!=='read-only'||d.descriptor.harness==='opencode'&&d.descriptor.spawn_server!==true)fail('host-subscription-bootstrap-counter-adapter-unsupported');
@@ -91,8 +135,8 @@ export function createTeamHost(config, dependencies={}) {
   if(load().state.subscription_invocations?.[invocationId])fail('host-subscription-attempt-already-recorded-no-replay');
   if(p.quota_observation?.status==='exhausted')fail('host-subscription-quota-exhausted');
   const token='WAYPOST_PROBE_'+nonce;
-  const prompt='Synthetic protocol check. Return exactly this token and nothing else: '+token;
-  const suiteDigest=routingDigest({id:'waypost-identity-token',revision:1,template:'Return exactly WAYPOST_PROBE_<nonce>',read_only:true});
+  const prompt=trialBinding?trialBinding.prompt:'Synthetic protocol check. Return exactly this token and nothing else: '+token;
+  const suiteDigest=trialBinding?trialBinding.measurement.suite_digest:routingDigest({id:'waypost-identity-token',revision:1,template:'Return exactly WAYPOST_PROBE_<nonce>',read_only:true});
   const transport=await native(d.descriptor);
   let consumed=false,binding=null;
   async function accountReceipt(receipt,nativeFailure=null){
@@ -103,21 +147,30 @@ export function createTeamHost(config, dependencies={}) {
    const span=receipt.usage_span;
    const coverage=span?.schema===unit.counter_schema&&span.native_id===transport.native_id?span.coverage:'absent';
    const observed={provider:receipt.actualModel?.provider||'unknown',model_id:receipt.actualModel?.model_id||'unknown',reasoning:receipt.actualModel?.reasoning||'unknown'};
-   const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&receipt.context_manifest?.fresh_review_verified===true,billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null}},collector());
-   const probePassed=nativeFailure===null&&typeof receipt.output==='string'&&receipt.output.trim()===token;
+   const rawOutput=typeof receipt.output==='string'?receipt.output:null;
+   const nativeReceipt={invocation_id:receipt.invocation_id,native_id:receipt.native_id,usage_span:receipt.usage_span??null,actualModel:receipt.actualModel??null,context_manifest:receipt.context_manifest??null,output:rawOutput};
+   const measurementSeal=trialBinding&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=8192?{...trialBinding.measurement,observed_at:receipt.actualModel?.observed_at??now(),original_output:rawOutput,output_digest:routingDigest(rawOutput),native_receipt_digest:routingDigest(nativeReceipt),native_receipt:nativeReceipt,outcome:nativeFailure===null?'completed':'failed'}:null;
+   const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&receipt.context_manifest?.fresh_review_verified===true,billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null,...(measurementSeal?{measurement:measurementSeal}:{})}},collector());
+   const probePassed=!trialBinding&&nativeFailure===null&&typeof receipt.output==='string'&&receipt.output.trim()===token;
+   const eligibleReceipt=trialBinding?nativeFailure===null&&measurementSeal!==null:probePassed;
    let nativeProfile=null,profileBlocker=null;
-   if(probePassed && (settled.result.settled!==invocationId || settled.result.context_quarantined===true))profileBlocker='native-profile-accounting-not-terminal-or-context-quarantined';
-   if(probePassed && profileBlocker===null){
+   if(eligibleReceipt && (settled.result.settled!==invocationId || settled.result.context_quarantined===true))profileBlocker='native-profile-accounting-not-terminal-or-context-quarantined';
+   if(eligibleReceipt && profileBlocker===null){
     try{
-     const {collectNativeModelProfile,serializeNativeModelProfile}=await import('./native-model-profile.mjs');
+     const {collectNativeModelProfile,collectNativeMeasurementProfile,serializeNativeModelProfile}=await import('./native-model-profile.mjs');
      const observedAt=receipt.actualModel?.observed_at;
-     const profile=await collectNativeModelProfile({participant:p,adapter_revision:'waypost-native-profile-1',requested_configuration:{model_id:d.descriptor.model_id??null,provider_id:d.descriptor.provider_id??null,reasoning:d.descriptor.reasoning??null,mode:d.descriptor.mode,initial_instructions_digest:receipt.context_manifest?.initial_instructions_digest??null,rules_digest:d.descriptor.rules_digest??null},execution_environment:{platform:process.platform,architecture:process.arch},now:()=>Date.parse(now()),observe:async()=>({...receipt,observed_at:observedAt,correlation:{participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,nonce:token,invocation_id:receipt.invocation_id,native_id:receipt.native_id,context_id:receipt.context_manifest?.id}})});
+     const collectProfile=trialBinding?collectNativeMeasurementProfile:collectNativeModelProfile;
+     const profile=await collectProfile({...(trialBinding?{suite:trialBinding.suite,trial_id:trialBinding.trial.id}:{}),participant:p,adapter_revision:'waypost-native-profile-1',requested_configuration:{model_id:d.descriptor.model_id??null,provider_id:d.descriptor.provider_id??null,reasoning:d.descriptor.reasoning??null,mode:d.descriptor.mode,initial_instructions_digest:receipt.context_manifest?.initial_instructions_digest??null,rules_digest:d.descriptor.rules_digest??null},execution_environment:{platform:process.platform,architecture:process.arch},now:()=>Date.parse(now()),observe:async()=>({...receipt,observed_at:observedAt,correlation:{participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,nonce:trialBinding?nonce:token,invocation_id:receipt.invocation_id,native_id:receipt.native_id,context_id:receipt.context_manifest?.id},...(trialBinding?{admission:{purpose:'calibration',state:'settled',context_quarantined:false,billing_policy:'inherited-native',nonce,invocation_id:invocationId,participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,native_id:receipt.native_id,actual_tokens:span.actual_tokens,measurement:trialBinding.measurement,output_digest:measurementSeal.output_digest,native_receipt_digest:measurementSeal.native_receipt_digest,observed_at:observedAt}}:{})})});
      nativeProfile=serializeNativeModelProfile(profile,{now:()=>Date.parse(now())});
     }catch(error){profileBlocker=String(error.message||'native-profile-unavailable').slice(0,256);}
    }
+   let trialCapture=null;
+   if(trialBinding && nativeProfile){
+    try{trialCapture=mutate('subscription-measurement-capture-v2',{invocation_id:invocationId,nonce,capture:{measurement:trialBinding.measurement,original_output:rawOutput,output_digest:measurementSeal.output_digest,native_receipt_digest:measurementSeal.native_receipt_digest,native_id:receipt.native_id,context_id:contextId,turn_id:span.turn_id,incarnation:p.incarnation,descriptor_digest:routingDigest(d.descriptor),observed_at:nativeProfile.observed_at,expires_at:new Date(Math.min(Date.parse(nativeProfile.expires_at),Date.parse(trialBinding.cohort.expires_at))).toISOString(),profile_digest:nativeProfile.profile_digest,profile_snapshot_digest:routingDigest(nativeProfile.profile),context_snapshot_digest:routingDigest(receipt.context_manifest),observation_id:nativeProfile.observation_id,native_profile:nativeProfile}},collector()).result;}catch(error){profileBlocker=String(error.code||error.message||'calibration-capture-unavailable').slice(0,256);}
+   }
    // This detached observation is diagnostic evidence only. It is not a policy,
    // calibration, enrollment update or authority grant; the context is retired.
-   return {...settled.result,invocation_id:invocationId,probe_passed:probePassed,native_failure:nativeFailure,observed_model:observed,observed_identity_kind:receipt.context_manifest?.model_provider_is_billing_route?'native-routing-id':'native-effective-model',usage_span:span||null,metadata_blocker:metadataBlocker,native_profile:nativeProfile,native_profile_status:nativeProfile?'retired-observation':'unavailable',native_profile_blocker:profileBlocker,billing_policy:'inherited-native',protected_roles_granted:false};
+   return {...settled.result,invocation_id:invocationId,probe_passed:probePassed,...(trialBinding?{calibration_trial:trialBinding.trial.id,trial_capture:trialCapture}:{}),native_failure:nativeFailure,observed_model:observed,observed_identity_kind:receipt.context_manifest?.model_provider_is_billing_route?'native-routing-id':'native-effective-model',usage_span:span||null,metadata_blocker:metadataBlocker,native_profile:nativeProfile,native_profile_status:nativeProfile?'retired-observation':'unavailable',native_profile_blocker:profileBlocker,billing_policy:'inherited-native',protected_roles_granted:false};
   }
   try{
    const isolated=await transport.inspectContext();if(isolated.verified!==true||transport.owns_process===false)fail('host-subscription-owned-read-only-context-unverified');
@@ -134,14 +187,15 @@ export function createTeamHost(config, dependencies={}) {
    const context={id:contextId,native_id:transport.native_id,descriptor_digest:routingDigest(d.descriptor),incarnation:p.incarnation,unit_scope:unit,billing_observation:before,observed_model:null,observed_at:now(),expires_at:new Date(Date.parse(now())+300000).toISOString(),read_only:true,owned:true};
    mutate('subscription-context-capture-v2',{participant_id:p.id,context},collector());
    let allocation=load().state.subscription_allocations?.[unitDigest];
-   if(!allocation||BigInt(maxTokens)>BigInt(allocation.max_tokens)){
+   if(trialBinding&&!allocation)fail('host-calibration-allocation-required');
+   if(!trialBinding&&(!allocation||BigInt(maxTokens)>BigInt(allocation.max_tokens))){
     mutate('subscription-allocation-update-v2',{unit_scope:unit,max_tokens:maxTokens,revision:(allocation?.revision||0)+1},o);
     allocation=load().state.subscription_allocations[unitDigest];
    }
    const latest=getTeam().t;
-   mutate('subscription-reserve-v2',{reservation:{id:invocationId,participant:p.id,incarnation:p.incarnation,context_id:contextId,purpose:'identity',requested_model:{provider:'unknown',model_id:d.descriptor.model_id||'native-default',reasoning:d.descriptor.reasoning||'native-default'},nonce,suite_digest:suiteDigest,max_calls:1,timeout_ms:d.descriptor.timeout_ms||60000,estimate_tokens:estimateTokens,epoch:latest.epoch,quota_revision:latest.quota_revision||0,mode_revision:latest.accounting.revision,allocation_revision:allocation.revision}},o);
-   mutate('subscription-consume-v2',{invocation_id:invocationId,nonce,native_id:transport.native_id},collector());consumed=true;
-   const receipt=await transport.send(prompt,{id:nonce,purpose:'identity',read_only:true,max_output_chars:256});
+   mutate('subscription-reserve-v2',{reservation:{id:invocationId,participant:p.id,incarnation:p.incarnation,context_id:contextId,purpose:trialBinding?'calibration':'identity',...(trialBinding?{measurement:trialBinding.measurement}:{}),requested_model:{provider:'unknown',model_id:d.descriptor.model_id||'native-default',reasoning:d.descriptor.reasoning||'native-default'},nonce,suite_digest:suiteDigest,max_calls:1,timeout_ms:d.descriptor.timeout_ms||60000,estimate_tokens:estimateTokens,epoch:latest.epoch,quota_revision:latest.quota_revision||0,mode_revision:latest.accounting.revision,allocation_revision:allocation.revision}},o);
+   mutate('subscription-consume-v2',{invocation_id:invocationId,nonce,native_id:transport.native_id,...(trialBinding?{prompt_digest:trialBinding.measurement.prompt_digest}:{})},collector());consumed=true;
+   const receipt=await transport.send(prompt,{id:nonce,purpose:trialBinding?'calibration':'identity',read_only:true,max_output_chars:trialBinding?8192:256});
    return await accountReceipt(receipt);
   }catch(error){
    if(consumed&&binding&&error.native_receipt&&['consumed','uncertain'].includes(load().state.subscription_invocations?.[invocationId]?.state)){
@@ -546,5 +600,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,openCalibrationCohort,calibrationSummary,subscriptionCalibrationTrial:options=>managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options)),subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

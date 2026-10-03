@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { reduceTeamEvent } from '../scripts/team-state.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
+import { createProtocolRoleSuite,formatProtocolTrial } from '../scripts/team-role-suite.mjs';
 import { createTeamHost, validateBoundedUsageReceipt } from '../scripts/team-host.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 function fixture(t,options={}) {
@@ -23,7 +24,7 @@ function fixture(t,options={}) {
   if(failOnce===c.type){failOnce=null;throw new Error('interrupted '+c.type);}
   if(accepted.has(request.key)){const prior=accepted.get(request.key);assert.deepEqual(c,prior.command);return {result:prior.result,revision,replayed:true};}
   revision++;
-  if(c.type.startsWith('subscription-')){const next=reduceTeamEvent(state,c);Object.assign(team,next.state.teams.team);Object.assign(state,next.state);state.teams.team=team;const result=next.result;accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};}
+  if(c.type.startsWith('subscription-')||c.type==='native-calibration-cohort-open-v2'){const next=reduceTeamEvent(state,c);Object.assign(team,next.state.teams.team);Object.assign(state,next.state);state.teams.team=team;const result=next.result;accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};}
   if(options.deferredType===c.type)return {result:{deferred:true},revision};
   if(c.type==='quota-capture-v1'){team.participants[c.observation.participant].quota_observation=c.observation;team.status='handover';}
   if(c.type==='begin-handover-v1')team.handover={old_leader:team.leader,old_epoch:team.epoch,target_epoch:team.epoch+1,acks:{},adoptions:{}};
@@ -41,10 +42,11 @@ function fixture(t,options={}) {
   if(c.type==='handover-accept-v1'){team.leader=team.candidate;team.candidate=null;team.status='active';team.epoch++;}
   const result={type:c.type};accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};
  };
- let metadataReads=0;
+ let metadataReads=0,nativeCreated=0;
  const native=async()=>{
+  const nativeId=options.freshNativeEachCall?'owned-native-'+(++nativeCreated):'owned-native';let endpointMetadataReads=0;
   calls.push('native-create');
-  return {native_id:'owned-native',usage_counter_schema:options.openCodeProbe?'opencode-native-normalized-step-total-v1':'codex-thread-cumulative-total-v1',owns_process:true,async inspectContext(){return {verified:options.nativeProbe===true};},async captureAccountingMetadata(){calls.push('metadata-read');const readIndex=metadataReads++;if(options.metadataPostFailure&&readIndex>0)throw new Error('not-a-public-error');return {provider:'openai',origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'native-runtime',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:options.initialMetadataUnstable?1:0,consistent:!options.initialMetadataUnstable||readIndex>0};},async send(prompt,invocation){calls.push('native-send');if(options.failure)throw new Error('timeout');const result={invocation_id:invocation.id,output:options.nativeProbe?prompt.split(' ').at(-1):invocation.id,usage_span:options.nativeProbe?{schema:options.openCodeProbe?'opencode-native-normalized-step-total-v1':'codex-thread-cumulative-total-v1',native_id:'owned-native',turn_id:'probe-turn',coverage:options.partialUsage?'partial':'complete',before:'0',after:'30',actual_tokens:'30'}:undefined,native_id:'owned-native',actualModel:{provider:options.provider||'openai',model_id:'model',reasoning:'low'},context_manifest:{id:'ctx',native_id:'owned-native',fresh:true,read_only:true,fresh_review_verified:!options.isolationFailure,model_provider_is_billing_route:options.billingRoute||false}};if(options.nativeProfile){result.actualModel.observed_at=new Date().toISOString();Object.assign(result.context_manifest,{harness:options.openCodeProbe?'opencode':'codex',version:options.openCodeProbe?'1.18.33':'unknown',version_provenance:options.openCodeProbe?'native-health':'unverified',cwd:root,mode:'read-only',isolation:'read-only',tools:[],author_contexts:[],author_history_inherited:false,provenance:'adapter-isolated',initial_instructions_digest:'a'.repeat(64)});}
+  return {native_id:nativeId,usage_counter_schema:options.openCodeProbe?'opencode-native-normalized-step-total-v1':'codex-thread-cumulative-total-v1',owns_process:true,async inspectContext(){return {verified:options.nativeProbe===true};},async captureAccountingMetadata(){calls.push('metadata-read');const readIndex=options.freshNativeEachCall?endpointMetadataReads++:metadataReads++;if(options.metadataPostFailure&&readIndex>0)throw new Error('not-a-public-error');return {provider:'openai',origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'native-runtime',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:options.initialMetadataUnstable?1:0,consistent:!options.initialMetadataUnstable||readIndex>0};},async send(prompt,invocation){calls.push('native-send');if(options.failure)throw new Error('timeout');const result={invocation_id:invocation.id,output:invocation.purpose==='calibration'&&typeof options.trialAnswer==='function'?await options.trialAnswer(prompt,invocation):options.nativeProbe?prompt.split(' ').at(-1):invocation.id,usage_span:options.nativeProbe?{schema:options.openCodeProbe?'opencode-native-normalized-step-total-v1':'codex-thread-cumulative-total-v1',native_id:nativeId,turn_id:'probe-turn',coverage:options.partialUsage?'partial':'complete',before:'0',after:'30',actual_tokens:'30'}:undefined,native_id:nativeId,actualModel:{provider:options.provider||'openai',model_id:'model',reasoning:'low'},context_manifest:{id:options.freshNativeEachCall?'ctx-'+nativeCreated:'ctx',native_id:nativeId,fresh:true,read_only:true,fresh_review_verified:!options.isolationFailure,model_provider_is_billing_route:options.billingRoute||false}};if(options.nativeProfile){result.actualModel.observed_at=new Date().toISOString();Object.assign(result.context_manifest,{harness:options.openCodeProbe?'opencode':'codex',version:options.openCodeProbe?'1.18.33':'unknown',version_provenance:options.openCodeProbe?'native-health':'unverified',cwd:root,mode:'read-only',isolation:'read-only',tools:[],author_contexts:[],author_history_inherited:false,provenance:'adapter-isolated',initial_instructions_digest:'a'.repeat(64)});}
     if(options.nativeReceiptFailure){const {output,...receipt}=result;throw Object.assign(new Error('private output is not a public receipt'),{code:'native-answer-budget',native_receipt:receipt});}return result;},close(){calls.push('native-close');},...(options.stopWait?{async stopAndWait(){calls.push('native-stop-wait');await options.stopWait();calls.push('native-stopped');}}:{})};
  };
  const dependencies={load,mutate,createNativeEndpoint:native,...options.dependencies};
@@ -323,4 +325,89 @@ for(const condition of [{partialUsage:true},{metadataPostFailure:true}])test('no
  const result=await f.host.subscriptionBootstrap({nonce:'guarded-profile',estimateTokens:'40',maxTokens:'100'});
  assert.equal(result.probe_passed,true);assert.equal(result.native_profile,null);assert.equal(result.native_profile_blocker,'native-profile-accounting-not-terminal-or-context-quarantined');
  assert.equal(f.state.subscription_invocations['subscription-guarded-profile'].state,condition.partialUsage?'uncertain':'settled');
+});
+
+async function calibrationHostFixture(t,overrides={}) {
+ const options={nativeProbe:true,nativeProfile:true,openCodeProbe:true,billingRoute:true,freshNativeEachCall:true,...overrides};
+ const f=fixture(t,options);
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'opencode',cwd:f.root,mode:'read-only',spawn_server:true}});
+ function ownerEvent(type,data){const next=reduceTeamEvent(f.state,{type,team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),...data});Object.assign(f.team,next.state.teams.team);Object.assign(f.state,next.state);f.state.teams.team=f.team;return next.result;}
+ ownerEvent('subscription-accounting-enable-v2',{policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});
+ const initial=await f.host.subscriptionBootstrap({nonce:'calibration-baseline',estimateTokens:'40',maxTokens:'100'});
+ assert.ok(initial.native_profile);assert.equal(initial.native_profile_blocker,null);
+ const unit_digest=Object.keys(f.state.subscription_allocations)[0],unit_scope=f.state.subscription_allocations[unit_digest].unit_scope;
+ ownerEvent('subscription-allocation-update-v2',{unit_scope,max_tokens:'2000',revision:2});
+ const p=f.team.participants.participant;
+ const request={id:'host-cohort',seed:'host-seed',members:[{participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:p.native_binding.descriptor_digest,profile_id:initial.native_profile.profile_id}],roles:['coordinate','review'],unit_allocations:[{unit_digest,max_tokens:'1000',allocation_revision:2}],expires_at:new Date(Date.now()+600000).toISOString()};
+ const suite=createProtocolRoleSuite({seed:request.seed,cohort:request.id,profiles:[initial.native_profile.profile_id]});
+ options.trialAnswer=(prompt,invocation)=>{
+  assert.equal(invocation.purpose,'calibration');assert.equal(invocation.read_only,true);assert.equal(invocation.max_output_chars,8192);
+  const trial=suite.trials.find(row=>formatProtocolTrial(suite,row.id)===prompt);assert.ok(trial,'only the installed trial prompt may be sent');return JSON.stringify(trial.answer_key);
+ };
+ const trial=suite.trials.find(row=>row.role==='coordinate'&&row.variant===0);
+ const beforeOpen=f.calls.filter(x=>x==='native-create'||x==='native-send').length;
+ await f.host.openCalibrationCohort(request);
+ assert.equal(f.calls.filter(x=>x==='native-create'||x==='native-send').length,beforeOpen);
+ return {...f,options,initial,request,suite,trial,ownerEvent};
+}
+
+test('host calibration consumes installed prompt before one fresh call and captures its original JSON',async t=>{
+ const f=await calibrationHostFixture(t),beforeModel=structuredClone(f.team.participants.participant.model),beforeAllocations=structuredClone(f.state.subscription_allocations);
+ const begin=f.calls.length;
+ const result=await f.host.subscriptionCalibrationTrial({cohortId:f.request.id,caseId:f.trial.id,nonce:'role-trial',estimateTokens:'40'});
+ assert.equal(result.actual_tokens,'30');assert.equal(result.trial_capture.pass,true);assert.equal(result.protected_roles_granted,false);
+ const x=f.state.subscription_invocations['subscription-role-trial'];assert.equal(x.state,'settled');assert.equal(x.purpose,'calibration');assert.equal(x.measurement.case_id,f.trial.id);
+ assert.equal(x.measurement_seal.original_output,JSON.stringify(f.trial.answer_key));assert.equal(x.measurement_seal.native_receipt.output,x.measurement_seal.original_output);
+ assert.equal(x.measurement_seal.native_receipt.invocation_id,'role-trial');assert.notEqual(x.context.id,x.measurement_seal.native_receipt.context_manifest.id);
+ const trialCalls=f.calls.slice(begin);assert.ok(trialCalls.indexOf('subscription-consume-v2')<trialCalls.indexOf('native-send'));assert.equal(trialCalls.filter(x=>x==='native-send').length,1);
+ const consumeRequest=f.requests.find(r=>r.command.type==='subscription-consume-v2'&&r.command.nonce==='role-trial');assert.equal(consumeRequest.command.prompt_digest,routingDigest(formatProtocolTrial(f.suite,f.trial.id)));
+ assert.deepEqual(f.state.subscription_allocations,beforeAllocations);assert.deepEqual(f.team.participants.participant.model,beforeModel);
+ assert.equal(Object.keys(f.team.native_calibration_cohorts[f.request.id].captures).length,1);
+ const nativeCalls=f.calls.filter(x=>x==='native-create'||x==='native-send').length;
+ const summary=await f.host.calibrationSummary({cohortId:f.request.id});
+ assert.equal(summary.cohort,f.request.id);assert.equal(summary.policy_applied,false);assert.equal(summary.protected_roles_granted,false);
+ const row=summary.profiles[0].roles.find(r=>r.role==='coordinate');assert.equal(row.samples,1);assert.equal(row.passes,1);assert.equal(row.qualified,false);assert.equal(row.authority_granted,false);
+ assert.equal(f.calls.filter(x=>x==='native-create'||x==='native-send').length,nativeCalls);
+ await assert.rejects(f.host.subscriptionCalibrationTrial({cohortId:f.request.id,caseId:f.trial.id,nonce:'different-trial-nonce',estimateTokens:'40'}),/slot|consumed|recorded|trial/);
+ assert.equal(f.calls.filter(x=>x==='native-create'||x==='native-send').length,nativeCalls);assert.equal(f.state.subscription_invocations['subscription-different-trial-nonce'],undefined);
+});
+
+test('host calibration pays for malformed JSON and grades the original answer as failure without retry',async t=>{
+ const f=await calibrationHostFixture(t);f.options.trialAnswer=()=>'{"eligible_ids":[],"eligible_ids":["fake"]}';
+ const allocation=structuredClone(f.state.subscription_allocations),result=await f.host.subscriptionCalibrationTrial({cohortId:f.request.id,caseId:f.trial.id,nonce:'malformed-answer',estimateTokens:'40'});
+ assert.equal(result.actual_tokens,'30');assert.equal(result.trial_capture.pass,false);
+ const x=f.state.subscription_invocations['subscription-malformed-answer'];assert.equal(x.state,'settled');assert.equal(x.charged_tokens,'30');assert.equal(x.measurement_seal.original_output,'{"eligible_ids":[],"eligible_ids":["fake"]}');
+ const capture=Object.values(f.team.native_calibration_cohorts[f.request.id].captures)[0];assert.equal(capture.grade.reason,'duplicate-object-member');assert.equal(capture.original_output,x.measurement_seal.original_output);
+ assert.deepEqual(f.state.subscription_allocations,allocation);
+ const summary=await f.host.calibrationSummary({cohortId:f.request.id});const role=summary.profiles[0].roles.find(r=>r.role==='coordinate');assert.equal(role.samples,1);assert.equal(role.passes,0);assert.equal(role.qualification_candidate,false);
+ const launches=f.calls.filter(c=>c==='native-create'||c==='native-send').length;
+ await assert.rejects(f.host.subscriptionCalibrationTrial({cohortId:f.request.id,caseId:f.trial.id,nonce:'wash-failure',estimateTokens:'40'}));
+ assert.equal(f.calls.filter(c=>c==='native-create'||c==='native-send').length,launches);
+});
+
+for(const condition of [{partialUsage:true},{isolationFailure:true},{metadataPostFailure:true},{nativeReceiptFailure:true}])test('host calibration preserves accounting and consumed slot without capture: '+JSON.stringify(condition),async t=>{
+ const f=await calibrationHostFixture(t);Object.assign(f.options,condition);
+ const allocation=structuredClone(f.state.subscription_allocations);
+ const result=await f.host.subscriptionCalibrationTrial({cohortId:f.request.id,caseId:f.trial.id,nonce:'incomplete-trial',estimateTokens:'40'});
+ const x=f.state.subscription_invocations['subscription-incomplete-trial'];
+ assert.equal(x.state,condition.partialUsage?'uncertain':'settled');
+ if(condition.partialUsage){assert.equal(x.charged_tokens,undefined);assert.equal(x.estimate_tokens,'40');}else assert.equal(x.charged_tokens,'30');
+ assert.equal(result.trial_capture,null);assert.equal(result.protected_roles_granted,false);
+ assert.equal(Object.keys(f.team.native_calibration_cohorts[f.request.id].slots).length,1);assert.equal(Object.keys(f.team.native_calibration_cohorts[f.request.id].captures).length,0);
+ if(condition.isolationFailure)assert.equal(x.binding_changes.isolation,true);
+ if(condition.metadataPostFailure)assert.equal(x.binding_changes.billing_after,true);
+ if(condition.nativeReceiptFailure){assert.equal(result.native_failure,'native-answer-budget');assert.equal(x.measurement_seal,undefined);}
+ assert.deepEqual(f.state.subscription_allocations,allocation);
+ const launches=f.calls.filter(c=>c==='native-create'||c==='native-send').length;
+ await assert.rejects(f.host.subscriptionCalibrationTrial({cohortId:f.request.id,caseId:f.trial.id,nonce:'second-incomplete',estimateTokens:'40'}));
+ assert.equal(f.calls.filter(c=>c==='native-create'||c==='native-send').length,launches);
+ const summary=await f.host.calibrationSummary({cohortId:f.request.id});assert.equal(summary.profiles[0].roles.every(r=>r.samples===0&&r.qualification_candidate===false),true);
+});
+
+test('host calibration cannot auto-expand cohort or native budget to fit an estimate',async t=>{
+ const f=await calibrationHostFixture(t),before=structuredClone(f.state.subscription_allocations),allocationUpdates=f.calls.filter(c=>c==='subscription-allocation-update-v2').length;
+ await assert.rejects(f.host.subscriptionCalibrationTrial({cohortId:f.request.id,caseId:f.trial.id,nonce:'excessive-estimate',estimateTokens:'1001'}),/allocation|budget/);
+ assert.deepEqual(f.state.subscription_allocations,before);assert.equal(Object.keys(f.team.native_calibration_cohorts[f.request.id].slots).length,0);assert.equal(f.state.subscription_invocations['subscription-excessive-estimate'],undefined);
+ assert.equal(f.calls.filter(c=>c==='native-send').length,1); // Only the earlier identity bootstrap spent an inference.
+ assert.equal(f.calls.filter(c=>c==='subscription-allocation-update-v2').length,allocationUpdates);
 });

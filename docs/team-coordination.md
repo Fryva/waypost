@@ -439,5 +439,53 @@ nested duplicate JSON member names, including escaped equivalents. Exact grading
 per-family/total/safety gates and finite-suite Wilson intervals are tested.
 `qualified` is a mathematical result from raw answers; `authority_granted` is
 always false. Caller-built answers cannot become authenticated model scores.
-Native measurement admission, sealed receipts, complete common cohorts and policy
-integration remain separate pending work.
+Authenticated native measurement admission and sealed receipts are available
+through the host operations below. Complete common cohorts and policy activation
+remain pending; these trials do not grant roles.
+
+
+### Authenticated single-call calibration trials (protocol 2)
+
+An owner opens an immutable cohort after collecting its members' native profile
+IDs and setting token allocations for each native counter schema. The bounded
+request contains only `id`, `seed`, `members`, `roles`, `unit_allocations` and
+`expires_at` (at most fifteen minutes ahead). Each member binds participant,
+incarnation, model revision, descriptor digest and profile ID. Each allocation
+binds its existing unit digest, token limit and allocation revision. Different
+native counter schemas retain separate limits. The host derives installed suite
+and grading digests; the request cannot supply prompts, answers or scores.
+
+```sh
+waypost team host TEAM --operation calibration-cohort-open --request-file cohort.json
+waypost team host TEAM --operation calibration-trial --participant PARTICIPANT \
+  --endpoint-file endpoint.json --cohort COHORT --case INSTALLED_CASE \
+  --nonce UNIQUE_NONCE --estimate-tokens 16000
+waypost team host TEAM --operation calibration-summary --cohort COHORT
+```
+
+Each trial consumes its installed prompt and immutable profile/role/case slot
+before one inference in a separate owned empty read-only context. Another case
+cannot reuse a consumed native context. Another nonce cannot retry the consumed
+slot, including failed or uncertain calls. Undispatched aborted reservations do
+not consume a slot. Trial admission never expands native or cohort allocations.
+
+The bound collector seals the original bounded answer, native receipt and clocks.
+The reducer regrades that sealed answer using installed criteria, then retains an
+immutable capture. Incorrect or duplicate-member JSON is an accounted failure,
+not a reason to retry. A missing answer or invalid optional measurement seal
+leaves known exact-bound native token accounting intact, with no usable capture.
+Incomplete native counters retain an uncertain hold; billing or isolation changes
+quarantine the context. Retirement and historical capture do not extend expiry.
+
+`calibration-summary` regrades authenticated journal captures, reports incomplete
+or expired role coverage and sets `policy_applied: false`. It does not classify
+an architecture-capable model or authorize protected work. The finite suite
+covers only Waypost protocol coordination and review; implement remains untested.
+
+
+Live on 2026-10-03, a fresh OpenCode 1.18.33 `opencode-go / longcat-2.5-preview-free`
+owned host first accounted 5,471 native identity-probe tokens, then 5,729 native
+trial tokens. The terminal original JSON was captured and locally graded passing;
+the same case with a different nonce refused before inference. The summary retained
+one coordinate sample and no review samples, both unqualified, with no policy or
+roles applied. This verifies one authenticated trial, not a completed cohort.

@@ -124,10 +124,10 @@ project review remains fresh, independent and strongest qualified.
 ## Modules & files on disk
 
 - `scripts/native-model-profile.mjs`: already-budgeted trusted observations.
-- `scripts/team-role-suite.mjs` (planned): installed generator/reference grader.
-- `scripts/team-role-calibration.mjs` (planned): admission-bound capture/cohort.
-- `tests/team-role-suite.test.mjs` (planned): positive and adversarial cases.
-- `tests/team-role-calibration.test.mjs` (planned): trusted binding/failure gates.
+- `scripts/team-role-suite.mjs`: installed generator/reference grader.
+- `scripts/team-role-calibration.mjs`: admission-bound capture/cohort.
+- `tests/team-role-suite.test.mjs`: positive and adversarial cases.
+- `tests/team-role-calibration.test.mjs`: trusted binding/failure gates.
 
 Independent critic revised the mandatory clean/defective trial distribution,
 then returned scoped ship for the draft and generator design on 2026-10-03.
@@ -148,9 +148,9 @@ No generic architecture promotion is allowed by this suite.
       qualification or live native cohort follows from this local grading.
 - [ ] Trusted measurement collector and accounting satisfy contracts 4 and 6–8.
 - [ ] Common-cohort policy/action binding and historical requirements remain gated.
-- [ ] Owner cohort-open fixes membership, installed digests and per-unit limits;
+- [x] Owner cohort-open fixes membership, installed digests and per-unit limits;
       typed reservation binds the exact immutable slot/prompt before consume.
-- [ ] Consumed/failed slots refuse a different nonce; original sealed output,
+- [x] Consumed/failed slots refuse a different nonce; original sealed output,
       charge/hold and clocks survive retirement and recovery without dispatch.
 - [ ] Actual owned native trial cohort passes without claiming broader capability.
 
@@ -161,3 +161,13 @@ No generic architecture promotion is allowed by this suite.
 - [[automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets]]
 
 *Last updated: 2026-10-03*
+
+
+Implementation evidence (2026-10-03): independent scoped reviewer approved the
+single-call measurement foundation after fixes for optional-seal accounting and
+native-context reuse. Five focused test files covered 108 cases; the ten ledger
+cases passed a final separate retest after refusal ordering/test-race adjustments.
+One actual owned OpenCode trial captured its original JSON and complete 5,729-token
+span, graded passing and refused a different-nonce replay. A complete common cohort,
+policy activation, architecture/implementation coverage and periodic discovery are
+not established by that trial. Interrupted host capture recovery remains pending.

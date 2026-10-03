@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { collectNativeModelProfile,verifyNativeModelProfile,serializeNativeModelProfile } from '../scripts/native-model-profile.mjs';
+import { collectNativeModelProfile,collectNativeMeasurementProfile,verifyNativeModelProfile,serializeNativeModelProfile } from '../scripts/native-model-profile.mjs';
+import { createProtocolRoleSuite,formatProtocolTrial } from '../scripts/team-role-suite.mjs';
+import { routingDigest } from '../scripts/model-routing.mjs';
 import { rankParticipant } from '../scripts/team.mjs';
 
 const now=Date.parse('2026-10-03T12:00:00Z');
@@ -97,4 +99,39 @@ test('unisolated contexts, unknown routing/model IDs and invalid structures cann
   for(const mutate of [r=>{r.context_manifest.tools=['bash'];},r=>{r.context_manifest.author_contexts=['author'];},r=>{r.context_manifest.author_history_inherited=true;},r=>{r.context_manifest.read_only=false;},r=>{r.context_manifest.fresh_review_verified=false;},r=>{r.context_manifest.native_id='foreign';},r=>{r.actualModel.provider='unknown';},r=>{r.actualModel.model_id='unknown';},r=>{r.output='wrong nonce';}])await assert.rejects(collect({mutate}),/native-profile-/);
   await assert.rejects(collect({requested_configuration:{model:()=>{}}}),/invalid-structure/);
   await assert.rejects(collectNativeModelProfile({participant,observe:{},adapter_revision:'x',requested_configuration:{},execution_environment:{},now}),/trusted-observer-required/);
+});
+
+
+async function measured({mutate,output,suiteMutate}={}) {
+ const baseline=await collect(),suite=createProtocolRoleSuite({seed:'fixed-measurement-seed',cohort:'measurement-cohort',profiles:[baseline.profile_id]}),trial=suite.trials[0];
+ const result=receipt();result.invocation_id=result.correlation.invocation_id=result.correlation.nonce='measurement-nonce';
+ result.output=output??JSON.stringify(trial.answer_key);
+ result.usage_span={protocol:1,schema:'opencode-native-normalized-step-total-v1',native_id:result.native_id,turn_id:'owned-turn',coverage:'complete',baseline_source:'native-empty-owned-step-inventory',before:'0',after:'10',actual_tokens:'10'};
+ const measurement={kind:'objective-role-trial',cohort_id:suite.cohort,role:trial.role,case_id:trial.id,profile_id:baseline.profile_id,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,prompt_digest:routingDigest(formatProtocolTrial(suite,trial.id))};
+ const projection={invocation_id:result.invocation_id,native_id:result.native_id,usage_span:result.usage_span,actualModel:result.actualModel,context_manifest:result.context_manifest,output:result.output};
+ result.admission={purpose:'calibration',state:'settled',context_quarantined:false,billing_policy:'inherited-native',nonce:'measurement-nonce',invocation_id:'subscription-measurement-nonce',participant:participant.id,incarnation:participant.incarnation,model_revision:1,native_id:result.native_id,actual_tokens:'10',measurement,output_digest:routingDigest(result.output),native_receipt_digest:routingDigest(projection),observed_at:result.observed_at};
+ mutate?.(result);
+ let reads=0;
+ const observation=await collectNativeMeasurementProfile({participant,adapter_revision:'native-profile-v1',requested_configuration:{reasoning:'high',model:'native-model'},execution_environment:{platform:'fixture',routing_config_digest:'c'.repeat(64)},suite:suiteMutate?suiteMutate(suite):suite,trial_id:trial.id,now,observe:async()=>{reads++;return result;}});
+ return {observation,baseline,result,reads};
+}
+test('structured measurement preserves the original answer with a separately settled installed trial',async()=>{
+ const {observation,baseline,result,reads}=await measured();
+ assert.equal(reads,1);assert.equal(observation.profile_id,baseline.profile_id);
+ assert.equal(observation.provenance,'trusted-host-settled-objective-measurement');assert.equal(observation.rank_eligible,false);
+ assert.equal(observation.sealed_native_receipt_digest,result.admission.native_receipt_digest);
+ assert.equal(observation.measurement.prompt_digest,result.admission.measurement.prompt_digest);
+ assert.equal(verifyNativeModelProfile(observation,{now}),true);
+ assert.throws(()=>verifyNativeModelProfile(serializeNativeModelProfile(observation,{now}),{now}),/collector-provenance-required/);
+ await assert.rejects(collect({mutate:r=>{r.output=JSON.stringify({eligible_ids:[]});}}),/nonce-receipt-mismatch/);
+});
+test('bad structured answers retain a measured identity without inventing correctness or a nonce output',async()=>{
+ const {observation,result}=await measured({output:'not JSON and no nonce'});
+ assert.equal(result.output,'not JSON and no nonce');assert.equal(observation.rank_eligible,false);assert.deepEqual(observation.roles,[]);
+ assert.equal(observation.admission_id,'subscription-measurement-nonce');
+});
+test('measurement requires exact terminal admission, original sealed answer, prompt, cohort and observed profile',async()=>{
+ const changes=[r=>{r.admission.state='uncertain';},r=>{r.admission.purpose='identity';},r=>{r.admission.context_quarantined=true;},r=>{r.admission.nonce='other';},r=>{r.admission.participant='foreign';},r=>{r.admission.actual_tokens='11';},r=>{r.usage_span.coverage='partial';},r=>{r.admission.output_digest='0'.repeat(64);},r=>{r.output='replaced after settlement';},r=>{r.admission.native_receipt_digest='0'.repeat(64);},r=>{r.admission.measurement.prompt_digest='0'.repeat(64);},r=>{r.admission.measurement.cohort_id='other';},r=>{r.admission.measurement.role='review';},r=>{r.admission.observed_at=new Date(now).toISOString();},r=>{r.actualModel.model_id='changed';}];
+ for(const mutate of changes)await assert.rejects(measured({mutate}),/native-profile-/);
+ await assert.rejects(measured({suiteMutate:s=>structuredClone(s)}),/installed-bundle-required/);
 });
