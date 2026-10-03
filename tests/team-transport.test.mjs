@@ -184,3 +184,93 @@ test('an externally bound OpenCode server cannot receive an owned process stop p
  const endpoint=await createNativeEndpoint({harness:'opencode',cwd,managed:true,url:'http://127.0.0.1:43210',password:'secret',native_id:'own',read_only_enforced:true},{fetchImpl});
  await assert.rejects(endpoint.stopAndWait(),/native-process-stop-unverified-external-server/);
 });
+
+const counters=(total,input=total-2,extra={})=>({totalTokens:total,inputTokens:input,cachedInputTokens:1,outputTokens:total-input,reasoningOutputTokens:1,...extra});
+async function tokenEndpoint(turns,{fresh=true,replyAfterUsage=false,serverCollision=false,conflictingStart=false}={}) {
+ let number=0,collisionId=null,collisionRejected=false;
+ return createNativeEndpoint({harness:'codex',cwd,managed:true},{spawnProcess:()=>childMock((m,emit)=>{
+  if(m.method===undefined && collisionId!==null && m.id===collisionId && m.error?.code===-32601)collisionRejected=true;
+  if(m.method==='initialize')emit({id:m.id,result:{}});
+  if(m.method==='thread/start')emit({id:m.id,result:{thread:{id:'token-owned',sessionId:'token-owned',cwd,ephemeral:fresh,turns:[],forkedFromId:null},model:'actual',modelProvider:'openai',reasoningEffort:'low',sandbox:{type:'readOnly',networkAccess:false}}});
+  if(m.method==='mcpServerStatus/list')emit({id:m.id,result:{data:[],nextCursor:null}});
+  if(m.method==='app/installed')emit({id:m.id,result:{apps:[]}});
+  if(m.method==='turn/start'){
+   const index=number++,turn='token-turn-'+index;
+   if(serverCollision){collisionId=m.id;emit({id:m.id,method:'item/tool/call',params:{threadId:'token-owned'}});}
+   if(!replyAfterUsage)emit({id:m.id,result:{turn:{id:turn}}});
+   for(const event of turns[index]||[])emit({method:'thread/tokenUsage/updated',params:{threadId:'token-owned',turnId:turn,...event}});
+   if(replyAfterUsage)emit({id:m.id,result:{turn:{id:turn}}});
+   if(conflictingStart)emit({id:m.id,result:{turn:{id:'conflicting-turn'}}});
+   if(serverCollision)queueMicrotask(()=>assert.equal(collisionRejected,true));
+   emit({method:'item/completed',params:{threadId:'token-owned',item:{type:'agentMessage',text:'ok'}}});
+   emit({method:'turn/completed',params:{threadId:'token-owned',turn:{id:turn,status:'completed'}}});
+  }
+ })});
+}
+test('Codex native cumulative span binds two own turns without summing cached or reasoning subsets',async()=>{
+ const first=counters(10),second=counters(30,25),last=counters(7,5);
+ const endpoint=await tokenEndpoint([[{tokenUsage:{total:first,last:first}},{tokenUsage:{total:first,last:first}}],[{tokenUsage:{total:second,last}}]]);
+ try{
+  const a=await endpoint.send('one',{id:'span-1'}),b=await endpoint.send('two',{id:'span-2'});
+  assert.equal(a.usage_span.coverage,'complete');assert.equal(a.usage_span.baseline_source,'native-first-cumulative-equals-last');
+  assert.equal(a.usage_span.before,'0');assert.equal(a.usage_span.after,'10');assert.equal(a.usage_span.actual_tokens,'10');
+  assert.equal(b.usage_span.coverage,'complete');assert.equal(b.usage_span.before,'10');assert.equal(b.usage_span.after,'30');assert.equal(b.usage_span.actual_tokens,'20');
+  assert.equal(b.usage_span.turn_id,'token-turn-1');assert.equal(b.usage_span.native_id,b.native_id);
+  assert.deepEqual(b.usage,{total:second,last});assert.equal(b.usage_span.baseline_source,'previous-bound-terminal');
+ }finally{endpoint.close();}
+});
+test('fresh thread alone never fabricates native zero token baseline',async()=>{
+ for(const options of [{fresh:true},{fresh:false}]){
+  const total=counters(30),last=counters(options.fresh?10:30);
+  const endpoint=await tokenEndpoint([[{tokenUsage:{total,last}}]],options);
+  try{const r=await endpoint.send('one',{id:'unproven'});assert.equal(r.usage_span.coverage,'partial');assert.equal(r.usage_span.before,null);assert.equal(r.usage_span.actual_tokens,null);}
+  finally{endpoint.close();}
+ }
+});
+test('missing, foreign-turn, reordered and decreasing token snapshots never produce a complete span',async()=>{
+ const first=counters(10),next=counters(20);
+ for(const events of [[],[{tokenUsage:{total:{totalTokens:10},last:{totalTokens:10}}}],[{turnId:'foreign-turn',tokenUsage:{total:first,last:first}}],[{tokenUsage:{total:next,last:next}},{tokenUsage:{total:first,last:first}}]]){
+  const endpoint=await tokenEndpoint([events]);
+  try{const r=await endpoint.send('one',{id:'uncertain'});assert.notEqual(r.usage_span.coverage,'complete');assert.equal(r.usage_span.actual_tokens,null);}
+  finally{endpoint.close();}
+ }
+ const endpoint=await tokenEndpoint([[{tokenUsage:{total:first,last:first}}],[{tokenUsage:{total:counters(5,3),last:counters(5,3)}}]]);
+ try{await endpoint.send('one',{id:'before'});const r=await endpoint.send('two',{id:'decrease'});assert.equal(r.usage_span.coverage,'partial');assert.equal(r.usage_span.actual_tokens,null);}
+ finally{endpoint.close();}
+});
+test('foreign thread counters are ignored and a missing native update breaks cumulative baseline continuity',async()=>{
+ const first=counters(10),later=counters(30,25);
+ const endpoint=await tokenEndpoint([[{threadId:'foreign-thread',tokenUsage:{total:counters(900),last:counters(900)}},{tokenUsage:{total:first,last:first}}],[],[{tokenUsage:{total:later,last:counters(20,18)}}]]);
+ try{
+  assert.equal((await endpoint.send('one',{id:'own'})).usage_span.actual_tokens,'10');
+  assert.equal((await endpoint.send('two',{id:'gap'})).usage_span.coverage,'absent');
+  const r=await endpoint.send('three',{id:'after-gap'});assert.equal(r.usage_span.coverage,'partial');assert.equal(r.usage_span.actual_tokens,null);
+ }finally{endpoint.close();}
+});
+test('optional native cache-write counter participates in first baseline proof and schema continuity',async()=>{
+ const first=counters(10,8,{cacheWriteInputTokens:3}),mismatch={...first,cacheWriteInputTokens:2};
+ for(const last of [first,mismatch]){
+  const endpoint=await tokenEndpoint([[{tokenUsage:{total:first,last}}]]);
+  try{const r=await endpoint.send('one',{id:'cache-proof'});assert.equal(r.usage_span.coverage,last===first?'complete':'partial');}
+  finally{endpoint.close();}
+ }
+ const endpoint=await tokenEndpoint([[{tokenUsage:{total:counters(10),last:counters(10)}}],[{tokenUsage:{total:counters(30,25,{cacheWriteInputTokens:3}),last:counters(20,18,{cacheWriteInputTokens:1})}}]]);
+ try{await endpoint.send('one',{id:'old-schema'});assert.equal((await endpoint.send('two',{id:'new-schema'})).usage_span.coverage,'partial');}
+ finally{endpoint.close();}
+});
+test('token notification before correlated native turn-start reply stays partial',async()=>{
+ const usage=counters(10),endpoint=await tokenEndpoint([[{tokenUsage:{total:usage,last:usage}}]],{replyAfterUsage:true});
+ try{const r=await endpoint.send('one',{id:'early-notification'});assert.equal(r.usage_span.coverage,'partial');assert.equal(r.usage_span.actual_tokens,null);}
+ finally{endpoint.close();}
+});
+
+test('server request id collision receives refusal and cannot replace native turn correlation',async()=>{
+ const value=counters(10),endpoint=await tokenEndpoint([[{tokenUsage:{total:value,last:value}}]],{serverCollision:true});
+ try{const r=await endpoint.send('one',{id:'collision'});assert.equal(r.usage_span.coverage,'complete');assert.equal(r.usage_span.turn_id,'token-turn-0');}
+ finally{endpoint.close();}
+});
+test('conflicting repeated start response cannot rebind a native token span',async()=>{
+ const value=counters(10),endpoint=await tokenEndpoint([[{tokenUsage:{total:value,last:value}}]],{conflictingStart:true});
+ try{const r=await endpoint.send('one',{id:'conflicting-start'});assert.equal(r.usage_span.coverage,'partial');assert.equal(r.usage_span.actual_tokens,null);assert.equal(r.usage_span.turn_id,'token-turn-0');}
+ finally{endpoint.close();}
+});

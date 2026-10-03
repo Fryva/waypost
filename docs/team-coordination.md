@@ -334,3 +334,12 @@ cannot establish execution account/mode or complete token telemetry. Native
 collectors, calibrated routing and the executable team driver remain pending.
 See the proposed ADR **Subscription CLI token accounting with separate strict
 billing enforcement** and the coordination protocol specification.
+
+Codex transport additionally returns `usage_span` with the exact owned native
+thread and correlated turn, native counter schema, baseline/terminal boundaries
+and the difference of `totalTokens`. Cached and reasoning subsets are not added
+again. `coverage: complete` describes a continuous observed native counter span;
+it is not a provider invoice or an assertion that every billing charge is exposed.
+Missing, conflicting, decreasing or foreign-turn counters remain partial/absent
+and break baseline continuity. This path has fixture coverage and independent
+review; live native telemetry compatibility and subscription admission are pending.
