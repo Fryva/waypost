@@ -56,7 +56,7 @@ function publicTeam(t, includeInventory = false) {
   if(!includeInventory)for(const entry of Object.values(result.model_inventory||{}))if(entry.snapshot){entry.snapshot.projected.candidate_count=entry.snapshot.projected.candidates.length;delete entry.snapshot.projected.candidates;}
   result.policy_stale = ['automatic','automatic-calibration'].includes(result.policy.mode) && Date.now() >= Date.parse(result.policy.expires_at);
   result.delivery = 'cooperative inboxes (including MCP) and explicitly managed native endpoints; desktop native binding and wake unverified';
-  if(t.accounting?.mode==='subscription-tokens')result.accounting_capabilities={mode:'subscription-tokens',ledger:t.accounting.protocol===2?'bootstrap-and-fixed-calibration-trials':'bootstrap-only',billing_policy:t.accounting.billing_policy||'verified-route-v1',default_execution_context_collector:t.accounting.protocol===2?'codex-opencode-owned-native-counter':'unavailable',native_dispatch:t.accounting.protocol===2?'bounded-codex-opencode-identity-and-fixed-trials':'blocked',calibration_policy_activation:t.policy.protocol===2,protected_native_actions:false,provider_enforced_spend:false,exclusive_provider_quota:false};
+  if(t.accounting?.mode==='subscription-tokens')result.accounting_capabilities={mode:'subscription-tokens',ledger:t.accounting.protocol===2?'bootstrap-and-fixed-calibration-trials':'bootstrap-only',billing_policy:t.accounting.billing_policy||'verified-route-v1',default_execution_context_collector:t.accounting.protocol===2?'codex-opencode-owned-native-counter':'unavailable',native_dispatch:t.accounting.protocol===2?'bounded-codex-opencode-identity-and-fixed-trials':'blocked',calibration_policy_activation:t.policy.protocol===2,scoped_native_leadership_ack:Boolean(t.native_control_policy),protected_native_actions:false,provider_enforced_spend:false,exclusive_provider_quota:false};
   return result;
 }
 export async function main(argv = process.argv.slice(2)) {
@@ -83,6 +83,9 @@ export async function main(argv = process.argv.slice(2)) {
     else if (operation === 'calibration-cohort-open') print(host.openCalibrationCohort(json(resolve(opt('--request-file') || ''))));
     else if (operation === 'calibration-trial') print(await host.subscriptionCalibrationTrial({cohortId:opt('--cohort'),caseId:opt('--case'),nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000'}));
     else if (operation === 'calibration-summary') print(host.calibrationSummary({cohortId:opt('--cohort')}));
+    else if(operation==='protocol-control-enable')print(host.enableProtocolControl(json(resolve(opt('--request-file')||''))));
+    else if(operation==='native-leader-ack')print(await host.acknowledgeProtocolLeadership({actionId:opt('--action-id'),nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000'}));
+    else if(operation==='native-leader-ack-recover')print(await host.recoverProtocolLeadership({invocationId:opt('--invocation')}));
     else if (operation === 'model-inventory') print(await host.observeModelInventory());
     else if (operation === 'native-policy-install') print(await host.installNativePolicy({cohortId:opt('--cohort'),expectedPolicyRevision:Number(opt('--policy-revision'))}));
     else if (operation === 'calibration-policy-proposal') print(await host.calibrationPolicyProposal({cohortId:opt('--cohort'),revision:Number(opt('--revision')||1)}));
@@ -99,7 +102,7 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|native-leader-ack|native-leader-ack-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
     return;
   }
   if (mode === 'status') {

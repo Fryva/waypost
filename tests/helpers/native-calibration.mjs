@@ -4,21 +4,22 @@ import { collectNativeModelProfile,collectNativeMeasurementProfile,serializeNati
 import { routingDigest } from '../../scripts/model-routing.mjs';
 const now=Date.parse('2026-10-03T12:00:00Z'),at=new Date(now).toISOString();
 const expiry=new Date(now+600000).toISOString();
-export async function authorityFixture(){
+export async function authorityFixture(overrides={}){
+ const now=overrides.now??Date.parse('2026-10-03T12:00:00Z'),at=new Date(now).toISOString(),expiry=new Date(now+600000).toISOString();
  const s={teams:{},collectors:{}},t={id:'team',epoch:1,quota_revision:0,participants:{}};s.teams.team=t;let revision=0;
  const H={owner:(_s,c)=>{if(c.actor!=='owner:fixture')throw Error('owner-required');}};
  const send=(type,data,actor='owner:fixture')=>{const result=applySubscriptionAccounting(s,t,{type,actor,at,...data},now,H);revision++;return result;};
  send('subscription-accounting-enable-v2',{revision:1,policy:{bootstrap:true,billing_policy:'inherited-native'}});
- const unit={scope:'team-native-counter',team:'team',counter_schema:'fixture-counter'};
+ const unit={scope:'team-native-counter',team:'team',counter_schema:overrides.counter_schema??'fixture-counter'};
  send('subscription-allocation-update-v2',{unit_scope:unit,max_tokens:'100000',revision:1});
  const billing={provider:null,origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'unavailable',auth_method:null,credit_availability:'unknown',observed_at:at,account_generation:0,consistent:true};
  const peers=[];
  for(const name of ['a','b','c','d']){
-  const p={id:'peer-'+name,incarnation:'inc-'+name,model:{model_revision:1,resolved:false,provider:'route',model_id:'model-'+name,reasoning:'unknown'},availability:'ready',revoked:false,native_binding:{collector_id:'collector-'+name,descriptor_digest:routingDigest({adapter:name})}};
+  const p={id:'peer-'+name,incarnation:'inc-'+name,model:{model_revision:1,resolved:false,provider:'route',model_id:'model-'+name,reasoning:'unknown'},availability:'ready',revoked:false,native_binding:{collector_id:'collector-'+name,descriptor_digest:overrides.descriptor_digest?.(name)??routingDigest({adapter:name})}};
   t.participants[p.id]=p;s.collectors['collector-'+name]={id:'collector-'+name,team:'team',purposes:['runtime','usage'],revoked:false};
   const model={provider:'route',model_id:'model-'+name,reasoning:'unknown',observed_at:at};
-  const manifest=id=>({id:'manifest-'+id,native_id:'native-'+id,harness:'opencode',cwd:'/fixture',version:'1.18.33',version_provenance:'native-health',read_only:true,fresh:true,fresh_review_verified:true,author_history_inherited:false,author_contexts:[],tools:[],isolation:'read-only',provenance:'adapter-isolated',model_provider_is_billing_route:true});
-  const options={participant:p,adapter_revision:'native-profile-v1',requested_configuration:{model_id:model.model_id},execution_environment:{platform:'fixture'},now};
+  const manifest=id=>({id:'manifest-'+id,native_id:'native-'+id,harness:'opencode',cwd:'/fixture',version:'1.18.33',version_provenance:'native-health',read_only:true,fresh:true,fresh_review_verified:true,author_history_inherited:false,author_contexts:[],tools:[],isolation:'read-only',provenance:'adapter-isolated',model_provider_is_billing_route:true,...(overrides.manifest?.(name,id)||{})});
+  const options={participant:p,adapter_revision:overrides.adapter_revision??'native-profile-v1',requested_configuration:overrides.requested_configuration?.(name,model)??{model_id:model.model_id},execution_environment:overrides.execution_environment??{platform:'fixture'},now};
   const ctx=manifest('baseline-'+name),baseline=await collectNativeModelProfile({...options,observe:async()=>({native_id:ctx.native_id,invocation_id:'baseline-'+name,output:'token',actualModel:model,context_manifest:ctx,observed_at:at,correlation:{participant:p.id,incarnation:p.incarnation,model_revision:1,native_id:ctx.native_id,context_id:ctx.id,invocation_id:'baseline-'+name,nonce:'token'}})});
   peers.push({name,p,model,manifest,options,profile_id:baseline.profile_id});
  }
@@ -44,7 +45,7 @@ export async function authorityFixture(){
    send('subscription-measurement-capture-v2',{invocation_id,nonce,capture:{measurement,original_output:raw,output_digest:seal.output_digest,native_receipt_digest:seal.native_receipt_digest,native_id:ctx.native_id,context_id,turn_id:native.usage_span.turn_id,incarnation:p.incarnation,descriptor_digest:p.native_binding.descriptor_digest,observed_at:at,expires_at:expiry,profile_digest:profile.profile_digest,profile_snapshot_digest:routingDigest(profile.profile),context_snapshot_digest:routingDigest(ctx),observation_id:profile.observation_id,native_profile:profile}},actor);
   }
  }
- return {state:s,revision,peers};
+ return {state:s,revision,peers,now,at,expiry};
 }
 
 export {now,at,expiry};

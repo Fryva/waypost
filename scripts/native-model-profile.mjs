@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { verifyProtocolRoleSuite,formatProtocolTrial } from './team-role-suite.mjs';
+import { readProtocolAck } from './team-native-action.mjs';
 
 const minted = new WeakMap();
 const TTL = 15 * 60 * 1000;
@@ -43,7 +44,7 @@ function receiptContext(result) {
   return ctx;
 }
 
-async function collectProfile({participant,observe,adapter_revision,requested_configuration,execution_environment,suite,trial_id,now=Date.now}={},kind) {
+async function collectProfile({participant,observe,adapter_revision,requested_configuration,execution_environment,suite,trial_id,action,request,now=Date.now}={},kind) {
   const binding = participantBinding(participant);
   if (typeof observe !== 'function') fail('trusted-observer-required');
   if (!text(adapter_revision,128)) fail('adapter-revision-required');
@@ -56,9 +57,20 @@ async function collectProfile({participant,observe,adapter_revision,requested_co
   if (Object.entries(expected).some(([key,value])=>correlation[key] !== value) || !text(correlation.nonce,128) || !text(correlation.invocation_id,128) || result.invocation_id !== correlation.invocation_id) fail('observation-binding-mismatch');
   if ((result.text !== undefined && typeof result.text !== 'string') || (result.output !== undefined && typeof result.output !== 'string') || (result.text !== undefined && result.output !== undefined && result.text !== result.output) || typeof (result.output ?? result.text) !== 'string' || Buffer.byteLength(result.output ?? result.text)>8192) fail('native-answer-required');
   const output=result.output ?? result.text;
-  let admission=null,measurement=null,sealedReceiptDigest=null;
+  let admission=null,measurement=null,sealedReceiptDigest=null,actionBinding=null;
   if(kind==='identity'){
     if(output.trim() !== correlation.nonce)fail('nonce-receipt-mismatch');
+  }else if(kind==='action'){
+    actionBinding=boundedObject(action,8192);const originalRequest=boundedObject(request,8192);
+    if(actionBinding.kind!=='protocol-leader-ack'||!text(actionBinding.action_id,128)||actionBinding.request_digest!==digest(originalRequest)||digest(actionBinding.request)!==digest(originalRequest))fail('action-request-binding-mismatch');
+    if(originalRequest.protocol!==2||originalRequest.kind!==actionBinding.kind||originalRequest.action_id!==actionBinding.action_id||originalRequest.participant!==binding.participant||originalRequest.incarnation!==binding.incarnation||typeof participant.native_binding?.descriptor_digest!=='string'||originalRequest.descriptor_digest!==participant.native_binding.descriptor_digest)fail('action-participant-request-mismatch');
+    readProtocolAck(output,actionBinding);
+    admission=boundedObject(result.admission,16384);
+    if(admission.purpose!=='protocol-control'||admission.state!=='settled'||admission.context_quarantined!==false||admission.billing_policy!=='inherited-native'||admission.nonce!==correlation.invocation_id||correlation.nonce!==correlation.invocation_id||admission.invocation_id!=='subscription-'+admission.nonce||admission.native_id!==result.native_id||Object.entries(binding).some(([key,value])=>admission[key]!==value)||digest(admission.action)!==digest(actionBinding)||admission.request_digest!==actionBinding.request_digest||admission.original_output!==output)fail('settled-action-admission-required');
+    const span=result.usage_span;
+    if(span?.coverage!=='complete'||span.native_id!==result.native_id||!text(span.turn_id,128)||!text(span.schema,128)||['before','after','actual_tokens'].some(key=>typeof span[key]!=='string'||!/^(0|[1-9][0-9]{0,17})$/.test(span[key]))||BigInt(span.actual_tokens)<=0n||BigInt(span.after)-BigInt(span.before)!==BigInt(span.actual_tokens)||admission.actual_tokens!==span.actual_tokens)fail('action-complete-usage-required');
+    sealedReceiptDigest=digest({invocation_id:result.invocation_id,native_id:result.native_id,usage_span:span,actualModel:result.actualModel,context_manifest:ctx,output});
+    if(admission.output_digest!==digest(output)||admission.native_receipt_digest!==sealedReceiptDigest||admission.observed_at!==result.observed_at)fail('sealed-action-receipt-mismatch');
   }else{
     verifyProtocolRoleSuite(suite);
     const trial=suite.trials.find(t=>t.id===trial_id);if(!trial)fail('measurement-trial-required');
@@ -91,12 +103,14 @@ async function collectProfile({participant,observe,adapter_revision,requested_co
   };
   const profile_digest = digest(profile);
   if(measurement && measurement.profile_id!=='native-profile-'+profile_digest)fail('measurement-observed-profile-changed');
+  if(actionBinding){const target=actionBinding.request?.profile;if(target?.kind!=='native-configuration'||target.profile_id!=='native-profile-'+profile_digest||target.profile_digest!==profile_digest||target.profile_revision!==profile.revision)fail('action-observed-profile-changed');}
   const observation = {
     protocol:2,identity_kind:'native-configuration',profile_id:'native-profile-'+profile_digest,profile_digest,profile,
     ...binding,native_id:result.native_id,context_id:ctx.id,nonce:correlation.nonce,invocation_id:correlation.invocation_id,
     observed_at:new Date(observed).toISOString(),expires_at:new Date(observed+TTL).toISOString(),
     receipt_digest:digest({invocation_id:result.invocation_id,output:result.output ?? result.text,actualModel:actual,context_manifest:ctx}),
-    provenance:kind==='identity'?'trusted-host-budgeted-native-receipt':'trusted-host-settled-objective-measurement',roles:[],rank_eligible:false,
+    provenance:kind==='identity'?'trusted-host-budgeted-native-receipt':kind==='action'?'trusted-host-settled-protocol-control':'trusted-host-settled-objective-measurement',roles:[],rank_eligible:false,
+    ...(actionBinding?{action:actionBinding,request_digest:actionBinding.request_digest,admission_id:admission.invocation_id,admission_digest:digest(admission),sealed_native_receipt_digest:sealedReceiptDigest}:{}),
     ...(measurement?{measurement,admission_id:admission.invocation_id,admission_digest:digest(admission),sealed_native_receipt_digest:sealedReceiptDigest}:{}),
     limitations:['Observed native configuration is not proof of a stable hidden backend, effective requested settings, authored model, billing or role qualification.']
   };
@@ -110,6 +124,8 @@ async function collectProfile({participant,observe,adapter_revision,requested_co
 // installed-suite/sealed-admission contract and never substitutes token output.
 export async function collectNativeModelProfile(options={}) {return collectProfile(options,'identity');}
 export async function collectNativeMeasurementProfile(options={}) {return collectProfile(options,'measurement');}
+// A fixed ACK is neither the identity nonce nor an objective role trial.
+export async function collectNativeActionProfile(options={}) {return collectProfile(options,'action');}
 
 export function verifyNativeModelProfile(observation,{participant,invocation_id,nonce,native_id,context_id,now=Date.now}={}) {
   if (!minted.has(observation) || minted.get(observation) !== digest(observation)) fail('collector-provenance-required');

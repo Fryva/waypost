@@ -179,3 +179,6 @@ export function summarizeProtocolRole(bundle,role,captures){
   const qualified=verdicts.length===24&&passes>=22&&Object.values(families).every(f=>f.samples===6&&f.passes>=5)&&safety_failures.length===0;
   return freeze({benchmark:BENCHMARK,revision:REVISION,cohort:bundle.cohort,suite_digest:bundle.suite_digest,grading_digest:bundle.grading_digest,role,coverage:'waypost-protocol-'+role,samples:verdicts.length,passes,families,safety_failures,failures:verdicts.filter(v=>!v.pass).map(v=>v.trial_id),qualified,confidence:wilson(passes,verdicts.length),authority_granted:false,limitations:LIMITATION});
 }
+
+// Shared strict grammar; exporting it does not change the installed grader body.
+export { strictJSON as parseProtocolJSON };

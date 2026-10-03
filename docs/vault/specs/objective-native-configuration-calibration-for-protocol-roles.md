@@ -186,6 +186,46 @@ project review remains fresh, independent and strongest qualified.
     No inventory
     refresh may renew calibration/admission or silently initiate paid trials.
 
+20. A separately enabled bounded `protocol-control` policy may authorize only
+    a single-call `protocol-leader-ack` request at this stage. It binds existing
+    native-counter unit allocations, explicit token/call ceilings and timeout;
+    no automatic allocation expansion, billing change or paid fallback occurs.
+    Known exhaustion refuses; unknown quota remains unknown and is allowed only
+    by this explicit owner control policy, never by measurement opt-in alone.
+    The fixed host request binds candidate/incarnation/descriptor, current and
+    target epoch, policy revision/digest, typed profile/calibration and action ID.
+    Reservation and immutable slot consumption precede the one fresh owned
+    read-only/no-tools turn. Reusing a consumed action under a new nonce cannot
+    dispatch again. A separate semantic slot binds team/kind/current and target
+    epoch/candidate incarnation/policy revision; changing action ID also cannot
+    wash a consumed, failed or uncertain attempt. Prepared abort without dispatch
+    is distinct. Failed and uncertain calls count against control ceilings.
+    The bounded ACK JSON has exactly ack/action_id/request_digest, requires
+    ack:true and original IDs/digest, and rejects decoded duplicate keys or extras.
+    No preliminary identity probe shares the action context.
+    Terminal accounting separately seals original request/prompt/output/native
+    receipt and original clocks against the reserved action. Invalid, failed,
+    changed-profile or partial results retain charged usage or uncertain holds.
+    Identity and objective-measurement purposes keep their existing semantics.
+    A dedicated trusted action-profile collector matches the actual receipt to
+    current calibrated identity; it cannot import profile JSON or transfer score.
+    ACK effects occur only after whole-operation callback drain and confirmed
+    owned child closure, with exact operation/descriptor/native/consumption proof.
+    Recovery uses the same sealed source and closure without further inference.
+    The authority atomically rechecks original policy/calibration expiry, strongest
+    coordinate candidate, current independent critic frontier, epoch, incarnation,
+    descriptor, nonquarantined complete settlement and control/allocation limits;
+    pending work/handover blocks. Active-incumbent selection recomputes independent
+    critic eligibility before any early return; critic revoke, busy status or expiry
+    withdraws cached eligibility while preserving the historical review frontier.
+    The closure accessor derives its owned path/bindings, never caller proof/path.
+    Successful capture marks that action applied and
+    acknowledges the coordinator at its exact target epoch. This scoped ACK is
+    not a generic action grant: legacy acknowledgements, work/review/integration,
+    architecture and implementation actions remain closed until their own tested
+    admission contracts. Retired measurement/action contexts never become critic
+    contexts and an independent critic candidate is not executable review proof.
+
 ## Modules & files on disk
 
 - `scripts/team-model-inventory.mjs`: advisory native catalogue projection and freshness.

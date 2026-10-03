@@ -4,6 +4,7 @@ import { mkdirSync, lstatSync, readdirSync, readFileSync, openSync, writeSync, f
 import { resolve, join, parse } from 'node:path';
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 
+const completions=new WeakMap();
 const hash=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const fail=code=>Object.assign(new Error('owned-runtime-'+code),{code:'owned-runtime-'+code});
 const text=v=>typeof v==='string'&&v.length>0&&v.length<=256&&!/[\x00-\x1f\x7f]/.test(v);
@@ -34,7 +35,7 @@ export function createOwnedRuntime(options){
   let stopped=false,done=false,failedStop=false;const factories=new Set(),endpoints=new Set(),effects=[];
   let finishDrain;const drained=new Promise(resolve=>{finishDrain=resolve;});
   function assertActive(){if(stopped||exists(barrier))throw fail('operation-stopped');}
-  async function closeEndpoint(endpoint){if(!endpoint||typeof endpoint.stopAndWait!=='function')throw fail('endpoint-stop-capability-required');const proof=await endpoint.stopAndWait();if(proof?.stopped!==true)throw fail('endpoint-stop-unconfirmed');return proof;}
+  async function closeEndpoint(endpoint){if(!endpoint||typeof endpoint.stopAndWait!=='function')throw fail('endpoint-stop-capability-required');const proof=await endpoint.stopAndWait();if(proof?.stopped!==true)throw fail('endpoint-stop-unconfirmed');if(text(endpoint.native_id)){if(proof.native_id!==undefined&&proof.native_id!==endpoint.native_id)throw fail('endpoint-stop-binding');return {...proof,native_id:endpoint.native_id};}return proof;}
   async function closeAll(){
    const pending=await Promise.allSettled([...factories]);
    if(pending.some(x=>x.status==='rejected'&&x.reason?.code==='owned-runtime-endpoint-stop-unconfirmed'))throw fail('endpoint-stop-unconfirmed');
@@ -102,3 +103,43 @@ export async function stopOwnedRuntime(options){
  if(required.some(x=>!covered.has(x)))throw fail('historical-consumption-stop-unconfirmed');
  return {stopped:true,team:scope.team,participant:scope.participant,incarnation:scope.incarnation,epoch:scope.epoch,descriptor_digest:scope.descriptor_digest,operations:proofs.map(p=>p.operation),evidence_digest:hash({barrier:read(barrier),proofs})};
 }
+
+
+// Read only the held host's derived operation paths. This lookup creates neither
+// directories nor epoch barriers and never stops a process or renews evidence.
+export function collectOwnedRuntimeCompletion(options={}) {
+ const allowed=['directory','team','participant','incarnation','epoch','descriptorDigest','operation','invocation_id','nonce','native_id','consume_type'];
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>!allowed.includes(key))||typeof options.directory!=='string')throw fail('completion-selectors-required');
+ const scope=binding(options),operation=options.operation;
+ if(!text(operation)||!/^[A-Za-z0-9_-]{1,128}$/.test(operation)||![options.invocation_id,options.nonce,options.native_id].every(text))throw fail('completion-selectors-required');
+ const consumeType=options.consume_type||'subscription-consume-v2';
+ if(!['subscription-consume-v2','protocol-control-consume-v2'].includes(consumeType))throw fail('completion-consume-type-required');
+ const d=safe(options.directory),stats=lstatSync(d);
+ if(!stats.isDirectory()||(process.platform!=='win32'&&(stats.mode&0o077)))throw fail('private-directory-required');
+ const base=join(d,'scope-'+hash(scope)+'.operation-'+operation);
+ const intent=read(base+'.intent.json'),closed=read(base+'.closed.json');bound(intent,scope);bound(closed,scope);
+ if(intent.operation!==operation||closed.operation!==operation||!text(intent.kind)||closed.kind!==intent.kind||closed.stopped!==true||closed.callback_drained!==true||closed.callback_started===false||!Array.isArray(closed.consumptions)||closed.consumptions.length>1024||!Array.isArray(closed.native_ids)||!Array.isArray(closed.closure_proofs))throw fail('completion-closure-required');
+ const created=Date.parse(intent.created_at),finished=Date.parse(closed.closed_at);
+ if(!Number.isFinite(created)||!Number.isFinite(finished)||finished<created)throw fail('completion-clock-invalid');
+ const consumptions=[];
+ for(let i=0;i<closed.consumptions.length;i++){
+  const effect=read(base+'.effect-'+i+'.json');bound(effect,scope);
+  if(effect.operation!==operation)throw fail('completion-effect-binding');
+  const evidence=Object.fromEntries(['type','nonce','invocation_id','native_id','request_key'].map(key=>[key,effect[key]]));
+  if(hash(evidence)!==hash(closed.consumptions[i]))throw fail('completion-effect-mismatch');
+  consumptions.push(evidence);
+ }
+ const matching=consumptions.filter(effect=>effect.type===consumeType&&effect.invocation_id===options.invocation_id&&effect.nonce===options.nonce&&effect.native_id===options.native_id);
+ if(matching.length!==1||!closed.native_ids.includes(options.native_id))throw fail('completion-consumption-required');
+ const proof=closed.closure_proofs.find(p=>p&&p.native_id===options.native_id&&p.stopped===true&&p.process_group_closed===true&&Number.isSafeInteger(p.owned_processes)&&p.owned_processes>0);
+ if(!proof)throw fail('completion-native-closure-required');
+ const result={protocol:1,scope:structuredClone(scope),operation,kind:intent.kind,invocation_id:options.invocation_id,nonce:options.nonce,native_id:options.native_id,consume_type:consumeType,created_at:intent.created_at,closed_at:closed.closed_at,stopped:true,callback_drained:true,evidence_digest:hash({intent,closed,consumptions})};
+ Object.freeze(result.scope);Object.freeze(result);completions.set(result,hash(result));return result;
+}
+export function verifyOwnedRuntimeCompletion(result,selectors={}) {
+ if(!completions.has(result)||completions.get(result)!==hash(result))throw fail('completion-provenance-required');
+ for(const key of ['operation','invocation_id','nonce','native_id','consume_type'])if(selectors[key]!==undefined&&selectors[key]!==result[key])throw fail('completion-selector-mismatch');
+ if(['team','participant','incarnation','epoch','descriptorDigest'].some(key=>selectors[key]!==undefined)&&hash(binding(selectors))!==hash(result.scope))throw fail('completion-scope-mismatch');
+ return true;
+}
+export function serializeOwnedRuntimeCompletion(result,selectors={}) {verifyOwnedRuntimeCompletion(result,selectors);return structuredClone(result);}

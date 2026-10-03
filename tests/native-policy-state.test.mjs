@@ -71,3 +71,17 @@ test('periodic native strength check withdraws both candidates after original ex
  assert.equal(r.candidate,null);assert.equal(r.review_candidate,null);assert.equal(r.status,'paused');assert.deepEqual(r.required_review_identities_v2,history);
  assert.equal(r.policy.expires_at,expiry);
 });
+
+
+test('active native incumbent recomputes critic eligibility and cannot retain a revoked or busy critic',async()=>{
+ for(const mode of ['revoke','busy','expiry']){
+  const state=install(await fixture()).state,t=state.teams.team,leader=t.candidate,oldCritic=t.review_candidate;
+  // Fixture activation isolates selection refresh; no production ACK is minted.
+  t.leader=leader;t.candidate=null;t.status='active';
+  const history=structuredClone(t.required_review_identities_v2);
+  const command=mode==='revoke'?{type:'revoke',actor:'owner:fixture',participant_id:oldCritic}:mode==='busy'?{type:'availability',actor:oldCritic,incarnation:t.participants[oldCritic].incarnation,availability:'busy'}:{type:'strength-check',actor:'owner:fixture',check:{ok:false}};
+  const next=reduceTeamEvent(state,{...command,team:'team',at:mode==='expiry'?expiry:at,request_key:'refresh-critic'}).state.teams.team;
+  assert.notEqual(next.review_candidate,oldCritic);assert.deepEqual(next.required_review_identities_v2,history);
+  if(mode==='expiry'){assert.equal(next.status,'paused');assert.equal(next.review_candidate,null);}else if(next.review_candidate===null)assert.equal(next.status,'paused');
+ }
+});

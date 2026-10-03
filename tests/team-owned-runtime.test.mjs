@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, realpathSync, rmSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createOwnedRuntime, stopOwnedRuntime } from '../scripts/team-owned-runtime.mjs';
+import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, verifyOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion } from '../scripts/team-owned-runtime.mjs';
 
 const defer=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 function fixture(){const directory=mkdtempSync(join(realpathSync(tmpdir()),'waypost-owned-runtime-'));const options={directory,team:'team',participant:'worker',incarnation:'inc',epoch:1,descriptorDigest:'a'.repeat(64)};return {options,runtime:createOwnedRuntime(options),cleanup:()=>rmSync(directory,{recursive:true,force:true})};}
@@ -69,4 +69,28 @@ test('fenced startup closes its own unstarted intent without claiming historical
   assert.equal((await stopOwnedRuntime(f.options)).stopped,true);
   await assert.rejects(stopOwnedRuntime({...f.options,requiredOperations:['unrelated-consumed']}),/historical-consumption-stop-unconfirmed/);
  }finally{f.cleanup();}
+});
+
+
+test('post-finalization and recovery completion read exact owned effects without an epoch barrier',async()=>{
+ const f=fixture(),selectors={...f.options,operation:'action-operation',invocation_id:'subscription-action',nonce:'action',native_id:'native-action'};
+ try{
+  await f.runtime.run({kind:'protocol-control',operation:selectors.operation},async scope=>{await scope.native(()=>({native_id:selectors.native_id,async stopAndWait(){return {stopped:true,owned_processes:1,process_group_closed:true};}}));scope.annotate({type:'subscription-consume-v2',invocation_id:selectors.invocation_id,nonce:selectors.nonce,native_id:selectors.native_id});});
+  const before=readdirSync(f.options.directory),completion=collectOwnedRuntimeCompletion(selectors),snapshot=serializeOwnedRuntimeCompletion(completion);
+  assert.equal(verifyOwnedRuntimeCompletion(completion,selectors),true);assert.equal(completion.callback_drained,true);assert.equal(completion.stopped,true);assert.deepEqual(readdirSync(f.options.directory),before);assert.equal(before.some(name=>name.endsWith('.barrier.json')),false);
+  assert.deepEqual(serializeOwnedRuntimeCompletion(collectOwnedRuntimeCompletion(selectors)),snapshot);
+  for(const fake of [snapshot,{...completion},JSON.parse(JSON.stringify(completion))])assert.throws(()=>verifyOwnedRuntimeCompletion(fake),/completion-provenance/);
+  assert.throws(()=>collectOwnedRuntimeCompletion({...selectors,native_id:'foreign'}),/consumption/);assert.throws(()=>verifyOwnedRuntimeCompletion(completion,{nonce:'foreign'}),/selector-mismatch/);
+  for(const partial of [{participant:'foreign'},{epoch:999},{descriptorDigest:'f'.repeat(64)}])assert.throws(()=>verifyOwnedRuntimeCompletion(completion,partial),/binding-required|scope-mismatch/);
+  await f.runtime.run({kind:'still-usable',operation:'another-operation'},async()=>{});
+ }finally{f.cleanup();}
+});
+test('completion refuses unclosed callbacks, unrelated native proof and mismatched durable effect',async()=>{
+ const f=fixture(),selectors={...f.options,operation:'completion-check',invocation_id:'subscription-check',nonce:'check',native_id:'native-check'},release=defer(),ready=defer();
+ try{
+  const running=f.runtime.run({kind:'protocol-control',operation:selectors.operation},async scope=>{await scope.native(()=>({native_id:selectors.native_id,async stopAndWait(){return {stopped:true,owned_processes:1,process_group_closed:true};}}));scope.annotate({type:'subscription-consume-v2',invocation_id:selectors.invocation_id,nonce:selectors.nonce,native_id:selectors.native_id});ready.resolve();await release.promise;});
+  await ready.promise;assert.throws(()=>collectOwnedRuntimeCompletion(selectors));release.resolve();await running;
+  const closedName=readdirSync(f.options.directory).find(n=>n.endsWith('.closed.json')),closed=record(f,'.closed.json');closed.closure_proofs[0].native_id='foreign';writeFileSync(join(f.options.directory,closedName),JSON.stringify(closed));assert.throws(()=>collectOwnedRuntimeCompletion(selectors),/native-closure/);
+  closed.closure_proofs[0].native_id=selectors.native_id;writeFileSync(join(f.options.directory,closedName),JSON.stringify(closed));const effectName=readdirSync(f.options.directory).find(n=>n.endsWith('.effect-0.json')),effect=JSON.parse(readFileSync(join(f.options.directory,effectName),'utf8'));effect.nonce='changed';writeFileSync(join(f.options.directory,effectName),JSON.stringify(effect));assert.throws(()=>collectOwnedRuntimeCompletion(selectors),/effect-mismatch/);
+ }finally{release.resolve();f.cleanup();}
 });

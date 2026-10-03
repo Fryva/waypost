@@ -531,11 +531,48 @@ block installation. Publication defers the operation.
 
 This selects protocol coordinator and independent critic candidates. The critic
 must be a different ready participant at or above the retained review frontier;
-installation without one is refused. This does not acknowledge a leader,
+installation without one is refused. Installation does not acknowledge a leader,
 execute work or create an independent review context. Architecture and implementation
 coverage remain absent; legacy protected actions and policy downgrade are refused.
 New action admission, typed quota handover and full native execution remain separate
 work. Original capture expiry applies and recompilation does not renew observations.
+
+### Bounded native coordinator acknowledgement
+
+For an idle forming protocol-v2 team, the owner may explicitly enable
+`--operation protocol-control-enable --request-file control.json`. The request
+contains `revision` and `policy`: `kind: "protocol-leader-ack"`,
+`allow_unknown_quota: true`, `max_calls`, decimal-string `max_estimate_tokens`,
+`timeout_ms`, `expires_at`, and `unit_allocations` with `unit_digest`,
+decimal-string `max_tokens` and the existing `allocation_revision`.
+These ceilings must fit existing native allocations and calibration expiry.
+Known exhausted quota refuses dispatch; unknown quota remains unknown. This
+explicit policy neither expands allocations nor changes inherited billing.
+
+`waypost team host TEAM --operation native-leader-ack --participant PARTICIPANT
+--action-id ACTION --nonce NONCE --estimate-tokens TOKENS` sends one fixed
+no-tools request in a fresh owned Codex or OpenCode context. The request binds
+the strongest current coordinator, strongest independent critic, native profiles,
+original calibration, policy revision and exact current/next epoch. The response
+must be a strict JSON object with exactly `ack: true`, `action_id` and
+`request_digest`. Duplicate keys, extra fields and foreign bindings are refused.
+
+Usage is settled before admission. Malformed responses, changed profiles,
+partial counters or failed closure retain their charges or unresolved holds.
+A consumed semantic election slot cannot be retried with a new nonce or action ID.
+The authority applies the epoch change only after the owned callback drains and
+the process group closes, then rechecks the original source and current frontier.
+`--operation native-leader-ack-recover --invocation INVOCATION` derives that same
+owned completion from its journal without sending another model turn or renewing
+source clocks. An active team's critic is recomputed when readiness, revocation
+or freshness changes; historical review requirements remain retained.
+
+This acknowledgement grants only protocol coordinator election. It does not
+authorize architecture, implementation, worker dispatch, integration or review
+execution, and the selected critic still needs a separate verified context.
+The current Codex transport reports a read-only shell capability; native profile
+admission requires an empty tool set and therefore refuses that configuration.
+Codex token accounting alone does not establish eligibility for this action.
 
 ### Periodic native model inventory
 

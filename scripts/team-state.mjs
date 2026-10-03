@@ -8,7 +8,7 @@ import { compileCalibrationPolicyV2 } from './model-strength.mjs';
 import { quotaEligible, effectiveReviewFloor } from './team-quota.mjs';
 const clone = structuredClone;
 const KINDS = new Set(['question', 'answer', 'progress', 'result', 'assignment', 'ack', 'quiesce', 'handover', 'review-request', 'review-result', 'cancel']);
-const DEFERRED = new Set(['native-model-inventory-capture-v1','native-model-inventory-attempt-v1','native-policy-install-v2','subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','participant-host-register-v1','quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
+const DEFERRED = new Set(['native-protocol-control-enable-v2','native-action-profile-capture-v2','native-leader-ack-capture-v2','native-model-inventory-capture-v1','native-model-inventory-attempt-v1','native-policy-install-v2','subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','participant-host-register-v1','quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
 function fail(message) { throw new Error(message); }
 function text(v, name, max = 256) { if (typeof v !== 'string' || !v || v.length > max || /[\x00-\x1f]/.test(v)) fail('invalid-' + name); return v; }
 function id(v) { if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(v || '') || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(v)) fail('invalid-team-id'); return v; }
@@ -51,12 +51,13 @@ function eligibleParticipants(t,now){return Object.values(t.participants).filter
 function propose(t, at) {
   const selected = selectCoordinator(eligibleParticipants(t,Date.parse(at)), t.policy, t.leader, { now: Date.parse(at), ...(t.policy?.protocol===2?{coverage:'waypost-protocol-coordinate'}:{}) });
   if (!selected) { t.status = 'paused'; t.candidate = null; if(t.policy?.protocol===2){t.review_candidate=null;t.review_candidate_blocker='protocol-coordinator-candidate-unavailable';} return; }
-  if (selected.id === t.leader && t.status === 'active') return;
-  t.candidate = selected.id;
   if(t.policy?.protocol===2){
     t.review_candidate=t.review_blocker?null:selectProtocolReviewerCandidate(Object.values(t.participants),t.policy,t.review_floor,{coordinator:selected.id,now:Date.parse(at)})?.id??null;
     t.review_candidate_blocker=t.review_candidate?null:'strongest-independent-review-candidate-unavailable';
+    if(selected.id===t.leader&&t.status==='active'&&!t.review_candidate){t.candidate=selected.id;t.status='paused';return;}
   }
+  if (selected.id === t.leader && t.status === 'active') return;
+  t.candidate = selected.id;
   t.status = t.leader ? 'handover' : 'forming';
 }
 function nativeFloor(t,now){
