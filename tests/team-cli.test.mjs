@@ -100,3 +100,13 @@ test('subscription opt-in is owner-only, replayable and reports actual unavailab
  assert.equal(status.accounting_capabilities.exclusive_provider_quota,false);
  assert.match(f.run('routing-enable-v2','fixture-team').stderr,/subscription-mode-migration-required/);
 });
+
+test('owner selects inherited-native v2 with local token telemetry capability and no paid fallback guarantee',()=>{
+ const f=fixture();f.ok('join','fixture-team','--model','model.json','--credential','a.json');
+ writeFileSync(join(f.root,'native-accounting.json'),JSON.stringify({policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1,at:new Date().toISOString()}));
+ const result=f.ok('subscription-accounting-enable-v2','fixture-team','--request-file','native-accounting.json','--request-key','native-mode');
+ assert.equal(result.result.billing_policy,'inherited-native');const status=f.ok('status','fixture-team').teams[0];
+ assert.equal(status.accounting.protocol,2);assert.equal(status.accounting_capabilities.native_dispatch,'bounded-codex-identity-probe-only');
+ assert.equal(status.accounting_capabilities.provider_enforced_spend,false);assert.equal(status.accounting_capabilities.exclusive_provider_quota,false);
+ assert.match(f.run('routing-enable','fixture-team').stderr,/subscription-mode-migration-required/);
+});

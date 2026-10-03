@@ -326,7 +326,7 @@ coordinator or reviewer privileges. Collector-bound terminal receipts preserve
 actual overshoot, stale-epoch usage and uncertain outcomes. Missing usage retains
 the reservation; duplicate native counter spans cannot be charged twice.
 
-This increment provides the journal and migration gates. The default native
+Historical subscription v1 provides the journal and migration gates. Its default native
 execution-context collector is still unavailable: `team status` reports
 `native_dispatch: "blocked"`, and host inference refuses before launch with
 `host-subscription-execution-context-collector-unavailable`. User-supplied JSON
@@ -342,4 +342,33 @@ again. `coverage: complete` describes a continuous observed native counter span;
 it is not a provider invoice or an assertion that every billing charge is exposed.
 Missing, conflicting, decreasing or foreign-turn counters remain partial/absent
 and break baseline continuity. This path has fixture coverage and independent
-review; live native telemetry compatibility and subscription admission are pending.
+review; the inherited-native v2 host below connects this telemetry to subscription admission.
+
+The preferred owner-selected mode is subscription v2, enabled by
+`team subscription-accounting-enable-v2` with
+`{"policy":{"bootstrap":true,"billing_policy":"inherited-native"},"revision":1}`.
+It inherits existing native billing policy and reports unavailable fields as
+unknown. It does not enable credits, alter provider settings or add API fallback.
+Historical subscription v1 keeps its stricter account-route checks for replay.
+
+A v2 Codex host provides `--operation subscription-bootstrap --nonce <unique-id>`
+with explicit `--estimate-tokens` and `--max-tokens` local advisory bounds. This
+performs one fixed read-only synthetic identity-token probe, consuming its ledger
+attempt before inference. It neither calibrates model strength nor promotes any
+role. Reusing an invocation ID refuses without another native call. Native token
+usage shares a team/schema allocation across its own contexts, never an invented
+provider-global account pool. Billing changes preserve usage and quarantine the
+context. Economical worker dispatch and strongest final review remain pending.
+
+An owned Codex CLI synthetic probe on 2026-10-03 returned the requested token,
+reported `gpt-6.1-sol / low`, and settled an observed cumulative span of 18,516
+tokens. Reusing its nonce refused before another native call; no model or role
+was promoted. Owned-runtime closure confirmed child stop and callback drain.
+An account initialization notification made the first metadata read inconsistent,
+so that receipt honestly quarantined the context while retaining usage. The host
+now permits one nonbillable recapture before admission; continuing instability
+still remains explicit. This is bootstrap evidence, not model calibration,
+provider billing verification or a complete reviewed cross-harness task.
+After that correction, a second owned synthetic probe settled 19,207 native
+tokens with consistent metadata and no quarantine; nonce replay again refused,
+the context was retired, and no model or role was promoted.

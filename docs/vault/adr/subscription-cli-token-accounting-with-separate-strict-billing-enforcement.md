@@ -10,7 +10,7 @@ external_refs: {}
 supersedes: null
 superseded_by: null
 review_status: reviewed
-reviewed_at: 2026-10-02
+reviewed_at: 2026-10-03
 drafted_by: {"harness":"codex","provider":null,"date":"2026-10-02"}
 guards: []
 code_refs: ["scripts/team-host.mjs", "scripts/team-cli.mjs", "scripts/team-workflow.mjs", "scripts/team-transport.mjs", "scripts/team-quota-native.mjs", "scripts/model-routing.mjs", "scripts/team-subscription.mjs", "tests/team-subscription.test.mjs", "scripts/team-evidence.mjs", "models/routing.schema.json"]
@@ -43,15 +43,22 @@ fresh-context review or immutable publication requirements.
 
 Expose two explicit, versioned accounting modes. Existing strict routes retain
 their current quote/allocation/invoice requirements and never silently downgrade.
-New subscription mode requires an owner choice and adapter-observed subscription
-route/account binding. User JSON, a UI badge, a model's name or a successful MCP
-handshake cannot establish that binding. It must describe the actual execution
-context before and after its call, including effective origin and auth mode.
-A separate quota observer is not execution-route proof. API credentials,
-paid-credit fallback or rerouting require separate owner authorization; an
-unchanged model id cannot conceal a billing-mode change. Unsupported routes
-return named blockers.
+Subscription v2 inherits the native CLI's existing billing policy. Waypost does not
+enable purchased credits, change billing settings, inject API credentials or
+implement a paid-route fallback. Native auth/account/origin/SKU/credit observations
+are recorded with provenance; missing fields stay null/unknown. OAuth or a UI badge
+cannot establish an actual execution billing route or `paid_fallback:false`.
+Absence of that monetary guarantee does not prevent owner-authorized bounded
+synthetic token measurement. Strict monetary guarantees belong to strict mode.
 
+The initial implemented subscription v1 required verified account/origin/mode and
+no-credit-fallback evidence. Independent critique found this reintroduced strict
+monetary enforcement into the advisory mode and blocked the owner's CLI workflow.
+Keep those historical v1 events replayable; use separate v2 events for inherited
+native policy. V2 token allocations are explicitly local to a team and native
+counter schema. Unknown accounts are never forged or pooled as provider accounts.
+Provider quota aggregation still requires independently verified account/pool/model
+scope; local token allocation cannot establish it.
 Mode, allocation and counter-schema revisions bind every admission and receipt.
 Mode changes require an owner event and no unfinished prepared/consumed/uncertain
 operations, active work or unreconciled reviews; never reinterpret a strict
@@ -66,7 +73,7 @@ Do not apply API token prices to subscription usage. Tokens from different vendo
 or buckets are not automatically equivalent measures of quota consumption.
 
 Persist each operation's participant/incarnation, exact model and configuration,
-account/route fingerprint, epoch, purpose, evidence revisions and attempt nonce
+owned context and available account/route observations, epoch, purpose, evidence revisions and attempt nonce
 before invoking the provider. Bootstrap pins requested configuration separately
 from observed execution identity; requested aliases cannot authorize protected work.
 Account for coordinator, worker, calibration and
@@ -89,18 +96,24 @@ clients or other machines. Never claim an exclusive provider quota reservation.
 
 Break the bootstrap cycle with an owner-authorized bounded read-only admission
 for identity inspection and fixed synthetic calibration only. It pins the owned
-endpoint, authenticated execution account/mode, purpose, suite digest, local token
+endpoint, native counter schema, available metadata, purpose, suite digest, local token
 estimate, call/attempt ceiling and timeout before the call. Missing strongest rank
 or task-class qualification cannot block this measurement admission, but it grants
 no coordination, execution, review or publication privilege. Unknown model-scope
 quota is labelled unknown and permits only an explicitly authorized bootstrap probe;
 known exhaustion still refuses. Preserve uncertain outcomes and compare pre/post
-route/account. Only actual receipts and trusted grading can promote the observed tuple.
+route/account observations. Unknown fields permit measurement but never invent
+model identity or a protected-role rank. Only actual receipts and trusted grading
+can promote the observed tuple.
 
 An adapter receipt states its native counter schema, execution context and invocation,
-coverage, observed model, pre/post route/account and counter boundaries. Cumulative
+coverage, observed model, pre/post available metadata and counter boundaries. Cumulative
 counters need a verified baseline and terminal snapshot from the same context;
 subtract once, reject decreases and do not add cached/reasoning subsets twice.
+Complete native-span telemetry is not a provider-exhaustive billing invoice.
+Billing/model changes preserve terminal tokens and quarantine the context for
+subsequent admission; they must not erase already consumed usage. Refining an
+initial unknown model is an observation, not evidence of a model switch.
 A last-response counter is not whole-turn usage when tools or retries caused other
 model calls. Partial or absent coverage remains unknown. Replay cannot account the
 same provider/context span twice; malformed receipts retain uncertain reservation.
@@ -173,7 +186,7 @@ including revision and role redistribution, remains required for WP-20 completio
 
 ---
 
-*Last updated: 2026-10-02*
+*Last updated: 2026-10-03*
 
 ## Independent design review
 
@@ -186,3 +199,32 @@ its scoped ship verdict was followed by a focused regression run: 86/86 passed
 (ledger, CLI, host, workflow and native transport fixtures). No native
 subscription adapter or full dispatch capability is verified by those reviews. Owner chose the two-mode
 direction; detailed implementation remains proposed until its review is complete.
+
+## Inherited-native correction (2026-10-03)
+
+A separate independent design critique returned revise: requiring proof of
+`paid_fallback:false` before advisory bootstrap contradicted the owner's selected
+token/quota mode. The v2 correction preserves native billing policy and honest
+unknown metadata; it introduces no monetary guarantee or API fallback. Bootstrap
+still requires an owned read-only context, fixed synthetic suite, bounded attempt,
+consume-before-dispatch, retained uncertainty and unchanged protected-role gates.
+Only known native schema counters can settle the local token span. Model identity
+and strength promotion, worker dispatch and final review remain separate work.
+
+The first owned Codex CLI v2 synthetic probe passed on 2026-10-03: 18,516 observed
+native tokens, effective `gpt-6.1-sol / low`, replay refused and no protected-role
+promotion. Owned-runtime closure confirmed child stop and callback drain. A native
+account initialization notification during the initial metadata read was retained
+as inconsistency and quarantined that context without discarding usage. One
+bounded nonbillable recapture is now permitted before admission; it makes no
+execution billing or account-global quota guarantee. Calibration and a full
+reviewed multi-harness task remain pending.
+
+After the recapture correction, a second owned synthetic probe settled 19,207
+native tokens with consistent metadata and no quarantine. Replay again refused;
+no model/role was promoted and its native context was retired. A separate actual
+diff reviewer returned scoped ship for this v2 bootstrap increment, with the full
+routing story explicitly left open. Regression evidence: 134/136 passed on the
+first seven-suite run; the two failures exposed an incarnation-envelope conflict,
+then 67/67 affected tests passed after correction. The subsequent recapture
+addition passed all 32 host tests. These checks do not establish a full team driver.

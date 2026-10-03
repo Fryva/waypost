@@ -4,6 +4,7 @@ import { mkdtempSync, realpathSync, mkdirSync, writeFileSync, readFileSync, rmSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { reduceTeamEvent } from '../scripts/team-state.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
 import { createTeamHost, validateBoundedUsageReceipt } from '../scripts/team-host.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
@@ -22,6 +23,7 @@ function fixture(t,options={}) {
   if(failOnce===c.type){failOnce=null;throw new Error('interrupted '+c.type);}
   if(accepted.has(request.key)){const prior=accepted.get(request.key);assert.deepEqual(c,prior.command);return {result:prior.result,revision,replayed:true};}
   revision++;
+  if(c.type.startsWith('subscription-')){const next=reduceTeamEvent(state,c);Object.assign(team,next.state.teams.team);Object.assign(state,next.state);state.teams.team=team;const result=next.result;accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};}
   if(options.deferredType===c.type)return {result:{deferred:true},revision};
   if(c.type==='quota-capture-v1'){team.participants[c.observation.participant].quota_observation=c.observation;team.status='handover';}
   if(c.type==='begin-handover-v1')team.handover={old_leader:team.leader,old_epoch:team.epoch,target_epoch:team.epoch+1,acks:{},adoptions:{}};
@@ -39,9 +41,10 @@ function fixture(t,options={}) {
   if(c.type==='handover-accept-v1'){team.leader=team.candidate;team.candidate=null;team.status='active';team.epoch++;}
   const result={type:c.type};accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};
  };
+ let metadataReads=0;
  const native=async()=>{
   calls.push('native-create');
-  return {native_id:'owned-native',async send(prompt,invocation){calls.push('native-send');if(options.failure)throw new Error('timeout');return {output:invocation.id,native_id:'owned-native',actualModel:{provider:options.provider||'openai',model_id:'model',reasoning:'low'},context_manifest:{id:'ctx',model_provider_is_billing_route:options.billingRoute||false}};},close(){calls.push('native-close');},...(options.stopWait?{async stopAndWait(){calls.push('native-stop-wait');await options.stopWait();calls.push('native-stopped');}}:{})};
+  return {native_id:'owned-native',owns_process:true,async inspectContext(){return {verified:options.nativeProbe===true};},async captureAccountingMetadata(){calls.push('metadata-read');const readIndex=metadataReads++;if(options.metadataPostFailure&&readIndex>0)throw new Error('not-a-public-error');return {provider:'openai',origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'native-runtime',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:options.initialMetadataUnstable?1:0,consistent:!options.initialMetadataUnstable||readIndex>0};},async send(prompt,invocation){calls.push('native-send');if(options.failure)throw new Error('timeout');return {invocation_id:invocation.id,output:options.nativeProbe?prompt.split(' ').at(-1):invocation.id,usage_span:options.nativeProbe?{schema:'codex-thread-cumulative-total-v1',native_id:'owned-native',turn_id:'probe-turn',coverage:options.partialUsage?'partial':'complete',before:'0',after:'30',actual_tokens:'30'}:undefined,native_id:'owned-native',actualModel:{provider:options.provider||'openai',model_id:'model',reasoning:'low'},context_manifest:{id:'ctx',native_id:'owned-native',fresh:true,read_only:true,fresh_review_verified:!options.isolationFailure,model_provider_is_billing_route:options.billingRoute||false}};},close(){calls.push('native-close');},...(options.stopWait?{async stopAndWait(){calls.push('native-stop-wait');await options.stopWait();calls.push('native-stopped');}}:{})};
  };
  const dependencies={load,mutate,createNativeEndpoint:native,...options.dependencies};
  const host=createTeamHost({authorityRoot:root,projectRoot:root,vaultPath:options.vaultPath?root:undefined,team:'team',ownerCredential:owner,collectorPath:collector,endpointPath:endpoint,leaderEndpointPath:endpoint,participant:'participant',participantCredential},dependencies);
@@ -249,4 +252,37 @@ test('subscription mode refuses unsupported execution-context accounting before 
  f.team.accounting={protocol:1,mode:'subscription-tokens',revision:1};const calls=f.calls.length;
  await assert.rejects(f.host.inspect({action:'identity',nonce:'subscription-probe'}),{code:'host-subscription-execution-context-collector-unavailable'});
  assert.equal(f.calls.length,calls);assert.equal(f.calls.includes('native-create'),false);
+});
+
+test('inherited-native bootstrap consumes actual reducer admission before one synthetic send without role promotion',async t=>{
+ const f=fixture(t,{nativeProbe:true});await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+ const next=reduceTeamEvent(f.state,{type:'subscription-accounting-enable-v2',team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});
+ Object.assign(f.team,next.state.teams.team);Object.assign(f.state,next.state);f.state.teams.team=f.team;
+ const prior=structuredClone(f.team.participants.participant.model);
+ const result=await f.host.subscriptionBootstrap({nonce:'owned-probe',estimateTokens:'40',maxTokens:'100'});
+ assert.equal(result.probe_passed,true);assert.equal(result.actual_tokens,'30');assert.equal(result.protected_roles_granted,false);
+ assert.equal(f.state.subscription_invocations['subscription-owned-probe'].state,'settled');
+ assert.ok(f.calls.indexOf('subscription-consume-v2')<f.calls.indexOf('native-send'));
+ assert.deepEqual(f.team.participants.participant.model,prior);
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'owned-probe',estimateTokens:'40',maxTokens:'100'}),/already-recorded-no-replay/);
+ assert.equal(f.calls.filter(x=>x==='native-send').length,1);
+});
+
+test('post-call metadata failure retains known native tokens and quarantines without a second model call',async t=>{
+ const f=fixture(t,{nativeProbe:true,metadataPostFailure:true});await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+ const next=reduceTeamEvent(f.state,{type:'subscription-accounting-enable-v2',team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});Object.assign(f.team,next.state.teams.team);Object.assign(f.state,next.state);f.state.teams.team=f.team;
+ const result=await f.host.subscriptionBootstrap({nonce:'metadata-failure',estimateTokens:'40',maxTokens:'100'});
+ assert.equal(result.actual_tokens,'30');assert.equal(result.metadata_blocker,'native-accounting-metadata-unavailable');assert.equal(result.context_quarantined,true);
+ assert.equal(f.state.subscription_invocations['subscription-metadata-failure'].charged_tokens,'30');assert.equal(f.calls.filter(x=>x==='native-send').length,1);
+ assert.equal(Object.keys(f.team.subscription_retired_native).length,1);
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'metadata-failure',estimateTokens:'40',maxTokens:'100'}),/no-replay/);
+});
+
+test('initial account notification gets one nonbillable recapture before native admission',async t=>{
+ const f=fixture(t,{nativeProbe:true,initialMetadataUnstable:true});await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+ const next=reduceTeamEvent(f.state,{type:'subscription-accounting-enable-v2',team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});Object.assign(f.team,next.state.teams.team);Object.assign(f.state,next.state);f.state.teams.team=f.team;
+ const result=await f.host.subscriptionBootstrap({nonce:'stable-account',estimateTokens:'40',maxTokens:'100'});
+ assert.equal(result.context_quarantined,false);assert.equal(result.actual_tokens,'30');
+ assert.equal(f.calls.filter(x=>x==='metadata-read').length,3);assert.equal(f.calls.filter(x=>x==='native-send').length,1);
+ assert.equal(f.state.subscription_invocations['subscription-stable-account'].context.billing_observation.consistent,true);
 });

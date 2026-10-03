@@ -203,19 +203,24 @@ kept separately. Strict v1/v2 grants/events retain provider liability/allocation
 and invoice requirements. Versioned subscription events use a separate native-token
 unit scope and cannot reinterpret strict history. Activation/migration requires an
 owner event and no unfinished invocations, work or unreconciled reviews. No silent
-downgrade or automatic paid API/credit fallback. See
+downgrade. Subscription v2 inherits existing native billing policy: Waypost does
+not enable credits, change billing settings, inject API credentials or introduce
+its own paid fallback. Historical subscription v1 events keep their old meaning. See
 [[subscription-cli-token-accounting-with-separate-strict-billing-enforcement]].
 
 2.13. Bootstrap inspection/calibration admits bounded read-only owned contexts by
 explicit owner consent without demanding an already qualified model. Bind requested
 configuration, fixed purpose/suite, nonce, call/attempt ceiling, timeout, local token
-estimate and authenticated execution account/origin/mode before dispatch; observed
+estimate and bound owned endpoint/native counter schema before dispatch; observed
 model identity remains separate until actual receipts. Unknown model-scope quota
 permits only the authorized measurement probe, never invented availability. Known
 exhaustion refuses. Bootstrap itself cannot elect a leader, qualify a cheap worker
-or satisfy independent strongest review. Account/route proof belongs to the same
-native inference context before and after its invocation; a separate quota observer
-does not prove it. Missing native collector yields a named capability blocker.
+or satisfy independent strongest review. Available auth/account/origin/credit
+observations belong to the same peer before/after the call; missing fields remain
+null/unknown and do not stop bounded measurement. No metadata observation alone
+proves actual billing mode, zero cost or no paid-credit fallback. A separate quota
+observer is not actual execution-route proof. Missing native counter/isolation
+capability yields a named blocker.
 
 2.14. Subscription accounting reports adapter counter schema and coverage, not money
 or provider-enforced liability. Cumulative usage requires same-context baseline and
@@ -225,8 +230,11 @@ replayed. Actual usage above an estimate is recorded and blocks new admissions u
 allocation is increased explicitly. Terminal accounting/stop/reconciliation of the
 exact prior invocation remains possible after epoch/allocation/quota changes, without
 granting new work. Final review waits for allocation rather than being omitted.
-Project-authority reservations share a native counter/account unit scope across teams;
-unlike vendor counters are not summed, nor claimed as exclusive global quota.
+V2 reservations share the local team/native-counter-schema allocation across its
+contexts. Unknown accounts are not pooled as provider accounts or across teams.
+Unlike vendor counters are not equated or claimed as exclusive global quota.
+Billing/model changes retain terminal tokens and quarantine the native context;
+first observations refine unknown identity without granting protected roles.
 Whole-cycle token estimates include coordination, calibration, attempts and review.
 Unknown estimates are not labelled cheapest; capability floors and final review remain.
 

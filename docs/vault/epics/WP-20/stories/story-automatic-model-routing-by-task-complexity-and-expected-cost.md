@@ -89,8 +89,10 @@ Additional subscription-mode acceptance (additive to strict requirements above):
       subscription operations cannot be reinterpreted during migration.
 - [ ] Bounded read-only bootstrap records requested vs observed identity without
       granting coordinator/worker/reviewer privileges; unknown quota is not available.
-- [ ] Same inference context proves pre/post account/origin/auth mode and refuses
-      unauthorized API/credit fallback. A separate quota observer cannot substitute.
+- [ ] Inherited-native v2 records available same-peer billing/auth/account metadata
+      with explicit unknown fields, changes no billing settings and adds no paid
+      fallback. Unknown accounts use local team/counter budgets, not provider pools;
+      provider quota aggregation still needs verified account/model scope.
 - [ ] Native coverage/cumulative counters account each span once; missing/partial
       usage retains uncertain reservations, and observed overshoot records truthfully.
 - [ ] Terminal accounting after epoch/allocation/quota changes grants no new calls;

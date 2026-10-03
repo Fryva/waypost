@@ -54,7 +54,7 @@ function publicTeam(t) {
   }
   result.policy_stale = result.policy.mode === 'automatic' && Date.now() >= Date.parse(result.policy.expires_at);
   result.delivery = 'cooperative inboxes (including MCP) and explicitly managed native endpoints; desktop native binding and wake unverified';
-  if(t.accounting?.mode==='subscription-tokens')result.accounting_capabilities={mode:'subscription-tokens',ledger:'bootstrap-only',default_execution_context_collector:'unavailable',native_dispatch:'blocked',provider_enforced_spend:false,exclusive_provider_quota:false};
+  if(t.accounting?.mode==='subscription-tokens')result.accounting_capabilities={mode:'subscription-tokens',ledger:'bootstrap-only',billing_policy:t.accounting.billing_policy||'verified-route-v1',default_execution_context_collector:t.accounting.protocol===2?'codex-owned-native-counter':'unavailable',native_dispatch:t.accounting.protocol===2?'bounded-codex-identity-probe-only':'blocked',provider_enforced_spend:false,exclusive_provider_quota:false};
   return result;
 }
 export async function main(argv = process.argv.slice(2)) {
@@ -77,6 +77,7 @@ export async function main(argv = process.argv.slice(2)) {
       participant: opt('--participant'), leaderCredential:opt('--leader-credential') ? resolve(opt('--leader-credential')) : undefined, leaderEndpointPath: opt('--leader-endpoint-file') ? resolve(opt('--leader-endpoint-file')) : undefined, participantCredential: opt('--credential') ? resolve(opt('--credential')) : undefined,
       dispatcher: resolve(dirname(fileURLToPath(import.meta.url)), '../bin/waypost') });
     if (operation === 'bootstrap') print(await host.bootstrap({ participant: opt('--participant'), descriptor: opt('--descriptor-file') ? json(resolve(opt('--descriptor-file'))) : undefined }));
+    else if (operation === 'subscription-bootstrap') print(await host.subscriptionBootstrap({nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000',maxTokens:opt('--max-tokens')||'20000'}));
     else if (operation === 'register-participant-host') print(await host.registerParticipantHost());
     else if (operation === 'inspect') print(await host.inspect({ action: opt('--action'), ...(opt('--nonce') ? { nonce: opt('--nonce') } : {}) }));
     else if (operation === 'relay') print(await host.relay({ limit: Number(opt('--limit') || 10), pollMs: Number(opt('--poll-ms') || 1000), maxPolls: Number(opt('--max-polls') || 1) }));
@@ -90,7 +91,7 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:bootstrap|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:bootstrap|subscription-bootstrap|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
     return;
   }
   if (mode === 'status') {
@@ -256,7 +257,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
     command = { ...command, request_key: seed.request_key, at: seed.join_at }; 
   } else {
-    const ownerModes = new Set(['subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-reserve-v1','subscription-abort-v1','participant-host-register-v1','quota-policy-enable-v1','policy','attest','revoke','close','routing-enable','routing-enable-v2','collector-register-v1','collector-revoke-v1','control-invocation-reserve-v1','native-binding-v1','runtime-request-v1','begin-handover-v1','deferred-apply-v1','deferred-discard-v1','close-v1']);
+    const ownerModes = new Set(['subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-reserve-v2','subscription-abort-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-reserve-v1','subscription-abort-v1','participant-host-register-v1','quota-policy-enable-v1','policy','attest','revoke','close','routing-enable','routing-enable-v2','collector-register-v1','collector-revoke-v1','control-invocation-reserve-v1','native-binding-v1','runtime-request-v1','begin-handover-v1','deferred-apply-v1','deferred-discard-v1','close-v1']);
     cred = loadCredential(resolve(opt(ownerModes.has(mode) ? '--owner-credential' : '--credential') || (ownerModes.has(mode) ? defaultOwner : '')));
     command = { ...supplied, type: mode, team };
     if (mode === 'policy') command.policy = json(resolve(opt('--policy') || ''));

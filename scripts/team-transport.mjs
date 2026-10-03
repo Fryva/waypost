@@ -153,6 +153,29 @@ async function codexEndpoint(d, spawnProcess) {
   const nativeId = thread.thread.id;
   const freshNative = thread.thread.ephemeral === true && thread.thread.sessionId === nativeId && thread.thread.forkedFromId == null && thread.thread.cwd === d.cwd && Array.isArray(thread.thread.turns) && thread.thread.turns.length === 0;
   let previousCounters = null, sentTurns = 0;
+  let accountGeneration = 0;
+  const offAccount = peer.listen(m => { if(m?.method === 'account/updated')accountGeneration++; });
+  async function captureAccountingMetadata() {
+    const generation = accountGeneration;
+    const optional = async (method,params) => {
+      try{return await request(method,params);}catch(error){if(error.code==='native-rpc-rejected')return null;throw error;}
+    };
+    const auth = await optional('getAuthStatus',{includeToken:false,refreshToken:false});
+    const account = await optional('account/read',{refreshToken:false});
+    const routing = account?.workspaceRouting;
+    const clean = value => typeof value==='string'&&value.length>0&&value.length<=256&&!/[\x00-\x1f\x7f]/.test(value) ? value : null;
+    let origin=null;
+    try{const u=new URL(routing?.backendOrigin);if(u.protocol==='https:'&&u.origin===routing.backendOrigin&&!u.username&&!u.password)origin=u.origin;}catch{}
+    // These are same-peer native profile observations, not execution billing proof.
+    // Keep unavailable fields explicit; never assert no-credit fallback from OAuth.
+    return {provider:clean(thread.modelProvider||thread.thread.modelProvider),origin,
+      account:clean(routing?.chatgptAccountId)?createHash('sha256').update(routing.chatgptAccountId).digest('hex'):null,
+      sku:clean(account?.account?.planType),mode:'unknown',paid_fallback:'unknown',
+      provenance:auth||account||clean(thread.modelProvider||thread.thread.modelProvider)?'native-runtime':'unavailable',auth_method:['chatgpt','apikey','apiKey','chatgptAuthTokens'].includes(auth?.authMethod)?auth.authMethod:null,
+      credit_availability:'unknown',observed_at:new Date().toISOString(),
+      account_generation:accountGeneration,consistent:generation===accountGeneration};
+  }
+
   const inspectIsolation = async () => {
     if (d.mode !== 'read-only' || thread.sandbox?.type !== 'readOnly' || thread.sandbox.networkAccess !== false || !freshNative) return {verified:false,blocker:'native-fresh-read-only-thread-unverified'};
     try {
@@ -184,6 +207,7 @@ async function codexEndpoint(d, spawnProcess) {
   return {
     native_id:nativeId,
     inspectContext:inspectIsolation,
+    captureAccountingMetadata,
     async send(text) {
       peer.resetBudget(); const before = await inspectIsolation();
       const startId = ++seq, baseline = previousCounters, firstTurn = sentTurns++ === 0;
@@ -234,7 +258,7 @@ async function codexEndpoint(d, spawnProcess) {
       }, () => { peer.write({id:startId,method:'turn/start',params:{threadId:nativeId,input:[{type:'text',text}],...(d.reasoning ? {effort:d.reasoning}:{})}}); });
       const after = await inspectIsolation(), isolated = before.verified && after.verified;
       return {...result,context_manifest:manifest(d,nativeId,freshNative,{tools:isolated ? ['shell.read-only']:null,instruction_sources:thread.instructionSources || [],sandbox:thread.sandbox || null,read_only:thread.sandbox?.type === 'readOnly',isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated,isolation_evidence:isolated ? {before,after}:{blocker:before.blocker || after.blocker,servers:before.servers||after.servers||[]},read_only_evidence:'native-sandbox-response'})};
-    }, close:() => peer.close(),stopAndWait:options=>peer.stopAndWait(options),
+    }, close:() => {offAccount();peer.close();},stopAndWait:options=>{offAccount();return peer.stopAndWait(options);},
   };
 }
 
@@ -315,7 +339,7 @@ export async function createNativeEndpoint(descriptor, dependencies = {}) {
     endpoint = d.harness === 'codex' ? await codexEndpoint(d,dependencies.spawnProcess || spawn) : d.harness === 'claude' ? await claudeEndpoint(d,dependencies.spawnProcess || spawn) : await opencodeEndpoint(d,dependencies.fetchImpl || fetch);
   } catch (e) { if(server)await server.stopAndWait();throw e; }
   let busy = false, poisoned = false, closed = false; const attempts = new Set();
-  return {native_id:endpoint.native_id,owns_process:Boolean(server)||d.harness!=='opencode',descriptor:{harness:d.harness,cwd:d.cwd,mode:d.mode,version:d.version || 'unknown'},async inspectContext(){if(!endpoint.inspectContext)throw fail('native-context-inspection-unsupported');return endpoint.inspectContext();},async send(text,invocation) {
+  return {async captureAccountingMetadata(){if(closed||poisoned)throw fail('native-endpoint-closed');if(busy)throw fail('native-endpoint-busy');if(!endpoint.captureAccountingMetadata)throw fail('native-accounting-metadata-unsupported');busy=true;try{return await endpoint.captureAccountingMetadata();}catch(error){poisoned=true;endpoint.close();server?.close();throw error;}finally{busy=false;}},native_id:endpoint.native_id,owns_process:Boolean(server)||d.harness!=='opencode',descriptor:{harness:d.harness,cwd:d.cwd,mode:d.mode,version:d.version || 'unknown'},async inspectContext(){if(!endpoint.inspectContext)throw fail('native-context-inspection-unsupported');return endpoint.inspectContext();},async send(text,invocation) {
     if (text && typeof text === 'object') { const request = text; text = request.prompt; invocation = {id:request.invocation_nonce,purpose:request.purpose,max_output_chars:request.max_output_chars,read_only:request.read_only}; }
     if (closed) throw fail('native-endpoint-closed');
     if (poisoned) throw fail('native-outcome-uncertain');

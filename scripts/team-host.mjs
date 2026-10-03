@@ -5,6 +5,7 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { readAuthority, mutateAuthority } from './team-store.mjs';
 import { reduceTeamEvent, authorizeActor } from './team-state.mjs';
+import { validateBillingObservation } from './team-subscription.mjs';
 import { routingDigest } from './model-routing.mjs';
 import { createRoutingGrant, serializeRoutingGrant } from './team-evidence.mjs';
 import { collectQuotaObservation, serializeQuotaObservation, quotaEligible } from './team-quota.mjs';
@@ -44,7 +45,8 @@ export function createTeamHost(config, dependencies={}) {
  function mutate(type,fields,c,key=randomUUID()) {
   const {v,t}=getTeam();const actor=authorizeActor(v.state,team,c);
   const command={...fields,type,team,actor,incarnation:c.incarnation||null,epoch:fields.epoch??t.epoch,at:fields.at||now(),request_key:key};
-  activeOperation?.annotate(command);
+  // Stopping native work must not prevent recording its usage or withdrawing admission.
+  if(!['subscription-usage-v2','subscription-uncertain-v2','subscription-abort-v2','subscription-context-retire-v2'].includes(type))activeOperation?.annotate(command);
   const result=(dependencies.mutate||mutateAuthority)(authorityRoot,{actor,key,expected_revision:v.revision,command},reduceTeamEvent,{authorize:s=>{if(authorizeActor(s,team,c)!==actor)fail('host-actor-changed');}});
   if(result.result?.deferred)fail('host-command-deferred-no-external-dispatch');
   return result;
@@ -78,6 +80,53 @@ export function createTeamHost(config, dependencies={}) {
   const runtime=createOwnedRuntime({directory:join(registered?dirname(registered.binding.host_file):hostDir,'runtime'),team,participant:p.id,incarnation:p.incarnation,epoch,descriptorDigest:routingDigest(d.descriptor)});
   return await runtime.run({kind},async scope=>{activeOperation=scope;try{return await fn();}finally{activeOperation=null;}});
   }finally{operationBusy=false;}
+ }
+ async function subscriptionBootstrap({nonce,estimateTokens='16000',maxTokens='20000'}={}) {
+  const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
+  if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('host-subscription-v2-owner-opt-in-required');
+  if(d.descriptor.harness!=='codex'||d.descriptor.mode!=='read-only')fail('host-subscription-bootstrap-counter-adapter-unsupported');
+  if(typeof nonce!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(nonce))fail('host-subscription-bootstrap-nonce-required');
+  for(const value of [estimateTokens,maxTokens])if(typeof value!=='string'||!/^[1-9][0-9]{0,17}$/.test(value))fail('host-subscription-bootstrap-token-bound-required');
+  const invocationId='subscription-'+nonce;
+  if(load().state.subscription_invocations?.[invocationId])fail('host-subscription-attempt-already-recorded-no-replay');
+  if(p.quota_observation?.status==='exhausted')fail('host-subscription-quota-exhausted');
+  const token='WAYPOST_PROBE_'+nonce;
+  const prompt='Synthetic protocol check. Return exactly this token and nothing else: '+token;
+  const suiteDigest=routingDigest({id:'waypost-identity-token',revision:1,template:'Return exactly WAYPOST_PROBE_<nonce>',read_only:true});
+  const transport=await native(d.descriptor);
+  let consumed=false;
+  try{
+   const isolated=await transport.inspectContext();if(isolated.verified!==true||transport.owns_process===false)fail('host-subscription-owned-read-only-context-unverified');
+   let before=await transport.captureAccountingMetadata();
+   // Native login initialization may notify during the first nonbillable read.
+   // Retry once; continuing instability remains explicit in the receipt.
+   if(before.consistent===false)before=await transport.captureAccountingMetadata();
+   const contextId='subscription-context-'+randomUUID();
+   const unit={scope:'team-native-counter',team:t.id,counter_schema:'codex-thread-cumulative-total-v1'},unitDigest=routingDigest(unit);
+   const context={id:contextId,native_id:transport.native_id,descriptor_digest:routingDigest(d.descriptor),incarnation:p.incarnation,unit_scope:unit,billing_observation:before,observed_model:null,observed_at:now(),expires_at:new Date(Date.parse(now())+300000).toISOString(),read_only:true,owned:true};
+   mutate('subscription-context-capture-v2',{participant_id:p.id,context},collector());
+   let allocation=load().state.subscription_allocations?.[unitDigest];
+   if(!allocation||BigInt(maxTokens)>BigInt(allocation.max_tokens)){
+    mutate('subscription-allocation-update-v2',{unit_scope:unit,max_tokens:maxTokens,revision:(allocation?.revision||0)+1},o);
+    allocation=load().state.subscription_allocations[unitDigest];
+   }
+   const latest=getTeam().t;
+   mutate('subscription-reserve-v2',{reservation:{id:invocationId,participant:p.id,incarnation:p.incarnation,context_id:contextId,purpose:'identity',requested_model:{provider:'unknown',model_id:d.descriptor.model_id||'native-default',reasoning:d.descriptor.reasoning||'native-default'},nonce,suite_digest:suiteDigest,max_calls:1,timeout_ms:d.descriptor.timeout_ms||60000,estimate_tokens:estimateTokens,epoch:latest.epoch,quota_revision:latest.quota_revision||0,mode_revision:latest.accounting.revision,allocation_revision:allocation.revision}},o);
+   mutate('subscription-consume-v2',{invocation_id:invocationId,nonce,native_id:transport.native_id},collector());consumed=true;
+   const receipt=await transport.send(prompt,{id:nonce,purpose:'identity',read_only:true,max_output_chars:256});
+   if(receipt.invocation_id!==nonce||receipt.native_id!==transport.native_id)fail('host-subscription-native-receipt-binding-mismatch');
+   let after,metadataBlocker=null;
+   try{after=await transport.captureAccountingMetadata();validateBillingObservation(after);}catch(error){metadataBlocker=error.code||'native-accounting-metadata-unavailable';after={provider:null,origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'unavailable',auth_method:null,credit_availability:'unknown',observed_at:now(),account_generation:before.account_generation,consistent:false};}
+   const span=receipt.usage_span;
+   const coverage=span?.schema===unit.counter_schema&&span.native_id===transport.native_id?span.coverage:'absent';
+   const observed={provider:receipt.actualModel?.provider||'unknown',model_id:receipt.actualModel?.model_id||'unknown',reasoning:receipt.actualModel?.reasoning||'unknown'};
+   const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&receipt.context_manifest?.fresh_review_verified===true,billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null}},collector());
+   return {...settled.result,invocation_id:invocationId,probe_passed:receipt.output.trim()===token,observed_model:observed,usage_span:span||null,metadata_blocker:metadataBlocker,billing_policy:'inherited-native',protected_roles_granted:false};
+  }catch(error){
+   if(!consumed&&load().state.subscription_invocations?.[invocationId]?.state==='prepared')try{mutate('subscription-abort-v2',{invocation_id:invocationId,nonce},o);}catch{}
+   if(consumed&&['consumed','uncertain'].includes(load().state.subscription_invocations?.[invocationId]?.state))try{mutate('subscription-uncertain-v2',{invocation_id:invocationId,nonce},collector());}catch{}
+   throw error;
+  }finally{try{await closeNative(transport);}finally{mutate('subscription-context-retire-v2',{participant_id:p.id,native_id:transport.native_id,descriptor_digest:routingDigest(d.descriptor),participant_incarnation:p.incarnation},collector());}}
  }
  async function ensureQuotaFresh() {
   const {t}=getTeam();if(!t.quota_policy?.automatic_redistribution)return;
@@ -472,5 +521,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

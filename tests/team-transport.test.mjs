@@ -186,7 +186,7 @@ test('an externally bound OpenCode server cannot receive an owned process stop p
 });
 
 const counters=(total,input=total-2,extra={})=>({totalTokens:total,inputTokens:input,cachedInputTokens:1,outputTokens:total-input,reasoningOutputTokens:1,...extra});
-async function tokenEndpoint(turns,{fresh=true,replyAfterUsage=false,serverCollision=false,conflictingStart=false}={}) {
+async function tokenEndpoint(turns,{fresh=true,replyAfterUsage=false,serverCollision=false,conflictingStart=false,metadata=false,accountChange=false}={}) {
  let number=0,collisionId=null,collisionRejected=false;
  return createNativeEndpoint({harness:'codex',cwd,managed:true},{spawnProcess:()=>childMock((m,emit)=>{
   if(m.method===undefined && collisionId!==null && m.id===collisionId && m.error?.code===-32601)collisionRejected=true;
@@ -194,6 +194,8 @@ async function tokenEndpoint(turns,{fresh=true,replyAfterUsage=false,serverColli
   if(m.method==='thread/start')emit({id:m.id,result:{thread:{id:'token-owned',sessionId:'token-owned',cwd,ephemeral:fresh,turns:[],forkedFromId:null},model:'actual',modelProvider:'openai',reasoningEffort:'low',sandbox:{type:'readOnly',networkAccess:false}}});
   if(m.method==='mcpServerStatus/list')emit({id:m.id,result:{data:[],nextCursor:null}});
   if(m.method==='app/installed')emit({id:m.id,result:{apps:[]}});
+  if(m.method==='getAuthStatus'){assert.equal(m.params.includeToken,false);assert.equal(m.params.refreshToken,false);if(accountChange)emit({method:'account/updated',params:{}});emit(metadata?{id:m.id,result:{authMethod:'chatgpt',authToken:'never-store-this'}}:{id:m.id,error:{code:-32601}});}
+  if(m.method==='account/read'){assert.equal(m.params.refreshToken,false);emit(metadata?{id:m.id,result:{account:{type:'chatgpt',planType:'plus',email:'private-profile@example.test'},workspaceRouting:{chatgptAccountId:'native-private-account',backendOrigin:'https://chatgpt.com'}}}:{id:m.id,error:{code:-32601}});}
   if(m.method==='turn/start'){
    const index=number++,turn='token-turn-'+index;
    if(serverCollision){collisionId=m.id;emit({id:m.id,method:'item/tool/call',params:{threadId:'token-owned'}});}
@@ -272,5 +274,21 @@ test('server request id collision receives refusal and cannot replace native tur
 test('conflicting repeated start response cannot rebind a native token span',async()=>{
  const value=counters(10),endpoint=await tokenEndpoint([[{tokenUsage:{total:value,last:value}}]],{conflictingStart:true});
  try{const r=await endpoint.send('one',{id:'conflicting-start'});assert.equal(r.usage_span.coverage,'partial');assert.equal(r.usage_span.actual_tokens,null);assert.equal(r.usage_span.turn_id,'token-turn-0');}
+ finally{endpoint.close();}
+});
+
+test('same-peer billing metadata strips credentials and identifies native observations without monetary guarantees',async()=>{
+ const endpoint=await tokenEndpoint([],{metadata:true});
+ try{const observation=await endpoint.captureAccountingMetadata();assert.equal(observation.auth_method,'chatgpt');assert.equal(observation.origin,'https://chatgpt.com');assert.match(observation.account,/^[a-f0-9]{64}$/);assert.equal(observation.mode,'unknown');assert.equal(observation.paid_fallback,'unknown');assert.equal(observation.credit_availability,'unknown');assert.equal(observation.consistent,true);assert.doesNotMatch(JSON.stringify(observation),/never-store-this|private-profile|native-private-account/);}
+ finally{endpoint.close();}
+});
+test('unsupported native metadata remains explicit unknown without disabling counter measurement',async()=>{
+ const endpoint=await tokenEndpoint([]);
+ try{const observation=await endpoint.captureAccountingMetadata();assert.equal(observation.provider,'openai');assert.equal(observation.origin,null);assert.equal(observation.account,null);assert.equal(observation.auth_method,null);assert.equal(observation.paid_fallback,'unknown');assert.equal(observation.provenance,'native-runtime');}
+ finally{endpoint.close();}
+});
+test('account notification during same-peer metadata capture makes its continuity uncertain',async()=>{
+ const endpoint=await tokenEndpoint([],{metadata:true,accountChange:true});
+ try{const observation=await endpoint.captureAccountingMetadata();assert.equal(observation.consistent,false);assert.equal(observation.account_generation,1);assert.equal(observation.paid_fallback,'unknown');}
  finally{endpoint.close();}
 });
