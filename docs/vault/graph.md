@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-02T01:50:24.833Z
+generated_at: 2026-10-02T23:57:00.096Z
 
 ---
 
@@ -36,6 +36,7 @@ full typed neighborhood, both directions, in one call.
 | adr/memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md | Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job | adr | proposed |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | Model-aware teams across harness sessions with one authority and independent review | adr | accepted |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
+| adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | Subscription CLI token accounting with separate strict billing enforcement | adr | proposed |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
 | epics/WP-14/epic.md | Skills as the portable layer, and the first verified harnesses | epic | planned |
 | epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills.md | Bundled skills and loop procedures rendered as Agent Skills | story | done |
@@ -109,6 +110,11 @@ full typed neighborhood, both directions, in one call.
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0010-coordination-follows-the-repository.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | mdlink | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md |
+| adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
+| adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/automatic-role-redistribution-on-verified-model-quota-exhaustion.md |
+| adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
+| adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | adr/0010-coordination-follows-the-repository.md |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | adr/0011-decisions-that-check-themselves.md |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | epics/WP-14/epic.md |
@@ -221,6 +227,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
+| epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
 | epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
@@ -260,3 +267,4 @@ full typed neighborhood, both directions, in one call.
 | specs/cross-harness-team-coordination-protocol.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | specs/cross-harness-team-coordination-protocol.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
 | specs/cross-harness-team-coordination-protocol.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| specs/cross-harness-team-coordination-protocol.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |

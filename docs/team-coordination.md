@@ -309,3 +309,28 @@ Desktop quota badges alone are not provider evidence.
 On macOS, 2026-10-01, an independent owned Codex CLI
 probe exercised whole-operation closure with actual `gpt-6.1-sol / low`, verified
 context isolation and a durable stopped receipt after the callback/process ended.
+
+## Subscription token accounting increment
+
+The owner may explicitly select the versioned `subscription-tokens` mode with
+`waypost team subscription-accounting-enable-v1 <team-id> --request-file <policy.json>`.
+The request contains `{"policy":{"bootstrap":true},"revision":1}`; this is an owner
+operation, not a participant assertion. Existing strict monetary admission remains
+a separate mode. Unfinished invocations, active work and unreconciled reviews
+prevent migration. Token estimates do not enforce a provider monetary cap.
+
+The authority records allocations per authenticated account/origin/SKU/native
+counter schema, shared across teams within that authority. Bootstrap reservations
+allow only bounded identity or synthetic calibration attempts, never worker,
+coordinator or reviewer privileges. Collector-bound terminal receipts preserve
+actual overshoot, stale-epoch usage and uncertain outcomes. Missing usage retains
+the reservation; duplicate native counter spans cannot be charged twice.
+
+This increment provides the journal and migration gates. The default native
+execution-context collector is still unavailable: `team status` reports
+`native_dispatch: "blocked"`, and host inference refuses before launch with
+`host-subscription-execution-context-collector-unavailable`. User-supplied JSON
+cannot establish execution account/mode or complete token telemetry. Native
+collectors, calibrated routing and the executable team driver remain pending.
+See the proposed ADR **Subscription CLI token accounting with separate strict
+billing enforcement** and the coordination protocol specification.

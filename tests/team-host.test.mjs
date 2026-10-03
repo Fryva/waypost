@@ -243,3 +243,10 @@ for(const mismatch of ['stopped','participant','incarnation','epoch','evidence_d
  await assert.rejects(f.host.driveQuotaHandover(),{code:'host-bound-owned-process-stop-required'});
  assert.equal(resolutions,0);assert.equal(f.calls.includes('quiesce-capture-v1'),false);assert.equal(f.calls.includes('native-create'),false);assert.equal(f.team.status,'handover');
 });
+
+test('subscription mode refuses unsupported execution-context accounting before injected native launch',async t=>{
+ const f=fixture(t);await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+ f.team.accounting={protocol:1,mode:'subscription-tokens',revision:1};const calls=f.calls.length;
+ await assert.rejects(f.host.inspect({action:'identity',nonce:'subscription-probe'}),{code:'host-subscription-execution-context-collector-unavailable'});
+ assert.equal(f.calls.length,calls);assert.equal(f.calls.includes('native-create'),false);
+});

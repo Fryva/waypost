@@ -12,7 +12,7 @@ adr: ["model-aware-teams-across-harness-sessions-with-one-authority-and-independ
 stories: ["WP-20/story-addressed-messages-and-verified-harness-delivery", "WP-20/story-assignments-supervision-and-stronger-model-handover", "WP-20/story-automatic-model-routing-by-task-complexity-and-expected-cost", "WP-20/story-independent-strongest-model-review-of-immutable-evidence", "WP-20/story-live-claude-and-opencode-coordination-on-one-task", "WP-20/story-local-authority-log-and-crash-safe-mutations", "WP-20/story-participant-identity-and-owner-approved-model-policy", "WP-20/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely", "WP-20/story-reviewed-integration-and-team-aware-story-gates", "WP-20/story-team-cli-orientation-and-deterministic-diagnostics"]
 review_status: reviewed
 reviewed_at: 2026-09-30
-code_refs: ["bin/waypost", "scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/doctor.mjs", "scripts/ready.mjs", "scripts/lib.mjs", "templates/agents-block.md.tmpl", "scripts/team-state.mjs", "scripts/team-workflow.mjs", "scripts/team-store.mjs", "scripts/team-transport.mjs", "scripts/team-evidence.mjs", "scripts/team-host.mjs", "scripts/team-integration.mjs", "scripts/team-legacy.mjs", "scripts/team-diagnostics.mjs", "tests/team-end-to-end.test.mjs"]
+code_refs: ["bin/waypost", "scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/agents.mjs", "scripts/brief.mjs", "scripts/doctor.mjs", "scripts/ready.mjs", "scripts/lib.mjs", "templates/agents-block.md.tmpl", "scripts/team-state.mjs", "scripts/team-workflow.mjs", "scripts/team-store.mjs", "scripts/team-transport.mjs", "scripts/team-evidence.mjs", "scripts/team-host.mjs", "scripts/team-integration.mjs", "scripts/team-legacy.mjs", "scripts/team-diagnostics.mjs", "tests/team-end-to-end.test.mjs", "scripts/team-subscription.mjs", "tests/team-subscription.test.mjs"]
 ---
 
 # Cross-harness team coordination protocol
@@ -196,6 +196,39 @@ provider-backed reservation or authenticated shared pool authority; otherwise
 strict global-pool guarantees are unsupported. Baseline savings compares the same
 tasks/criteria/strongest review and includes classification, retries, escalation
 and actual tariffs/usage, not only token sticker price.
+
+2.12. Accounting mode is explicit. On 2026-10-02 the owner selected token and
+available-quota accounting for subscription CLIs, with strict monetary enforcement
+kept separately. Strict v1/v2 grants/events retain provider liability/allocation
+and invoice requirements. Versioned subscription events use a separate native-token
+unit scope and cannot reinterpret strict history. Activation/migration requires an
+owner event and no unfinished invocations, work or unreconciled reviews. No silent
+downgrade or automatic paid API/credit fallback. See
+[[subscription-cli-token-accounting-with-separate-strict-billing-enforcement]].
+
+2.13. Bootstrap inspection/calibration admits bounded read-only owned contexts by
+explicit owner consent without demanding an already qualified model. Bind requested
+configuration, fixed purpose/suite, nonce, call/attempt ceiling, timeout, local token
+estimate and authenticated execution account/origin/mode before dispatch; observed
+model identity remains separate until actual receipts. Unknown model-scope quota
+permits only the authorized measurement probe, never invented availability. Known
+exhaustion refuses. Bootstrap itself cannot elect a leader, qualify a cheap worker
+or satisfy independent strongest review. Account/route proof belongs to the same
+native inference context before and after its invocation; a separate quota observer
+does not prove it. Missing native collector yields a named capability blocker.
+
+2.14. Subscription accounting reports adapter counter schema and coverage, not money
+or provider-enforced liability. Cumulative usage requires same-context baseline and
+terminal snapshot; count each native span once without adding cached/reasoning subsets
+twice. Partial/absent usage remains uncertain, never zero; consumed attempts are not
+replayed. Actual usage above an estimate is recorded and blocks new admissions until
+allocation is increased explicitly. Terminal accounting/stop/reconciliation of the
+exact prior invocation remains possible after epoch/allocation/quota changes, without
+granting new work. Final review waits for allocation rather than being omitted.
+Project-authority reservations share a native counter/account unit scope across teams;
+unlike vendor counters are not summed, nor claimed as exclusive global quota.
+Whole-cycle token estimates include coordination, calibration, attempts and review.
+Unknown estimates are not labelled cheapest; capability floors and final review remain.
 
 ### 3. Leadership, stronger-model promotion and failover
 

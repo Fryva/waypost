@@ -62,6 +62,7 @@ export function createTeamHost(config, dependencies={}) {
   if(operationBusy)fail('host-operation-busy');
   operationBusy=true;
   try{
+   if(getTeam().t.accounting?.mode==='subscription-tokens' && ['inspect','relay','review','dispatch'].includes(kind))fail('host-subscription-execution-context-collector-unavailable');
   // Trusted injected transports retain their test/provider integration contract.
   // External OpenCode sessions have no owned process to supervise.
   if(dependencies.createNativeEndpoint)return await fn();

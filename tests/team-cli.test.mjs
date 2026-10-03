@@ -85,3 +85,18 @@ test('routing CLI preview grants no authority and enabled routing cannot use leg
  assert.equal(refused.status,1);assert.match(refused.stderr,/trusted-routing-collectors-unavailable/);
  assert.deepEqual(f.ok('status','fixture-team'),current);
 });
+
+test('subscription opt-in is owner-only, replayable and reports actual unavailable native capabilities',()=>{
+ const f=fixture();f.ok('join','fixture-team','--model','model.json','--credential','a.json');
+ const request={policy:{bootstrap:true},revision:1,at:new Date().toISOString()};
+ writeFileSync(join(f.root,'subscription.json'),JSON.stringify(request));
+ const args=['subscription-accounting-enable-v1','fixture-team','--request-file','subscription.json','--request-key','subscription-mode'];
+ const refused=f.run(...args,'--owner-credential','a.json');assert.equal(refused.status,1);assert.match(refused.stderr,/owner/);
+ const enabled=f.ok(...args);assert.equal(enabled.result.mode,'subscription-tokens');
+ assert.equal(f.ok(...args).replayed,true);
+ const status=f.ok('status','fixture-team').teams[0];
+ assert.equal(status.accounting_capabilities.native_dispatch,'blocked');
+ assert.equal(status.accounting_capabilities.provider_enforced_spend,false);
+ assert.equal(status.accounting_capabilities.exclusive_provider_quota,false);
+ assert.match(f.run('routing-enable-v2','fixture-team').stderr,/subscription-mode-migration-required/);
+});

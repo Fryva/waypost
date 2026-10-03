@@ -54,6 +54,7 @@ function publicTeam(t) {
   }
   result.policy_stale = result.policy.mode === 'automatic' && Date.now() >= Date.parse(result.policy.expires_at);
   result.delivery = 'cooperative inboxes (including MCP) and explicitly managed native endpoints; desktop native binding and wake unverified';
+  if(t.accounting?.mode==='subscription-tokens')result.accounting_capabilities={mode:'subscription-tokens',ledger:'bootstrap-only',default_execution_context_collector:'unavailable',native_dispatch:'blocked',provider_enforced_spend:false,exclusive_provider_quota:false};
   return result;
 }
 export async function main(argv = process.argv.slice(2)) {
@@ -255,7 +256,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
     command = { ...command, request_key: seed.request_key, at: seed.join_at }; 
   } else {
-    const ownerModes = new Set(['participant-host-register-v1','quota-policy-enable-v1','policy','attest','revoke','close','routing-enable','routing-enable-v2','collector-register-v1','collector-revoke-v1','control-invocation-reserve-v1','native-binding-v1','runtime-request-v1','begin-handover-v1','deferred-apply-v1','deferred-discard-v1','close-v1']);
+    const ownerModes = new Set(['subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-reserve-v1','subscription-abort-v1','participant-host-register-v1','quota-policy-enable-v1','policy','attest','revoke','close','routing-enable','routing-enable-v2','collector-register-v1','collector-revoke-v1','control-invocation-reserve-v1','native-binding-v1','runtime-request-v1','begin-handover-v1','deferred-apply-v1','deferred-discard-v1','close-v1']);
     cred = loadCredential(resolve(opt(ownerModes.has(mode) ? '--owner-credential' : '--credential') || (ownerModes.has(mode) ? defaultOwner : '')));
     command = { ...supplied, type: mode, team };
     if (mode === 'policy') command.policy = json(resolve(opt('--policy') || ''));

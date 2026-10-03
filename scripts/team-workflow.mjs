@@ -4,6 +4,7 @@ import { validateQuotaObservation, quotaEligible } from './team-quota.mjs';
 import { createHash } from 'node:crypto';
 import { rankParticipant, validateDescriptor } from './team.mjs';
 import { routingDigest, validateManifest, proposeModelRoute } from './model-routing.mjs';
+import { applySubscriptionAccounting } from './team-subscription.mjs';
 const hash = v => typeof v==='string' ? createHash('sha256').update(v).digest('hex') : routingDigest(v);
 const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
 const terminal = w => ['integrated','cancelled'].includes(w.status);
@@ -33,6 +34,9 @@ function currentReview(t,w,now) {
  return w.reviews?.find(r=>eligible(r) && r.verdict==='approve' && r.epoch===t.epoch && r.generation===w.generation && r.policy_revision===t.policy.revision && r.target_digest===w.result?.target_digest && r.tests_digest===w.result?.tests_digest && r.criteria_digest===w.criteria_digest && t.review_floor!==null && r.rank>=t.review_floor && !t.review_blocker && t.participants[r.reviewer]?.model.model_revision===r.model_revision && rankParticipant(t.participants[r.reviewer],t.policy,'review',{now})!==null && rankParticipant(t.participants[r.reviewer],t.policy,'review',{now})>=t.review_floor);
 }
 export function applyWorkflow(s,t,c,now,H) {
+ const subscription=applySubscriptionAccounting(s,t,c,now,H);
+ if(subscription!==null)return subscription;
+ if(t.accounting?.mode==='subscription-tokens' && ['routing-enable-v2','control-grant-capture-v1','control-invocation-reserve-v1','routing-grant-capture-v1','assign-routed-v2','invocation-reserve-v1'].includes(c.type))fail('subscription-mode-migration-required');
  let result;
  const work=()=> {const w=t.work[c.work_id];if(!w)fail('work-not-found');return w;};
  if(c.type==='quota-policy-enable-v1') {
@@ -295,6 +299,7 @@ export function applyWorkflow(s,t,c,now,H) {
   x.state='aborted';result={aborted:x.id};
  }else if(c.type==='close-v1') {
   H.owner(s,c);
+  if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('unresolved-subscription-invocations');
   if(Object.values(t.deliveries||{}).some(r=>['dispatching','uncertain'].includes(r.state)) || Object.values(t.runtime_requests||{}).some(r=>r.consumed&&!r.captured&&!r.reconciled_stopped) || Object.values(t.review_requests||{}).some(r=>r.consumed&&!r.output_digest&&!r.reconciled_stopped))fail('unresolved-native-operations');
   if(t.handover || s.publication_fence?.team===t.id || s.deferred_commands?.some(x=>x.command.team===t.id) || Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('unresolved-team-operations');
   if(Object.values(t.work).some(w=>!terminal(w) || w.status==='integrated'&&(!w.commit || !w.integrated_evidence || w.integrated_evidence.commit!==w.commit || w.integrated_evidence.tree!==w.result?.tree || w.integrated_evidence.target_digest!==w.result?.target_digest || w.integrated_evidence.criteria_digest!==w.criteria_digest || w.integrated_evidence.tests_digest!==w.result?.tests_digest || w.integrated_evidence.review_receipt?.nonce!==w.integrated_evidence.review || w.integrated_evidence.review_receipt?.verdict!=='approve')))fail('unfinished-reviewed-team-work');

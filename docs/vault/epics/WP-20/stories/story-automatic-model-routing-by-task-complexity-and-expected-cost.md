@@ -10,7 +10,7 @@ created: 2026-10-01
 updated: 2026-10-01
 external_refs: {}
 tags: ["models", "routing", "cost"]
-code_refs: ["scripts/model-routing.mjs", "models/routing.schema.json", "scripts/team-state.mjs", "scripts/team-cli.mjs", "tests/team-routing.test.mjs", "tests/team-cli.test.mjs", "docs/team-coordination.md", "scripts/team-evidence.mjs", "scripts/team-host.mjs", "scripts/team-workflow.mjs", "tests/team-evidence.test.mjs", "tests/team-end-to-end.test.mjs"]
+code_refs: ["scripts/model-routing.mjs", "models/routing.schema.json", "scripts/team-state.mjs", "scripts/team-cli.mjs", "tests/team-routing.test.mjs", "tests/team-cli.test.mjs", "docs/team-coordination.md", "scripts/team-evidence.mjs", "scripts/team-host.mjs", "scripts/team-workflow.mjs", "tests/team-evidence.test.mjs", "tests/team-end-to-end.test.mjs", "scripts/team-subscription.mjs", "tests/team-subscription.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null
@@ -46,6 +46,13 @@ routing ADR and spec contracts, not vendor-name or price heuristics.
 Pending the fresh-planner gate after dependencies. Ground the plan in current
 team authority/model evidence, provider adapters and existing heavy-job budgets.
 
+Owner-selected extension (2026-10-02): separate subscription native-token/quota
+accounting from provider-enforced strict monetary mode. Two independent design
+passes reviewed the new ADR and bootstrap contract. First implement versioned
+subscription ledger/normalizers in the existing authority, then same-context native
+account/route collectors and a bounded owner-authorized identity/calibration probe.
+Do not weaken legacy strict proof or claim worker routing from this foundation.
+
 ## Acceptance Criteria
 
 - [ ] A bounded routine task chooses the cheapest qualified authorized executor;
@@ -76,6 +83,21 @@ team authority/model evidence, provider adapters and existing heavy-job budgets.
       versus equal-quality baseline; tests
       alone are not claimed as savings or runtime enforcement.
 
+Additional subscription-mode acceptance (additive to strict requirements above):
+
+- [ ] Owner opt-in pins mode/allocation/counter revisions; unfinished strict or
+      subscription operations cannot be reinterpreted during migration.
+- [ ] Bounded read-only bootstrap records requested vs observed identity without
+      granting coordinator/worker/reviewer privileges; unknown quota is not available.
+- [ ] Same inference context proves pre/post account/origin/auth mode and refuses
+      unauthorized API/credit fallback. A separate quota observer cannot substitute.
+- [ ] Native coverage/cumulative counters account each span once; missing/partial
+      usage retains uncertain reservations, and observed overshoot records truthfully.
+- [ ] Terminal accounting after epoch/allocation/quota changes grants no new calls;
+      strongest final review is replenished or waits, never omitted.
+- [ ] Whole-cycle native-token estimates are scoped comparably; unlike counters
+      are not monetary invoices or exclusive provider quota reservations.
+
 ## Final Summary
 
 Pending implementation and independent review. No runtime cost savings claimed.
@@ -87,6 +109,7 @@ Participant evidence, serialized authority and reconciled assignments/handover.
 ## Attachments
 
 - [[automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets]]
+- [[subscription-cli-token-accounting-with-separate-strict-billing-enforcement]]
 - [[automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation]]
 
 ## Prototype and planner evidence
