@@ -403,6 +403,32 @@ Primary sources: [native normalization](https://github.com/anomalyco/opencode/bl
 [step accounting](https://github.com/anomalyco/opencode/blob/v1.18.33/packages/opencode/src/session/processor.ts),
 and [prompt correlation](https://github.com/anomalyco/opencode/blob/v1.18.33/packages/opencode/src/session/prompt.ts).
 
+### Claude terminal token telemetry
+
+The Claude transport reports `claude-native-first-turn-total-v1` separately
+from subscription admission. Complete telemetry requires the first owned fresh
+turn, exact native session and terminal UUID, one turn, an observed empty native
+tool set and no nested/tool activity. The four mandatory terminal buckets are
+input, output, cache creation input and cache read input. Their sum uses integer
+arithmetic; reasoning output is already included and is not added again.
+The corresponding buckets in the bounded flat `modelUsage` map must match.
+Native model web-search and terminal server-tool counters, when present, must
+explicitly report zero activity; malformed buckets cannot hide tool activity.
+Missing, malformed, conflicting, foreign, late or repeated-turn evidence cannot
+be repaired by a later frame or interpreted as zero usage.
+
+A terminal failure retains its bounded original receipt when counters are
+available. Complete describes observed terminal token buckets, not an invoice,
+provider-global quota or every hidden provider attempt. Native dollar estimates
+are ignored. The distinction between per-turn main-loop `usage` and accumulated
+whole-call `modelUsage` makes the fresh single-turn boundary essential.
+See [Claude SDK usage tracking](https://code.claude.com/docs/en/agent-sdk/cost-tracking).
+
+Claude subscription Host admission remains unsupported: nonbillable pre-inference
+isolation inspection has not been verified. Transport telemetry does not enable
+bootstrap, calibration, coordinator acknowledgement or protected task execution.
+Desktop and live native telemetry require their own observations.
+
 
 ### Native configuration observation foundation (protocol 2)
 

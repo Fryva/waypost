@@ -306,21 +306,78 @@ async function claudeEndpoint(d, spawnProcess) {
   if (d.model_id) argv.push('--model',d.model_id);
   if (d.reasoning) argv.push('--effort',d.reasoning);
   if (d.initial_instructions) argv.push('--append-system-prompt',d.initial_instructions);
-  const peer = processPeer(d,argv,spawnProcess);
-  let initTools = null;
-  // Only the native initialization frame, not requested argv, proves tools empty.
-  const offInit = peer.listen(m => { if (m?.type === 'system' && m.subtype === 'init' && m.session_id === nativeId && Array.isArray(m.tools)) initTools = m.tools; });
-  return { native_id:nativeId, async send(text) {
+  const peer = processPeer(d,argv,spawnProcess),schema = 'claude-native-first-turn-total-v1';
+  const snake = ['input_tokens','output_tokens','cache_creation_input_tokens','cache_read_input_tokens'];
+  const camel = ['inputTokens','outputTokens','cacheCreationInputTokens','cacheReadInputTokens'];
+  const counters = (value,keys) => value && typeof value === 'object' && !Array.isArray(value) && keys.every(key => Number.isSafeInteger(value[key]) && value[key] >= 0) ? keys.map(key => value[key]) : null;
+  const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
+  const modelFields = [...camel,'webSearchRequests','costUSD','contextWindow','maxOutputTokens','canonicalModel','provider'];
+  let initTools = null, gap = false, isolationGap = false, sends = 0, outputSeen = false;
+  const terminals = new Map();
+  // A late init cannot retroactively certify an earlier output. Stream gaps are
+  // sticky; a fresh result or a later empty tools list never repairs them.
+  const offInit = peer.listen(m => {
+    if (!m) return;
+    if (m.session_id && m.session_id !== nativeId) { gap = true; isolationGap = true; return; }
+    if (m.parent_tool_use_id || m.event?.parent_tool_use_id || ['tool_progress','tool_use_summary','tool_result','tool_use','error'].includes(m.type) || (m.type === 'system' && ['task_started','task_progress','task_notification','compact_boundary','conversation_reset','api_error','new_turn'].includes(m.subtype))) { gap = true; isolationGap = true; }
+    const blocks = m.message?.content || (m.event?.type === 'content_block_start' ? [m.event.content_block] : []);
+    if (Array.isArray(blocks) && blocks.some(block => ['tool_use','server_tool_use','tool_result'].includes(block?.type))) { gap = true; isolationGap = true; }
+    if (m.type === 'system' && m.subtype === 'init') {
+      if (m.session_id !== nativeId || outputSeen || initTools !== null || !Array.isArray(m.tools)) { gap = true; isolationGap = true; }
+      if (Array.isArray(m.tools)) { initTools = m.tools; if (m.tools.length) { gap = true; isolationGap = true; } }
+    } else if (['assistant','stream_event','result'].includes(m.type)) {
+      outputSeen = true;
+      if (sends === 0) { gap = true; isolationGap = true; }
+      if (initTools?.length !== 0) { gap = true; isolationGap = true; }
+    }
+    if (m.type === 'result') {
+      if (sends === 0) { gap = true; isolationGap = true; }
+      if (terminals.size > 0) gap = true;
+      if (!uuid(m.uuid)) gap = true;
+      else if (!terminals.has(m.uuid) && terminals.size >= 128) gap = true;
+      else { terminals.set(m.uuid,(terminals.get(m.uuid)||0)+1); if (terminals.get(m.uuid)>1) gap = true; }
+    }
+  });
+  return {native_id:nativeId,usage_counter_schema:schema,async send(text) {
+    const first = ++sends === 1; if (!first) gap = true;
     peer.resetBudget();
-    return waitFrame(peer,d.timeout_ms,m => {
-      if (m.session_id && m.session_id !== nativeId) throw fail('native-session-mismatch');
-      if (m.type !== 'result') return;
-      if (m.is_error) throw fail('native-turn-failed');
-      const models = Object.keys(m.modelUsage || {});
-      const isolated = initTools?.length === 0;
-      return { output:typeof m.result === 'string' ? m.result : '', actualModel:{provider:process.env.ANTHROPIC_BASE_URL ? 'unknown' : 'anthropic',model_id:models.length === 1 ? models[0] : 'unknown',reasoning:'unknown',observed_at:new Date().toISOString()},usage:m.usage || null,native_id:nativeId,context_manifest:manifest(d,nativeId,true,{tools:initTools,read_only:isolated,isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated,reasoning_requested:d.reasoning || null}) };
-    }, () => peer.write({type:'user',session_id:nativeId,parent_tool_use_id:null,message:{role:'user',content:text}}));
-  }, close:() => { offInit(); peer.close(); },stopAndWait:options=>{offInit();return peer.stopAndWait(options);} };
+    const m = await waitFrame(peer,d.timeout_ms,message => {
+      if (message.session_id && message.session_id !== nativeId) throw fail('native-session-mismatch');
+      if (message.type === 'result') return message;
+    },() => peer.write({type:'user',session_id:nativeId,parent_tool_use_id:null,message:{role:'user',content:text}}));
+    // WaitFrame resumes after the current frame batch, so duplicate terminals
+    // already delivered in that batch also invalidate the first receipt.
+    const models = m.modelUsage && typeof m.modelUsage === 'object' && !Array.isArray(m.modelUsage) ? Object.keys(m.modelUsage) : [];
+    const ownTerminal = m.session_id === nativeId && uuid(m.uuid) && m.parent_tool_use_id == null;
+    const top = counters(m.usage,snake);
+    if (m.usage && Object.hasOwn(m.usage,'server_tool_use')) {
+      const activity = m.usage.server_tool_use;
+      const keys = activity && typeof activity === 'object' && !Array.isArray(activity) ? Object.keys(activity) : [];
+      if (!keys.length || keys.some(key => !['web_search_requests','web_fetch_requests'].includes(key) || !Number.isSafeInteger(activity[key]) || activity[key] !== 0)) {
+        gap = true; isolationGap = true;
+      }
+    }
+    let aggregate = models.length > 0 && models.length <= 64 ? [0n,0n,0n,0n] : null;
+    if (models.length > 64) { gap = true; isolationGap = true; }
+    for (const model of models.slice(0,64)) {
+      const row = m.modelUsage[model],values = counters(row,camel);
+      // Activity evidence remains meaningful even when token buckets fail.
+      // Inspect every bounded row; an earlier malformed row cannot hide it.
+      if (row && Object.hasOwn(row,'webSearchRequests') && (!Number.isSafeInteger(row.webSearchRequests) || row.webSearchRequests !== 0)) {
+        gap = true; isolationGap = true;
+      }
+      if (!bounded(model,256) || /[\x00-\x1f\x7f]/.test(model) || !values || Object.keys(row).some(key => !modelFields.includes(key) || (row[key] !== null && typeof row[key] === 'object'))) { aggregate = null; continue; }
+      if (aggregate) values.forEach((n,i) => { aggregate[i] += BigInt(n); });
+    }
+    const sum = top?.reduce((total,n) => total + BigInt(n),0n);
+    const complete = first && !gap && ownTerminal && terminals.get(m.uuid) === 1 && initTools?.length === 0 && m.num_turns === 1 && typeof m.is_error === 'boolean' && top && aggregate && top.every((n,i) => BigInt(n) === aggregate[i]) && sum > 0n;
+    const isolated = !isolationGap && initTools?.length === 0;
+    const result = {output:typeof m.result === 'string' ? m.result : '',actualModel:{provider:process.env.ANTHROPIC_BASE_URL ? 'unknown' : 'anthropic',model_id:models.length === 1 ? models[0] : 'unknown',reasoning:'unknown',observed_at:new Date().toISOString()},usage:m.usage || null,native_id:nativeId,
+      usage_span:{protocol:1,schema,native_id:nativeId,turn_id:ownTerminal ? m.uuid : null,coverage:complete ? 'complete' : top ? 'partial' : 'absent',before:complete ? '0' : null,after:complete ? String(sum) : null,actual_tokens:complete ? String(sum) : null,scope:'observed-first-owned-main-loop-buckets',baseline_source:complete ? 'native-first-turn-matched-model-usage' : null},
+      context_manifest:manifest(d,nativeId,first,{tools:initTools,read_only:isolated,isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated && first,reasoning_requested:d.reasoning || null})};
+    if (m.is_error) throw Object.assign(fail('native-turn-failed'),{native_receipt:result});
+    return result;
+  },close:() => {offInit();peer.close();},stopAndWait:options => {offInit();return peer.stopAndWait(options);} };
 }
 
 async function opencodeEndpoint(d, fetchImpl) {
