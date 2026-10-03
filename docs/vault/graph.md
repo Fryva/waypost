@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-03T04:49:37.434Z
+generated_at: 2026-10-03T09:10:09.461Z
 
 ---
 
@@ -94,6 +94,7 @@ full typed neighborhood, both directions, in one call.
 | ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
 | specs/cross-harness-team-coordination-protocol.md | Cross-harness team coordination protocol | spec | active |
+| specs/objective-native-configuration-calibration-for-protocol-roles.md | Objective native configuration calibration for protocol roles | spec | draft |
 
 ## Edges
 
@@ -272,3 +273,9 @@ full typed neighborhood, both directions, in one call.
 | specs/cross-harness-team-coordination-protocol.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
 | specs/cross-harness-team-coordination-protocol.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | specs/cross-harness-team-coordination-protocol.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
+| specs/objective-native-configuration-calibration-for-protocol-roles.md | spec-covers | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md |
+| specs/objective-native-configuration-calibration-for-protocol-roles.md | spec-covers | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md |
+| specs/objective-native-configuration-calibration-for-protocol-roles.md | spec-implements-adr | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
+| specs/objective-native-configuration-calibration-for-protocol-roles.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
+| specs/objective-native-configuration-calibration-for-protocol-roles.md | wikilink | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
+| specs/objective-native-configuration-calibration-for-protocol-roles.md | wikilink | specs/cross-harness-team-coordination-protocol.md |

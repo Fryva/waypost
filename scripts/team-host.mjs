@@ -104,7 +104,20 @@ export function createTeamHost(config, dependencies={}) {
    const coverage=span?.schema===unit.counter_schema&&span.native_id===transport.native_id?span.coverage:'absent';
    const observed={provider:receipt.actualModel?.provider||'unknown',model_id:receipt.actualModel?.model_id||'unknown',reasoning:receipt.actualModel?.reasoning||'unknown'};
    const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&receipt.context_manifest?.fresh_review_verified===true,billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null}},collector());
-   return {...settled.result,invocation_id:invocationId,probe_passed:nativeFailure===null&&typeof receipt.output==='string'&&receipt.output.trim()===token,native_failure:nativeFailure,observed_model:observed,observed_identity_kind:receipt.context_manifest?.model_provider_is_billing_route?'native-routing-id':'native-effective-model',usage_span:span||null,metadata_blocker:metadataBlocker,billing_policy:'inherited-native',protected_roles_granted:false};
+   const probePassed=nativeFailure===null&&typeof receipt.output==='string'&&receipt.output.trim()===token;
+   let nativeProfile=null,profileBlocker=null;
+   if(probePassed && (settled.result.settled!==invocationId || settled.result.context_quarantined===true))profileBlocker='native-profile-accounting-not-terminal-or-context-quarantined';
+   if(probePassed && profileBlocker===null){
+    try{
+     const {collectNativeModelProfile,serializeNativeModelProfile}=await import('./native-model-profile.mjs');
+     const observedAt=receipt.actualModel?.observed_at;
+     const profile=await collectNativeModelProfile({participant:p,adapter_revision:'waypost-native-profile-1',requested_configuration:{model_id:d.descriptor.model_id??null,provider_id:d.descriptor.provider_id??null,reasoning:d.descriptor.reasoning??null,mode:d.descriptor.mode,initial_instructions_digest:receipt.context_manifest?.initial_instructions_digest??null,rules_digest:d.descriptor.rules_digest??null},execution_environment:{platform:process.platform,architecture:process.arch},now:()=>Date.parse(now()),observe:async()=>({...receipt,observed_at:observedAt,correlation:{participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,nonce:token,invocation_id:receipt.invocation_id,native_id:receipt.native_id,context_id:receipt.context_manifest?.id}})});
+     nativeProfile=serializeNativeModelProfile(profile,{now:()=>Date.parse(now())});
+    }catch(error){profileBlocker=String(error.message||'native-profile-unavailable').slice(0,256);}
+   }
+   // This detached observation is diagnostic evidence only. It is not a policy,
+   // calibration, enrollment update or authority grant; the context is retired.
+   return {...settled.result,invocation_id:invocationId,probe_passed:probePassed,native_failure:nativeFailure,observed_model:observed,observed_identity_kind:receipt.context_manifest?.model_provider_is_billing_route?'native-routing-id':'native-effective-model',usage_span:span||null,metadata_blocker:metadataBlocker,native_profile:nativeProfile,native_profile_status:nativeProfile?'retired-observation':'unavailable',native_profile_blocker:profileBlocker,billing_policy:'inherited-native',protected_roles_granted:false};
   }
   try{
    const isolated=await transport.inspectContext();if(isolated.verified!==true||transport.owns_process===false)fail('host-subscription-owned-read-only-context-unverified');

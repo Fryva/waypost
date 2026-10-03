@@ -402,3 +402,32 @@ usage, not zero usage or a verified quota-exhaustion event.
 Primary sources: [native normalization](https://github.com/anomalyco/opencode/blob/v1.18.33/packages/opencode/src/session/session.ts),
 [step accounting](https://github.com/anomalyco/opencode/blob/v1.18.33/packages/opencode/src/session/processor.ts),
 and [prompt correlation](https://github.com/anomalyco/opencode/blob/v1.18.33/packages/opencode/src/session/prompt.ts).
+
+
+### Native configuration observation foundation (protocol 2)
+
+After an already admitted and accounted successful owned bootstrap, the host
+can return a detached `native_profile` observation and explicit
+`native_profile_status: retired-observation`. This does not make the retired
+context eligible or alter enrollment, policy, ranking or protected roles.
+Validation failure leaves settled token usage intact and reports a profile
+blocker. The collector never performs another inference or extends a receipt's
+original observation time.
+
+A process-local trusted collector binds participant/incarnation/model revision,
+caller token, invocation and native/context IDs. Its immutable canonical profile
+fingerprint separates requested configuration from observed native route/model,
+version provenance and isolation/environment scope. Effective reasoning and model
+authorship remain unknown where the native route does not prove them. OpenCode
+version evidence comes from native health; a descriptor's requested version alone
+is not observed runtime evidence. Detached JSON cannot mint trusted observations
+or calibration. The proposed reviewed native-configuration ADR remains proposed;
+role-specific common-cohort calibration, versioned policy/action admissions,
+historical review identity migration and periodic discovery are still pending.
+
+
+Live on 2026-10-03, a separate owned OpenCode host probe settled 5,484 observed
+native step tokens and returned a protocol 2 retired observation with native
+health version 1.18.33, unknown effective reasoning and `rank_eligible: false`.
+The nonce retry refused and no enrollment or protected role changed. This proves
+capture compatibility, not calibration or a protected cross-harness task.
