@@ -351,7 +351,7 @@ It inherits existing native billing policy and reports unavailable fields as
 unknown. It does not enable credits, alter provider settings or add API fallback.
 Historical subscription v1 keeps its stricter account-route checks for replay.
 
-A v2 Codex host provides `--operation subscription-bootstrap --nonce <unique-id>`
+A v2 owned Codex or OpenCode host provides `--operation subscription-bootstrap --nonce <unique-id>`
 with explicit `--estimate-tokens` and `--max-tokens` local advisory bounds. This
 performs one fixed read-only synthetic identity-token probe, consuming its ledger
 attempt before inference. It neither calibrates model strength nor promotes any
@@ -372,3 +372,33 @@ provider billing verification or a complete reviewed cross-harness task.
 After that correction, a second owned synthetic probe settled 19,207 native
 tokens with consistent metadata and no quarantine; nonce replay again refused,
 the context was retired, and no model or role was promoted.
+
+The OpenCode CLI collector uses a separate owned server and local
+`opencode-native-normalized-step-total-v1` unit. Its native normalized buckets
+are disjoint: input + output + reasoning + cache.read + cache.write. The final
+assistant's `info.tokens` is only the last step; it cannot stand for the whole
+request. The collector must correlate its caller message ID, terminal assistant
+parent, message/part IDs and bounded own history, and verify deny permissions
+before and after inference. Coverage describes observed completed step buckets,
+not provider attempts or billing. Missing/zero/conflicting counters retain the
+hold; a gap permanently breaks continuity in that context. Route provider IDs
+remain routing observations, not model authorship or strongest-role proof.
+The counter semantics are checked against OpenCode 1.18.33; other versions must
+remain unverified until checked rather than inheriting that evidence by shape.
+On 2026-10-03 an owned OpenCode 1.18.33 host using the already connected
+`opencode-go / longcat-2.5-preview-free` route returned the fixed synthetic token
+and settled 5,469 observed normalized step tokens. Nonce replay refused before
+another native call; the context was retired, remained unresolved and granted no
+protected roles. Read-only deny rules passed before and after the call. Provider
+route and effective reasoning remain distinct; reasoning is unknown.
+
+Earlier successful output retained an uncertain hold because native POST and
+stored history JSON had different object key order. Structural comparison now
+checks exact values and array order while allowing object key reordering; altered
+counters, parent IDs, text or part order still fail. That earlier receipt is not
+retroactively declared complete. An earlier default `opencode / big-pickle` call
+returned APIError 403 with no completed step; it remains failed with unknown
+usage, not zero usage or a verified quota-exhaustion event.
+Primary sources: [native normalization](https://github.com/anomalyco/opencode/blob/v1.18.33/packages/opencode/src/session/session.ts),
+[step accounting](https://github.com/anomalyco/opencode/blob/v1.18.33/packages/opencode/src/session/processor.ts),
+and [prompt correlation](https://github.com/anomalyco/opencode/blob/v1.18.33/packages/opencode/src/session/prompt.ts).

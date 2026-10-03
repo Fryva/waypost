@@ -1,6 +1,7 @@
 // Managed native conversations. No shell, personal-session discovery or retries.
 import { spawn } from 'node:child_process';
-import { randomUUID, createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { realpathSync } from 'node:fs';
 
@@ -21,6 +22,37 @@ function codexCounters(value) {
   return Object.fromEntries(keys.map(key => [key,value[key]]));
 }
 const sameCounterSchema = (a,b) => JSON.stringify(Object.keys(a)) === JSON.stringify(Object.keys(b));
+
+const OPENCODE_COUNTER_SCHEMA = 'opencode-native-normalized-step-total-v1';
+function denyPermissions(value) {
+  if (value === 'deny') return true;
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length && Object.values(value).every(denyPermissions));
+}
+function denyConfig(config) {
+  const global = config?.permission, agent = config?.agent?.['waypost-native']?.permission;
+  return denyPermissions(global) && denyPermissions(agent) && (global === 'deny' || global['*'] === 'deny') && (agent === 'deny' || agent['*'] === 'deny');
+}
+function denySession(session, nativeId, cwd) {
+  return session?.id === nativeId && session.directory === cwd && Array.isArray(session.permission) && session.permission.length > 0 && session.permission.every(rule => bounded(rule.permission,256) && bounded(rule.pattern,1024) && rule.action === 'deny');
+}
+function opencodeBuckets(tokens) {
+  const values = [tokens?.input,tokens?.output,tokens?.reasoning,tokens?.cache?.read,tokens?.cache?.write];
+  if (values.some(n => !Number.isSafeInteger(n) || n < 0)) return null;
+  const total = values.reduce((sum,n) => sum + BigInt(n),0n);
+  return total > 0n ? total : null;
+}
+function nativeReceipt(result, invocationId) {
+  if (!result || !result.usage_span || !result.context_manifest) return null;
+  const receipt = {invocation_id:invocationId,native_id:result.native_id,context_manifest:result.context_manifest,actualModel:result.actualModel,usage_span:result.usage_span};
+  return Buffer.byteLength(JSON.stringify(receipt)) <= 65536 ? receipt : null;
+}
+function opencodeMessageId() {
+  // Native ascending IDs use a six-byte timestamp and a random base62 suffix.
+  const time = (BigInt(Date.now()) * 4096n) & ((1n << 48n) - 1n);
+  const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  const suffix = [...randomBytes(14)].map(byte => alphabet[byte % 62]).join('');
+  return 'msg_' + time.toString(16).padStart(12,'0') + suffix;
+}
 
 export function validateNativeDescriptor(d) {
   if (!d || d.managed !== true || !['codex','claude','opencode'].includes(d.harness) || !isAbsolute(d.cwd || '') || !['read-only','workspace-write'].includes(d.mode || 'read-only')) throw fail('invalid-native-descriptor');
@@ -206,6 +238,7 @@ async function codexEndpoint(d, spawnProcess) {
   } catch(e){await peer.stopAndWait();throw e;}
   return {
     native_id:nativeId,
+    usage_counter_schema:'codex-thread-cumulative-total-v1',
     inspectContext:inspectIsolation,
     captureAccountingMetadata,
     async send(text) {
@@ -301,33 +334,73 @@ async function opencodeEndpoint(d, fetchImpl) {
   };
   const health = await http('/global/health');
   if (health.healthy !== true || (d.version && health.version !== d.version)) throw fail('native-version-mismatch');
-  let observedReadOnly = false, emptyHistory = false;
-  if (d.owned_server) {
-    const config = await http('/config');
-    observedReadOnly = config.permission?.['*'] === 'deny' && config.agent?.['waypost-native']?.permission?.['*'] === 'deny';
-    if (!observedReadOnly) throw fail('native-read-only-configuration-unverified');
-  }
+  let emptyHistory = false, cursorBroken = false, sentTurns = 0;
+  const seenIds = new Set();
+  if (d.owned_server && !denyConfig(await http('/config'))) throw fail('native-read-only-configuration-unverified');
   const session = d.create_session ? await http('/session',{title:'Waypost managed context', permission:[{permission:'*',pattern:'*',action:'deny'}]}) : await http('/session/'+d.native_id);
   if (!bounded(session.id,128) || (d.native_id && session.id !== d.native_id) || (session.directory && session.directory !== d.cwd)) throw fail('native-session-mismatch');
-  const nativeId = session.id;
+  const nativeId = session.id, sessionPath = '/session/'+encodeURIComponent(nativeId);
   if (d.owned_server && d.create_session) {
-    const messages = await http('/session/'+encodeURIComponent(nativeId)+'/message?limit=1');
+    if (!denySession(session,nativeId,d.cwd)) throw fail('native-session-permissions-unverified');
+    const messages = await http(sessionPath+'/message?limit=3');
     emptyHistory = Array.isArray(messages) && messages.length === 0;
     if (!emptyHistory) throw fail('native-initial-history-not-empty');
   }
-  return { native_id:nativeId, async send(text) {
+  const inspectContext = async () => {
+    if (!d.owned_server || !emptyHistory) return {verified:false,blocker:'native-owned-isolation-unverified'};
+    try {
+      const config = await http('/config'), current = await http(sessionPath);
+      return denyConfig(config) && denySession(current,nativeId,d.cwd)
+        ? {verified:true,source:'native-config-session-deny-rules',observed_at:new Date().toISOString()}
+        : {verified:false,blocker:'native-read-only-configuration-unverified'};
+    } catch { return {verified:false,blocker:'native-isolation-inspection-failed'}; }
+  };
+  return { native_id:nativeId,usage_counter_schema:health.version === '1.18.33' ? OPENCODE_COUNTER_SCHEMA : null,inspectContext,
+    async captureAccountingMetadata() {
+      return {provider:null,origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'unavailable',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:0,consistent:true};
+    },async send(text) {
     if (closed) throw fail('native-endpoint-closed');
-    const r = await http('/session/'+encodeURIComponent(nativeId)+'/message',{parts:[{type:'text',text}], ...(d.owned_server ? {agent:'waypost-native'}:{}), ...(d.model_id ? {model:{providerID:d.provider_id,modelID:d.model_id}}:{}), ...(d.reasoning ? {variant:d.reasoning}:{}), ...(d.initial_instructions ? {system:d.initial_instructions}:{}),tools:{bash:false,edit:false,write:false,task:false}});
+    const before = await inspectContext(), first = sentTurns++ === 0;
+    if (d.owned_server && !before.verified) throw fail(before.blocker);
+    if (d.owned_server && first) { const currentHistory=await http(sessionPath+'/message?limit=3');if(!Array.isArray(currentHistory)||currentHistory.length)throw fail('native-initial-history-not-empty'); }
+    const messageID = opencodeMessageId();
+    const r = await http(sessionPath+'/message',{messageID,parts:[{type:'text',text}], ...(d.owned_server ? {agent:'waypost-native'}:{}), ...(d.model_id ? {model:{providerID:d.provider_id,modelID:d.model_id}}:{}), ...(d.reasoning ? {variant:d.reasoning}:{}), ...(d.initial_instructions ? {system:d.initial_instructions}:{}),tools:{bash:false,edit:false,write:false,task:false}});
     if (r.info?.sessionID !== nativeId || r.info?.role !== 'assistant') throw fail('native-session-mismatch');
-    if (r.info.error) {
+    const after = await inspectContext();
+    let history = null;
+    if (d.owned_server) { try { history = await http(sessionPath+'/message?limit=3'); } catch {} }
+    const info = r.info, parts = r.parts;
+    const ids = Array.isArray(parts) ? parts.map(p=>p.id) : [];
+    const allowed = new Set(['text','reasoning','step-start','step-finish']);
+    const starts = Array.isArray(parts) ? parts.filter(p=>p.type==='step-start') : [];
+    const finishes = Array.isArray(parts) ? parts.filter(p=>p.type==='step-finish') : [];
+    const correlated = bounded(info.id,128) && info.parentID === messageID && Number.isSafeInteger(info.time?.completed) && info.time.completed > 0 && Array.isArray(parts) && parts.every(p=>bounded(p.id,128) && p.sessionID===nativeId && p.messageID===info.id) && new Set(ids).size===ids.length && !ids.includes(info.id) && !seenIds.has(info.id) && ids.every(id=>!seenIds.has(id));
+    const bound = correlated && bounded(info.finish,128) && parts.length > 0 && parts.every(p=>allowed.has(p.type)) && starts.length===1 && finishes.length===1 && parts.indexOf(starts[0]) < parts.indexOf(finishes[0]) && finishes[0].reason===info.finish;
+    const buckets = bound ? opencodeBuckets(finishes[0].tokens) : null;
+    const matchingCounters = buckets !== null && info.tokens != null && isDeepStrictEqual(info.tokens,finishes[0].tokens);
+    const ownHistory = Array.isArray(history) && history.length===2 && history.every(m=>m && m.info?.sessionID===nativeId && Array.isArray(m.parts)) && history.filter(m=>m.info.role==='user' && m.info.id===messageID).length===1 && history.filter(m=>m.info.role==='assistant' && m.info.id===info.id && isDeepStrictEqual(m,r)).length===1 && history.find(m=>m.info.role==='user')?.parts.every(p=>bounded(p.id,128) && p.sessionID===nativeId && p.messageID===messageID && p.type==='text') && history.find(m=>m.info.role==='user')?.parts.length===1 && !ids.includes(history.find(m=>m.info.role==='user')?.parts[0].id) && history.find(m=>m.info.role==='user')?.parts[0].text===text;
+    const spanChecks = {'native-counter-version-unverified':health.version === '1.18.33','native-first-turn-required':first,'native-initial-history-unverified':emptyHistory,'native-counter-cursor-broken':!cursorBroken,'native-step-binding-unverified':bound,'native-step-counters-unverified':matchingCounters,'native-step-inventory-unverified':ownHistory};
+    const blockers = Object.entries(spanChecks).filter(([,verified])=>!verified).map(([code])=>code);
+    const complete = blockers.length === 0;
+    if (!complete) cursorBroken = true;
+    if (bounded(info.id,128)) seenIds.add(info.id);
+    for (const id of ids) if (bounded(id,128)) seenIds.add(id);
+    // This local span covers one observed normalized step, not hidden provider
+    // retries, invoice amounts, subscription availability or account identity.
+    const usage_span = {protocol:1,schema:OPENCODE_COUNTER_SCHEMA,native_id:nativeId,turn_id:bounded(info.id,128)?info.id:null,coverage:complete?'complete':info.tokens?'partial':'absent',baseline_source:complete?'native-empty-owned-step-inventory':null,before:complete?'0':null,after:complete?String(buckets):null,actual_tokens:complete?String(buckets):null,raw_total:Number.isSafeInteger(info.tokens?.total)&&info.tokens.total>=0?String(info.tokens.total):null,blockers};
+    const isolated = before.verified && after.verified;
+    const result = {output:(Array.isArray(parts) ? parts : []).filter(p => p.type === 'text').map(p => typeof p.text === 'string' ? p.text : '').join(''),actualModel:{provider:bounded(info.providerID,128) ? info.providerID : 'unknown',model_id:bounded(info.modelID,256) ? info.modelID : 'unknown',reasoning:bounded(info.variant,128) ? info.variant : 'unknown',observed_at:new Date().toISOString()},usage:info.tokens || null,usage_span,native_id:nativeId,context_manifest:manifest({...d,version:health.version},nativeId,emptyHistory,{read_only:isolated,tools:isolated ? []:null,isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated,read_only_evidence:isolated ? 'native-config-session-deny-rules-and-empty-history':'server-configuration-unverified',model_provider_is_billing_route:true})};
+    if(d.owned_server&&(!correlated||!bound&&!info.error)){const error=fail('native-turn-binding-unverified');error.native_receipt=nativeReceipt(result,null);throw error;}
+    if (info.error) {
       const e=fail('native-turn-failed');
-      if(/^[A-Za-z][A-Za-z0-9]{0,63}$/.test(r.info.error.name||''))e.native_error_name=r.info.error.name;
-      if(Number.isInteger(r.info.error.data?.statusCode))e.native_status=r.info.error.data.statusCode;
+      if(/^[A-Za-z][A-Za-z0-9]{0,63}$/.test(info.error.name||''))e.native_error_name=info.error.name;
+      if(Number.isInteger(info.error.data?.statusCode))e.native_status=info.error.data.statusCode;
+      e.native_receipt = nativeReceipt(result,null);
       throw e;
     }
-    const isolated = observedReadOnly && emptyHistory;
-    return {output:(r.parts || []).filter(p => p.type === 'text').map(p => p.text || '').join(''),actualModel:{provider:r.info.providerID || 'unknown',model_id:r.info.modelID || 'unknown',reasoning:r.info.variant || 'unknown',observed_at:new Date().toISOString()},usage:r.info.tokens || null,native_id:nativeId,context_manifest:manifest({...d,version:health.version},nativeId,emptyHistory,{read_only:isolated,tools:isolated ? []:null,isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated,read_only_evidence:isolated ? 'native-config-and-empty-history':'server-configuration-attested',model_provider_is_billing_route:true})};
+    return result;
   },close() { closed = true; controller?.abort(); } };
+
 }
 
 export async function createNativeEndpoint(descriptor, dependencies = {}) {
@@ -339,7 +412,7 @@ export async function createNativeEndpoint(descriptor, dependencies = {}) {
     endpoint = d.harness === 'codex' ? await codexEndpoint(d,dependencies.spawnProcess || spawn) : d.harness === 'claude' ? await claudeEndpoint(d,dependencies.spawnProcess || spawn) : await opencodeEndpoint(d,dependencies.fetchImpl || fetch);
   } catch (e) { if(server)await server.stopAndWait();throw e; }
   let busy = false, poisoned = false, closed = false; const attempts = new Set();
-  return {async captureAccountingMetadata(){if(closed||poisoned)throw fail('native-endpoint-closed');if(busy)throw fail('native-endpoint-busy');if(!endpoint.captureAccountingMetadata)throw fail('native-accounting-metadata-unsupported');busy=true;try{return await endpoint.captureAccountingMetadata();}catch(error){poisoned=true;endpoint.close();server?.close();throw error;}finally{busy=false;}},native_id:endpoint.native_id,owns_process:Boolean(server)||d.harness!=='opencode',descriptor:{harness:d.harness,cwd:d.cwd,mode:d.mode,version:d.version || 'unknown'},async inspectContext(){if(!endpoint.inspectContext)throw fail('native-context-inspection-unsupported');return endpoint.inspectContext();},async send(text,invocation) {
+  return {async captureAccountingMetadata(){if(closed||poisoned)throw fail('native-endpoint-closed');if(busy)throw fail('native-endpoint-busy');if(!endpoint.captureAccountingMetadata)throw fail('native-accounting-metadata-unsupported');busy=true;try{return await endpoint.captureAccountingMetadata();}catch(error){poisoned=true;endpoint.close();server?.close();throw error;}finally{busy=false;}},native_id:endpoint.native_id,usage_counter_schema:endpoint.usage_counter_schema || null,owns_process:Boolean(server)||d.harness!=='opencode',descriptor:{harness:d.harness,cwd:d.cwd,mode:d.mode,version:d.version || 'unknown'},async inspectContext(){if(!endpoint.inspectContext)throw fail('native-context-inspection-unsupported');return endpoint.inspectContext();},async send(text,invocation) {
     if (text && typeof text === 'object') { const request = text; text = request.prompt; invocation = {id:request.invocation_nonce,purpose:request.purpose,max_output_chars:request.max_output_chars,read_only:request.read_only}; }
     if (closed) throw fail('native-endpoint-closed');
     if (poisoned) throw fail('native-outcome-uncertain');
@@ -349,8 +422,9 @@ export async function createNativeEndpoint(descriptor, dependencies = {}) {
     if (invocation.max_output_chars !== undefined && (!Number.isSafeInteger(invocation.max_output_chars) || invocation.max_output_chars < 1 || invocation.max_output_chars > 65536)) throw fail('invalid-native-answer-budget');
     if (attempts.has(invocation.id)) throw fail('native-invocation-already-consumed');
     attempts.add(invocation.id); busy = true;
-    try { const result = await endpoint.send(text,invocation); if(closed)throw fail('native-endpoint-closed');if (invocation.max_output_chars !== undefined && Buffer.byteLength(result.output) > invocation.max_output_chars) throw fail('native-answer-budget'); return {...result,text:result.output,invocation_id:invocation.id}; }
-    catch (e) { poisoned = true; endpoint.close(); server?.close(); throw e; }
+    let result;
+    try { result = await endpoint.send(text,invocation); if(closed)throw fail('native-endpoint-closed');if (invocation.max_output_chars !== undefined && Buffer.byteLength(result.output) > invocation.max_output_chars) throw fail('native-answer-budget'); return {...result,text:result.output,invocation_id:invocation.id}; }
+    catch (e) { const receipt=nativeReceipt(result || e.native_receipt,invocation.id);if(receipt)e.native_receipt=receipt;else delete e.native_receipt;poisoned = true; endpoint.close(); server?.close(); throw e; }
     finally { busy = false; }
   },close() { closed = true; endpoint.close(); server?.close(); },async stopAndWait(options){closed=true;endpoint.close();server?.close();if(server)return server.stopAndWait(options);if(endpoint.stopAndWait)return endpoint.stopAndWait(options);throw fail('native-process-stop-unverified-external-server');} };
 }

@@ -108,7 +108,7 @@ test('owned OpenCode server uses secret env, deny config, empty history and mand
   };
   const fetchImpl = async (url,opts) => {
     const path = url.pathname;
-    const value = path === '/global/health' ? {healthy:true,version:'test'} : path === '/config' ? JSON.parse(spawned.opts.env.OPENCODE_CONFIG_CONTENT) : path === '/session' ? {id:'new-owned',directory:cwd} : opts.method === 'GET' ? [] : {info:{role:'assistant',sessionID:'new-owned',providerID:'billing-proxy',modelID:'actual'},parts:[{type:'text',text:'reply'}]};
+    const value = path === '/global/health' ? {healthy:true,version:'test'} : path === '/config' ? JSON.parse(spawned.opts.env.OPENCODE_CONFIG_CONTENT) : ['/session','/session/new-owned'].includes(path) ? {id:'new-owned',directory:cwd,permission:[{permission:'*',pattern:'*',action:'deny'}]} : opts.method === 'GET' ? [] : {info:{id:'msg_reply',parentID:JSON.parse(opts.body).messageID,time:{completed:1},finish:'stop',role:'assistant',sessionID:'new-owned',providerID:'billing-proxy',modelID:'actual'},parts:[{id:'prt_start',sessionID:'new-owned',messageID:'msg_reply',type:'step-start'},{id:'prt_text',sessionID:'new-owned',messageID:'msg_reply',type:'text',text:'reply'},{id:'prt_finish',sessionID:'new-owned',messageID:'msg_reply',type:'step-finish',reason:'stop'}]};
     return {ok:true,body:[Buffer.from(JSON.stringify(value))]};
   };
   const endpoint = await createNativeEndpoint({harness:'opencode',managed:true,cwd,spawn_server:true},{spawnProcess,fetchImpl});
@@ -169,7 +169,7 @@ function ownedServerFixture(closeOnKill){
  let spawned,closed=false;const signals=[];
  return {signals,get closed(){return closed;},spawnProcess:(_exe,_args,opts)=>{
   spawned=opts;const child=childMock(()=>{});child.kill=signal=>{signals.push(signal);if(closeOnKill)setTimeout(()=>{closed=true;child.emit('close',0);},20);return true;};queueMicrotask(()=>child.stdout.write('http://127.0.0.1:43210\n'));return child;
- },fetchImpl:async(url,opts)=>{const value=url.pathname==='/global/health'?{healthy:true,version:'test'}:url.pathname==='/config'?JSON.parse(spawned.env.OPENCODE_CONFIG_CONTENT):url.pathname==='/session'?{id:'own',directory:cwd}:opts.method==='GET'?[]:{info:{role:'assistant',sessionID:'own'},parts:[]};return {ok:true,body:[Buffer.from(JSON.stringify(value))]};}};
+ },fetchImpl:async(url,opts)=>{const value=url.pathname==='/global/health'?{healthy:true,version:'test'}:url.pathname==='/config'?JSON.parse(spawned.env.OPENCODE_CONFIG_CONTENT):['/session','/session/own'].includes(url.pathname)?{id:'own',directory:cwd,permission:[{permission:'*',pattern:'*',action:'deny'}]}:opts.method==='GET'?[]:{info:{role:'assistant',sessionID:'own'},parts:[]};return {ok:true,body:[Buffer.from(JSON.stringify(value))]};}};
 }
 test('owned OpenCode server shutdown waits for closure and never fabricates timeout proof',async()=>{
  for(const closes of [true,false]){
@@ -291,4 +291,120 @@ test('account notification during same-peer metadata capture makes its continuit
  const endpoint=await tokenEndpoint([],{metadata:true,accountChange:true});
  try{const observation=await endpoint.captureAccountingMetadata();assert.equal(observation.consistent,false);assert.equal(observation.account_generation,1);assert.equal(observation.paid_fallback,'unknown');}
  finally{endpoint.close();}
+});
+
+function accountingOpenCodeFixture(options={}) {
+  let spawned, history=[], result, request;
+  const session={id:'ses_own',directory:cwd,permission:[{permission:'*',pattern:'*',action:'deny'}]};
+  const response=value=>({ok:true,body:[Buffer.from(JSON.stringify(value))]});
+  return {get result(){return result;},get request(){return request;},
+    spawnProcess:(_exe,_args,opts)=>{spawned=opts;const child=childMock(()=>{});queueMicrotask(()=>child.stdout.write('http://127.0.0.1:43210\n'));return child;},
+    fetchImpl:async(url,opts)=>{
+      if(url.pathname==='/global/health')return response({healthy:true,version:options.version||'1.18.33'});
+      if(url.pathname==='/config'){
+        if(options.postInspectFailure&&history.length)throw Error('private diagnostic');
+        const config=JSON.parse(spawned.env.OPENCODE_CONFIG_CONTENT);
+        if(options.allowException)config.permission.bash={ '*':'deny','allowed-command':'allow'};
+        return response(config);
+      }
+      if(['/session','/session/ses_own'].includes(url.pathname))return response(session);
+      if(opts.method==='GET')return response(history);
+      request=JSON.parse(opts.body);
+      const tokens={input:10,output:7,reasoning:3,cache:{read:4,write:6},total:999};
+      result={info:{id:'msg_assistant',sessionID:'ses_own',parentID:request.messageID,role:'assistant',time:{completed:1},finish:'stop',providerID:'proxy',modelID:'actual',tokens},parts:[
+        {id:'prt_start',sessionID:'ses_own',messageID:'msg_assistant',type:'step-start'},
+        {id:'prt_text',sessionID:'ses_own',messageID:'msg_assistant',type:'text',text:'answer'},
+        {id:'prt_finish',sessionID:'ses_own',messageID:'msg_assistant',type:'step-finish',reason:'stop',tokens}
+      ]};
+      options.mutate?.(result);
+      if(options.nativeError)result.info.error={name:'APIError',data:{statusCode:429,message:'private diagnostic'}};
+      history=[{info:{id:request.messageID,sessionID:'ses_own',role:'user'},parts:[{id:'prt_user',sessionID:'ses_own',messageID:request.messageID,type:'text',text:request.parts[0].text}]},result];
+      if(options.historyMutate)history=options.historyMutate(structuredClone(history));
+      if(options.extraHistory)history.push({info:{id:'msg_extra',sessionID:'ses_own',role:'assistant'},parts:[]});
+      return response(result);
+    }
+  };
+}
+async function accountingOpenCode(options={}) {
+  const fixture=accountingOpenCodeFixture(options);
+  const endpoint=await createNativeEndpoint({harness:'opencode',managed:true,cwd,spawn_server:true},fixture);
+  return {endpoint,fixture};
+}
+test('OpenCode counts disjoint normalized step buckets and binds own request/history',async()=>{
+  const {endpoint,fixture}=await accountingOpenCode();
+  assert.equal(endpoint.usage_counter_schema,'opencode-native-normalized-step-total-v1');
+  const metadata=await endpoint.captureAccountingMetadata();
+  assert.equal(metadata.mode,'unknown');assert.equal(metadata.provider,null);assert.equal(metadata.paid_fallback,'unknown');
+  const r=await endpoint.send('probe',{id:'nonce'});
+  assert.match(fixture.request.messageID,/^msg_[a-f0-9]{12}[0-9A-Za-z]{14}$/);
+  assert.equal(r.usage_span.coverage,'complete');assert.equal(r.usage_span.actual_tokens,'30');assert.equal(r.usage_span.raw_total,'999');
+  assert.equal(r.usage_span.turn_id,'msg_assistant');assert.equal(r.context_manifest.read_only,true);
+  // A repeated native ID/history cannot mint another complete span.
+  await assert.rejects(endpoint.send('probe',{id:'nonce2'}),error=>{assert.equal(error.code,'native-turn-binding-unverified');assert.equal(error.native_receipt.usage_span.coverage,'partial');return true;});endpoint.close();
+});
+test('OpenCode rejects permission exceptions despite wildcard deny',async()=>{
+  await assert.rejects(accountingOpenCode({allowException:true}),/native-read-only-configuration-unverified/);
+});
+test('OpenCode incomplete, foreign, duplicate, reordered and extra-step evidence stays partial',async()=>{
+  const variants=[
+    {version:'future'},
+    {extraHistory:true},
+    {mutate:r=>{delete r.info.time.completed;}},
+    {mutate:r=>{r.info.parentID='msg_foreign';}},
+    {mutate:r=>{r.parts[1].sessionID='ses_foreign';}},
+    {mutate:r=>{r.parts[1].id=r.parts[0].id;}},
+    {mutate:r=>{r.parts.reverse();}},
+    {mutate:r=>{r.parts.push({...r.parts[0],id:'prt_second'});}},
+    {mutate:r=>{r.parts.push({id:'prt_tool',sessionID:'ses_own',messageID:r.info.id,type:'tool'});}},
+    {mutate:r=>{r.info.tokens.input=-1;}},
+    {mutate:r=>{delete r.info.tokens.reasoning;}},
+    {mutate:r=>{Object.assign(r.info.tokens,{input:0,output:0,reasoning:0,cache:{read:0,write:0}});}}
+  ];
+  for(const options of variants){const {endpoint}=await accountingOpenCode(options);let r;try{r=await endpoint.send('probe',{id:'one'});}catch(error){assert.equal(error.code,'native-turn-binding-unverified');r=error.native_receipt;}assert.equal(r.usage_span.coverage,'partial');assert.equal(r.usage_span.actual_tokens,null);endpoint.close();}
+});
+test('OpenCode post isolation failure preserves validated known usage with isolation false',async()=>{
+  const {endpoint}=await accountingOpenCode({postInspectFailure:true});
+  const r=await endpoint.send('probe',{id:'one'});
+  assert.equal(r.usage_span.actual_tokens,'30');assert.equal(r.context_manifest.read_only,false);endpoint.close();
+});
+test('OpenCode bounded error receipts retain known usage and bind invocation without private output',async()=>{
+  for(const options of [{nativeError:true},{}]){
+    const {endpoint}=await accountingOpenCode(options);
+    await assert.rejects(endpoint.send('probe',{id:'bound-nonce',...(options.nativeError?{}:{max_output_chars:1})}),error=>{
+      assert.equal(error.code,options.nativeError?'native-turn-failed':'native-answer-budget');
+      assert.equal(error.native_receipt.invocation_id,'bound-nonce');assert.equal(error.native_receipt.usage_span.actual_tokens,'30');
+      assert.deepEqual(Object.keys(error.native_receipt).sort(),['actualModel','context_manifest','invocation_id','native_id','usage_span']);
+      assert.equal(JSON.stringify(error.native_receipt).includes('private diagnostic'),false);assert.equal(Object.hasOwn(error.native_receipt,'output'),false);return true;
+    });endpoint.close();
+  }
+});
+
+test('OpenCode counter gap permanently disables complete coverage',async()=>{
+  let first=true;
+  const {endpoint}=await accountingOpenCode({mutate:r=>{const suffix=first?'first':'later';r.info.id+='_'+suffix;for(const p of r.parts){p.id+='_'+suffix;p.messageID=r.info.id;}if(first){first=false;delete r.info.tokens.reasoning;}}});
+  assert.equal((await endpoint.send('probe',{id:'gap'})).usage_span.coverage,'partial');
+  assert.equal((await endpoint.send('probe',{id:'later'})).usage_span.coverage,'partial');endpoint.close();
+});
+
+test('OpenCode missing assistant counter summary stays absent rather than losing the bound receipt',async()=>{
+ const {endpoint}=await accountingOpenCode({mutate:r=>{delete r.info.tokens;}});
+ const r=await endpoint.send('probe',{id:'missing-summary'});assert.equal(r.usage_span.coverage,'absent');assert.equal(r.usage_span.actual_tokens,null);endpoint.close();
+});
+
+test('OpenCode correlated API failure with no completed step remains uncertain instead of a binding conflict',async()=>{
+ const {endpoint}=await accountingOpenCode({nativeError:true,mutate:r=>{r.parts=[];delete r.info.finish;r.info.tokens={input:0,output:0,reasoning:0,cache:{read:0,write:0}};}});
+ await assert.rejects(endpoint.send('probe',{id:'failed-api'}),error=>{assert.equal(error.code,'native-turn-failed');assert.equal(error.native_receipt.usage_span.coverage,'partial');assert.equal(error.native_receipt.usage_span.actual_tokens,null);assert.equal(error.native_receipt.invocation_id,'failed-api');return true;});endpoint.close();
+});
+
+
+test('OpenCode stored JSON key order does not alter exact native span binding',async()=>{
+ const reverse=value=>Array.isArray(value)?value.map(reverse):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).reverse().map(([k,v])=>[k,reverse(v)])):value;
+ const {endpoint}=await accountingOpenCode({historyMutate:reverse});
+ try{const r=await endpoint.send('probe',{id:'reordered-json-keys'});assert.equal(r.usage_span.coverage,'complete');assert.equal(r.usage_span.actual_tokens,'30');}finally{endpoint.close();}
+});
+test('OpenCode stored frame differences remain unverified after structural comparison',async()=>{
+ for(const change of [m=>m.info.tokens.input++,m=>m.parts[1].text='foreign',m=>m.info.parentID='foreign',m=>m.parts.reverse()]){
+  const {endpoint}=await accountingOpenCode({historyMutate:h=>{change(h[1]);return h;}});
+  try{const r=await endpoint.send('probe',{id:'conflicting-inventory'});assert.equal(r.usage_span.coverage,'partial');assert.equal(r.usage_span.actual_tokens,null);assert.ok(r.usage_span.blockers.includes('native-step-inventory-unverified'));}finally{endpoint.close();}
+ }
 });
