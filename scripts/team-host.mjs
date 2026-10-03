@@ -14,7 +14,7 @@ import { observeNativeProviderQuota } from './team-quota-native.mjs';
 import { createNativeEndpoint, createNativeModelInventoryEndpoint, nativeInventoryFailureClosure, validateNativeDescriptor } from './team-transport.mjs';
 import { harness as harnessDefinition } from './agents.mjs';
 import { collectModelInventory, metadataDescriptor } from './team-model-inventory.mjs';
-import { createProtocolLeaderAckRequest, formatProtocolLeaderAck, readProtocolAck } from './team-native-action.mjs';
+import { createProtocolLeaderAckRequest, createProtocolLeadershipAuditRequest, formatProtocolLeaderAck, formatProtocolAction, readProtocolActionResponse } from './team-native-action.mjs';
 import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
 import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion } from './team-owned-runtime.mjs';
 import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest } from './team-integration.mjs';
@@ -166,6 +166,9 @@ export function createTeamHost(config, dependencies={}) {
  function enableProtocolControl({revision,policy}={}) {
   return mutate('native-protocol-control-enable-v2',{revision,policy},owner());
  }
+ function enableProtocolReview({revision,policy}={}) {
+  return mutate('native-protocol-review-enable-v2',{revision,policy},owner());
+ }
  function captureProtocolLeadership(result,completionSelectors) {
   const x=load().state.subscription_invocations?.[result.invocation_id];
   if(x?.action_ack)return {...result,leader_acknowledged:true,replayed:true,leadership_ack:{applied:true,leader:x.action_ack.leader,epoch:x.action_ack.epoch,scope:'waypost-protocol',protected_actions_granted:false}};
@@ -182,13 +185,29 @@ export function createTeamHost(config, dependencies={}) {
   const action={...core,prompt_digest:routingDigest(formatProtocolLeaderAck(core)),operation_id:randomUUID()};
   return managedOperation('protocol-leader-ack',()=>subscriptionSingleCall({nonce,estimateTokens,controlAction:action}),{forceOwned:true,operation:action.operation_id,afterCompletion:captureProtocolLeadership});
  }
- async function recoverProtocolLeadership({invocationId}={}) {
+ function captureProtocolAudit(result,completionSelectors) {
+  const x=load().state.subscription_invocations?.[result.invocation_id];
+  if(x?.protocol_review)return {...result,protocol_review_captured:true,replayed:true,protocol_review:x.protocol_review,protected_actions_granted:false};
+  if(!x?.action_observation)return {...result,protocol_review_captured:false,action_blocker:x?.action_blocker||result.native_profile_blocker||'native-action-profile-required',protected_actions_granted:false};
+  const completion=collectOwnedRuntimeCompletion({...completionSelectors,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id});
+  const captured=mutate('native-protocol-review-capture-v2',{invocation_id:x.id,nonce:x.nonce,completion:serializeOwnedRuntimeCompletion(completion)},collector(),'native-audit-'+x.nonce).result;
+  return {...result,protocol_review_captured:true,protocol_review:captured,protected_actions_granted:false};
+ }
+ async function auditProtocolLeadership({actionId,sourceInvocationId,nonce,estimateTokens='16000'}={}) {
+  owner();const {v,t}=getTeam(),d=endpoint();
+  const core=createProtocolLeadershipAuditRequest(v.state,t,{actionId,sourceInvocationId,now:Date.parse(now())});
+  if(t.native_review_policy?.protocol!==2||Date.parse(t.native_review_policy.expires_at)<=Date.parse(now()))fail('host-explicit-protocol-review-policy-required');
+  if(core.request.participant!==d.participant)fail('host-protocol-reviewer-endpoint-required');
+  const action={...core,prompt_digest:routingDigest(formatProtocolAction(core)),operation_id:randomUUID()};
+  return managedOperation('protocol-leadership-audit',()=>subscriptionSingleCall({nonce,estimateTokens,controlAction:action}),{forceOwned:true,operation:action.operation_id,afterCompletion:captureProtocolAudit});
+ }
+ async function recoverProtocolAction({invocationId}={},kind,afterCompletion) {
   if(operationBusy)fail('host-operation-busy');operationBusy=true;
   try{
    owner();const d=endpoint(),{v}=getTeam(),x=v.state.subscription_invocations?.[invocationId];
-   if(!x?.action||x.team!==team||x.participant!==d.participant||x.incarnation!==v.state.teams[team].participants[d.participant].incarnation||x.descriptor_digest!==routingDigest(d.descriptor))fail('host-protocol-recovery-source-required');
+   if(x?.action?.kind!==kind||x.team!==team||x.participant!==d.participant||x.incarnation!==v.state.teams[team].participants[d.participant].incarnation||x.descriptor_digest!==routingDigest(d.descriptor))fail('host-protocol-recovery-source-required');
    const p=v.state.teams[team].participants[d.participant],registered=p.host_binding?readParticipantHost({state:v.state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)}):null;
-   if(!x.action_observation&&!x.action_ack){
+   if(!x.action_observation&&!x.action_ack&&!x.protocol_review){
     const seal=x.action_seal;
     if(x.state!=='settled'||x.action_blocker||seal?.outcome!=='completed'||Date.parse(seal.observed_at)+900000<=Date.parse(now()))fail('host-original-settled-action-profile-source-required');
     const receipt=seal.native_receipt,ctx=receipt.context_manifest;
@@ -196,9 +215,11 @@ export function createTeamHost(config, dependencies={}) {
     const profile=await collectNativeActionProfile({participant:p,action:x.action,request:x.action.request,adapter_revision:'waypost-native-profile-1',requested_configuration:{model_id:d.descriptor.model_id??null,provider_id:d.descriptor.provider_id??null,reasoning:d.descriptor.reasoning??null,mode:d.descriptor.mode,initial_instructions_digest:ctx.initial_instructions_digest??null,rules_digest:d.descriptor.rules_digest??null},execution_environment:{platform:process.platform,architecture:process.arch},now:()=>Date.parse(seal.sealed_at),observe:async()=>({...receipt,observed_at:seal.observed_at,correlation:{participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,nonce:x.nonce,invocation_id:receipt.invocation_id,native_id:receipt.native_id,context_id:ctx.id},admission:{purpose:'protocol-control',state:x.state,context_quarantined:false,billing_policy:'inherited-native',nonce:x.nonce,invocation_id:x.id,participant:x.participant,incarnation:x.incarnation,model_revision:x.model_revision,native_id:x.context.native_id,actual_tokens:x.charged_tokens,action:x.action,request_digest:x.action.request_digest,original_output:seal.original_output,output_digest:seal.output_digest,native_receipt_digest:seal.native_receipt_digest,observed_at:seal.observed_at}})});
     mutate('native-action-profile-capture-v2',{invocation_id:x.id,nonce:x.nonce,profile:serializeNativeModelProfile(profile,{now:()=>Date.parse(now())})},collector(),'native-action-profile-'+x.nonce);
    }
-   return captureProtocolLeadership({invocation_id:x.id,recovery:true},{directory:join(registered?dirname(registered.binding.host_file):hostDir,'runtime'),team,participant:p.id,incarnation:x.incarnation,epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.action.operation_id});
+   return afterCompletion({invocation_id:x.id,recovery:true},{directory:join(registered?dirname(registered.binding.host_file):hostDir,'runtime'),team,participant:p.id,incarnation:x.incarnation,epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.action.operation_id});
   }finally{operationBusy=false;}
  }
+ const recoverProtocolLeadership=options=>recoverProtocolAction(options,'protocol-leader-ack',captureProtocolLeadership);
+ const recoverProtocolAudit=options=>recoverProtocolAction(options,'protocol-leadership-audit',captureProtocolAudit);
  async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('host-subscription-v2-owner-opt-in-required');
@@ -209,7 +230,7 @@ export function createTeamHost(config, dependencies={}) {
   if(load().state.subscription_invocations?.[invocationId])fail('host-subscription-attempt-already-recorded-no-replay');
   if(p.quota_observation?.status==='exhausted')fail('host-subscription-quota-exhausted');
   const token='WAYPOST_PROBE_'+nonce;
-  const prompt=controlAction?formatProtocolLeaderAck(controlAction):trialBinding?trialBinding.prompt:'Synthetic protocol check. Return exactly this token and nothing else: '+token;
+  const prompt=controlAction?formatProtocolAction(controlAction):trialBinding?trialBinding.prompt:'Synthetic protocol check. Return exactly this token and nothing else: '+token;
   const suiteDigest=controlAction?controlAction.prompt_digest:trialBinding?trialBinding.measurement.suite_digest:routingDigest({id:'waypost-identity-token',revision:1,template:'Return exactly WAYPOST_PROBE_<nonce>',read_only:true});
   const transport=await native(d.descriptor);
   let consumed=false,binding=null;
@@ -227,7 +248,7 @@ export function createTeamHost(config, dependencies={}) {
    const measurementSeal=trialBinding&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=8192?{...trialBinding.measurement,observed_at:receipt.actualModel?.observed_at??now(),original_output:rawOutput,output_digest:routingDigest(rawOutput),native_receipt_digest:routingDigest(nativeReceipt),native_receipt:nativeReceipt,outcome:nativeFailure===null?'completed':'failed'}:null;
    const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&receipt.context_manifest?.fresh_review_verified===true,billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null,...(measurementSeal?{measurement:measurementSeal}:{}),...(actionSeal?{action_seal:actionSeal}:{})}},collector());
    const probePassed=!trialBinding&&nativeFailure===null&&typeof receipt.output==='string'&&receipt.output.trim()===token;
-   let controlPassed=false;if(controlAction&&nativeFailure===null&&rawOutput!==null)try{readProtocolAck(rawOutput,controlAction);controlPassed=true;}catch{}
+   let controlPassed=false;if(controlAction&&nativeFailure===null&&rawOutput!==null)try{readProtocolActionResponse(rawOutput,controlAction);controlPassed=true;}catch{}
    const eligibleReceipt=controlAction?controlPassed&&actionSeal!==null:trialBinding?nativeFailure===null&&measurementSeal!==null:probePassed;
    let nativeProfile=null,profileBlocker=null;
    if(eligibleReceipt && (settled.result.settled!==invocationId || settled.result.context_quarantined===true))profileBlocker='native-profile-accounting-not-terminal-or-context-quarantined';
@@ -678,5 +699,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,enableProtocolControl,acknowledgeProtocolLeadership,recoverProtocolLeadership,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:options=>managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options)),subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:options=>managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options)),subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

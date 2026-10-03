@@ -226,6 +226,37 @@ project review remains fresh, independent and strongest qualified.
     admission contracts. Retired measurement/action contexts never become critic
     contexts and an independent critic candidate is not executable review proof.
 
+21. A separate owner-bounded `protocol-leadership-audit` policy may admit one
+    independent fresh strongest protocol-review configuration to inspect only
+    stored ACK binding, native accounting and owned closure facts. The authority
+    derives the bounded target from its own applied ACK invocation; owner input
+    selects that invocation, never target JSON or a verdict. Stable phase IDs are
+    reservation, consume, settlement, profile, closure and ack, not store event IDs.
+    Target digests depend only on original immutable facts and clocks; current
+    quotas, allocations, availability and other audit records cannot change them.
+    Historical roster and strongest-at-ACK election are outside this scope because
+    those historical snapshots are not stored. Original author evidence expiry
+    does not prevent auditing history; current reviewer admission must be fresh.
+    Current leader/epoch, calibrated review frontier, retained typed floor, policy,
+    incarnation/descriptor/profile, quota and allocations are rechecked at reserve,
+    consume and final capture. Exclude the ACK participant and original native and
+    context IDs; retired measurement contexts cannot become review contexts.
+    ACK and audit ceilings bind separate kind/revision policies inside the same
+    global native unit allocation, so equal policy revisions cannot mix their call
+    budgets or erase earlier usage. Consumed semantic slots exclude nonce/action
+    ID; a renamed failed or uncertain attempt cannot dispatch again.
+    Strict JSON has exactly verdict/action_id/request_digest/target_digest/findings.
+    Findings use unique sorted phase-valid rule pairs. Approve requires no findings;
+    changes-requested or blocked requires at least one. No expected verdict enters
+    the prompt. Settle and seal the unedited original response first, verify its
+    own actual calibrated profile, then record only after callback drain and owned
+    group closure. Recovery uses those same sealed receipts and clocks without
+    inference. Audit records are immutable and separate from project work reviews.
+    Any negative sets an unresolved flag keyed by source target digest; later
+    positives or policy/reviewer/incarnation/epoch changes cannot resolve it.
+    Resolution is not supplied by this increment. No verdict grants project review,
+    work, architecture, implementation or integration rights.
+
 ## Modules & files on disk
 
 - `scripts/team-model-inventory.mjs`: advisory native catalogue projection and freshness.

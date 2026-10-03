@@ -609,6 +609,42 @@ The current Codex transport reports a read-only shell capability; native profile
 admission requires an empty tool set and therefore refuses that configuration.
 Codex token accounting alone does not establish eligibility for this action.
 
+### Independent native audit of stored leadership ACK facts
+
+A separate `protocol-leadership-audit` action runs one current strongest qualified
+independent protocol critic in an owned fresh no-tools context. Its target is the
+authority's own immutable applied ACK: request bindings, native counter charge,
+original profile observation and closed operation. Phase IDs are stable audit
+labels, not store event IDs. The scope is `stored-ack-binding-accounting-closure`;
+historical strongest-at-election and project architecture/work are not verified.
+The original ACK participant and native/context IDs are excluded. Current review
+calibration and the retained review floor are mandatory, even for a historical
+ACK whose original profile has since expired.
+
+Enable its separate owner ceiling with `waypost team host TEAM --operation
+protocol-review-enable --request-file audit-policy.json`. The request uses the
+same bounded policy shape as ACK control with `kind: protocol-leadership-audit`.
+Both actions still consume the same existing native unit allocation. Run
+`--operation native-leadership-audit --participant REVIEWER --action-id AUDIT
+--source-invocation ACK_INVOCATION --nonce NONCE --estimate-tokens TOKENS`. The
+host derives the target; imported snapshots, answers and caller scores are refused.
+
+The exact response binds verdict, action ID, request digest, target digest and
+sorted unique known phase/rule findings. Approve has no findings; changes-requested
+or blocked has findings. The prompt carries rules and a schema, never an expected
+verdict. Original tokens and holds survive malformed, failed or changed-profile
+responses. Capture waits for settled original usage, actual profile matching,
+callback drain and owned group closure. `--operation native-leadership-audit-recover
+--invocation INVOCATION` uses the original seal and closure without a new call.
+
+Reviews stay outside `work.reviews`. A negative audit remains unresolved by target
+digest across later positive audits and policy/reviewer/epoch changes. This action
+supplies no negative-resolution transition and grants no protected task rights.
+Legacy generic review and project integration remain gated.
+Independent design/code review and focused ledger/owned-runtime tests verify this
+installed path with mocked native transports. They do not establish a live native
+critic verdict or a complete calibrated native cohort.
+
 ### Periodic native model inventory
 
 `waypost team host TEAM --operation model-inventory` gathers advisory model

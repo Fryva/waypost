@@ -84,8 +84,11 @@ export async function main(argv = process.argv.slice(2)) {
     else if (operation === 'calibration-trial') print(await host.subscriptionCalibrationTrial({cohortId:opt('--cohort'),caseId:opt('--case'),nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000'}));
     else if (operation === 'calibration-summary') print(host.calibrationSummary({cohortId:opt('--cohort')}));
     else if(operation==='protocol-control-enable')print(host.enableProtocolControl(json(resolve(opt('--request-file')||''))));
+    else if(operation==='protocol-review-enable')print(host.enableProtocolReview(json(resolve(opt('--request-file')||''))));
     else if(operation==='native-leader-ack')print(await host.acknowledgeProtocolLeadership({actionId:opt('--action-id'),nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000'}));
     else if(operation==='native-leader-ack-recover')print(await host.recoverProtocolLeadership({invocationId:opt('--invocation')}));
+    else if(operation==='native-leadership-audit')print(await host.auditProtocolLeadership({actionId:opt('--action-id'),sourceInvocationId:opt('--source-invocation'),nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000'}));
+    else if(operation==='native-leadership-audit-recover')print(await host.recoverProtocolAudit({invocationId:opt('--invocation')}));
     else if (operation === 'model-inventory') print(await host.observeModelInventory());
     else if (operation === 'native-policy-install') print(await host.installNativePolicy({cohortId:opt('--cohort'),expectedPolicyRevision:Number(opt('--policy-revision'))}));
     else if (operation === 'calibration-policy-proposal') print(await host.calibrationPolicyProposal({cohortId:opt('--cohort'),revision:Number(opt('--revision')||1)}));
@@ -102,7 +105,7 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|native-leader-ack|native-leader-ack-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
     return;
   }
   if (mode === 'status') {

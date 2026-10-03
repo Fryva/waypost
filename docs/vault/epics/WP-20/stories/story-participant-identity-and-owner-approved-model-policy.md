@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-10-01
 external_refs: {}
 tags: []
-code_refs: ["scripts/team.mjs", "scripts/model-strength.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team-cli.mjs", "models/strength-sources.json", "models/policy.schema.json", "models/descriptor.schema.json", "tests/team-models.test.mjs", "tests/team-store.test.mjs", "tests/model-strength.test.mjs", "tests/team-periodic.test.mjs", "tests/team-cli.test.mjs", "scripts/team-transport.mjs", "scripts/team-host.mjs", "scripts/team-evidence.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs", "scripts/native-model-profile.mjs", "tests/native-model-profile.test.mjs", "scripts/team-role-suite.mjs", "tests/team-role-suite.test.mjs", "scripts/team-role-calibration.mjs", "tests/team-role-calibration.test.mjs", "scripts/team-subscription.mjs", "tests/team-subscription.test.mjs", "tests/calibration-policy.test.mjs", "tests/native-policy-models.test.mjs", "tests/native-policy-state.test.mjs", "tests/helpers/native-calibration.mjs", "scripts/team-model-inventory.mjs", "tests/team-model-inventory.test.mjs", "tests/native-model-inventory-transport.test.mjs", "tests/team-model-inventory-cli.test.mjs", "scripts/team-native-action.mjs", "tests/native-action-profile.test.mjs", "tests/native-protocol-action.test.mjs", "tests/native-protocol-control.test.mjs", "tests/native-protocol-host.test.mjs", "tests/claude-native-counter.test.mjs"]
+code_refs: ["scripts/team.mjs", "scripts/model-strength.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team-cli.mjs", "models/strength-sources.json", "models/policy.schema.json", "models/descriptor.schema.json", "tests/team-models.test.mjs", "tests/team-store.test.mjs", "tests/model-strength.test.mjs", "tests/team-periodic.test.mjs", "tests/team-cli.test.mjs", "scripts/team-transport.mjs", "scripts/team-host.mjs", "scripts/team-evidence.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs", "scripts/native-model-profile.mjs", "tests/native-model-profile.test.mjs", "scripts/team-role-suite.mjs", "tests/team-role-suite.test.mjs", "scripts/team-role-calibration.mjs", "tests/team-role-calibration.test.mjs", "scripts/team-subscription.mjs", "tests/team-subscription.test.mjs", "tests/calibration-policy.test.mjs", "tests/native-policy-models.test.mjs", "tests/native-policy-state.test.mjs", "tests/helpers/native-calibration.mjs", "scripts/team-model-inventory.mjs", "tests/team-model-inventory.test.mjs", "tests/native-model-inventory-transport.test.mjs", "tests/team-model-inventory-cli.test.mjs", "scripts/team-native-action.mjs", "scripts/team-protocol-review.mjs", "tests/native-action-profile.test.mjs", "tests/native-protocol-action.test.mjs", "tests/native-protocol-control.test.mjs", "tests/native-protocol-host.test.mjs", "tests/native-protocol-review.test.mjs", "tests/native-protocol-review-host.test.mjs", "tests/helpers/native-protocol-host.mjs", "tests/claude-native-counter.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol", "objective-native-configuration-calibration-for-protocol-roles"]
 started_at: "2026-10-01T02:15:04.752Z"
 closed_at: null
@@ -63,9 +63,13 @@ calibration are separately reported pending; do not close from reducer tests alo
 Implementation remains in progress. Authenticated protocol calibration can now
 install a scoped policy and elect coordinator/independent critic candidates
 atomically. The strongest
-review frontier is retained as typed identities; protected action admission,
-independent native review, typed quota handover and automatic inventory remain
-unimplemented. No full calibrated native cohort is claimed.
+review frontier is retained as typed identities. Periodic native catalogue
+inventory and fixed leadership ACK admission are implemented with scoped evidence.
+The current increment adds a distinct fresh native critic for stored ACK binding,
+accounting and closure facts; it does not verify historical strongest election or
+project work. General protected task/review admission, typed quota handover and
+economical calibrated dispatch remain open. No full calibrated native cohort or
+live native ACK/audit is claimed.
 
 ## Technical Notes
 
@@ -94,3 +98,24 @@ pass; doctor0 issues/0 warnings. Live metadata collection waits for resources:
 Waypost refused launch and a60s resource wait (CPU unavailable). No new native
 catalogue, full calibrated cohort or protected execution is claimed. Full story
 acceptance and economical calibrated dispatch remain open.
+
+
+### Independent native protocol audit increment (2026-10-03)
+
+A separately owner-bounded action now dispatches the strongest current independent
+protocol critic over the authority's own applied ACK binding/accounting/closure
+trace. The immutable target excludes raw output and account metadata; current
+allocation totals and audit history cannot alter its digest. Original author
+expiry does not fabricate missing historical strength evidence. Negative findings
+remain unresolved across later positive reviews and policy/epoch changes.
+
+Fresh design and code critics returned scoped ship. Review found an ACK replay
+state-shape change; fixed by storing the new policy-kind field only for audit,
+with exact legacy reservation regression. The 12-file gated run covered 171 cases:
+160 other cases passed unchanged, and all 11 ledger cases passed their final
+separate retest after correcting two test fixtures (expected refusal and coherent
+policy revision linkage). Real authority replay and owned-runtime callback/closure
+were exercised with mocked native transports, including both audit recovery
+windows, malformed/partial usage and negative verdict retention. No new live
+native audit or complete calibrated cohort is claimed. Project-work review,
+generic protected actions, economical routing and typed quota handover remain open.

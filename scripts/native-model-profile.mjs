@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { verifyProtocolRoleSuite,formatProtocolTrial } from './team-role-suite.mjs';
-import { readProtocolAck } from './team-native-action.mjs';
+import { readProtocolActionResponse } from './team-native-action.mjs';
 
 const minted = new WeakMap();
 const TTL = 15 * 60 * 1000;
@@ -51,7 +51,7 @@ async function collectProfile({participant,observe,adapter_revision,requested_co
   // These two values come from the trusted host, not participant configuration.
   // Only digests are retained; neither requests nor environment prove effectiveness.
   const requested = boundedObject(requested_configuration), environment = boundedObject(execution_environment);
-  const result = boundedObject(await observe(Object.freeze({...binding})),32768);
+  const result = boundedObject(await observe(Object.freeze({...binding})),kind==='action'?65536:32768);
   const ctx = receiptContext(result), correlation = boundedObject(result.correlation,4096);
   const expected = {...binding,native_id:result.native_id,context_id:ctx.id};
   if (Object.entries(expected).some(([key,value])=>correlation[key] !== value) || !text(correlation.nonce,128) || !text(correlation.invocation_id,128) || result.invocation_id !== correlation.invocation_id) fail('observation-binding-mismatch');
@@ -61,11 +61,11 @@ async function collectProfile({participant,observe,adapter_revision,requested_co
   if(kind==='identity'){
     if(output.trim() !== correlation.nonce)fail('nonce-receipt-mismatch');
   }else if(kind==='action'){
-    actionBinding=boundedObject(action,8192);const originalRequest=boundedObject(request,8192);
-    if(actionBinding.kind!=='protocol-leader-ack'||!text(actionBinding.action_id,128)||actionBinding.request_digest!==digest(originalRequest)||digest(actionBinding.request)!==digest(originalRequest))fail('action-request-binding-mismatch');
+    actionBinding=boundedObject(action,24576);const originalRequest=boundedObject(request,24576);
+    if(!['protocol-leader-ack','protocol-leadership-audit'].includes(actionBinding.kind)||!text(actionBinding.action_id,128)||actionBinding.request_digest!==digest(originalRequest)||digest(actionBinding.request)!==digest(originalRequest))fail('action-request-binding-mismatch');
     if(originalRequest.protocol!==2||originalRequest.kind!==actionBinding.kind||originalRequest.action_id!==actionBinding.action_id||originalRequest.participant!==binding.participant||originalRequest.incarnation!==binding.incarnation||typeof participant.native_binding?.descriptor_digest!=='string'||originalRequest.descriptor_digest!==participant.native_binding.descriptor_digest)fail('action-participant-request-mismatch');
-    readProtocolAck(output,actionBinding);
-    admission=boundedObject(result.admission,16384);
+    readProtocolActionResponse(output,actionBinding);
+    admission=boundedObject(result.admission,49152);
     if(admission.purpose!=='protocol-control'||admission.state!=='settled'||admission.context_quarantined!==false||admission.billing_policy!=='inherited-native'||admission.nonce!==correlation.invocation_id||correlation.nonce!==correlation.invocation_id||admission.invocation_id!=='subscription-'+admission.nonce||admission.native_id!==result.native_id||Object.entries(binding).some(([key,value])=>admission[key]!==value)||digest(admission.action)!==digest(actionBinding)||admission.request_digest!==actionBinding.request_digest||admission.original_output!==output)fail('settled-action-admission-required');
     const span=result.usage_span;
     if(span?.coverage!=='complete'||span.native_id!==result.native_id||!text(span.turn_id,128)||!text(span.schema,128)||['before','after','actual_tokens'].some(key=>typeof span[key]!=='string'||!/^(0|[1-9][0-9]{0,17})$/.test(span[key]))||BigInt(span.actual_tokens)<=0n||BigInt(span.after)-BigInt(span.before)!==BigInt(span.actual_tokens)||admission.actual_tokens!==span.actual_tokens)fail('action-complete-usage-required');

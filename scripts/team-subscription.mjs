@@ -239,7 +239,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    const used=totals(s,context.unit_digest);if(used.overshoot)fail('subscription-unreconciled-token-overshoot');if(used.uncertain)fail('subscription-uncertain-usage-blocks-admission');
    if(used.actual+used.reserved+decimal(r.estimate_tokens)>decimal(allocation.max_tokens))fail('subscription-token-allocation-exceeded');
    const measurement=validateProtocolMeasurement(s,t,r,p,context,now);if(measurement)stored.measurement=measurement;
-   const action=validateProtocolAction(s,t,r,p,context,now);if(action){stored.action=action;stored.control_policy_revision=t.native_control_policy.revision;stored.model_revision=p.model.model_revision;}
+   const action=validateProtocolAction(s,t,r,p,context,now);if(action){stored.action=action;if(action.kind==='protocol-leadership-audit')stored.control_policy_kind=action.kind;stored.control_policy_revision=(action.kind==='protocol-leader-ack'?t.native_control_policy:t.native_review_policy).revision;stored.model_revision=p.model.model_revision;}
    s.subscription_invocations||={};s.subscription_invocations[r.id]=stored;result={reserved:r.id,bootstrap_only:true};
   } else if(c.type==='subscription-abort-v2') {
    H.owner(s,c);const x=s.subscription_invocations?.[c.invocation_id];
