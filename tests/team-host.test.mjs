@@ -423,3 +423,11 @@ test('host policy proposal derives incomplete authenticated coverage without dis
  assert.deepEqual(f.state,before);assert.equal(f.calls.filter(x=>x==='native-create'||x==='native-send').length,nativeCalls);
  await assert.rejects(f.host.calibrationPolicyProposal({cohortId:'unopened'}),/cohort/);
 });
+test('native policy installation sends only owner selectors through CAS without native inference',async t=>{
+ const f=fixture(t);await f.host.installNativePolicy({cohortId:'cohort',expectedPolicyRevision:1});
+ assert.deepEqual(f.calls,['native-policy-install-v2']);const c=f.requests[0].command;
+ assert.equal(c.cohort_id,'cohort');assert.equal(c.expected_policy_revision,1);assert.equal(c.scope,'waypost-protocol');assert.ok(c.actor.startsWith('owner:'));assert.equal(c.policy,undefined);assert.equal(c.summary,undefined);
+});
+test('deferred native installation never continues to external inference',async t=>{
+ const f=fixture(t,{deferredType:'native-policy-install-v2'});await assert.rejects(f.host.installNativePolicy({cohortId:'cohort',expectedPolicyRevision:1}),/deferred-no-external-dispatch/);assert.deepEqual(f.calls,['native-policy-install-v2']);
+});

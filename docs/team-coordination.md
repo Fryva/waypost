@@ -511,3 +511,28 @@ into these priorities. The output is `automatic-calibration-proposal`, with
 `activation: false` and `authority_granted: false`; existing policy/action gates
 refuse it. Fresh execution admissions, historical review requirements, protected
 token routing and complete calibrated native cohorts remain separate work.
+
+### Applying protocol calibration to candidate election
+
+Create a separate owner-selected team with `waypost team create TASK --id TEAM
+--native-policy-bootstrap` to prepare native calibration without the legacy automatic
+quota policy. Ordinary team creation retains automatic quota redistribution. This
+new creation marker avoids recording unknown legacy tuples as review requirements;
+existing historical requirements are never removed.
+
+After settled authenticated trials, the owner can run `waypost team host TEAM
+--operation native-policy-install --cohort COHORT --policy-revision CURRENT`.
+The authority recomputes the summary from its own immutable captures and installs
+qualified role coverage, participant identity admissions and the entire strongest
+review frontier atomically. The store supplies its actual revision. Imported policy
+or summary JSON grants no admission. Active work, unresolved accounting, pending
+native operations, automatic quota policies or uncovered historical identities
+block installation. Publication defers the operation.
+
+This selects protocol coordinator and independent critic candidates. The critic
+must be a different ready participant at or above the retained review frontier;
+installation without one is refused. This does not acknowledge a leader,
+execute work or create an independent review context. Architecture and implementation
+coverage remain absent; legacy protected actions and policy downgrade are refused.
+New action admission, typed quota handover and full native execution remain separate
+work. Original capture expiry applies and recompilation does not renew observations.

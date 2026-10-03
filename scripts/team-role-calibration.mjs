@@ -102,7 +102,11 @@ function immutable(value){if(value&&typeof value==='object'){for(const v of Obje
 function summaryClock(now){const value=typeof now==='function'?now():now;if(!Number.isSafeInteger(value)||value<0)fail('summary-clock-required');return value;}
 export async function collectAuthenticatedCalibrationSummary({teamId,cohortId,readAuthority,now=Date.now}={}){
  id(teamId);id(cohortId);if(typeof readAuthority!=='function')fail('trusted-authority-reader-required');
- const at=summaryClock(now),loaded=await readAuthority();
+ return buildAuthenticatedCalibrationSummary({teamId,cohortId,loaded:await readAuthority(),now});
+}
+// Reducer-only path: the store supplies the state and its actual revision.
+export function buildAuthenticatedCalibrationSummary({teamId,cohortId,loaded,now=Date.now}={}){
+ id(teamId);id(cohortId);const at=summaryClock(now);
  if(!Number.isSafeInteger(loaded?.revision)||loaded.revision<0||!loaded.state||Buffer.byteLength(JSON.stringify(loaded.state))>33554432)fail('bounded-authority-snapshot-required');
  const s=structuredClone(loaded.state),t=s.teams?.[teamId],cohort=t&&Object.hasOwn(t.native_calibration_cohorts||{},cohortId)?t.native_calibration_cohorts[cohortId]:null;
  if(!cohort||t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('opened-native-cohort-required');

@@ -1,11 +1,13 @@
 // Deterministic team transitions. Authentication and file IO belong to the CLI/store.
-import { validatePolicy, validateDescriptor, rankParticipant, selectCoordinator, updateReviewFloor, policyStrengthShape } from './team.mjs';
+import { validatePolicy, validateDescriptor, rankParticipant, selectCoordinator, selectProtocolReviewerCandidate, updateReviewFloor, policyStrengthShape } from './team.mjs';
 import { proposeModelRoute } from './model-routing.mjs';
 import { applyWorkflow } from './team-workflow.mjs';
+import { buildAuthenticatedCalibrationSummary } from './team-role-calibration.mjs';
+import { compileCalibrationPolicyV2 } from './model-strength.mjs';
 import { quotaEligible, effectiveReviewFloor } from './team-quota.mjs';
 const clone = structuredClone;
 const KINDS = new Set(['question', 'answer', 'progress', 'result', 'assignment', 'ack', 'quiesce', 'handover', 'review-request', 'review-result', 'cancel']);
-const DEFERRED = new Set(['subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','participant-host-register-v1','quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
+const DEFERRED = new Set(['native-policy-install-v2','subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','participant-host-register-v1','quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
 function fail(message) { throw new Error(message); }
 function text(v, name, max = 256) { if (typeof v !== 'string' || !v || v.length > max || /[\x00-\x1f]/.test(v)) fail('invalid-' + name); return v; }
 function id(v) { if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(v || '') || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(v)) fail('invalid-team-id'); return v; }
@@ -19,11 +21,12 @@ function qualified(t, p, role, c) {
   if (rankParticipant(p, t.policy, role, { action, now: Date.parse(c.at) }) === null) fail('action-bound-model-evidence-required:' + action);
 }
 function floor(t, at) {
+  if(t.policy?.protocol===2){nativeFloor(t,Date.parse(at));return;}
   // Policies can change score scales: preserve admitted identities, not raw scores.
   const ps = Object.values(t.participants);
   const oldRequired = t.required_review_models || [];
   const current = updateReviewFloor(null, ps, t.policy, { now: Date.parse(at) });
-  const identities = ps.filter(p => rankParticipant(p, t.policy, 'review', { now: Date.parse(at) }) === current).map(p => [p.model.provider, p.model.model_id, p.model.reasoning]);
+  const identities = (t.native_policy_bootstrap && current===null ? [] : ps).filter(p => rankParticipant(p, t.policy, 'review', { now: Date.parse(at) }) === current).map(p => [p.model.provider, p.model.model_id, p.model.reasoning]);
   t.required_review_models = [...new Map([...oldRequired, ...identities].map(x => [JSON.stringify(x), x])).values()];
   const historical = t.required_review_models.map(([provider, model_id, reasoning]) => t.policy.profiles.find(x => x.provider === provider && x.model_id === model_id && x.reasoning === reasoning));
   t.review_floor = historical.some(x => !x) ? null : Math.max(current ?? -1, ...historical.map(x => x.priorities.review));
@@ -45,11 +48,58 @@ function floor(t, at) {
 }
 function eligibleParticipants(t,now){return Object.values(t.participants).filter(p=>!t.quota_policy?.automatic_redistribution || quotaEligible(p,now));}
 function propose(t, at) {
-  const selected = selectCoordinator(eligibleParticipants(t,Date.parse(at)), t.policy, t.leader, { now: Date.parse(at) });
-  if (!selected) { t.status = 'paused'; t.candidate = null; return; }
+  const selected = selectCoordinator(eligibleParticipants(t,Date.parse(at)), t.policy, t.leader, { now: Date.parse(at), ...(t.policy?.protocol===2?{coverage:'waypost-protocol-coordinate'}:{}) });
+  if (!selected) { t.status = 'paused'; t.candidate = null; if(t.policy?.protocol===2){t.review_candidate=null;t.review_candidate_blocker='protocol-coordinator-candidate-unavailable';} return; }
   if (selected.id === t.leader && t.status === 'active') return;
   t.candidate = selected.id;
+  if(t.policy?.protocol===2){
+    t.review_candidate=t.review_blocker?null:selectProtocolReviewerCandidate(Object.values(t.participants),t.policy,t.review_floor,{coordinator:selected.id,now:Date.parse(at)})?.id??null;
+    t.review_candidate_blocker=t.review_candidate?null:'strongest-independent-review-candidate-unavailable';
+  }
   t.status = t.leader ? 'handover' : 'forming';
+}
+function nativeFloor(t,now){
+  const eligible=Object.values(t.participants).map(p=>({p,rank:rankParticipant(p,t.policy,'review',{now,coverage:'waypost-protocol-review'})})).filter(x=>x.rank!==null);
+  const strongest=eligible.length?Math.max(...eligible.map(x=>x.rank)):null;
+  const identities=[...(t.required_review_identities_v2||[]),...eligible.filter(x=>x.rank===strongest).map(x=>x.p.native_admission.identity)];
+  t.required_review_identities_v2=[...new Map(identities.map(x=>[JSON.stringify(x),clone(x)])).values()];
+  const rows=t.required_review_identities_v2.map(identity=>t.policy.profiles.find(p=>JSON.stringify(p.identity)===JSON.stringify(identity)));
+  const missing=rows.some(p=>!p||p.priorities.review===null||!p.calibration.review?.current||now>=Date.parse(p.calibration.review.expires_at));
+  t.review_floor=missing?null:Math.max(strongest??-1,...rows.map(p=>p.priorities.review));
+  t.review_blocker=missing?'previous-native-review-profile-unclassified':t.review_floor<0?'no-qualified-review-model':null;
+}
+function installNativePolicy(s,t,c,authority,now){
+  owner(s,c);
+  const allowed=['type','team','actor','at','request_key','cohort_id','expected_policy_revision','scope','incarnation','epoch'];
+  if(Object.keys(c).some(k=>!allowed.includes(k))||c.scope!=='waypost-protocol')fail('native-policy-selectors-only');
+  if(c.expected_policy_revision!==t.policy.revision)fail('native-policy-revision-mismatch');
+  if(!Number.isSafeInteger(authority.revision)||authority.revision<0)fail('store-authority-revision-required');
+  if(t.leader||Object.values(t.work).some(w=>!['integrated','cancelled'].includes(w.status)))fail('native-policy-idle-migration-required');
+  if(t.quota_policy?.automatic_redistribution)fail('native-policy-quota-migration-required');
+  if(t.handover||Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('native-policy-pending-runtime-required');
+  if(t.required_review_models?.length)fail('native-policy-legacy-history-bridge-required');
+  if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('unresolved-subscription-invocations');
+  if(Object.values(t.runtime_requests||{}).some(x=>!x.captured&&!x.reconciled_stopped)||Object.values(t.review_requests||{}).some(x=>!x.output_digest&&!x.reconciled_stopped)||Object.values(t.deliveries||{}).some(x=>['dispatching','uncertain'].includes(x.state)))fail('native-policy-pending-runtime-required');
+  const summary=buildAuthenticatedCalibrationSummary({teamId:t.id,cohortId:c.cohort_id,loaded:{state:s,revision:authority.revision},now});
+  const proposal=compileCalibrationPolicyV2(summary,{revision:t.policy.revision+1,now});
+  const policy=validatePolicy({...clone(proposal),mode:'automatic-calibration',activation:true,activation_scope:'waypost-protocol',installation:{request_key:c.request_key,cohort:c.cohort_id,previous_policy_revision:t.policy.revision}});
+  const history=t.required_review_identities_v2||[];
+  if(history.some(identity=>!policy.profiles.some(p=>JSON.stringify(p.identity)===JSON.stringify(identity)&&p.priorities.review!==null)))fail('native-policy-historical-frontier-uncovered');
+  const captures=Object.values(t.native_calibration_cohorts[c.cohort_id].captures);
+  const admissions={};
+  for(const row of policy.profiles){
+    const p=t.participants[row.participant];
+    if(!p||p.revoked||p.availability==='left'||p.incarnation!==row.incarnation||p.model.model_revision!==row.model_revision||p.native_binding?.descriptor_digest!==row.descriptor_digest)continue;
+    const capture=captures.filter(x=>x.measurement.profile_id===row.identity.profile_id&&s.subscription_invocations[x.invocation_id]?.participant===p.id&&x.incarnation===p.incarnation&&x.descriptor_digest===row.descriptor_digest&&x.collector==='collector:'+p.native_binding.collector_id).sort((a,b)=>Date.parse(b.observed_at)-Date.parse(a.observed_at)||a.invocation_id.localeCompare(b.invocation_id))[0];
+    if(!capture||now>=Date.parse(capture.expires_at))continue;
+    admissions[p.id]={protocol:2,identity:clone(row.identity),observation_id:capture.observation_id,participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:row.descriptor_digest,collector:p.native_binding.collector_id,source_invocation:capture.invocation_id,observed_at:capture.observed_at,expires_at:capture.expires_at};
+  }
+  t.policy=policy;
+  for(const p of Object.values(t.participants)){delete p.native_admission;if(admissions[p.id])p.native_admission=admissions[p.id];}
+  nativeFloor(t,now);propose(t,c.at);
+  if(!t.candidate||t.review_floor===null||t.review_floor<0||t.review_blocker)fail('native-policy-qualified-coordinate-and-review-required');
+  if(!t.review_candidate)fail('native-policy-qualified-independent-review-required');
+  return {policy_revision:policy.revision,candidate:t.candidate,review_candidate:t.review_candidate,review_floor:t.review_floor,scope:'waypost-protocol',protected_roles_granted:false};
 }
 function envelope(t, c, sender, kind, to, payload, correlation = null) {
   const recipient = participant(t, to);
@@ -71,7 +121,10 @@ export function reduceTeamEvent(previous, command, authority = {}) {
     if (s.task_bindings[c.task]) fail('task-already-owned:' + s.task_bindings[c.task]);
     if (s.teams[c.team]) fail('team-already-exists');
     const policy = validatePolicy(c.policy);
+    if(policy.protocol===2)fail('native-policy-reducer-install-required');
+    if(c.native_policy_bootstrap!==undefined&&(c.native_policy_bootstrap!==true||c.quota_policy!==undefined))fail('invalid-native-policy-bootstrap');
     s.teams[c.team] = { id: c.team, task: c.task, policy, participants: {}, messages: [], work: {}, status: 'forming', epoch: 0, leader: null, candidate: null, review_floor: null, required_review_models: [], review_blocker: 'no-qualified-review-model' };
+    if(c.native_policy_bootstrap===true)s.teams[c.team].native_policy_bootstrap=true;
     if(c.quota_policy!==undefined){
       if(c.quota_policy?.protocol!==1 || c.quota_policy.automatic_redistribution!==true || Object.keys(c.quota_policy).some(k=>!['protocol','automatic_redistribution'].includes(k)))fail('invalid-quota-policy');
       Object.assign(s.teams[c.team],{quota_policy:clone(c.quota_policy),quota_revision:0,review_admissions:{}});
@@ -98,8 +151,11 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       s.deferred_commands.push({id:c.request_key,command:clone(c)});
       return {state:s,result:{deferred:true,id:c.request_key,reason:'publication-fence'}};
     }
-    if (c.type === 'join') {
+    if(t.policy?.protocol===2 && (['policy','leader-ack','assign','assign-routed-v1','work-ack','submit','supervise','cancel','routing-enable','quota-policy-enable-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1'].includes(c.type)||/^(review-|integration-|revise-work|assign-routed|work-dispatch|routing-enable-v2)/.test(c.type)||c.type==='strength-check'&&c.policy))fail('native-policy-protected-action-admission-required');
+    if(c.type==='native-policy-install-v2'){result=installNativePolicy(s,t,c,authority,now);}
+    else if (c.type === 'join') {
       owner(s, c); const p = clone(c.participant);
+      if((t.native_policy_bootstrap||t.policy?.protocol===2)&&p.native_admission!==undefined)fail('native-admission-reducer-only');
       id(p.id); text(p.incarnation, 'incarnation'); text(p.session, 'session'); text(p.harness, 'harness'); text(p.root, 'root', 4096);
       p.model = validateDescriptor(p.model);
       if (p.surface !== undefined && !['cli','desktop','desktop-code','desktop-chat','web','unknown'].includes(p.surface)) fail('invalid-participant-surface');
@@ -114,13 +170,16 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       if (JSON.stringify(t.strength_check).length > 262144) fail('strength-evidence-too-large');
       if (c.policy) {
         const policy = validatePolicy(c.policy);
+        if(policy.protocol===2)fail('native-policy-reducer-install-required');
         if (policy.revision !== t.policy.revision || policyStrengthShape(policy) !== policyStrengthShape(t.policy)) fail('strength-refresh-cannot-change-priorities');
         if (policy.mode !== 'automatic' || Date.parse(policy.generated_at) > now || Date.parse(policy.expires_at) <= now) fail('fresh-automatic-policy-required');
         t.policy = policy;
       }
+      if(t.policy?.protocol===2){floor(t,c.at);propose(t,c.at);}
       result = { checked: true, policy_revision: t.policy.revision };
     } else if (c.type === 'policy') {
       owner(s, c); const policy = validatePolicy(c.policy);
+      if(policy.protocol===2)fail('native-policy-reducer-install-required');
       if (policy.revision <= t.policy.revision) fail('policy-revision-must-increase');
       t.policy = policy;
       if (c.check) t.strength_check = clone(c.check);
@@ -137,11 +196,11 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       floor(t, c.at); propose(t, c.at); result = { participant: p.id, model_revision: model.model_revision };
     } else if (c.type === 'availability') {
       const p = member(t, c); if (!['ready', 'busy', 'unavailable', 'left'].includes(c.availability)) fail('invalid-availability');
-      p.availability = c.availability; if(t.quota_policy?.automatic_redistribution)floor(t,c.at); propose(t, c.at); result = { availability: p.availability };
+      p.availability = c.availability; if(t.quota_policy?.automatic_redistribution||t.policy?.protocol===2)floor(t,c.at); propose(t, c.at); result = { availability: p.availability };
     } else if (c.type === 'revoke') {
       owner(s, c); const p = participant(t, c.participant_id); p.revoked = true;
       for (const w of Object.values(t.work)) if (w.worker === p.id && !['integrated','cancelled'].includes(w.status)) w.status = 'uncertain';
-      if(t.quota_policy?.automatic_redistribution)floor(t,c.at); propose(t, c.at); result = { revoked: p.id };
+      if(t.quota_policy?.automatic_redistribution||t.policy?.protocol===2)floor(t,c.at); propose(t, c.at); result = { revoked: p.id };
     } else if (c.type === 'leader-ack') {
       const p = member(t, c); const best = selectCoordinator(eligibleParticipants(t,now), t.policy, t.leader, { now });
       if (!best || best.id !== p.id || t.candidate !== p.id) fail('strongest-candidate-required');
@@ -215,6 +274,10 @@ export function reduceTeamEvent(previous, command, authority = {}) {
     } else {
       const advanced=applyWorkflow(s,t,c,now,{owner,member,leader,qualified,participant,selectCoordinator:(ps,policy,current,opts)=>selectCoordinator(ps.filter(p=>!t.quota_policy?.automatic_redistribution || quotaEligible(p,opts.now)),policy,current,opts),envelope,floor,propose});
       if(!advanced.handled)fail('unsupported-team-transition');result=advanced.result;
+      if(t.policy?.protocol===2&&c.type==='collector-revoke-v1'){
+        for(const p of Object.values(t.participants))if(p.native_admission?.collector===c.collector_id)delete p.native_admission;
+        floor(t,c.at);propose(t,c.at);
+      }
     }
   }
   return { state: s, result };

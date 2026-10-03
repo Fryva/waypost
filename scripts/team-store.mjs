@@ -100,7 +100,7 @@ export function readAuthority(root, reducer) {
     if (typeof e.actor !== 'string' || typeof e.key !== 'string' || e.request_digest !== digest({ actor: e.actor, command: e.command })) fail('authority-request-integrity', { revision });
     if (requests.some(r => r.actor === e.actor && r.key === e.key)) fail('authority-duplicate-request', { revision });
     if (!Number.isFinite(Date.parse(e.accepted_at))) fail('authority-invalid-event-time', { revision });
-    const next = bounded(reducer(structuredClone(state), structuredClone(e.command), { accepted_at: e.accepted_at }), MAX_EVENT, 'authority-state-too-large');
+    const next = bounded(reducer(structuredClone(state), structuredClone(e.command), { accepted_at: e.accepted_at, revision }), MAX_EVENT, 'authority-state-too-large');
     if (!next || !Object.hasOwn(next, 'state') || !Object.hasOwn(next, 'result') || digest(next.state) !== e.state_digest || digest(next.result) !== digest(e.result)) fail('authority-replay-mismatch', { revision });
     state = next.state; revision = e.seq; previous = hash;
     requests.push({ actor: e.actor, key: e.key, digest: e.request_digest, revision, result: e.result });
@@ -165,7 +165,7 @@ export function mutateAuthority(root, request, reducer, { host = hostname(), con
     // accepted event time. A caller cannot backdate an action to bypass expiry.
     if (Object.hasOwn(command, 'at') && (!Number.isFinite(Date.parse(command.at)) || Math.abs(Date.now() - Date.parse(command.at)) > 30000)) fail('authority-invalid-action-time');
     const accepted_at = new Date().toISOString();
-    const next = bounded(reducer(structuredClone(current.state), structuredClone(command), { accepted_at }), MAX_EVENT, 'authority-state-too-large');
+    const next = bounded(reducer(structuredClone(current.state), structuredClone(command), { accepted_at, revision: current.revision }), MAX_EVENT, 'authority-state-too-large');
     if (!next || !Object.hasOwn(next, 'state') || !Object.hasOwn(next, 'result')) fail('authority-invalid-reducer-output');
     const revision = current.revision + 1;
     const previous = revision === 1 ? ZERO : jsonFile(join(events, eventName(revision - 1))).hash;

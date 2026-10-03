@@ -121,6 +121,43 @@ project review remains fresh, independent and strongest qualified.
     inherited native billing or enable credits/API fallback. Subsequent protected
     actions require new fresh bound identity and separately activated policy 2.
 
+13. `native-policy-install-v2` is an atomic owner opt-in with only `cohort_id`,
+    `expected_policy_revision` and `scope: waypost-protocol` plus authenticated
+    envelope metadata (`team`, `actor`, `at`, `request_key`, `incarnation`, `epoch`).
+    The reducer rebuilds
+    authenticated summary from its own state and store-supplied revision, compiles
+    current qualified role coverage, and installs policy, typed identity
+    admissions, historical review requirements and coordinator/independent critic
+    candidates together. The critic is a different ready participant on the
+    strongest permitted review frontier; missing independent candidate blocks the
+    whole installation. Candidate separation is not executable-context isolation.
+    Caller policy/summary/score JSON is refused. Publication defers installation.
+14. Installation requires no active leader/work, unresolved usage, pending native
+    runtime/review/dispatch or unsupported quota-policy migration. Existing v1
+    historical review identities without a common typed calibration bridge block
+    installation. A separate owner-selected CLI bootstrap may create a team without
+    automatic quota redistribution (`--native-policy-bootstrap`); only this new
+    creation marker prevents new null-ranked legacy review history. Ordinary create
+    behavior and old event replay stay unchanged; existing history is never erased.
+    Candidate election is not protected execution or automatic quota recovery.
+15. Candidate identity admissions come from authenticated settled measurement
+    captures selected by the reducer from the chosen cohort, never imported
+    native-profile JSON or participant admission fields. A future separate
+    invocation-selector observation transition must remain pending, with no
+    eligibility until atomic reinstallation. Installed admissions bind
+    participant, incarnation, model/descriptor/collector, immutable typed profile,
+    observation ID and original clocks. Retired measurement contexts never become
+    executable review contexts. Independent participants may use the same measured
+    profile only after their own fresh bound capture/admission.
+16. Active policy 2 requires explicit matching protocol coverage. Missing role,
+    implementation or architecture coverage, stale observations and action-bound
+    requests without new action admission return null. Legacy leader acknowledgements
+    and protected workflow cannot turn a protocol candidate into execution/review
+    authority. Legacy policy replacement/refresh cannot downgrade active policy 2;
+    migration needs an explicit typed bridge. Keep the entire strongest review frontier as typed historical
+    requirements; future policy cohorts must freshly cover it on their common scale.
+    Missing/incomparable history blocks, and numeric priority never transfers.
+
 ## Modules & files on disk
 
 - `scripts/native-model-profile.mjs`: already-budgeted trusted observations.

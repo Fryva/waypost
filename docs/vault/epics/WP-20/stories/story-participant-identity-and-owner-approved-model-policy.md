@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-10-01
 external_refs: {}
 tags: []
-code_refs: ["scripts/team.mjs", "scripts/model-strength.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team-cli.mjs", "models/strength-sources.json", "models/policy.schema.json", "models/descriptor.schema.json", "tests/team-models.test.mjs", "tests/team-store.test.mjs", "tests/model-strength.test.mjs", "tests/team-periodic.test.mjs", "tests/team-cli.test.mjs", "scripts/team-transport.mjs", "scripts/team-host.mjs", "scripts/team-evidence.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs", "scripts/native-model-profile.mjs", "tests/native-model-profile.test.mjs", "scripts/team-role-suite.mjs", "tests/team-role-suite.test.mjs", "scripts/team-role-calibration.mjs", "tests/team-role-calibration.test.mjs", "scripts/team-subscription.mjs", "tests/team-subscription.test.mjs", "tests/calibration-policy.test.mjs"]
+code_refs: ["scripts/team.mjs", "scripts/model-strength.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team-cli.mjs", "models/strength-sources.json", "models/policy.schema.json", "models/descriptor.schema.json", "tests/team-models.test.mjs", "tests/team-store.test.mjs", "tests/model-strength.test.mjs", "tests/team-periodic.test.mjs", "tests/team-cli.test.mjs", "scripts/team-transport.mjs", "scripts/team-host.mjs", "scripts/team-evidence.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs", "scripts/native-model-profile.mjs", "tests/native-model-profile.test.mjs", "scripts/team-role-suite.mjs", "tests/team-role-suite.test.mjs", "scripts/team-role-calibration.mjs", "tests/team-role-calibration.test.mjs", "scripts/team-subscription.mjs", "tests/team-subscription.test.mjs", "tests/calibration-policy.test.mjs", "tests/native-policy-models.test.mjs", "tests/native-policy-state.test.mjs", "tests/helpers/native-calibration.mjs"]
 specs: ["cross-harness-team-coordination-protocol", "objective-native-configuration-calibration-for-protocol-roles"]
 started_at: "2026-10-01T02:15:04.752Z"
 closed_at: null
@@ -60,7 +60,12 @@ calibration are separately reported pending; do not close from reducer tests alo
 
 ## Final Summary
 
-Pending implementation, evidence and independent review.
+Implementation remains in progress. Authenticated protocol calibration can now
+install a scoped policy and elect coordinator/independent critic candidates
+atomically. The strongest
+review frontier is retained as typed identities; protected action admission,
+independent native review, typed quota handover and automatic inventory remain
+unimplemented. No full calibrated native cohort is claimed.
 
 ## Technical Notes
 

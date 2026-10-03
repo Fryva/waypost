@@ -132,6 +132,10 @@ export function createTeamHost(config, dependencies={}) {
   const summary=await collectAuthenticatedCalibrationSummary({teamId:team,cohortId,readAuthority:load,now:()=>Date.parse(now())});
   return compileCalibrationPolicyV2(summary,{revision,now:()=>Date.parse(now())});
  }
+ async function installNativePolicy({cohortId,expectedPolicyRevision}={}) {
+  const credential=owner();
+  return mutate('native-policy-install-v2',{cohort_id:cohortId,expected_policy_revision:expectedPolicyRevision,scope:'waypost-protocol'},credential);
+ }
  async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('host-subscription-v2-owner-opt-in-required');
@@ -607,5 +611,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,subscriptionCalibrationTrial:options=>managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options)),subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,subscriptionCalibrationTrial:options=>managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options)),subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

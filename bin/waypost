@@ -3538,12 +3538,14 @@ WORKING IN SEVERAL HARNESSES AT ONCE
   watch                    stay live: beat on an interval and report who joins,
                            leaves or picks up a story on another device
   team status [<id>]       experimental host-local task authority and inboxes
+  team create <task>       --native-policy-bootstrap prepares protocol calibration
   team refresh <id>        refresh automatic model-strength evidence
   team watch <id>          periodically check evidence [--interval <seconds>]
   team route <id>          preview a manifest [--request-file <json>]; no grant
   team host <id>           managed endpoints, relay, review and owned Git flow
                            --operation bootstrap|inspect|relay|review|checkout|
                            candidate|dispatch|publish|recover-publication
+                           native-policy-install --cohort <id> --policy-revision <n>
   team-mcp                cooperative stdio inbox tools; --project, --team,
                           --credential (absolute paths); no native wake proof
   team-mcp-config         preview project MCP snippet; --harness, --project,

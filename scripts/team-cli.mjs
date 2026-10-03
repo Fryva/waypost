@@ -52,9 +52,9 @@ function publicTeam(t) {
     p.surface ??= 'unknown';
     p.delivery_capabilities = { native_session_binding: p.native_binding ? 'managed-endpoint-bound' : 'unverified', send_existing: 'unsupported', wake: 'unverified', inspect_model: p.identity_checked_at ? (p.model.resolved ? 'adapter-observed' : 'partial-observation') : 'unverified', desktop_delivery:'unverified' };
   }
-  result.policy_stale = result.policy.mode === 'automatic' && Date.now() >= Date.parse(result.policy.expires_at);
+  result.policy_stale = ['automatic','automatic-calibration'].includes(result.policy.mode) && Date.now() >= Date.parse(result.policy.expires_at);
   result.delivery = 'cooperative inboxes (including MCP) and explicitly managed native endpoints; desktop native binding and wake unverified';
-  if(t.accounting?.mode==='subscription-tokens')result.accounting_capabilities={mode:'subscription-tokens',ledger:t.accounting.protocol===2?'bootstrap-and-fixed-calibration-trials':'bootstrap-only',billing_policy:t.accounting.billing_policy||'verified-route-v1',default_execution_context_collector:t.accounting.protocol===2?'codex-opencode-owned-native-counter':'unavailable',native_dispatch:t.accounting.protocol===2?'bounded-codex-opencode-identity-and-fixed-trials':'blocked',calibration_policy_activation:false,provider_enforced_spend:false,exclusive_provider_quota:false};
+  if(t.accounting?.mode==='subscription-tokens')result.accounting_capabilities={mode:'subscription-tokens',ledger:t.accounting.protocol===2?'bootstrap-and-fixed-calibration-trials':'bootstrap-only',billing_policy:t.accounting.billing_policy||'verified-route-v1',default_execution_context_collector:t.accounting.protocol===2?'codex-opencode-owned-native-counter':'unavailable',native_dispatch:t.accounting.protocol===2?'bounded-codex-opencode-identity-and-fixed-trials':'blocked',calibration_policy_activation:t.policy.protocol===2,protected_native_actions:false,provider_enforced_spend:false,exclusive_provider_quota:false};
   return result;
 }
 export async function main(argv = process.argv.slice(2)) {
@@ -81,6 +81,7 @@ export async function main(argv = process.argv.slice(2)) {
     else if (operation === 'calibration-cohort-open') print(host.openCalibrationCohort(json(resolve(opt('--request-file') || ''))));
     else if (operation === 'calibration-trial') print(await host.subscriptionCalibrationTrial({cohortId:opt('--cohort'),caseId:opt('--case'),nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000'}));
     else if (operation === 'calibration-summary') print(host.calibrationSummary({cohortId:opt('--cohort')}));
+    else if (operation === 'native-policy-install') print(await host.installNativePolicy({cohortId:opt('--cohort'),expectedPolicyRevision:Number(opt('--policy-revision'))}));
     else if (operation === 'calibration-policy-proposal') print(await host.calibrationPolicyProposal({cohortId:opt('--cohort'),revision:Number(opt('--revision')||1)}));
     else if (operation === 'register-participant-host') print(await host.registerParticipantHost());
     else if (operation === 'inspect') print(await host.inspect({ action: opt('--action'), ...(opt('--nonce') ? { nonce: opt('--nonce') } : {}) }));
@@ -95,7 +96,7 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
     return;
   }
   if (mode === 'status') {
@@ -244,7 +245,7 @@ export async function main(argv = process.argv.slice(2)) {
     const task = taskKey(target, cfg); team = opt('--id') || 'team-' + randomUUID();
     const foreign = claimsOf(cfg.vault_path).filter(x => x.session !== sessionId() && x.story && task.endsWith(x.story.split('/').at(-1) + '.md'));
     if (foreign.length) throw new Error('foreign-story-claim-requires-handoff');
-    command = { type: 'create', team, task, owner_hash: cred.token_hash, quota_policy:{protocol:1,automatic_redistribution:true}, policy: opt('--policy') ? json(resolve(opt('--policy'))) : bootPolicy(at) };
+    command = { type: 'create', team, task, owner_hash: cred.token_hash, ...(argv.includes('--native-policy-bootstrap')?{native_policy_bootstrap:true}:{quota_policy:{protocol:1,automatic_redistribution:true}}), policy: opt('--policy') ? json(resolve(opt('--policy'))) : bootPolicy(at) };
   } else if (mode === 'join') {
     cred = loadCredential(resolve(opt('--owner-credential') || defaultOwner));
     const path = opt('--credential'); if (!path) throw new Error('join-needs-credential-output-path');
