@@ -157,6 +157,8 @@ export function createTeamHost(config, dependencies={}) {
     };
     transport=activeOperation?await activeOperation.native(factory):await factory();
     const capture=await collectModelInventory({transport,team,participant:p,descriptor:d.descriptor,collector:c.collector,nonce,startedAt,now:()=>Date.parse(now())});
+    // Shutdown may reveal late frames. Publish only after the owned stream closes.
+    const retiring=transport;transport=null;await closeNative(retiring);
     return mutate('native-model-inventory-capture-v1',{capture},c,'inventory-'+nonce).result;
   }catch(error){
     const blocker=typeof error.code==='string'&&/^(native|inventory|host)-[a-z0-9-]+$/.test(error.code)?error.code:'inventory-collection-failed';

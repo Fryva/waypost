@@ -53,3 +53,27 @@ test('capture aliases and noncanonical request keys cannot rebind an authenticat
  const f=fixture(),c=await capture(f);
  for(const fields of [{participant_id:'peer'},{participant_incarnation:'inc'},{descriptor_digest:routingDigest(descriptor)},{nonce:'alias'},{started_at:at},{request_key:'different'}])assert.throws(()=>applyModelInventory(f.s,f.t,{...command(c),...fields},now),/alias-forbidden|request-key-required/);
 });
+
+function claudeNative(){return {protocol:1,harness:'claude',source:{method:'initialize/models',url:'https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_internal/query.py'},version:'unknown',version_provenance:'unknown',pages:1,complete:true,filters:{models:'advertised'},response:{models:[{value:'default',resolvedModel:'SECRET',supportedEffortLevels:['future','high'],account:'SECRET'},{value:'opus',resolvedModel:'SECRET',cost:{input:0,output:0}}],account:'SECRET'}};}
+test('Claude advertisements retain selectors and only advertised efforts, never resolved backend or price',async()=>{
+ const raw=claudeNative(),projected=projectNativeInventory(raw);assert.equal(JSON.stringify(projected).includes('SECRET'),false);assert.equal(projected.candidates.length,2);
+ const row=projected.candidates.find(x=>x.native_model_id==='default');assert.equal(row.native_catalogue_id,'default');assert.equal(row.native_route_id,null);assert.equal(row.is_default,true);assert.equal(row.hidden,null);assert.equal(row.default_requested_option,null);assert.deepEqual(row.requested_options,[{kind:'reasoning',value:'future'},{kind:'reasoning',value:'high'}]);assert.equal(row.backend_author,'unknown');assert.equal(row.effective_reasoning,'unknown');assert.equal(row.price_hint.kind,'unknown');assert.equal(row.rank_eligible,false);assert.deepEqual(row.roles,[]);
+ const f=fixture(),c=await capture(f,raw),original=structuredClone(f.t.policy),r=applyModelInventory(f.s,f.t,command(c),now);assert.equal(r.result.advertised_zero,0);assert.equal(r.result.protected_roles_granted,false);assert.deepEqual(f.t.policy,original);assert.equal(f.t.review_floor,7);assert.equal(f.t.candidate,'unchanged');
+});
+test('Claude missing catalogues, duplicate selectors/options and unbounded input reject complete snapshots',()=>{
+ for(const mutate of [x=>delete x.response.models,x=>x.response.models=null,x=>x.response.models.push(x.response.models[0]),x=>x.response.models[0].supportedEffortLevels=['high','high'],x=>x.response.models[0].value='\n',x=>x.response.models=Array.from({length:1001},(_,i)=>({value:'m'+i})),x=>x.filters={models:'selected'},x=>x.pages=2]){const raw=claudeNative();mutate(raw);assert.throws(()=>projectNativeInventory(raw));}
+});
+test('Claude effort order is stable and sanitized captures cannot claim hidden backend, pricing or rankings',async()=>{
+ const first=claudeNative(),second=structuredClone(first);second.response.models[0].supportedEffortLevels.reverse();assert.deepEqual(projectNativeInventory(first),projectNativeInventory(second));
+ const f=fixture(),original=await capture(f,first);
+ for(const modify of [c=>c.projected.candidates[0].backend_author='anthropic',c=>c.projected.candidates[0].rank_eligible=true,c=>c.projected.candidates[0].native_route_id='anthropic',c=>c.projected.candidates[0].default_requested_option='high',c=>c.projected.candidates[0].resolvedModel='SECRET',c=>c.projected.version='2.1.286']){const c=structuredClone(original);modify(c);assert.throws(()=>applyModelInventory(f.s,f.t,command(c),now));}
+});
+
+test('empty Claude captures still enforce original single-page unknown version provenance',async()=>{
+ const f=fixture(),raw=claudeNative();raw.response.models=[];const original=await capture(f,raw);
+ for(const change of [x=>x.pages=2,x=>x.version='2.1.286',x=>x.version_provenance='native-initialize']){
+  const native=structuredClone(raw);change(native);assert.throws(()=>projectNativeInventory(native));
+  const c=structuredClone(original);change(c.projected);assert.throws(()=>applyModelInventory(f.s,f.t,command(c),now),/claude-advertisement/);
+ }
+ assert.equal(applyModelInventory(f.s,f.t,command(original),now).result.candidates,0);
+});

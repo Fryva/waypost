@@ -2,7 +2,7 @@
 import { routingDigest } from './model-routing.mjs';
 export const INVENTORY_REFRESH_MS=900000, INVENTORY_TTL_MS=3600000;
 const SCHEMA='native-model-inventory-v1', MAX_ROWS=1000, MAX_BYTES=524288;
-const SOURCES={codex:{method:'model/list',url:'https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/json/v2/ModelListResponse.json'},opencode:{method:'GET /provider',url:'https://opencode.ai/docs/server/'}};
+const SOURCES={claude:{method:'initialize/models',url:'https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_internal/query.py'},codex:{method:'model/list',url:'https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/json/v2/ModelListResponse.json'},opencode:{method:'GET /provider',url:'https://opencode.ai/docs/server/'}};
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 function object(x){if(!x||typeof x!=='object'||Array.isArray(x))fail('inventory-object-required');return x;}
 function text(x,max=256){if(typeof x!=='string'||!x||x.trim()!==x||x.length>max||/[\x00-\x1f\x7f]/.test(x))fail('inventory-bounded-string-required');return x;}
@@ -40,6 +40,12 @@ export function projectNativeInventory(native){
    const defaultOption=text(row.defaultReasoningEffort);if(!options.some(x=>x.value===defaultOption))fail('inventory-default-option-unadvertised');
    candidates.push(candidate('codex',null,model,options,{native_catalogue_id:id,default_requested_option:defaultOption,hidden:row.hidden,is_default:row.isDefault,availability:'advertised',input_modalities:row.inputModalities===undefined?[]:strings(row.inputModalities),price_hint:price()}));
   }
+ }else if(native.harness==='claude'){
+  if(JSON.stringify(native.filters)!==JSON.stringify({models:'advertised'})||native.pages!==1||native.version!=='unknown'||native.version_provenance!=='unknown')fail('inventory-complete-filter-required');
+  const models=list(object(native.response).models,MAX_ROWS),seen=new Set();
+  for(const row of models){object(row);const model=text(row.value);if(seen.has(model))fail('inventory-duplicate-value');seen.add(model);const efforts=row.supportedEffortLevels===undefined?[]:strings(row.supportedEffortLevels);
+   candidates.push(candidate('claude',null,model,efforts.map(value=>({kind:'reasoning',value})),{native_catalogue_id:model,default_requested_option:null,hidden:null,is_default:model==='default',availability:'advertised',input_modalities:[],price_hint:price()}));
+  }
  }else{
   if(JSON.stringify(native.filters)!==JSON.stringify({providers:'all',connected:true}))fail('inventory-complete-filter-required');
   const response=object(native.response),connected=new Set(strings(response.connected,MAX_ROWS)),routes=new Set();object(response.default);
@@ -72,16 +78,18 @@ function validateProjected(x){
  const source=SOURCES[x.harness];if(!source||x.schema!==SCHEMA||x.complete!==true||!Number.isSafeInteger(x.pages)||x.pages<1||x.pages>10)fail('inventory-complete-source-required');
  exact(x.source,['method','url']);if(x.source.method!==source.method||x.source.url!==source.url)fail('inventory-native-source-required');
  text(x.version,128);if(!['native-initialize','native-health','unknown'].includes(x.version_provenance))fail('inventory-version-provenance-required');
- if(JSON.stringify(x.filters)!==JSON.stringify(x.harness==='codex'?{includeHidden:true}:{providers:'all',connected:true}))fail('inventory-filter-required');
+ if(JSON.stringify(x.filters)!==JSON.stringify(x.harness==='codex'?{includeHidden:true}:x.harness==='claude'?{models:'advertised'}:{providers:'all',connected:true}))fail('inventory-filter-required');
+ if(x.harness==='claude'&&(x.pages!==1||x.version!=='unknown'||x.version_provenance!=='unknown'))fail('inventory-claude-advertisement-required');
  const ids=new Set();
  for(const row of list(x.candidates,MAX_ROWS)){
   exact(row,['id','native_route_id','native_model_id','requested_options','effective_reasoning','backend_author','roles','rank_eligible','calibration_required','native_catalogue_id','default_requested_option','hidden','is_default','availability','input_modalities','price_hint']);
-  text(row.native_model_id);text(row.native_catalogue_id);if(x.harness==='codex'?row.native_route_id!==null:typeof row.native_route_id!=='string')fail('inventory-native-route-required');if(row.native_route_id!==null)text(row.native_route_id);
-  for(const option of list(row.requested_options)){exact(option,['kind','value']);if(option.kind!==(x.harness==='codex'?'reasoning':'variant'))fail('inventory-requested-option-kind');text(option.value);}
+  text(row.native_model_id);text(row.native_catalogue_id);if(x.harness!=='opencode'?row.native_route_id!==null:typeof row.native_route_id!=='string')fail('inventory-native-route-required');if(row.native_route_id!==null)text(row.native_route_id);
+  for(const option of list(row.requested_options)){exact(option,['kind','value']);if(option.kind!==(x.harness!=='opencode'?'reasoning':'variant'))fail('inventory-requested-option-kind');text(option.value);}
   if(new Set(row.requested_options.map(o=>o.value)).size!==row.requested_options.length)fail('inventory-duplicate-option');
   if(row.id!=='catalogue-'+routingDigest({schema:SCHEMA,harness:x.harness,route:row.native_route_id,model:row.native_model_id,options:row.requested_options})||ids.has(row.id))fail('inventory-candidate-key-required');ids.add(row.id);
   if(row.default_requested_option!==null){text(row.default_requested_option);if(!row.requested_options.some(o=>o.value===row.default_requested_option))fail('inventory-default-option-unadvertised');}
-  if(typeof row.is_default!=='boolean'||(x.harness==='codex'?typeof row.hidden!=='boolean':row.hidden!==null)||!['advertised','connected-advertised'].includes(row.availability)||x.harness==='codex'&&row.availability!=='advertised')fail('inventory-advertisement-flags-required');
+  if(typeof row.is_default!=='boolean'||(x.harness==='codex'?typeof row.hidden!=='boolean':row.hidden!==null)||!['advertised','connected-advertised'].includes(row.availability)||x.harness!=='opencode'&&row.availability!=='advertised')fail('inventory-advertisement-flags-required');
+  if(x.harness==='claude'&&(row.native_catalogue_id!==row.native_model_id||row.default_requested_option!==null||row.is_default!==(row.native_model_id==='default')||row.input_modalities.length||row.price_hint.kind!=='unknown'))fail('inventory-claude-advertisement-required');
   strings(row.input_modalities);exact(row.price_hint,['kind','input','output','currency','unit','coverage']);
   const hint=row.price_hint;for(const key of ['input','output'])if(hint[key]!==null&&(typeof hint[key]!=='string'||!hint[key]||hint[key].trim()!==hint[key]||String(Number(hint[key]))!==hint[key]||hint[key].length>64||!Number.isFinite(Number(hint[key]))||Number(hint[key])<0))fail('inventory-price-invalid');
   text(hint.currency,32);text(hint.unit,64);const coverage=['input','output'].filter(k=>hint[k]!==null),kind=hint.input==='0'&&hint.output==='0'?'advertised-zero':coverage.length?'advertised-priced':'unknown';

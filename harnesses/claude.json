@@ -71,7 +71,7 @@
     "docs": "https://code.claude.com/docs/en/skills",
     "notes": "Nested `.claude/skills/` below the working directory are read too (a monorepo package's own skills); `/skill-name` invokes one directly."
   },
-  "notes": "Frontmatter verified against the current docs: name, description, tools, disallowedTools, model (sonnet/opus/haiku/fable/full id/inherit), effort (low…max), and more. Project agents live in .claude/agents/ and are meant to be committed. `instructions` lists .claude/CLAUDE.md first: a project that keeps its rules there (a common layout) would otherwise never receive the routing block, since the block only goes into instruction files that exist.",
+  "notes": "Frontmatter verified against the current docs: name, description, tools, disallowedTools, model (sonnet/opus/haiku/fable/full id/inherit), effort (low\u2026max), and more. Project agents live in .claude/agents/ and are meant to be committed. `instructions` lists .claude/CLAUDE.md first: a project that keeps its rules there (a common layout) would otherwise never receive the routing block, since the block only goes into instruction files that exist.",
   "coordination": {
     "protocol": 1,
     "adapter": "claude-stream-json",
@@ -109,9 +109,9 @@
   },
   "model_inventory": {
     "protocol": 1,
-    "supported": false,
-    "confidence": "inferred",
-    "docs": "https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/client.py",
-    "notes": "No verified native model inventory API; aliases are not discovery."
+    "supported": true,
+    "confidence": "verified",
+    "docs": "https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_internal/query.py",
+    "notes": "Owned initialize/models control request only, no user turn. Exercised on macOS with Claude Code 2.1.286: 12 advertised selectors. Selectors and advertised effort levels are advisory; effective model, author, price, quota, isolation and strength require separate evidence. Runtime version remains unknown when initialize omits it."
   }
 }

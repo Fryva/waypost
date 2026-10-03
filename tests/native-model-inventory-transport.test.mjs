@@ -34,9 +34,9 @@ test('malformed pages, repeated cursors and unfinished pagination poison and sto
   await assert.rejects(endpoint.listModelConfigurations(),/native-inventory-page-invalid|native-inventory-cursor-repeated|native-inventory-page-limit/);assert.ok(native.process.kills);await assert.rejects(endpoint.listModelConfigurations(),/native-inventory-closed/);
  }
 });
-test('metadata descriptor rejects personal endpoints, chosen models and Claude before launch',async()=>{
+test('metadata descriptor rejects personal endpoints, chosen models before launch',async()=>{
  let launches=0;const deps={spawnProcess(){launches++;throw Error('must not launch');}};
- for(const changes of [{model_id:'chosen'},{reasoning:'high'},{native_id:'personal'},{socket:'/personal'},{url:'http://127.0.0.1:4096'},{password:'secret'},{mode:'workspace-write'},{harness:'claude'},{harness:'opencode'}])await assert.rejects(createNativeModelInventoryEndpoint({...descriptor,...changes},deps),/invalid-native-inventory-descriptor|native-model-inventory-unsupported|owned-native-inventory-server-required/);
+ for(const changes of [{model_id:'chosen'},{reasoning:'high'},{native_id:'personal'},{socket:'/personal'},{url:'http://127.0.0.1:4096'},{password:'secret'},{mode:'workspace-write'},{harness:'opencode'}])await assert.rejects(createNativeModelInventoryEndpoint({...descriptor,...changes},deps),/invalid-native-inventory-descriptor|native-model-inventory-unsupported|owned-native-inventory-server-required/);
  assert.equal(launches,0);
 });
 function opencode(fetchHandler){
@@ -74,4 +74,42 @@ test('descriptor rejection or unknown failed launch cannot manufacture closure p
  for(const [request,deps] of [[{...descriptor,model_id:'forbidden'},{}],[descriptor,{spawnProcess(){throw Error('launch failed');}}]]){
   await assert.rejects(createNativeModelInventoryEndpoint(request,deps),error=>{assert.equal(nativeInventoryFailureClosure(error),null);return true;});
  }
+});
+
+const claudeDescriptor={managed:true,harness:'claude',cwd,timeout_ms:1000};
+function claudeInventory(models,handler){
+ if(arguments.length===0)models=[{value:'default',resolvedModel:'SECRET',supportedEffortLevels:['high','future']}];
+ const calls=[];let process;
+ return {calls,get process(){return process;},deps:{spawnProcess(_exe,args,options){calls.push({args,options});process=child((m,reply)=>{calls.push(m);const response={type:'control_response',response:{subtype:'success',request_id:m.request_id,response:{models,account:'SECRET',commands:['SECRET']}}};handler?handler(m,reply,response,process):reply(response);});return process;}}};
+}
+test('Claude inventory uses one initialize control without user turn and closes before metadata publication',async()=>{
+ const native=claudeInventory(),endpoint=await createNativeModelInventoryEndpoint(claudeDescriptor,native.deps),response=await endpoint.listModelConfigurations();
+ assert.equal(response.harness,'claude');assert.equal(response.version,'unknown');assert.equal(response.version_provenance,'unknown');assert.equal(response.pages,1);assert.deepEqual(response.filters,{models:'advertised'});assert.deepEqual(response.response,{models:[{value:'default',supportedEffortLevels:['high','future']}]});assert.equal(JSON.stringify(response).includes('SECRET'),false);
+ const frames=native.calls.filter(x=>x.type);assert.equal(frames.length,1);assert.equal(frames[0].type,'control_request');assert.deepEqual(frames[0].request,{subtype:'initialize',hooks:null});assert.equal(native.calls[0].options.shell,false);assert.ok(native.calls[0].args.includes('--no-session-persistence'));assert.equal(native.calls[0].args.includes('--model'),false);assert.equal(native.calls[0].args.includes('--effort'),false);assert.ok(native.process.kills);assert.equal(Object.hasOwn(endpoint,'send'),false);assert.equal(Object.hasOwn(endpoint,'native_id'),false);await assert.rejects(endpoint.listModelConfigurations(),/native-inventory-closed/);await endpoint.stopAndWait();
+});
+test('Claude malformed model catalogue poisons launch and returns authentic awaited closure only',async()=>{
+ for(const models of [undefined,null,{},[{value:'x'},{value:'x'}],[{value:' x'}],[{value:'x',supportedEffortLevels:['high','high']}],Array.from({length:1001},(_,i)=>({value:'m'+i})),[{value:'x'.repeat(257)}],[{value:'x',supportedEffortLevels:['\n']}]] ){
+  const native=claudeInventory(models);await assert.rejects(createNativeModelInventoryEndpoint(claudeDescriptor,native.deps),error=>{assert.match(error.message,/native-inventory-models-invalid/);assert.equal(nativeInventoryFailureClosure(error).stopped,true);assert.equal(nativeInventoryFailureClosure({...error}),null);return true;});assert.ok(native.process.kills);
+ }
+});
+test('Claude wrong response IDs, unsuccessful responses, unsolicited turns and duplicate controls fail closed',async()=>{
+ const handlers=[(m,reply,r)=>reply({...r,response:{...r.response,request_id:'foreign'}}),(m,reply,r)=>reply({...r,response:{...r.response,subtype:'error',error:'SECRET'}}),(m,reply)=>reply({type:'assistant',message:{content:'SECRET'}}),(m,reply,r)=>{reply(r);reply(r);}];
+ for(const handler of handlers){const native=claudeInventory([{value:'model'}],handler);await assert.rejects(createNativeModelInventoryEndpoint(claudeDescriptor,native.deps),error=>{assert.equal(error.message.includes('SECRET'),false);assert.equal(nativeInventoryFailureClosure(error).stopped,true);return true;});assert.ok(native.process.kills);}
+});
+test('Claude rejects late frames and malformed stream tails through owned shutdown',async()=>{
+ for(const tail of [JSON.stringify({type:'result',result:'SECRET'})+'\n','invalid json\n','{"incomplete":',Buffer.alloc(2*1024*1024+1)]){
+  const native=claudeInventory(),endpoint=await createNativeModelInventoryEndpoint(claudeDescriptor,native.deps),p=native.process;
+  p.kill=()=>{p.kills++;queueMicrotask(()=>{p.stdout.write(tail);p.emit('close',0);});return true;};
+  await assert.rejects(endpoint.listModelConfigurations(),error=>{assert.equal(error.message.includes('SECRET'),false);assert.equal(nativeInventoryFailureClosure(error).process_group_closed,true);return true;});await assert.rejects(endpoint.listModelConfigurations(),/native-inventory-closed/);
+ }
+});
+test('Claude late unsolicited frame before shutdown cannot be reused as a successful cached observation',async()=>{
+ const native=claudeInventory(),endpoint=await createNativeModelInventoryEndpoint(claudeDescriptor,native.deps);native.process.stdout.write(JSON.stringify({type:'control_request',request_id:'foreign',request:{subtype:'can_use_tool'}})+'\n');
+ await assert.rejects(endpoint.listModelConfigurations(),error=>{assert.equal(nativeInventoryFailureClosure(error).stopped,true);return true;});
+});
+
+test('Claude empty catalogue is a complete advisory observation and timeout carries owned closure',async()=>{
+ const native=claudeInventory([]),endpoint=await createNativeModelInventoryEndpoint(claudeDescriptor,native.deps);
+ assert.deepEqual((await endpoint.listModelConfigurations()).response,{models:[]});await endpoint.stopAndWait();
+ const quiet=claudeInventory([],()=>{});await assert.rejects(createNativeModelInventoryEndpoint({...claudeDescriptor,timeout_ms:100},quiet.deps),error=>{assert.equal(nativeInventoryFailureClosure(error).stopped,true);return true;});assert.ok(quiet.process.kills);
 });

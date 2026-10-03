@@ -115,14 +115,14 @@ function ownedChildLifecycle(child) {
   return {close,stopAndWait};
 }
 
-function processPeer(d, argv, spawnProcess) {
+function processPeer(d, argv, spawnProcess, metadataGuard = null) {
   const child = spawnProcess(d.executable || d.harness, argv, { cwd: d.cwd, env: { ...process.env }, shell: false, detached:process.platform !== 'win32', stdio: ['pipe','pipe','pipe'] });
   const lifecycle=ownedChildLifecycle(child);
   const listeners = new Set(); let stopped = false, pending = Buffer.alloc(0), bytes = 0;
-  const stop = error => { if (stopped) return; stopped = true;lifecycle.close();for (const f of listeners) f(null, error); };
+  const stop = error => { metadataGuard?.(error); if (stopped) return; stopped = true;lifecycle.close();for (const f of listeners) f(null, error); };
   child.stdin.on?.('error', () => stop(fail('native-process-failed')));
   child.on('error', () => stop(fail('native-process-failed')));
-  child.on('close', () => stop(fail('native-process-ended')));
+  child.on('close', () => { if(metadataGuard&&pending.toString('utf8').trim())metadataGuard(fail('invalid-native-frame'));stop(fail('native-process-ended')); });
   // Discard bounded stderr, which can contain authentication diagnostics/secrets.
   child.stderr.on('data', chunk => { bytes += chunk.length; if (bytes > LIMIT) stop(fail('native-response-limit')); });
   child.stdout.on('data', chunk => {
@@ -520,12 +520,69 @@ export async function startManagedOpenCodeServer(raw, dependencies = {}) {
   } catch (e) { const proof = await lifecycle.stopAndWait();if (proof?.stopped === true && e && typeof e === 'object') confirmedInventoryFailures.set(e,Object.freeze({...proof}));throw e; }
 }
 
+const CLAUDE_INVENTORY_SOURCE={method:'initialize/models',url:'https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_internal/query.py'};
+function claudeInventoryModels(response){
+ if(!response||typeof response!=='object'||Array.isArray(response)||!Array.isArray(response.models)||response.models.length>1000)throw fail('native-inventory-models-invalid');
+ const seen=new Set(),models=response.models.map(row=>{
+  if(!row||typeof row!=='object'||Array.isArray(row)||!bounded(row.value,256)||row.value.trim()!==row.value||/[\x00-\x1f\x7f]/.test(row.value)||seen.has(row.value))throw fail('native-inventory-models-invalid');
+  seen.add(row.value);const projected={value:row.value};
+  if(row.supportedEffortLevels!==undefined){
+   const efforts=row.supportedEffortLevels;
+   if(!Array.isArray(efforts)||efforts.length>64||efforts.some(value=>!bounded(value,256)||value.trim()!==value||/[\x00-\x1f\x7f]/.test(value))||new Set(efforts).size!==efforts.length)throw fail('native-inventory-models-invalid');
+   projected.supportedEffortLevels=[...efforts];
+  }
+  return projected;
+ });
+ return {models};
+}
+async function claudeInventoryEndpoint(d,spawnProcess){
+ const session=randomUUID(),requestId=randomUUID();let peer,poison=null,responseSeen=false,stopping=false,closed=false,listed=false;
+ const argv=['-p','--verbose','--input-format','stream-json','--output-format','stream-json','--session-id',session,'--tools','','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--safe-mode','--restricted','--no-session-persistence'];
+ const stop=async options=>{stopping=true;closed=true;return peer?.stopAndWait(options);};
+ const failure=async error=>{
+  let proof;try{proof=await stop();}catch{throw fail('native-inventory-stop-unconfirmed');}
+  const code=typeof error?.code==='string'&&/^native-[a-z-]+$/.test(error.code)?error.code:'native-inventory-failed',e=fail(code);
+  if(proof?.stopped===true)confirmedInventoryFailures.set(e,Object.freeze({...proof}));throw e;
+ };
+ try{
+  peer=processPeer(d,argv,spawnProcess,error=>{if(stopping&&['native-endpoint-closed','native-process-ended'].includes(error?.code))return;poison||=error||fail('native-inventory-unexpected-frame');});
+  // This listener remains installed until owned closure. No turn, tool, stderr
+  // transcript or a second response can retroactively certify this metadata.
+  peer.listen((m,error)=>{
+   if(!m){if(!stopping&&!poison)poison=error||fail('native-inventory-unexpected-frame');return;}
+   const r=m.response;
+   if(responseSeen||m.type!=='control_response'||!r||r.request_id!==requestId||r.subtype!=='success'||!r.response||typeof r.response!=='object'||Array.isArray(r.response)){
+    poison||=fail('native-inventory-unexpected-frame');peer.close();return;
+   }
+   responseSeen=true;
+  });
+  const response=await waitFrame(peer,d.timeout_ms,m=>{
+   if(poison)throw poison;
+   if(m.type==='control_response'&&m.response?.request_id===requestId)return m.response.response;
+  },()=>peer.write({type:'control_request',request_id:requestId,request:{subtype:'initialize',hooks:null}}));
+  if(poison)throw poison;
+  const sanitized=claudeInventoryModels(response);
+  return {
+   owns_process:true,descriptor:{harness:'claude',cwd:d.cwd,mode:'read-only'},
+   async listModelConfigurations(){
+    if(closed)throw fail('native-inventory-closed');if(listed)throw fail('native-inventory-already-observed');listed=true;
+    // Complete the own process lifecycle before publishing a snapshot, so late
+    // frames remain observable and cannot follow an accepted catalogue capture.
+    try{await stop();if(poison)throw poison;return {protocol:1,harness:'claude',source:{...CLAUDE_INVENTORY_SOURCE},version:'unknown',version_provenance:'unknown',pages:1,complete:true,filters:{models:'advertised'},response:structuredClone(sanitized)};}
+    catch(error){return failure(error);}
+   },
+   close(){stopping=true;closed=true;peer.close();},
+   async stopAndWait(options){const proof=await stop(options);if(poison){const e=fail(poison.code||'native-inventory-unexpected-frame');if(proof?.stopped===true)confirmedInventoryFailures.set(e,Object.freeze({...proof}));throw e;}return proof;}
+  };
+ }catch(error){return failure(poison||error);}
+}
+
 // Metadata inventory uses a separate owned backend and never creates a native
 // conversation. The raw response stays internal until the host allowlists it.
 export async function createNativeModelInventoryEndpoint(raw, dependencies = {}) {
   const allowed = ['managed','harness','cwd','executable','timeout_ms','mode','spawn_server'];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key)) || raw.managed !== true || !['codex','opencode','claude'].includes(raw.harness) || !isAbsolute(raw.cwd || '') || (raw.mode !== undefined && raw.mode !== 'read-only')) throw fail('invalid-native-inventory-descriptor');
-  if (raw.harness === 'claude') throw fail('native-model-inventory-unsupported');
+  if (raw.harness === 'claude') return claudeInventoryEndpoint(validateNativeDescriptor({...raw,mode:'read-only'}),dependencies.spawnProcess||spawn);
   if (raw.harness === 'opencode' && raw.spawn_server !== true) throw fail('owned-native-inventory-server-required');
   const d = raw.harness === 'codex' ? validateNativeDescriptor({...raw,mode:'read-only'}) : {...raw,cwd:realpathSync(raw.cwd),mode:'read-only'};
   let owner = null, peer = null, seq = 0, version = 'unknown', versionProvenance = 'unknown';

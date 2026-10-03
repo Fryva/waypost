@@ -91,7 +91,8 @@ Codex/OpenCode metadata-only owned endpoints now feed a bound advisory catalogue
 Periodic refresh checks original inventory clocks independently of calibration;
 protocol-v2 refresh cannot initiate identity inference or renew measurement expiry.
 Complete same-scope snapshots alone establish removals; route/price/option hints
-remain unranked. Claude inventory is explicitly unsupported until verified.
+remain unranked. At that increment Claude inventory was unsupported; the later
+Claude metadata increment below supersedes that limitation.
 Fresh independent critic returned scoped ship after capture alias, durable nonce
 key and watch cadence corrections. Focused integration/compatibility run:259/259
 pass; doctor0 issues/0 warnings. Live metadata collection waits for resources:
@@ -119,3 +120,22 @@ were exercised with mocked native transports, including both audit recovery
 windows, malformed/partial usage and negative verdict retention. No new live
 native audit or complete calibrated cohort is claimed. Project-work review,
 generic protected actions, economical routing and typed quota handover remain open.
+
+
+### Claude metadata discovery increment (2026-10-03)
+
+A separate owned Claude CLI now discovers advertised selectors and effort levels
+through a single native SDK initialize control request. No user frame is sent.
+Effective model, author, reasoning, price and runtime version remain unknown;
+aliases do not establish strength, availability, subscription admission or roles.
+The existing 15-minute refresh and one-hour successful snapshot expiry apply.
+Capture follows owned stream/group closure; unexpected, malformed, oversized or
+truncated late frames preserve the prior snapshot and its original expiry.
+
+Fresh independent code critic returned scoped ship after fixing the empty-catalogue
+page/version validation. Seven-file gated regression: 234/234 pass, 96.832 seconds.
+Live transport plus projection on macOS with Claude Code 2.1.286 at
+2026-10-03T23:30:50Z returned 12 unranked selectors and confirmed owned group
+closure. No user frame was sent. This is not live Host ledger capture, a calibrated
+cohort, Claude Host execution admission, desktop model discovery or full story
+acceptance. Those boundaries remain open.

@@ -648,11 +648,18 @@ critic verdict or a complete calibrated native cohort.
 ### Periodic native model inventory
 
 `waypost team host TEAM --operation model-inventory` gathers advisory model
-metadata through a separate owned Codex app-server or OpenCode server. Codex uses
-`model/list`, including every page; OpenCode uses health and `/provider`. No thread,
-session or model turn is started. Selected execution models and reasoning settings
-are omitted from this metadata descriptor. Claude has no verified inventory adapter
-and records an unsupported result before launch.
+metadata through a separate owned Codex app-server, OpenCode server or Claude CLI.
+Codex uses `model/list`, including every page; OpenCode uses health and `/provider`.
+Claude sends one SDK `initialize` control request and reads its advertised models;
+it never sends a user frame or starts a model turn. Selected execution models and
+reasoning settings are omitted from this metadata descriptor. Claude selectors
+(including aliases) and supported effort levels remain advertised candidates,
+with unknown effective model, author, price and runtime version. A metadata-only
+live adapter/projection run on macOS with Claude Code 2.1.286 returned 12 selectors
+at 2026-10-03T23:30:50Z and confirmed
+closure of its own process group; this is not evidence of execution admission.
+All metadata snapshots are published only after owned transport shutdown; late
+frames or stream errors refuse capture and preserve the previous snapshot.
 
 `waypost team refresh TEAM` and `watch` check each due bound descriptor scope at
 most once per cycle. Inventory is due every 15 minutes, including after a failed

@@ -449,8 +449,15 @@ test('host inventory failure preserves successful expiry and sanitizes backend e
  const result=await f.host.observeModelInventory();assert.equal(result.blocker,'inventory-collection-failed');assert.deepEqual(f.team.model_inventory.participant.snapshot,original);
  assert.equal(JSON.stringify(f.requests).includes('private-api-key'),false);assert.equal(f.calls.includes('native-send'),false);
 });
-test('unsupported Claude inventory records a bounded failure before metadata process launch',async t=>{
- let launched=false;const f=fixture(t,{dependencies:{createNativeModelInventoryEndpoint:async()=>{launched=true;throw new Error('unexpected');}}});
+test('Claude inventory remains advisory and publishes only after owned closure',async t=>{
+ let stopped=false;const native={protocol:1,harness:'claude',source:{method:'initialize/models',url:'https://github.com/anthropics/claude-agent-sdk-python/blob/main/src/claude_agent_sdk/_internal/query.py'},version:'unknown',version_provenance:'unknown',pages:1,complete:true,filters:{models:'advertised'},response:{models:[{value:'opus',supportedEffortLevels:['low','high'],account:'private-account'}]}};
+ let f;f=fixture(t,{dependencies:{createNativeModelInventoryEndpoint:async()=>({owns_process:true,listModelConfigurations:async()=>native,async stopAndWait(){assert.equal(f.team.model_inventory?.participant?.snapshot,undefined);stopped=true;}})}});
  await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'claude',cwd:f.root,mode:'read-only'}});
- const result=await f.host.observeModelInventory();assert.equal(result.blocker,'native-model-inventory-unsupported');assert.equal(launched,false);assert.equal(f.team.model_inventory.participant.snapshot,undefined);
+ const policy=structuredClone(f.team.policy),result=await f.host.observeModelInventory();assert.equal(stopped,true);assert.equal(result.candidates,1);assert.equal(result.protected_roles_granted,false);assert.deepEqual(f.team.policy,policy);assert.equal(f.calls.includes('native-send'),false);assert.equal(JSON.stringify(f.team.model_inventory).includes('private-account'),false);
+});
+test('late metadata failure on shutdown preserves previous snapshot and original expiry',async t=>{
+ let late=false;const f=fixture(t,{dependencies:{createNativeModelInventoryEndpoint:async()=>({owns_process:true,listModelConfigurations:async()=>inventoryResponse(),async stopAndWait(){if(late)throw Object.assign(new Error('private-detail'),{code:'native-inventory-unexpected-frame'});}})}});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+ await f.host.observeModelInventory();const original=structuredClone(f.team.model_inventory.participant.snapshot);late=true;
+ const result=await f.host.observeModelInventory();assert.equal(result.blocker,'native-inventory-unexpected-frame');assert.deepEqual(f.team.model_inventory.participant.snapshot,original);assert.equal(f.team.model_inventory.participant.attempt.blocker,'native-inventory-unexpected-frame');assert.equal(JSON.stringify(f.requests).includes('private-detail'),false);
 });
