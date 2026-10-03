@@ -431,3 +431,13 @@ native step tokens and returned a protocol 2 retired observation with native
 health version 1.18.33, unknown effective reasoning and `rank_eligible: false`.
 The nonce retry refused and no enrollment or protected role changed. This proves
 capture compatibility, not calibration or a protected cross-harness task.
+
+
+The installed `team-role-suite.mjs` now generates 24 coordinate and 24 review
+cases with fixed prompts, answer keys and grader digests. A bounded parser rejects
+nested duplicate JSON member names, including escaped equivalents. Exact grading,
+per-family/total/safety gates and finite-suite Wilson intervals are tested.
+`qualified` is a mathematical result from raw answers; `authority_granted` is
+always false. Caller-built answers cannot become authenticated model scores.
+Native measurement admission, sealed receipts, complete common cohorts and policy
+integration remain separate pending work.

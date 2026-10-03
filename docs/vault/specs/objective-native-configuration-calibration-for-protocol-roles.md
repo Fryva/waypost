@@ -87,6 +87,40 @@ project review remains fresh, independent and strongest qualified.
    Cohort keys/seeds are trusted installed data. Their digests detect accidental
    changes, not secrecy or immunity to benchmark overfitting.
 
+9. Before calls an authenticated owner cohort-open action fixes seed, membership
+   (participant/incarnation/model revision/descriptor digest/profile ID), roles,
+   suite/grading digests and whole-cohort allocations per native unit_digest.
+   Different native counter schemas are never added as one invented token unit. It grants no
+   protected role. A trial may not auto-increase allocation or wash a previous
+   failure by silently retrying/replacing its cohort. Installed generation must
+   reproduce the fixed cohort; caller prompts, answer keys and scores are rejected.
+10. A typed calibration reservation additionally binds `{kind: objective-role-trial,
+    cohort_id,role,case_id,suite_digest,criteria_digest,prompt_digest}` before consume.
+    Each trial performs exactly one inference in its fresh owned context. Its
+    original structured answer is preserved. The legacy identity token factory
+    continues requiring literal nonce equality; a separate measurement factory
+    verifies bound original invocation, prompt and settled calibration admission.
+    It neither adds a skip-nonce switch nor manufactures token output.
+11. Terminal native usage is settled before measurement capture. An authenticated
+    immutable collector event binds original output/output digest, native receipt
+    digest, profile and observation IDs, exact reservation/measurement and native
+    context/message/invocation IDs. The reducer requires the same bound collector,
+    team, participant/incarnation and terminal complete nonquarantined admission;
+    it locally regrades the original answer against installed keys. Caller scores
+    cannot mint a result. Identical capture replay is idempotent; conflicting
+    captures, foreign receipts and new dispatch of a consumed trial are rejected.
+    The immutable slot is (cohort, profile, role, case); a new nonce/invocation
+    cannot retry a consumed or failed slot. The collector seals original output
+    and native receipt digests at terminal settlement, before later grading.
+    Capture/recovery must use those exact sealed values, preserving original
+    observation clocks and expiry rather than importing a new arbitrary answer.
+12. Retirement retains historical measured answers without restoring execution.
+    Interrupted/uncertain trials keep holds and leave the cohort unqualified.
+    Recovery reads existing ledger/captures without another inference. Quota
+    exhaustion interrupts measurement, cannot lower review requirements, alter
+    inherited native billing or enable credits/API fallback. Subsequent protected
+    actions require new fresh bound identity and separately activated policy 2.
+
 ## Modules & files on disk
 
 - `scripts/native-model-profile.mjs`: already-budgeted trusted observations.
@@ -109,9 +143,15 @@ No generic architecture promotion is allowed by this suite.
 
 ## Acceptance
 
-- [ ] Installed generator and objective grader satisfy contracts 1–3 and 5.
+- [x] Installed generator and objective grader satisfy contracts 1–3 and 5.
+      Verified by 10 suite tests and independent scoped reviewer; no authority
+      qualification or live native cohort follows from this local grading.
 - [ ] Trusted measurement collector and accounting satisfy contracts 4 and 6–8.
 - [ ] Common-cohort policy/action binding and historical requirements remain gated.
+- [ ] Owner cohort-open fixes membership, installed digests and per-unit limits;
+      typed reservation binds the exact immutable slot/prompt before consume.
+- [ ] Consumed/failed slots refuse a different nonce; original sealed output,
+      charge/hold and clocks survive retirement and recovery without dispatch.
 - [ ] Actual owned native trial cohort passes without claiming broader capability.
 
 ## References
