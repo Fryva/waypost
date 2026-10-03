@@ -411,3 +411,15 @@ test('host calibration cannot auto-expand cohort or native budget to fit an esti
  assert.equal(f.calls.filter(c=>c==='native-send').length,1); // Only the earlier identity bootstrap spent an inference.
  assert.equal(f.calls.filter(c=>c==='subscription-allocation-update-v2').length,allocationUpdates);
 });
+
+test('host policy proposal derives incomplete authenticated coverage without dispatch or authority changes',async t=>{
+ const f=await calibrationHostFixture(t);
+ await f.host.subscriptionCalibrationTrial({cohortId:f.request.id,caseId:f.trial.id,nonce:'proposal-trial',estimateTokens:'40'});
+ const before=structuredClone(f.state),nativeCalls=f.calls.filter(x=>x==='native-create'||x==='native-send').length;
+ const proposal=await f.host.calibrationPolicyProposal({cohortId:f.request.id,revision:1});
+ assert.equal(proposal.protocol,2);assert.equal(proposal.activation,false);assert.equal(proposal.authority_granted,false);
+ assert.deepEqual(proposal.profiles[0].priorities,{coordinate:null,review:null,implement:null});
+ assert.equal(proposal.profiles[0].calibration.coordinate.samples,1);assert.equal(proposal.profiles[0].calibration.review.samples,0);
+ assert.deepEqual(f.state,before);assert.equal(f.calls.filter(x=>x==='native-create'||x==='native-send').length,nativeCalls);
+ await assert.rejects(f.host.calibrationPolicyProposal({cohortId:'unopened'}),/cohort/);
+});

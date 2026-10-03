@@ -1,7 +1,7 @@
 // Authenticated finite-trial ledger foundation. No inference, native-profile
 // importer, policy activation or execution/review privilege is installed here.
 import { routingDigest } from './model-routing.mjs';
-import { createProtocolRoleSuite,formatProtocolTrial,gradeProtocolTrial } from './team-role-suite.mjs';
+import { createProtocolRoleSuite,formatProtocolTrial,gradeProtocolTrial,summarizeProtocolRole } from './team-role-suite.mjs';
 const fail=code=>{throw new Error('calibration-'+code);};
 const same=(a,b)=>a===undefined||b===undefined?a===b:routingDigest(a)===routingDigest(b);
 const id=v=>{if(typeof v!=='string'||! /^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/.test(v))fail('id-required');return v;};
@@ -93,4 +93,57 @@ export function applyProtocolCalibration(s,t,c,now,H){
   cohort.captures[slotKey(x.measurement)]=stored;result={captured:x.id,pass:stored.grade.pass,roles_granted:false};
  }
  return {handled:true,result};
+}
+
+// Only the installed host supplies this authority reader. Detached summaries
+// cannot re-enter the compiler as authenticated evidence.
+const authenticatedSummaries=new WeakMap();
+function immutable(value){if(value&&typeof value==='object'){for(const v of Object.values(value))immutable(v);Object.freeze(value);}return value;}
+function summaryClock(now){const value=typeof now==='function'?now():now;if(!Number.isSafeInteger(value)||value<0)fail('summary-clock-required');return value;}
+export async function collectAuthenticatedCalibrationSummary({teamId,cohortId,readAuthority,now=Date.now}={}){
+ id(teamId);id(cohortId);if(typeof readAuthority!=='function')fail('trusted-authority-reader-required');
+ const at=summaryClock(now),loaded=await readAuthority();
+ if(!Number.isSafeInteger(loaded?.revision)||loaded.revision<0||!loaded.state||Buffer.byteLength(JSON.stringify(loaded.state))>33554432)fail('bounded-authority-snapshot-required');
+ const s=structuredClone(loaded.state),t=s.teams?.[teamId],cohort=t&&Object.hasOwn(t.native_calibration_cohorts||{},cohortId)?t.native_calibration_cohorts[cohortId]:null;
+ if(!cohort||t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('opened-native-cohort-required');
+ const bundle=bundleFor(cohort),captures=Object.entries(cohort.captures||{}).sort(([a],[b])=>a.localeCompare(b));
+ const captureFields=['measurement','original_output','output_digest','native_receipt_digest','native_id','context_id','turn_id','incarnation','descriptor_digest','observed_at','expires_at','observation_id','profile_digest','profile_snapshot_digest','context_snapshot_digest','native_profile'];
+ const profiles=cohort.members.map(member=>{
+  const p=t.participants[member.participant],registered=s.collectors?.[p?.native_binding?.collector_id];
+  const current=!!(p&&!p.revoked&&p.availability!=='left'&&p.incarnation===member.incarnation&&p.model?.model_revision===member.model_revision&&p.native_binding?.descriptor_digest===member.descriptor_digest&&registered&&!registered.revoked&&registered.team===teamId);
+  const rows=captures.filter(([,c])=>c.measurement?.profile_id===member.profile_id);
+  for(const [slot,c] of rows){
+   const x=s.subscription_invocations?.[c.invocation_id];
+   if(slot!==slotKey(c.measurement)||x?.team!==teamId||x.state!=='settled'||x.measurement_seal?.outcome!=='completed'||x.charged_tokens==='0'||!same(x.measurement,c.measurement)||x.measurement_seal.original_output!==c.original_output||routingDigest(c.original_output)!==c.output_digest||x.measurement_seal.native_receipt_digest!==c.native_receipt_digest||!same(gradeProtocolTrial(bundle,c.measurement.case_id,c.original_output),c.grade))fail('authenticated-capture-snapshot-required');
+   const sealedAt=Date.parse(x.measurement_seal.sealed_at),receipt=x.receipt;
+   if(!Number.isFinite(sealedAt)||sealedAt>at||Date.parse(x.settled_at)!==sealedAt||c.settled_at!==x.settled_at||receipt?.coverage!=='complete'||x.charged_tokens!==receipt.actual_tokens||integer(receipt.after)-integer(receipt.before)!==integer(x.charged_tokens)||integer(x.charged_tokens)<=0n)fail('original-settled-accounting-required');
+   // Replay at the recorded settlement clock, never at a fabricated fresh one.
+   // This rehashes the original native projection instead of trusting caches.
+   if(!same(sealProtocolMeasurement(t,x,receipt,sealedAt),x.measurement_seal))fail('original-native-seal-required');
+   if(current){
+    // Reuse the exact capture gate and immutable replay check; this clone never
+    // writes to authority and cannot extend the original capture timestamps.
+    applyProtocolCalibration(s,t,{type:'subscription-measurement-capture-v2',actor:c.collector,invocation_id:c.invocation_id,nonce:c.nonce,capture:Object.fromEntries(captureFields.map(k=>[k,c[k]]))},at,{});
+   }
+  }
+  const roles=cohort.roles.map(role=>{
+   const completed=rows.map(([,c])=>c).filter(c=>c.measurement.role===role),verdict=summarizeProtocolRole(bundle,role,completed.map(c=>({trial_id:c.measurement.case_id,raw_answer:c.original_output})));
+   const observed=completed.length?Math.min(...completed.map(c=>Date.parse(c.observed_at))):Date.parse(cohort.opened_at);
+   const expiry=Math.min(Date.parse(cohort.expires_at),...completed.map(c=>Date.parse(c.expires_at)));
+   if(!Number.isFinite(observed)||!Number.isFinite(expiry)||observed>at||expiry<=observed)fail('original-calibration-clock-required');
+   const fresh=current&&at<expiry;
+   return {...verdict,current:fresh,qualification_candidate:fresh&&verdict.qualified,observed_at:new Date(observed).toISOString(),expires_at:new Date(expiry).toISOString()};
+  });
+  const profileDigest=member.profile_id.startsWith('native-profile-')?member.profile_id.slice('native-profile-'.length):null;digest(profileDigest);
+  return {identity:{kind:'native-configuration',profile_id:member.profile_id,profile_digest:profileDigest,profile_revision:1},participant:member.participant,incarnation:member.incarnation,model_revision:member.model_revision,descriptor_digest:member.descriptor_digest,roles};
+ });
+ const expires=Math.min(Date.parse(cohort.expires_at),...profiles.flatMap(p=>p.roles.map(r=>Date.parse(r.expires_at))));
+ const summary=immutable({protocol:2,team:teamId,cohort:cohortId,authority_revision:loaded.revision,suite_digest:cohort.suite_digest,criteria_digest:cohort.criteria_digest,captures_digest:routingDigest(captures),generated_at:new Date(at).toISOString(),expires_at:new Date(expires).toISOString(),profiles,authority_granted:false});
+ authenticatedSummaries.set(summary,{digest:routingDigest(summary),expires});return summary;
+}
+export function verifyAuthenticatedCalibrationSummary(summary,{now=Date.now}={}){
+ const proof=authenticatedSummaries.get(summary),at=summaryClock(now);
+ if(!proof||proof.digest!==routingDigest(summary))fail('authenticated-summary-provenance-required');
+ if(at<Date.parse(summary.generated_at)||at>=proof.expires)fail('current-summary-required');
+ return summary;
 }

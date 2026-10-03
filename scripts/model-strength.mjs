@@ -3,6 +3,8 @@
 // CC-BY-4.0; /rows API: https://huggingface.co/docs/dataset-viewer/rows
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { routingDigest } from "./model-routing.mjs";
+import { verifyAuthenticatedCalibrationSummary } from "./team-role-calibration.mjs";
 
 const DAY = 86400000;
 const DEFAULT_CONFIG = new URL("../models/strength-sources.json", import.meta.url);
@@ -281,4 +283,37 @@ export async function discoverStrength({ participants, domain = "coding", config
   const generatedAt = sameEvidence ? cache.generated_at ?? selected.source.retrieved_at : iso(ms);
   const policy = { protocol: 1, revision, domain, mode: "automatic", generated_at: generatedAt, expires_at: iso(expiration), sources: [selected.source], profiles };
   return { ok: true, policy, profile_proofs: selected.proofs, unclassified: selected.missing, blockers, cache: { config_hash: configHash, retrieved_at: selected.source.retrieved_at, generated_at: generatedAt, sources: cachedSources, fingerprint, revision, ...(selected.calibration ? { calibration: selected.calibration } : {}) } };
+}
+
+
+// Diagnostic-only protocol 2 proposal. Neither an imported score nor an Arena
+// alias can supply native configuration coverage or activate a team policy.
+export function compileCalibrationPolicyV2(authenticatedSummary, { revision = 1, now = Date.now } = {}) {
+  const ms = typeof now === "function" ? now() : now;
+  if (!Number.isSafeInteger(ms) || ms < 0 || !Number.isSafeInteger(revision) || revision < 1) throw new Error("calibration-policy-clock-or-revision-required");
+  const summary = verifyAuthenticatedCalibrationSummary(authenticatedSummary, { now: ms });
+  const roles = ["coordinate", "review"], priorities = new Map(), scales = {};
+  for (const role of roles) {
+    const rows = [];
+    for (const p of summary.profiles) {
+      const record = p.roles.find(r => r.role === role);
+      if (!record?.current || !record.qualification_candidate || !record.qualified) continue;
+      const interval = record.confidence;
+      if (record.cohort !== summary.cohort || record.suite_digest !== summary.suite_digest || record.grading_digest !== summary.criteria_digest || record.benchmark !== "waypost-protocol-roles" || record.revision !== "1" || record.coverage !== "waypost-protocol-" + role || interval?.method !== "wilson-95" || ![interval.lower,interval.score,interval.upper].every(Number.isFinite) || interval.lower < 0 || interval.upper > 1 || interval.lower > interval.score || interval.score > interval.upper || Date.parse(record.observed_at) > ms || Date.parse(record.expires_at) <= ms) throw new Error("calibration-policy-role-scale-or-clock-mismatch");
+      rows.push({ profile_id:p.identity.profile_id, lower:interval.lower, score:interval.score, upper:interval.upper });
+    }
+    for (const row of tiers(rows)) {
+      if (!priorities.has(row.profile_id)) priorities.set(row.profile_id, {});
+      priorities.get(row.profile_id)[role] = row.priority;
+    }
+    scales[role] = { benchmark:"waypost-protocol-roles",revision:"1",cohort:summary.cohort,suite_digest:summary.suite_digest,criteria_digest:summary.criteria_digest,confidence:"wilson-95",comparison:"strict-disjoint-interval-partial-order",eligible_profiles:rows.map(r=>r.profile_id).sort() };
+  }
+  const profiles = summary.profiles.map(p => {
+    const calibration = Object.fromEntries(roles.map(role=>[role,structuredClone(p.roles.find(r=>r.role===role) || null)]));
+    const rank = Object.fromEntries([...roles,"implement"].map(role=>[role,priorities.get(p.identity.profile_id)?.[role] ?? null]));
+    return { identity:structuredClone(p.identity),participant:p.participant,incarnation:p.incarnation,model_revision:p.model_revision,descriptor_digest:p.descriptor_digest,priorities:rank,role_coverage:{coordinate:rank.coordinate===null?[]:["waypost-protocol-coordinate"],review:rank.review===null?[]:["waypost-protocol-review"],implement:[]},calibration };
+  });
+  const proposal = { protocol:2,mode:"automatic-calibration-proposal",revision,generated_at:summary.generated_at,expires_at:summary.expires_at,provenance:{kind:"authenticated-calibration-summary",team:summary.team,cohort:summary.cohort,authority_revision:summary.authority_revision,suite_digest:summary.suite_digest,criteria_digest:summary.criteria_digest,captures_digest:summary.captures_digest,summary_digest:routingDigest(summary)},scales,profiles,activation:false,authority_granted:false,limitations:"Finite correlated protocol calibration only. Overlapping intervals are an uncertainty frontier, not proof of equal ability. No architecture, implementation, workspace-write or publication qualification; no stable hidden backend or invoice attestation." };
+  function freeze(value) { if (value && typeof value === "object") { for (const child of Object.values(value)) freeze(child); Object.freeze(value); } return value; }
+  return freeze(proposal);
 }

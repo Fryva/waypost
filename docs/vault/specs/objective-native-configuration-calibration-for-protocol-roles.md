@@ -171,3 +171,16 @@ One actual owned OpenCode trial captured its original JSON and complete 5,729-to
 span, graded passing and refused a different-nonce replay. A complete common cohort,
 policy activation, architecture/implementation coverage and periodic discovery are
 not established by that trial. Interrupted host capture recovery remains pending.
+
+
+Diagnostic policy proposal evidence (2026-10-03): the installed host reads a
+bound authority snapshot, recomputes seals at their original settlement clock,
+checks exact charged/counter values, replays capture validation on a clone and
+regrades original answers. The process-local authenticated summary cannot be
+reconstructed from detached JSON. `compileCalibrationPolicyV2` derives coordinate
+and review frontiers separately, with nullable missing/failed role priorities and
+no implement coverage. Seven new policy tests and the focused legacy strength,
+host, CLI and ledger tests passed (91 cases across the final scoped checks).
+Independent reviewer returned scoped ship after original-proof and fixture fixes.
+The result is a diagnostic proposal, not activated policy or an action grant;
+common-cohort activation and historical review requirements remain open.

@@ -489,3 +489,25 @@ trial tokens. The terminal original JSON was captured and locally graded passing
 the same case with a different nonce refused before inference. The summary retained
 one coordinate sample and no review samples, both unqualified, with no policy or
 roles applied. This verifies one authenticated trial, not a completed cohort.
+
+
+### Diagnostic role-specific policy proposal
+
+`waypost team host TEAM --operation calibration-policy-proposal --cohort COHORT`
+reads the authenticated authority snapshot through the installed host. It verifies
+sealed captures again on a clone and regrades original answers. The compiler accepts
+only the process-local minted summary, rejects detached JSON/copies and preserves
+original calibration expiry. It reports snapshot authority revision and capture,
+suite and grading digests; no source URL or owner score substitutes for those facts.
+
+Coordinate and review priorities are computed separately from qualified common
+role coverage and Wilson intervals. Disjoint intervals alone establish a stronger
+edge. Overlap retains the entire uncertainty frontier; 22/24 and 24/24 qualified
+results in this finite suite overlap and cannot prove an order. Missing, incomplete,
+failed-family or changed-enrollment coverage yields `null`. Reaching the earliest
+bound expiry blocks the proposal and requires fresh measurements. Implement is
+always `null` because this suite does not test it. No Arena proxy score is copied
+into these priorities. The output is `automatic-calibration-proposal`, with
+`activation: false` and `authority_granted: false`; existing policy/action gates
+refuse it. Fresh execution admissions, historical review requirements, protected
+token routing and complete calibrated native cohorts remain separate work.
