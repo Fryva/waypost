@@ -16,7 +16,7 @@ const cli=fileURLToPath(new URL('../scripts/team-cli.mjs',import.meta.url));
 const stateModule=new URL('../scripts/team-state.mjs',import.meta.url).href;
 let shared;
 function seedReducer(seed){return (state,command,context)=>command.type==='fixture-initialize'?{state:structuredClone(seed),result:{fixture:true}}:reduceTeamEvent(state,command,context);}
-async function fixture(){
+async function fixture(patch){
  shared??=authorityFixture();const f=await shared,s=structuredClone(f.state);
  const root=realpathSync(mkdtempSync(join(tmpdir(),'waypost-inventory-cli-')));directories.push(root);
  mkdirSync(join(root,'.waypost'));mkdirSync(join(root,'vault'));writeFileSync(join(root,'.waypost/projectstore.json'),JSON.stringify({vault_path:'vault',coordination_dir:'coordination',layout:'engineering'}));
@@ -36,6 +36,7 @@ async function fixture(){
   const nonce='catalogue-'+p.id,capture=await collectModelInventory({transport:{listModelConfigurations:async()=>raw},team:'team',participant:p,descriptor,collector:p.native_binding.collector_id,nonce,startedAt:now,now});
   state=reduceTeamEvent(state,{type:'native-model-inventory-capture-v1',team:'team',actor:'collector:'+p.native_binding.collector_id,at,request_key:'inventory-'+nonce,capture},{revision:f.revision+1}).state;
  }
+ patch?.(state);
  const authority=join(root,'coordination/teams/authority'),reducer=seedReducer(state);
  mutateAuthority(authority,{actor:'owner:'+hash,key:'fixture',expected_revision:0,command:{type:'fixture-initialize'}},reducer,{confirmedLocal:true});
  const seedPath=join(root,'seed.json');writeFileSync(seedPath,JSON.stringify(state));
@@ -59,8 +60,14 @@ test('actual CLI status summarizes candidates by default and exposes only projec
 });
 test('protocol2 CLI refresh neither inspects native identity nor discovers strength nor renews clocks',async()=>{
  const f=await fixture(),policy=structuredClone(f.state.teams.team.policy),inventory=structuredClone(f.state.teams.team.model_inventory);
- const fresh=f.ok(['refresh','team']);assert.equal(fresh.refreshed,false);assert.equal(fresh.calibration_renewed,false);assert.deepEqual(fresh.inventory_inspections,[]);assert.equal(existsSync(f.marker),false);
+ const fresh=f.ok(['refresh','team']);assert.equal(fresh.refreshed,false);assert.equal(fresh.calibration_renewed,false);assert.deepEqual(fresh.inventory_inspections,[]);assert.deepEqual(fresh.native_quota_inspections,[]);assert.equal(existsSync(f.marker),false);
  const saved=readAuthority(f.authority,f.reducer);assert.deepEqual(saved.state.teams.team.policy,policy);assert.deepEqual(saved.state.teams.team.model_inventory,inventory);assert.deepEqual(saved.state.teams.team.strength_check.native_inspections,[]);
  const expired=f.ok(['refresh','team'],Date.parse(expiry));assert.equal(expired.calibration_renewed,false);const terminal=readAuthority(f.authority,f.reducer).state.teams.team;
  assert.equal(terminal.policy.expires_at,policy.expires_at);assert.deepEqual(terminal.policy,policy);assert.deepEqual(terminal.model_inventory,inventory);assert.deepEqual(terminal.strength_check.blockers,['native-calibration-expired-new-measurement-required']);assert.equal(terminal.candidate,null);assert.equal(terminal.review_candidate,null);assert.equal(existsSync(f.marker),false);
+});
+test('protocol2 CLI refresh asks each leased participant Host to keep its quota lease and records a named blocker',async()=>{
+ let leased;
+ const f=await fixture(state=>{const t=state.teams.team;t.native_quota_policy={protocol:2,revision:1,automatic_handover:true,expires_at:expiry,source_rules:[]};leased=Object.keys(t.participants)[0];t.participants[leased].native_protocol_quota={proof:{status:'available',expires_at:expiry}};});
+ const out=f.ok(['refresh','team']);assert.deepEqual(out.native_quota_inspections,[{participant:leased,renewed:false,blocker:'native-quota-host-unavailable'}]);
+ assert.deepEqual(readAuthority(f.authority,f.reducer).state.teams.team.strength_check.native_quota_inspections,out.native_quota_inspections);
 });

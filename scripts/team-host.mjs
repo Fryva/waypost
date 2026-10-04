@@ -303,29 +303,53 @@ export function createTeamHost(config, dependencies={}) {
   // A positive the reducer would renew, tried on a copy of the current state,
   // renews without a revision change; a refusal of that command has no fallback.
   // A renew-only caller never captures a positive; an exhaustion is always captured.
-  if(record.proof.status==='available'){
+  // Errors of a positive are tagged: only those may lose to a concurrent renewal.
+  if(record.proof.status==='available')try{
    const copy=structuredClone(getTeam().v.state);let renewable=true;try{renewNativeQuotaLease(copy,copy.teams[team],record,Date.parse(now()));}catch{renewable=false;}
    if(renewable)return {...mutate('native-protocol-quota-renew-v2',{observation:record},collector(),'native-quota-renew-'+routingDigest(record)).result,redistribution_required:false};
    if(renewOnly){const lease=getTeam().t.participants[d.participant]?.native_protocol_quota;fail(lease?.proof.status==='available'&&!(Date.parse(lease.proof.expires_at)>Date.parse(now()))?'host-native-quota-lease-lapsed':'host-native-quota-lease-not-renewable');}
-  }
+  }catch(error){throw Object.assign(error,{positive_observation:true});}
   const result=mutate('native-protocol-quota-capture-v2',{observation:record},collector(),'native-quota-'+routingDigest(record)).result;
   const redistribution_required=Boolean(getTeam().t.native_protocol_handover&&getTeam().t.native_protocol_handover.state!=='applied');
   if(drive&&redistribution_required){try{return {...result,redistribution_required,redistribution:await driveNativeProtocolQuotaHandover()};}catch(error){return {...result,redistribution_required,redistribution_blocker:error.code||'host-native-handover-blocked'};}}
   return {...result,redistribution_required};
  }
  // A positive provider-account lease lasts 60 seconds from its observation. Each
- // Host entry renews its own one when 50 seconds or less are left, before the
- // action request is built and outside any operation; never under a freeze or an
- // unapplied handover. An exhaustion found here is recorded and stops the call.
- // A protocol turn and its capture must then finish within the renewed lease.
- async function ensureNativeQuotaLease(){
-  const {t}=getTeam();if(!t.native_quota_policy||t.native_quota_freeze||t.native_protocol_handover&&t.native_protocol_handover.state!=='applied')return null;
+ // Host entry renews its own one when 50 seconds or less are left (a scheduled
+ // pass whenever it is unexpired), before the action request is built and
+ // outside any operation; never under a freeze or an unapplied handover. A
+ // renewal that loses to a concurrent one is not an error. An exhaustion found
+ // here is recorded and stops the call.
+ async function ensureNativeQuotaLease(threshold=50000){
+  const {t}=getTeam();if(!t.native_quota_policy)return {renewed:false,reason:'no-native-quota-policy'};
+  if(t.native_quota_freeze||t.native_protocol_handover&&t.native_protocol_handover.state!=='applied')return {renewed:false,reason:'handover-in-progress'};
   const lease=t.participants[endpoint().participant]?.native_protocol_quota;
-  if(lease?.proof.status!=='available'||Date.parse(lease.proof.expires_at)-Date.parse(now())>50000)return null;
+  if(lease?.proof.status!=='available')return {renewed:false,reason:'no-available-lease'};
+  if(Date.parse(lease.proof.expires_at)-Date.parse(now())>threshold)return {renewed:false,reason:'not-due'};
   if(!(Date.parse(lease.proof.expires_at)>Date.parse(now())))fail('host-native-quota-lease-lapsed');
-  const result=await observeNativeProtocolQuota({sourceInvocationId:lease.binding.source_invocation_id,drive:false,renewOnly:true});
-  if(result.renewed!==true)fail(result.status==='exhausted'?'host-native-quota-exhausted':'host-native-quota-lease-not-renewed');
+  let result;
+  try{result=await observeNativeProtocolQuota({sourceInvocationId:lease.binding.source_invocation_id,drive:false,renewOnly:true});}
+  catch(error){
+   const current=getTeam().t.participants[endpoint().participant]?.native_protocol_quota;
+   if(error.positive_observation===true&&current?.proof.status==='available'&&current.proof.observation_id!==lease.proof.observation_id&&Date.parse(current.proof.expires_at)>Date.parse(now()))return {renewed:false,reason:'renewed-concurrently'};
+   throw error;
+  }
+  if(result.renewed!==true)throw Object.assign(new Error(result.status==='exhausted'?'host-native-quota-exhausted':'host-native-quota-lease-not-renewed'),{code:result.status==='exhausted'?'host-native-quota-exhausted':'host-native-quota-lease-not-renewed',capture:result});
   return result;
+ }
+ // A scheduled pass (team watch) keeps an idle Host's lease alive with the same
+ // renew-only rule as an entry. An exhaustion found there is captured, and only
+ // then is the frozen team's handover driven, as an explicit observe would. The
+ // result is a compact summary because it is stored in the authority log.
+ async function maintainNativeQuotaLease(){
+  try{const r=await ensureNativeQuotaLease(60000);return r.renewed===true?{renewed:true,expires_at:r.expires_at}:r;}
+  catch(error){
+   if(error.code!=='host-native-quota-exhausted')throw error;
+   const c=error.capture,base={renewed:false,status:'exhausted',quota_revision:c.quota_revision,...(c.blocker?{blocker:c.blocker}:{})},t=getTeam().t;
+   if(!(t.native_protocol_handover&&t.native_protocol_handover.state!=='applied'))return {...base,redistribution_required:false};
+   try{const r=await driveNativeProtocolQuotaHandover(),after=getTeam().t;return {...base,redistribution_required:true,handover_acknowledged:r?.handover_acknowledged===true,...(typeof r?.action_blocker==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(r.action_blocker)?{action_blocker:r.action_blocker}:{}),leader:after.leader,epoch:after.epoch};}
+   catch(e){return {...base,redistribution_required:true,redistribution_blocker:typeof e.code==='string'&&/^[a-z0-9-]{1,128}$/.test(e.code)?e.code:'host-native-handover-blocked'};}
+  }
  }
  async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
@@ -818,5 +842,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options));},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options));},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options));},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options));},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

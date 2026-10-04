@@ -151,3 +151,23 @@ test('an exhaustion found while renewing at an entry is captured, freezes the te
  assert.equal(g.calls.filter(x=>x==='native-send').length,gsends);const team=g.load().state.teams.team;assert.equal(team.participants[g.old].native_protocol_quota.proof.status,'exhausted');assert.ok(team.native_quota_freeze);
  const observed=gcalls.length;await g.ownerHost.subscriptionBootstrap({nonce:'under-freeze',estimateTokens:'40',maxTokens:'40'}).catch(()=>{});assert.equal(gcalls.length,observed,'no observer starts under a freeze');
 });
+test('a scheduled pass renews an unexpired lease and drives the handover after an exhaustion it finds',async t=>{
+ const fresh=await leasedFixture(t,{ttl:60000}),r=await fresh.f.ownerHost.maintainNativeQuotaLease();assert.equal(r.renewed,true,'a scheduled pass renews any unexpired lease');assert.equal(fresh.calls.length,2);
+ const due=await leasedFixture(t),renewed=await due.f.ownerHost.maintainNativeQuotaLease();assert.equal(renewed.renewed,true);assert.deepEqual(revisionsOf(due.f),due.revisions);assert.notEqual(leaseOf(due.f).proof.observation_id,due.lease.proof.observation_id);
+ const ex=await leasedFixture(t),before=ex.f.load().state.teams.team;ex.f.dependencies.observeNativeProtocolProviderQuota=positiveObserver(ex.f,{status:'exhausted'});
+ const result=await ex.f.ownerHost.maintainNativeQuotaLease();assert.equal(result.status,'exhausted');assert.equal(result.redistribution_required,true);assert.equal(result.handover_acknowledged,true);
+ const after=ex.f.load().state.teams.team;assert.notEqual(after.leader,ex.f.old);assert.equal(after.epoch,before.epoch+1);assert.equal(after.review_floor,before.review_floor);
+});
+test('a renewal that loses to a concurrent one from another Host process is not an error',async t=>{
+ const {f,lease}=await leasedFixture(t),other=f.hostFor(f.old),inner=positiveObserver(f,{id:'concurrent-winner'});let first=true;
+ f.dependencies.observeNativeProtocolProviderQuota=async args=>{const mine=await positiveObserver(f,{id:'concurrent-loser'})(args);if(first){first=false;await new Promise(resolve=>setTimeout(resolve,5));f.dependencies.observeNativeProtocolProviderQuota=inner;await other.observeNativeProtocolQuota({sourceInvocationId:f.source});}return mine;};
+ const r=await f.ownerHost.maintainNativeQuotaLease();assert.deepEqual(r,{renewed:false,reason:'renewed-concurrently'});
+ assert.equal(leaseOf(f).proof.observation_id,'concurrent-winner');assert.notEqual(lease.proof.observation_id,'concurrent-winner');
+});
+test('an exhaustion whose capture loses to a concurrent positive renewal is never reported as renewed concurrently',async t=>{
+ const {f}=await leasedFixture(t),other=f.hostFor(f.old),original=f.dependencies.mutate;let first=true;
+ f.dependencies.observeNativeProtocolProviderQuota=async args=>{const mine=await positiveObserver(f,{status:'exhausted',id:'exhaustion-seen'})(args);if(first){first=false;await new Promise(resolve=>setTimeout(resolve,5));f.dependencies.observeNativeProtocolProviderQuota=positiveObserver(f,{id:'positive-winner'});await other.observeNativeProtocolQuota({sourceInvocationId:f.source});}return mine;};
+ f.dependencies.mutate=(path,request,...rest)=>{if(request.command.type==='native-protocol-quota-capture-v2'){f.dependencies.mutate=original;throw Object.assign(Error('authority-stale-revision'),{code:'authority-stale-revision'});}return original(path,request,...rest);};
+ await assert.rejects(f.ownerHost.maintainNativeQuotaLease(),{code:'authority-stale-revision'});
+ assert.equal(leaseOf(f).proof.observation_id,'positive-winner');
+});

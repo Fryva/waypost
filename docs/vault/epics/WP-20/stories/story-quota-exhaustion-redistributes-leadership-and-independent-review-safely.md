@@ -10,7 +10,7 @@ created: 2026-10-01
 updated: 2026-10-02
 external_refs: {}
 tags: []
-code_refs: ["scripts/native-model-profile.mjs", "scripts/team-host-registry.mjs", "scripts/team-host.mjs", "scripts/team-native-action.mjs", "scripts/team-native-quota.mjs", "scripts/team-owned-runtime.mjs", "scripts/team-quota-native.mjs", "scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/team-workflow.mjs", "scripts/team.mjs", "tests/helpers/native-calibration.mjs", "tests/helpers/native-protocol-host.mjs", "tests/native-protocol-handover-host.test.mjs", "tests/native-protocol-handover.test.mjs", "tests/native-protocol-quota.test.mjs", "tests/team-host-registry.test.mjs", "tests/team-host.test.mjs", "tests/team-owned-runtime.test.mjs", "tests/team-quota-native.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-quota.test.mjs", "tests/team-transport.test.mjs", "scripts/team-store.mjs", "tests/team-store.test.mjs"]
+code_refs: ["scripts/native-model-profile.mjs", "scripts/team-host-registry.mjs", "scripts/team-host.mjs", "scripts/team-native-action.mjs", "scripts/team-native-quota.mjs", "scripts/team-owned-runtime.mjs", "scripts/team-quota-native.mjs", "scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/team-workflow.mjs", "scripts/team.mjs", "tests/helpers/native-calibration.mjs", "tests/helpers/native-protocol-host.mjs", "tests/native-protocol-handover-host.test.mjs", "tests/native-protocol-handover.test.mjs", "tests/native-protocol-quota.test.mjs", "tests/team-host-registry.test.mjs", "tests/team-host.test.mjs", "tests/team-owned-runtime.test.mjs", "tests/team-quota-native.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-quota.test.mjs", "tests/team-transport.test.mjs", "scripts/team-store.mjs", "tests/team-store.test.mjs", "scripts/team-cli.mjs", "tests/team-model-inventory-cli.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: "2026-10-02T00:57:09.984Z"
 closed_at: null
@@ -308,3 +308,42 @@ than 50 seconds left starts no observer; a lapsed lease, a lease lapsing during
 observation and a reused id each refuse with no mutation; an exhaustion found at
 the entry is captured, freezes the team and refuses the call without a send, and
 no observer starts under the freeze.
+
+### Scheduled lease renewal (3c, 2026-10-04, Claude Code)
+
+Gap: before this, `team watch` on a protocol 2 team never observed provider
+quota, so an idle participant's positive lease lapsed a minute after its proof.
+Now each pass calls `maintainNativeQuotaLease` on the bound Host of every
+present participant holding an `available` lease and drives the handover after
+an exhaustion it captures.
+
+Diff review (fresh context, revise) found that skipping leases with more than 50
+seconds left plus a fixed 30-second sleep and a slow pass could let a lease
+lapse, after which the same pass re-elects or pauses; that a concurrent renewal
+made the loser fail; that writing the owner check every pass multiplied lock
+time; and that the CLI path, free-text blockers and the stored handover result
+were untested or too large. Fixes: a scheduled pass renews any unexpired lease
+(entries keep 50 seconds) and the next pass starts 30 seconds after this one
+began; a renewal refused after another process renewed reports
+`renewed-concurrently`; skips name a reason; the owner check is written at the
+owner's interval or when a pass has something notable; blockers are codes only;
+the stored result is a compact summary.
+
+Tests: a scheduled pass renews a 60-second lease without a revision change; a
+renewal losing to another Host process is not an error and the winner's lease
+stays; an exhaustion is captured and the handover is driven to a new leader with
+the review floor kept; the CLI refresh asks only the leased participant's Host
+and stores its named blocker under `strength_check.native_quota_inspections`,
+and records an empty list without a policy. Not covered: an exhaustion with no
+unapplied transition and a failed drive on this path. Through the CLI only Codex
+has a built-in observer, so only Codex participants can hold a lease to renew.
+
+Delta review (revise, one should-fix): the `renewed-concurrently` path accepted
+any observe failure, so an exhaustion whose capture lost the authority race to
+a concurrent positive renewal would be dropped and the entry would proceed. Now
+only errors of this Host's own positive observation may be treated as a lost
+renewal; a test injects a stale-revision capture during a concurrent renewal
+and the error propagates. Also: the check is rewritten only when non-routine
+findings change, `lastNativeCheck` advances only after a successful write, the
+throttle applies only with a native quota policy, a coded ACK blocker is kept
+in the summary and upper-case system codes are kept as blockers.

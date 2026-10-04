@@ -169,11 +169,12 @@ export async function main(argv = process.argv.slice(2)) {
     const { discoverStrength } = await import('./model-strength.mjs');
     const config = json(join(dirname(dirname(fileURLToPath(import.meta.url))), 'models', 'strength-sources.json'));
     let cache = loaded().state?.teams[target]?.strength_check?.cache || null;
-    let stopped = false;
+    let stopped = false, lastNativeCheck = 0, lastNativeDigest = null;
     const stop = () => { stopped = true; };
     process.once('SIGINT', stop); process.once('SIGTERM', stop);
     try {
       do {
+        const passStart = Date.now();
         let v = loaded(), t = v.state?.teams[target]; if (!t) throw new Error('team-not-found');
         const cred = loadCredential(resolve(opt('--owner-credential') || defaultOwner));
         const actor = authorizeActor(v.state, target, cred); if (!actor.startsWith('owner:')) throw new Error('owner-required');
@@ -219,17 +220,43 @@ export async function main(argv = process.argv.slice(2)) {
           }
         }
         v=loaded(); t=v.state.teams[target];
+        // A provider-account lease lasts at most 60s; each bound Host renews its
+        // own one when it is due, so idle participants stay eligible.
+        const nativeQuotaInspections=[];
+        if(t.policy.protocol===2&&t.native_quota_policy){
+          const {createTeamHost}=await import('./team-host.mjs');
+          for(const p of Object.values(t.participants).filter(p=>p.native_binding&&!p.revoked&&p.availability!=='left'&&p.native_protocol_quota?.proof.status==='available')){
+            const b=p.native_binding;
+            try{
+              const host=createTeamHost({authorityRoot:root,projectRoot:projectRoot(),vaultPath:cfg.vault_path,team:target,hostDir:join(root,'host',target),ownerCredential:resolve(opt('--owner-credential')||defaultOwner),collectorPath:b.collector_file,endpointPath:b.endpoint_file,participant:p.id});
+              nativeQuotaInspections.push({participant:p.id,...await host.maintainNativeQuotaLease()});
+            }catch(error){nativeQuotaInspections.push({participant:p.id,renewed:false,blocker:typeof error.code==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(error.code)?error.code:'native-quota-host-unavailable'});}
+          }
+          v=loaded();t=v.state.teams[target];
+        }
         if(t.policy.protocol===2){
           const at=new Date().toISOString(),expired=Date.now()>=Date.parse(t.policy.expires_at);
-          const check={at,ok:!expired,kind:'native-calibration',blockers:expired?['native-calibration-expired-new-measurement-required']:[],inventory_inspections:inventoryInspections,native_inspections:inspections};
+          // With a native quota policy, renewal runs every pass; the owner check is
+          // written at the owner's interval, or at once when what a pass found
+          // (other than routine renewals) differs from the last written check.
+          const digest=JSON.stringify(nativeQuotaInspections.filter(x=>x.renewed!==true&&!['not-due','renewed-concurrently'].includes(x.reason)).map(x=>[x.participant,x.reason||null,x.blocker||null,x.status||null]));
+          const notable=inventoryInspections.length||digest!==lastNativeDigest;
+          if(mode==='watch'&&t.native_quota_policy&&lastNativeCheck&&!notable&&!expired&&Date.now()-lastNativeCheck<interval*1000){
+            print({refreshed:false,checked:false,native_quota_inspections:nativeQuotaInspections});
+            for(let elapsed=0;elapsed<Math.max(1,30-Math.floor((Date.now()-passStart)/1000))&&!stopped;elapsed++)await sleep(1000);
+            continue;
+          }
+          const check={at,ok:!expired,kind:'native-calibration',blockers:expired?['native-calibration-expired-new-measurement-required']:[],inventory_inspections:inventoryInspections,native_inspections:inspections,native_quota_inspections:nativeQuotaInspections};
           if(Buffer.byteLength(JSON.stringify(check))>200000)throw new Error('strength-evidence-exceeds-authority-budget');
           const command={type:'strength-check',team:target,actor,at,check};
           try{
             const out=mutateAuthority(root,{key:randomUUID(),actor,expected_revision:v.revision,command},reduceTeamEvent,{authorize:state=>{if(authorizeActor(state,target,cred)!==actor)throw new Error('owner-changed');}});
-            print({refreshed:false,calibration_renewed:false,inventory_inspections:inventoryInspections,...out});
+            lastNativeCheck=Date.now();lastNativeDigest=digest;
+            print({refreshed:false,calibration_renewed:false,inventory_inspections:inventoryInspections,native_quota_inspections:nativeQuotaInspections,...out});
           }catch(error){if(mode!=='watch'||!['authority-stale-revision','authority-locked'].includes(error.code))throw error;print({refreshed:false,retry:error.code});}
           if(mode!=='watch')break;
-          for(let elapsed=0;elapsed<Math.min(interval,60)&&!stopped;elapsed++)await sleep(1000);
+          const wait=t.native_quota_policy?Math.max(1,30-Math.floor((Date.now()-passStart)/1000)):Math.min(interval,60);
+          for(let elapsed=0;elapsed<wait&&!stopped;elapsed++)await sleep(1000);
           continue;
         }
         const historical = (t.required_review_models || []).map(([provider, model_id, reasoning]) => ({ provider, model_id, reasoning }));

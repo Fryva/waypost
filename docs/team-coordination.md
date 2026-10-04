@@ -883,4 +883,25 @@ unapplied handover it starts no observer. An exhaustion found while renewing is
 captured through the existing command, which freezes as before, and the call is
 refused with `host-native-quota-exhausted`; the entry does not drive the
 handover. A protocol turn and its capture must finish within the renewed lease;
-a longer one is refused at capture with its charge retained.
+a longer one is refused at capture with its charge retained, unless the lease was
+renewed meanwhile.
+
+`team watch` keeps idle Hosts eligible: for a protocol 2 team with a native
+quota policy, each pass asks every bound, present participant holding an
+`available` lease to renew it through its own Host with the same renew-only
+rule (`maintainNativeQuotaLease`), whenever the lease is unexpired, and starts
+the next pass 30 seconds after this one began. A renewal that loses to a
+concurrent one from another process reports `renewed-concurrently`; other
+skips name their reason. An exhaustion found on a pass is captured and the
+frozen team's handover is then driven, as an explicit `native-quota-observe`
+would; only a compact summary (status, leader, epoch or blocker code) is kept.
+A failed drive is not retried by later passes, which skip a frozen team; the
+owner runs `native-quota-handover`. The owner `strength_check`, with
+`native_quota_inspections`, is written at the owner's `--interval`, or at once
+when a pass has an inventory result or its non-routine findings (blockers,
+exhaustions, skip reasons) differ from the last written check, so routine
+renewals add one event per leased participant per pass and no check. Teams
+without a native quota policy keep the previous cadence. A lapsed
+lease is not revived by a pass: it needs a new positive through
+`native-quota-observe`. Each pass starts one provider observer per leased
+participant; provider limits on that rate are unverified.
