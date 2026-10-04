@@ -748,3 +748,30 @@ scope, any consumed handover ACK closes the entire old epoch to a second ACK,
 even if the candidate, nonce or policy changes. Only recovery of the original
 matching settled invocation remains possible. Disabling the option, changed
 admission or expired proof blocks pending recovery and retains consumed charges.
+
+### Incremental verified authority replay
+
+Every Host load and mutation reads the authority log. Full replay re-ran the
+reducer over the whole log on each read, cloning, re-serializing and digesting
+the entire state per event. On the registered recovery fixture that cost 47 of
+52 CPU seconds, so recovery could not meet the original 30-second proof age
+with real clocks. `scripts/team-store.mjs` now keeps, per process, the last
+verified prefix of each authority (at most four roots): reducer, identity host,
+state and a SHA-256 of every verified event file's raw bytes. Each read still
+checks paths, symlinks, identity and sequence and re-hashes every event file;
+an unchanged prefix skips its per-event checks and reducer, which byte
+identity already settles. Any changed byte, gap,
+symlink, identity change, different reducer or failed read discards the entry
+and falls back to full replay; it refuses the same logs (two error codes
+differ: a null event and the order of several faults). Readers get a cloned state;
+cached request results are frozen and idempotent replies are cloned.
+
+`replayAuthorityUncached` performs the cold replay. Host fixtures compare it
+with the warm read at teardown, so a reducer that reads the wall clock instead of
+the event time still fails. Proof age, refresh and expiry rules are unchanged.
+The two same-leader recovery Host cases now run on real wall clocks and assert
+completion within 15 seconds of the positive observation (about 5 seconds per
+case locally). A synthetic ledger of 1,000 events with a 3 MB state replays
+cold in 4.8 s and reads warm in 26 ms; the first read of a new process still
+pays the cold cost. This is hermetic evidence with mocked provider transport,
+not live provider recovery.

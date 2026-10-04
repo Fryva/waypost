@@ -5,12 +5,12 @@ import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {authorityFixture} from './native-calibration.mjs';
 import {reduceTeamEvent} from '../../scripts/team-state.mjs';
-import {mutateAuthority,readAuthority} from '../../scripts/team-store.mjs';
+import {mutateAuthority,readAuthority,replayAuthorityUncached} from '../../scripts/team-store.mjs';
 import {createTeamHost} from '../../scripts/team-host.mjs';
 import {routingDigest} from '../../scripts/model-routing.mjs';
 const sha=value=>createHash('sha256').update(value).digest('hex');
 export async function protocolHostFixture(t,options={}){
- const root=realpathSync(mkdtempSync(join(tmpdir(),'waypost-protocol-host-')));t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const root=realpathSync(mkdtempSync(join(tmpdir(),'waypost-protocol-host-'))),teardown=[];t.after(()=>{try{for(const check of teardown)check();}finally{rmSync(root,{recursive:true,force:true});}});
  const descriptors=Object.fromEntries(['a','b','c','d'].map(name=>[name,{managed:true,harness:'opencode',cwd:root,mode:'read-only',spawn_server:true,timeout_ms:1000,provider_id:'route',model_id:'model-'+name,reasoning:'unknown'}]));
  const schema='opencode-native-normalized-step-total-v1',clock=Date.now();
  const f=await authorityFixture({now:clock,counter_schema:schema,adapter_revision:'waypost-native-profile-1',descriptor_digest:name=>routingDigest(descriptors[name]),manifest:()=>({cwd:root}),requested_configuration:(_name,model)=>({model_id:model.model_id,provider_id:'route',reasoning:'unknown',mode:'read-only',initial_instructions_digest:null,rules_digest:null}),execution_environment:{platform:process.platform,architecture:process.arch},billing:options.billing});
@@ -30,6 +30,8 @@ export async function protocolHostFixture(t,options={}){
  }
  const authority=join(root,'authority'),seed=structuredClone(state),reducer=(s,c,a)=>c.type==='fixture-initialize'?{state:structuredClone(seed),result:{fixture:true}}:reduceTeamEvent(s,c,a);
  mutateAuthority(authority,{actor:'owner:'+ownerHash,key:'fixture',expected_revision:0,command:{type:'fixture-initialize'}},reducer,{confirmedLocal:true});
+ // A warm cached read must equal a cold replay once real time has passed: the reducer stays pure.
+ teardown.push(()=>assert.deepEqual(readAuthority(authority,reducer),replayAuthorityUncached(authority,reducer)));
  const calls=[];let created=0,interrupt=options.interruptAck,interruptProfile=options.interruptProfile,interruptReview=options.interruptReview,interruptReviewProfile=options.interruptReviewProfile,interruptHandover=options.interruptHandover;
  const dependencies={load:()=>readAuthority(authority,reducer),mutate:(path,request,_reducer,hooks)=>{calls.push(request.command.type);if(interruptHandover&&request.command.type==='native-protocol-handover-ack-capture-v2'){interruptHandover=false;throw Error('fixture interrupted handover capture');}if(interruptReview&&request.command.type==='native-protocol-review-capture-v2'){interruptReview=false;throw Error('fixture interrupted review capture');}if(interruptReviewProfile&&request.command.type==='native-action-profile-capture-v2'&&dependencies.load().state.subscription_invocations[request.command.invocation_id]?.action?.kind==='protocol-leadership-audit'){interruptReviewProfile=false;throw Error('fixture interrupted review profile capture');}if(interruptProfile&&request.command.type==='native-action-profile-capture-v2'){interruptProfile=false;throw Error('fixture interrupted profile capture');}if(interrupt&&request.command.type==='native-leader-ack-capture-v2'){interrupt=false;throw Error('fixture interrupted ACK application');}return mutateAuthority(path,request,reducer,hooks);},createNativeEndpoint:async nativeDescriptor=>{
   created++;const native_id='native-control-'+created,peer=f.peers.find(row=>routingDigest(descriptors[row.p.id.slice(-1)])===routingDigest(nativeDescriptor)),manifest=peer.manifest('host-control-'+created);manifest.native_id=native_id;calls.push('native-create');

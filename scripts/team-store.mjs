@@ -73,13 +73,38 @@ function identity(root, host) {
 }
 function eventName(seq) { return String(seq).padStart(12, '0') + '.json'; }
 
-export function readAuthority(root, reducer) {
+// Verified replay prefixes, per authority root, for this process only. An entry
+// is the outcome of a complete read: the reducer it ran, the identity it
+// checked and a SHA-256 of every verified event file's raw bytes. Every read
+// still re-reads and re-hashes the whole log; an unchanged prefix only skips
+// re-running the reducer over it. Anything else falls back to full replay.
+const REPLAY_CACHE = new Map();
+const REPLAY_CACHE_LIMIT = 4;
+function deepFreeze(value) {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); for (const v of Object.values(value)) deepFreeze(v); }
+  return value;
+}
+function eventBytes(path) {
+  // The events directory and its ancestors were checked once by the caller.
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink()) fail('authority-symlink', { path });
+  if (!stat.isFile()) fail('authority-not-file', { path });
+  if (stat.size > MAX_EVENT) fail('authority-file-too-large', { path });
+  return readFileSync(path);
+}
+function replay(root, reducer, options) {
   root = safePath(root);
-  if (!existsSync(root)) return { revision: 0, state: null, requests: [] };
+  // A failed read leaves no entry: the next one starts over from the first event.
+  try { return replayAt(root, reducer, options); } catch (e) { REPLAY_CACHE.delete(root); throw e; }
+}
+function replayAt(root, reducer, { cached = true } = {}) {
+  const evict = () => REPLAY_CACHE.delete(root);
+  if (!existsSync(root)) { evict(); return { revision: 0, state: null, requests: [] }; }
   directory(root);
   for (const name of ['lock', 'state.json', 'identity.json', 'events']) safePath(join(root, name));
   const events = join(root, 'events');
   if (!existsSync(events)) {
+    evict();
     // A lock may remain from interrupted initial creation; it is not history.
     if (existsSync(join(root, 'identity.json'))) identity(root);
     if (existsSync(join(root, 'state.json'))) safePath(join(root, 'state.json'));
@@ -89,25 +114,57 @@ export function readAuthority(root, reducer) {
   const id = identity(root);
   if (existsSync(join(root, 'state.json'))) safePath(join(root, 'state.json'));
   const names = readdirSync(events).sort();
-  let state = null, revision = 0, previous = ZERO;
-  const requests = [];
-  for (const name of names) {
-    if (!/^\d{12}\.json$/.test(name) || name !== eventName(revision + 1)) fail('authority-log-gap', { name, revision });
-    const e = jsonFile(join(events, name));
-    if (e.protocol !== PROTOCOL) fail('authority-unknown-protocol', { revision });
+  let entry = cached ? REPLAY_CACHE.get(root) : undefined;
+  if (entry && (entry.reducer !== reducer || entry.host !== id.host || entry.digests.length > names.length)) entry = undefined;
+  // Built locally; published only after the whole read succeeded.
+  let state = null, revision = 0, previous = ZERO, requests = [], seen = new Set(), digests = [];
+  const files = names.map((name, i) => {
+    if (!/^\d{12}\.json$/.test(name) || name !== eventName(i + 1)) fail('authority-log-gap', { name, revision: i });
+    return eventBytes(join(events, name));
+  });
+  if (entry) {
+    for (let i = 0; i < entry.digests.length; i++) {
+      if (createHash('sha256').update(files[i]).digest('hex') !== entry.digests[i]) { entry = undefined; break; }
+    }
+  }
+  if (entry) {
+    ({ state, revision, previous } = entry);
+    // The reducer may edit its input; a published entry is never edited.
+    if (revision < files.length) state = structuredClone(state);
+    requests = entry.requests.slice(); seen = new Set(entry.seen); digests = entry.digests.slice();
+  }
+  for (let i = revision; i < files.length; i++) {
+    let e;
+    try { e = JSON.parse(files[i].toString('utf8')); } catch { fail('authority-corrupt-json', { path: join(events, names[i]) }); }
+    if (e?.protocol !== PROTOCOL) fail('authority-unknown-protocol', { revision });
     const { hash, ...body } = e;
     if (e.seq !== revision + 1 || e.previous !== previous || e.host !== id.host || hash !== digest(body)) fail('authority-log-integrity', { revision });
     if (typeof e.actor !== 'string' || typeof e.key !== 'string' || e.request_digest !== digest({ actor: e.actor, command: e.command })) fail('authority-request-integrity', { revision });
-    if (requests.some(r => r.actor === e.actor && r.key === e.key)) fail('authority-duplicate-request', { revision });
+    const requestId = JSON.stringify([e.actor, e.key]);
+    if (seen.has(requestId)) fail('authority-duplicate-request', { revision });
     if (!Number.isFinite(Date.parse(e.accepted_at))) fail('authority-invalid-event-time', { revision });
     if(e.command.type?.startsWith('native-model-inventory-')&&e.command.request_key!==e.key)fail('inventory-store-request-key-mismatch');
-    const next = bounded(reducer(structuredClone(state), structuredClone(e.command), { accepted_at: e.accepted_at, revision }), MAX_EVENT, 'authority-state-too-large');
+    // The previous state came from the JSON round trip below and is referenced
+    // nowhere else, so the reducer may consume it without a defensive clone.
+    const next = bounded(reducer(state, structuredClone(e.command), { accepted_at: e.accepted_at, revision }), MAX_EVENT, 'authority-state-too-large');
     if (!next || !Object.hasOwn(next, 'state') || !Object.hasOwn(next, 'result') || digest(next.state) !== e.state_digest || digest(next.result) !== digest(e.result)) fail('authority-replay-mismatch', { revision });
-    state = next.state; revision = e.seq; previous = hash;
-    requests.push({ actor: e.actor, key: e.key, digest: e.request_digest, revision, result: e.result });
+    state = next.state; revision = e.seq; previous = hash; seen.add(requestId);
+    digests.push(createHash('sha256').update(files[i]).digest('hex'));
+    requests.push(deepFreeze({ actor: e.actor, key: e.key, digest: e.request_digest, revision, result: e.result }));
   }
-  return { revision, state, requests };
+  if (cached) {
+    REPLAY_CACHE.delete(root);
+    REPLAY_CACHE.set(root, { reducer, host: id.host, state, revision, previous, requests, seen, digests });
+    while (REPLAY_CACHE.size > REPLAY_CACHE_LIMIT) REPLAY_CACHE.delete(REPLAY_CACHE.keys().next().value);
+  }
+  return { revision, state: structuredClone(state), requests: requests.slice() };
 }
+
+export function readAuthority(root, reducer) { return replay(root, reducer); }
+// Full replay from the first event that never reads or publishes a cache entry
+// (a failed read still evicts one).
+// Tests compare it with readAuthority to catch an impure reducer.
+export function replayAuthorityUncached(root, reducer) { return replay(root, reducer, { cached: false }); }
 
 export function mutateAuthority(root, request, reducer, { host = hostname(), confirmedLocal = false, fault, authorize, validateNew } = {}) {
   root = safePath(root);
@@ -158,7 +215,7 @@ export function mutateAuthority(root, request, reducer, { host = hostname(), con
     const completed = current.requests.find(r => r.actor === actor && r.key === key);
     if (completed) {
       if (completed.digest !== requestDigest) fail('authority-request-key-reused', { revision: current.revision });
-      return { revision: completed.revision, result: completed.result, replayed: true };
+      return { revision: completed.revision, result: structuredClone(completed.result), replayed: true };
     }
     if (expected_revision !== current.revision) fail('authority-stale-revision', { revision: current.revision, refresh: 'read authority state and retry with a new request key' });
     if(command.type?.startsWith('native-model-inventory-')&&command.request_key!==key)fail('inventory-store-request-key-mismatch');

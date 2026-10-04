@@ -10,7 +10,7 @@ created: 2026-10-01
 updated: 2026-10-02
 external_refs: {}
 tags: []
-code_refs: ["scripts/native-model-profile.mjs", "scripts/team-host-registry.mjs", "scripts/team-host.mjs", "scripts/team-native-action.mjs", "scripts/team-native-quota.mjs", "scripts/team-owned-runtime.mjs", "scripts/team-quota-native.mjs", "scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/team-workflow.mjs", "scripts/team.mjs", "tests/helpers/native-calibration.mjs", "tests/helpers/native-protocol-host.mjs", "tests/native-protocol-handover-host.test.mjs", "tests/native-protocol-handover.test.mjs", "tests/native-protocol-quota.test.mjs", "tests/team-host-registry.test.mjs", "tests/team-host.test.mjs", "tests/team-owned-runtime.test.mjs", "tests/team-quota-native.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-quota.test.mjs", "tests/team-transport.test.mjs"]
+code_refs: ["scripts/native-model-profile.mjs", "scripts/team-host-registry.mjs", "scripts/team-host.mjs", "scripts/team-native-action.mjs", "scripts/team-native-quota.mjs", "scripts/team-owned-runtime.mjs", "scripts/team-quota-native.mjs", "scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/team-workflow.mjs", "scripts/team.mjs", "tests/helpers/native-calibration.mjs", "tests/helpers/native-protocol-host.mjs", "tests/native-protocol-handover-host.test.mjs", "tests/native-protocol-handover.test.mjs", "tests/native-protocol-quota.test.mjs", "tests/team-host-registry.test.mjs", "tests/team-host.test.mjs", "tests/team-owned-runtime.test.mjs", "tests/team-quota-native.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-quota.test.mjs", "tests/team-transport.test.mjs", "scripts/team-store.mjs", "tests/team-store.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: "2026-10-02T00:57:09.984Z"
 closed_at: null
@@ -125,3 +125,45 @@ original 30-second bound on this ledger. Doctor reported 0 issues/0 warnings;
 `next` and `git diff --check` showed no consistency failures. The quota story
 and WP-20 remain in progress.
 Provider transport remains mocked; this is not live provider recovery evidence.
+
+### Authority replay latency plan (2026-10-04, Claude Code)
+
+Measured cause of the 30-second recovery gap: a CPU profile of the registered
+recovery Host case (51.9 s) spends 47.2 s inside `readAuthority`, which every
+Host load and mutation calls. Each read re-runs the reducer over the whole log
+and, per event, clones, re-serializes and digests the entire state, and checks
+duplicate requests in quadratic time. The cost grows with ledger length times
+state size, so a longer real ledger cannot meet the provider proof age.
+
+Plan: keep replay authoritative but make it incremental within one process.
+`team-store.mjs` caches, per authority root and reducer function, the verified
+revision, state, last hash, request index and a SHA-256 of each verified event
+file's raw bytes. Every read still performs all path, symlink, identity and
+sequence checks and re-reads every event file; an unchanged byte digest of the
+already-verified prefix skips only its per-event checks and reducer. Any changed,
+missing or extra prefix byte, identity change or different reducer discards the
+cache and falls back to the existing full replay with its existing errors. New
+events are verified and reduced exactly as before. Readers receive a clone of
+the state; cached request entries are deep-frozen and idempotent replies are
+cloned. Duplicate request detection uses a set. The cache is bounded and holds
+no secrets beyond the state already on disk. Proof age, refresh and expiry rules
+are unchanged. Done when the store tests, including corruption after a cached
+read, pass and the registered recovery Host cases pass with real wall clocks
+inside the original 30-second bound.
+
+Fresh-context criticism of the plan returned revise: verify reducer purity with
+an uncached replay, publish the cache only after a complete read, keep per-file
+symlink checks on cache hits, test tampering after a warm read and assert a
+timing margin. All are implemented. Store tests cover command, hash, identity,
+symlink-to-identical-bytes, renamed and duplicated prefix files after a cached
+read (refused on every later read), truncation, whitespace rewrites, foreign
+appends, caller mutation, interrupted mutations at revision one, and a forged
+duplicate-request or non-JSON tail refused on warm and cold reads (35/35).
+An independent reviewer compared HEAD and new replay on 23 tampered logs: both
+accept and refuse the same ones; it returned ship after these two tests. The two
+recovery Host cases dropped the controlled Date clock and pass on real clocks,
+asserting completion within 15 seconds; each handover Host case now takes about
+5 seconds against 52 seconds for one recovery case before, and the file passed
+9/9 within the full suite. Full `npm test`:
+1330 passed, 5 skipped, one failure in `tests/slots.test.mjs` caused by this
+session's `FORCE_COLOR` environment, which passes when it is unset.

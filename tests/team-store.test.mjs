@@ -4,8 +4,9 @@ import { mkdtempSync, realpathSync, mkdirSync, readFileSync, writeFileSync, read
 import { tmpdir, hostname } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { readAuthority, mutateAuthority, explainRecovery, recoverLock, withAuthorityGate } from '../scripts/team-store.mjs';
+import { readAuthority, replayAuthorityUncached, mutateAuthority, explainRecovery, recoverLock, withAuthorityGate } from '../scripts/team-store.mjs';
 
 const reducer = (state, cmd) => ({ state: { count: (state?.count || 0) + cmd.add }, result: { count: (state?.count || 0) + cmd.add } });
 const request = (key = 'one', expected_revision = 0, add = 1) => ({ key, actor: 'owner', expected_revision, command: { add } });
@@ -76,6 +77,85 @@ for (const stage of ['after-lock', 'after-temp-flush', 'after-publication', 'aft
     assert.equal(readdirSync(join(root, 'events')).length, 1);
   });
 }
+
+for (const stage of ['after-lock', 'after-temp-flush', 'after-publication', 'after-snapshot', 'before-reply']) {
+  test('interrupted ' + stage + ' after a cached read replays the committed outcome once', t => {
+    const root = fixture(t); mutate(root); assert.equal(readAuthority(root, reducer).revision, 1);
+    assert.throws(() => mutate(root, request('two', 1), { fault: current => { if (current === stage) throw new Error('simulated crash'); } }), /simulated crash/);
+    recoverLock(root, { ownerConfirmedStopped: true });
+    const published = ['after-publication', 'after-snapshot', 'before-reply'].includes(stage);
+    assert.equal(readAuthority(root, reducer).revision, published ? 2 : 1);
+    assert.equal(mutate(root, request('two', 1)).replayed, published);
+    assert.deepEqual(readAuthority(root, reducer), replayAuthorityUncached(root, reducer));
+    assert.equal(readAuthority(root, reducer).state.count, 2);
+  });
+}
+
+const tampers = {
+  command: (root, path) => { const e = JSON.parse(readFileSync(path)); e.command.add = 5; writeFileSync(path, JSON.stringify(e)); },
+  hash: (root, path) => { const e = JSON.parse(readFileSync(path)); e.hash = 'f'.repeat(64); writeFileSync(path, JSON.stringify(e)); },
+  'identity host': root => { const p = join(root, 'identity.json'), id = JSON.parse(readFileSync(p)); id.host = 'elsewhere'; writeFileSync(p, JSON.stringify(id)); },
+  'symlink to identical bytes': (root, path) => { const copy = join(root, 'copy.json'); writeFileSync(copy, readFileSync(path)); unlinkSync(path); symlinkSync(copy, path); },
+  'renamed prefix': (root, path) => { const bytes = readFileSync(path); unlinkSync(path); writeFileSync(join(root, 'events', '000000000004.json'), bytes); },
+  'duplicated request': (root, path) => { writeFileSync(join(root, 'events', '000000000002.json'), readFileSync(path)); }
+};
+for (const [name, tamper] of Object.entries(tampers)) {
+  test('cached read still refuses a ' + name + ' change on every later read', t => {
+    const root = fixture(t); mutate(root); mutate(root, request('two', 1)); mutate(root, request('three', 2));
+    assert.equal(readAuthority(root, reducer).revision, 3);
+    tamper(root, join(root, 'events', '000000000001.json'));
+    assert.throws(() => readAuthority(root, reducer), /authority-/);
+    assert.throws(() => readAuthority(root, reducer), /authority-/);
+    assert.throws(() => mutate(root, request('four', 3)), /authority-/);
+  });
+}
+
+const stableJson = v => v === null || typeof v !== 'object' ? JSON.stringify(v) : Array.isArray(v) ? '[' + v.map(stableJson).join(',') + ']' : '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stableJson(v[k])).join(',') + '}';
+const sha = v => createHash('sha256').update(stableJson(v)).digest('hex');
+for (const tail of ['duplicate request', 'corrupt json']) {
+  test('a ' + tail + ' tail after a warm read is refused on every read, warm or cold', t => {
+    const root = fixture(t); mutate(root); mutate(root, request('two', 1)); mutate(root, request('three', 2));
+    assert.equal(readAuthority(root, reducer).revision, 3);
+    const path = join(root, 'events', '000000000004.json');
+    if (tail === 'corrupt json') writeFileSync(path, '{not json');
+    else {
+      const third = JSON.parse(readFileSync(join(root, 'events', '000000000003.json'))), command = { add: 1 };
+      const body = { protocol: third.protocol, seq: 4, host: third.host, previous: third.hash, actor: 'owner', key: 'one', request_digest: sha({ actor: 'owner', command }), command, accepted_at: new Date().toISOString(), result: { count: 4 }, state_digest: sha({ count: 4 }) };
+      writeFileSync(path, JSON.stringify({ ...body, hash: sha(body) }));
+    }
+    const code = tail === 'corrupt json' ? 'authority-corrupt-json' : 'authority-duplicate-request';
+    assert.throws(() => readAuthority(root, reducer), { code });
+    assert.throws(() => readAuthority(root, reducer), { code });
+    assert.throws(() => replayAuthorityUncached(root, reducer), { code });
+  });
+}
+
+test('cached read follows truncation, rewritten bytes and foreign appends exactly like full replay', t => {
+  const root = fixture(t); mutate(root); mutate(root, request('two', 1));
+  assert.equal(readAuthority(root, reducer).revision, 2);
+  const first = join(root, 'events', '000000000001.json');
+  writeFileSync(first, JSON.stringify(JSON.parse(readFileSync(first)), null, 2));
+  assert.deepEqual(readAuthority(root, reducer), replayAuthorityUncached(root, reducer));
+  const last = join(root, 'events', '000000000002.json'), bytes = readFileSync(last); unlinkSync(last);
+  assert.equal(readAuthority(root, reducer).revision, 1);
+  writeFileSync(last, bytes);
+  const read = readAuthority(root, reducer);
+  assert.equal(read.revision, 2); assert.deepEqual(read, replayAuthorityUncached(root, reducer));
+  read.state.count = 99; read.requests.length = 0;
+  assert.equal(readAuthority(root, reducer).state.count, 2); assert.equal(readAuthority(root, reducer).requests.length, 2);
+  assert.throws(() => { readAuthority(root, reducer).requests[0].result.count = 7; }, TypeError);
+  const reply = mutate(root, request('two', 2)); reply.result.count = 7;
+  assert.equal(mutate(root, request('two', 2)).result.count, 2);
+});
+
+test('a reducer reading anything but its command and event time fails cold replay', t => {
+  const root = fixture(t); let drift = 0;
+  const impure = (state, cmd) => ({ state: { count: (state?.count || 0) + cmd.add + drift }, result: {} });
+  mutateAuthority(root, request(), impure, { confirmedLocal: true });
+  assert.equal(readAuthority(root, impure).revision, 1); drift = 1;
+  assert.equal(readAuthority(root, impure).revision, 1, 'a warm read does not re-run the verified prefix');
+  assert.throws(() => replayAuthorityUncached(root, impure), { code: 'authority-replay-mismatch' });
+});
 
 test('empty aged lock cannot be stolen, explicit recovery archives evidence', t => {
   const root = fixture(t); mutate(root);
