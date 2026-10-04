@@ -355,9 +355,6 @@ export function createTeamHost(config, dependencies={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('host-subscription-v2-owner-opt-in-required');
   if(!['codex','opencode','claude'].includes(d.descriptor.harness)||d.descriptor.mode!=='read-only'||d.descriptor.harness==='opencode'&&d.descriptor.spawn_server!==true)fail('host-subscription-bootstrap-counter-adapter-unsupported');
-  // Claude is admitted only for the identity probe; calibration and protocol
-  // control actions need evidence this increment does not establish.
-  if(d.descriptor.harness==='claude'&&(trialBinding||controlAction))fail('host-subscription-claude-identity-probe-only');
   if(typeof nonce!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(nonce))fail('host-subscription-bootstrap-nonce-required');
   for(const value of [estimateTokens,maxTokens])if(typeof value!=='string'||!/^[1-9][0-9]{0,17}$/.test(value))fail('host-subscription-bootstrap-token-bound-required');
   const invocationId='subscription-'+nonce;

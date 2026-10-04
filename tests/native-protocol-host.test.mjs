@@ -33,3 +33,20 @@ test('recovery rebuilds an interrupted profile capture from the settled seal wit
  const recovered=await createTeamHost(f.config,f.dependencies).recoverProtocolLeadership({invocationId:x.id});assert.equal(recovered.leader_acknowledged,true);
  x=f.load().state.subscription_invocations[x.id];assert.equal(x.action_observation.observed_at,originalClock);assert.equal(Date.parse(x.action_observation.expires_at),Date.parse(originalClock)+900000);assert.equal(x.action_seal.native_receipt_digest,originalReceipt);assert.equal(f.calls.filter(c=>c==='native-send').length,1);assert.equal(f.calls.filter(c=>c==='native-create').length,1);
 });
+test('a Claude leader ACK runs with a preflight before capture and before consume, and applies after owned closure',async t=>{
+ const f=await fixture(t,{harness:'claude'}),begin=f.calls.length,result=await f.host.acknowledgeProtocolLeadership({actionId:'claude-action',nonce:'claude-action',estimateTokens:'40'});
+ assert.equal(result.leader_acknowledged,true,result.action_blocker);assert.equal(f.load().state.teams.team.leader,f.participant);
+ const calls=f.calls.slice(begin),inspects=calls.flatMap((x,i)=>x==='native-inspect'?[i]:[]);
+ assert.equal(inspects.length,2);assert.ok(inspects[0]<calls.indexOf('subscription-context-capture-v2'));assert.ok(calls.indexOf('subscription-reserve-v2')<inspects[1]&&inspects[1]<calls.indexOf('subscription-consume-v2'));
+ assert.ok(calls.indexOf('subscription-consume-v2')<calls.indexOf('native-send'));assert.ok(calls.lastIndexOf('native-stop')<calls.indexOf('native-leader-ack-capture-v2'));
+ const x=f.load().state.subscription_invocations['subscription-claude-action'];assert.equal(x.receipt.isolation_verified,true);assert.equal(x.action_observation.profile.harness,'claude');
+});
+test('a malformed Claude ACK spends its slot without a leader, and a refused second preflight aborts before the slot is taken',async t=>{
+ const bad=await fixture(t,{harness:'claude',malformed:true}),result=await bad.host.acknowledgeProtocolLeadership({actionId:'claude-bad',nonce:'claude-bad',estimateTokens:'40'});
+ assert.equal(result.leader_acknowledged,false);assert.equal(bad.load().state.teams.team.leader,null);assert.equal(bad.load().state.subscription_invocations['subscription-claude-bad'].state,'settled');
+ const sends=bad.calls.filter(x=>x==='native-send').length;await assert.rejects(bad.host.acknowledgeProtocolLeadership({actionId:'claude-retry',nonce:'claude-retry',estimateTokens:'40'}));assert.equal(bad.calls.filter(x=>x==='native-send').length,sends);
+ const refused=await fixture(t,{harness:'claude',refusePreflight:(created,inspection)=>created===1&&inspection===2});
+ await assert.rejects(refused.host.acknowledgeProtocolLeadership({actionId:'claude-refused',nonce:'claude-refused',estimateTokens:'40'}),{code:'host-subscription-owned-read-only-context-unverified'});
+ assert.equal(refused.load().state.subscription_invocations['subscription-claude-refused'].state,'aborted');assert.equal(refused.calls.includes('native-send'),false);assert.equal(refused.calls.includes('subscription-consume-v2'),false);
+ const ok=await refused.host.acknowledgeProtocolLeadership({actionId:'claude-after',nonce:'claude-after',estimateTokens:'40'});assert.equal(ok.leader_acknowledged,true,'the aborted reservation did not take the slot');
+});

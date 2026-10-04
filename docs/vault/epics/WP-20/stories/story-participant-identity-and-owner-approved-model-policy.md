@@ -220,3 +220,25 @@ failed, 5 skipped. The live call repeated on the final code with the same
 result (2026-10-04T15:56:20Z).
 A delta review of these fixes returned ship; its two unpinned guards (spawn-time
 route, undeclared Host inspection) now have tests.
+
+### Claude calibration and control admission (2026-10-04, Claude Code)
+
+The identity-probe-only gate for Claude in `subscriptionSingleCall` was a scope
+limit of the preflight change, not a missing check: the reducers have no harness
+condition and the real Claude receipt, when isolated, carries the manifest the
+profile collector requires (`adapter-isolated`, read-only isolation, empty tools
+and author contexts, bound preflight digest). The gate is removed; calibration
+trials and protocol control actions now run for Claude with both preflights.
+Host test: a Claude peer yields an identity profile, then a coordinate trial
+passes with exactly inspect, inspect, send, close and an isolated settled
+receipt. The protocol Host fixture gained a Claude variant (descriptor without
+provider or reasoning, first-turn counter, preflight pair, manifest bound to the
+last preflight): a Claude leader ACK applies after owned closure with exactly
+one inspection before context capture and one between reserve and consume; a
+malformed ACK spends its slot without a leader; a refused second preflight
+aborts the reservation without taking the slot. The Claude transport test now
+pins the isolated manifest fields the profile collector requires. Fresh review:
+ship; its should-fix items (control-action test, pinned manifest fields, quota
+consequence, stale Codex/OpenCode wording and status labels) are done. Not
+done: a live Claude trial or control action, and a version source for Claude
+profiles (they keep `version: unknown`).

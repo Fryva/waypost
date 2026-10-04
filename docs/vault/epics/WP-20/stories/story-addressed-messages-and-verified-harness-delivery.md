@@ -108,6 +108,96 @@ approval policy, authority grants or native capability verification are changed.
 See [[cross-harness-team-coordination-protocol]]. Its acceptance is additive.
 No live messaging, model identity or cross-platform proof from document creation.
 
+### Subscription relay plan (2026-10-04, Claude Code)
+
+Gap: a team using subscription token accounting refuses `relay` before any
+work (`scripts/team-host.mjs` managed-operation gate,
+`host-subscription-execution-context-collector-unavailable`), so no addressed
+question reaches an owned native context of a protocol 2 team. The legacy relay
+path (`delivery-consume-v1`/`delivery-capture-v1`) needs a `dispatch` collector
+and uses one native context for several messages, which the subscription
+counters cannot account (Claude counts only the first turn).
+
+Plan: relay for a protocol 2 team with `inherited-native` subscription
+accounting sends each addressed question to its own fresh owned context through
+the existing `subscriptionSingleCall` path with a new reservation purpose
+`delivery`, so context capture, reserve, the Claude preflight pair, consume,
+send, usage settlement and retirement are the same as for identity, trial and
+control calls.
+
+1. Owner ceiling `native-protocol-delivery-enable-v2` (policy fields as the
+   control policies: `kind: "addressed-delivery"`, `allow_unknown_quota: true`,
+   `max_calls`, `max_estimate_tokens`, `timeout_ms`, `expires_at` within the
+   team policy, `unit_allocations`). Without it, or after it expires, delivery
+   is refused before any native process starts.
+2. `subscription-reserve-v2` accepts purpose `delivery` with a `delivery`
+   field `{message_id, prompt_digest}`: the message must be a current-epoch,
+   unacknowledged question to this participant and incarnation with no delivery
+   record; the policy's call count and estimate bound apply; quota rules are
+   the native ones (exhausted refuses; unknown allowed only by the policy).
+3. `subscription-consume-v2` for `delivery` rechecks the message and the policy
+   and, in the same event, creates `t.deliveries[nonce]` (`message_id`,
+   `participant`, `incarnation`, `epoch`, `native_id`, `invocation_id`,
+   `state: "dispatching"`) and checks the consume `prompt_digest` equals the
+   reserved one. One event means no crash window between charge and record.
+4. `subscription-usage-v2` for `delivery` takes an extra receipt field
+   `delivery: {output, output_digest}` (bounded 16 KiB, digest checked) and
+   moves the record to `received` with the output and observed model, only when
+   the epoch and incarnation are still current; otherwise the tokens settle and
+   the record becomes `rejected`. `subscription-uncertain-v2` moves it to
+   `uncertain`. A message with any record other than `rejected` is never sent
+   again (the existing relay selection already skips messages with a record).
+5. Host `relay`: the managed-operation gate is narrowed to keep refusing
+   `inspect`, `review`, `dispatch` and every v1 subscription team; for a v2 team
+   `relay` loops over pending questions (bounded by `limit`/`maxPolls`), calls
+   `subscriptionSingleCall({purpose:'delivery', message})` per message (fresh
+   context each), then forwards the captured answer with the existing
+   `forwardCaptured` (answer `send` with `reply_to` and `ack` by the
+   participant credential, idempotent by request key). The delivery prompt is
+   the existing untrusted-data framing. The entry renews its quota lease first.
+6. New stored fields appear only on the new purpose, so stored events replay
+   unchanged.
+
+Tests (new `tests/native-protocol-delivery-host.test.mjs` on the protocol Host
+fixture, plus reducer cases): order context, reserve, consume, send, usage,
+answer, ack; no policy or an expired one refuses before a native process; an
+exceeded estimate or call count refuses before inference; an uncertain call
+keeps its hold and the message is never redelivered; a stale epoch or changed
+incarnation between reserve and consume refuses; a quota freeze blocks
+delivery; a refused second Claude preflight aborts the reservation; a received
+answer is forwarded after a crash without inference; injected payload text
+cannot change authority. Legacy relay tests stay unchanged; the existing
+refusal test for subscription relay changes to v1-only.
+
+Plan criticism (fresh context, revise; 2026-10-04). Not implemented; blocked:
+
+- Owner decision needed: spec 2.13 and the coordination ADR allow unknown quota
+  only for measurement probes (calibration spec item 20 extends it to the
+  leader acknowledgement). Claude and OpenCode never have known quota, and Codex
+  is excluded below, so subscription delivery needs a spec/ADR amendment that
+  admits addressed delivery under an explicit owner `allow_unknown_quota`
+  ceiling. It also answers through a fresh stand-in context with the
+  participant's credential, not the participant's own conversation; the story
+  forbids a new-conversation fallback, so these answers must be labelled as
+  stand-in answers or the design changes.
+- Prerequisite: a stop-proof-backed v2 reconciliation. Today an uncertain v2
+  call (timeout, crash, a handover stop) blocks every admission on that counter
+  and every quota handover forever (`idleWork`), and a revoked or departed
+  participant cannot even be settled. Delivery would make this routine.
+- Codex contexts report a read-only shell tool; an injected payload could read
+  local secrets into the authority log. Delivery requires a no-tools context
+  before inference (Claude and OpenCode only until Codex zero-tools evidence).
+- `forwardCaptured` must never throw inside the recovery loop: an answer whose
+  envelope exceeds the `send` limit, or a departed sender, would wedge relay;
+  record a per-delivery forwarding failure instead.
+- Per-message managed operations with lease renewal between them; check
+  participant quota eligibility at reserve and consume; recompute the prompt
+  digest from the stored message with a frozen versioned formatter; store the
+  answer text once (authority state is capped at 4 MiB); delivery record needs
+  `nonce` and `collector`; define terminal states for native failure, oversize
+  answers, unverified isolation and quarantine; a replay test against a log
+  recorded before the change.
+
 ## Dependencies
 
 - WP-20/story-local-authority-log-and-crash-safe-mutations

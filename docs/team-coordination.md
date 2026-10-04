@@ -351,7 +351,7 @@ It inherits existing native billing policy and reports unavailable fields as
 unknown. It does not enable credits, alter provider settings or add API fallback.
 Historical subscription v1 keeps its stricter account-route checks for replay.
 
-A v2 owned Codex or OpenCode host provides `--operation subscription-bootstrap --nonce <unique-id>`
+A v2 owned Codex, Claude or OpenCode host provides `--operation subscription-bootstrap --nonce <unique-id>`
 with explicit `--estimate-tokens` and `--max-tokens` local advisory bounds. This
 performs one fixed read-only synthetic identity-token probe, consuming its ledger
 attempt before inference. It neither calibrates model strength nor promotes any
@@ -427,8 +427,9 @@ See [Claude SDK usage tracking](https://code.claude.com/docs/en/agent-sdk/cost-t
 
 Until 2026-10-04 Claude subscription Host admission was unsupported because no
 nonbillable pre-inference isolation inspection was verified; the same-peer
-preflight below now admits the identity probe only. Transport telemetry still
-does not enable calibration, coordinator acknowledgement or protected task execution.
+preflight below admits it (identity probe first, calibration trials and
+protocol control actions since a later change). Transport telemetry alone does
+not enable calibration, coordinator acknowledgement or protected task execution.
 Desktop telemetry requires its own observation. On 2026-10-03, a separate owned
 Claude Code 2.1.286 CLI session returned `OK` with observed
 `anthropic / claude-opus-5-5`, unknown reasoning, empty native tools and a complete
@@ -587,7 +588,7 @@ explicit policy neither expands allocations nor changes inherited billing.
 
 `waypost team host TEAM --operation native-leader-ack --participant PARTICIPANT
 --action-id ACTION --nonce NONCE --estimate-tokens TOKENS` sends one fixed
-no-tools request in a fresh owned Codex or OpenCode context. The request binds
+no-tools request in a fresh owned Codex, Claude or OpenCode context. The request binds
 the strongest current coordinator, strongest independent critic, native profiles,
 original calibration, policy revision and exact current/next epoch. The response
 must be a strict JSON object with exactly `ack: true`, `action_id` and
@@ -804,9 +805,29 @@ absent field refuses. Any account key beyond email, organization, subscription
 type and `apiProvider` (such as `tokenSource`) refuses, and the route is judged
 on the spawn-time environment as well as at inspection. Other Claude contexts
 (`inspect`, `review`) that skip the preflight are reported as not isolated. Billing metadata
-stays unavailable: no account, quota or paid-fallback claim. Admission is
-limited to the identity probe; calibration trials and protocol control actions
-remain refused for Claude.
+stays unavailable: no account, quota or paid-fallback claim.
+
+Calibration trials and protocol control actions (leader acknowledgement,
+leadership audit, handover acknowledgement) are admitted for Claude through the
+same path as OpenCode: every call is a fresh owned context with the preflight
+before context capture and again between reserve and consume, and its receipt
+yields a native profile only when the manifest is isolated and bound to the
+last inspection. Claude's effective reasoning and binary version stay `unknown`
+in the profile, as OpenCode's reasoning does; a receipt with more than one model
+in `modelUsage` has no exact model and gets no profile. Host tests run a Claude identity
+profile and a coordinate trial, and a leader acknowledgement through the owned
+runtime, each with a preflight pair; a malformed answer spends its slot without
+a leader, and a second preflight refused before consume aborts the reservation
+without taking the slot. No live Claude trial or control action has been run;
+a fenced or malformed live control answer would use up its action slot, and an
+estimate below Claude's per-call baseline (about 1.85K tokens observed) would
+leave an overshoot that blocks applying it.
+
+Claude's billing metadata is always unavailable, so Claude can never be a
+provider-account quota source: it holds no quota lease, stays quota-eligible,
+its own exhaustion cannot trigger an automatic handover, and it can be chosen as
+a handover candidate whose quota is unobservable. OpenCode is in the same
+position. Allocations still bound the tokens a team spends through it.
 
 Live on macOS with Claude Code 2.1.289 (2026-10-04): with `--tools ''`, strict
 empty MCP, `--safe-mode` and `--restricted` the summary showed System prompt

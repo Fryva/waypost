@@ -108,7 +108,7 @@ test('owner selects inherited-native v2 with local token telemetry capability an
  assert.equal(result.result.billing_policy,'inherited-native');const status=f.ok('status','fixture-team').teams[0];
  assert.equal(status.accounting_capabilities.calibration_policy_activation,false);
  assert.match(f.run('host','fixture-team','--operation','calibration-summary','--cohort','missing').stderr,/opened-cohort-required/);
- assert.equal(status.accounting.protocol,2);assert.equal(status.accounting_capabilities.native_dispatch,'bounded-codex-opencode-identity-and-fixed-trials');
+ assert.equal(status.accounting.protocol,2);assert.equal(status.accounting_capabilities.native_dispatch,'bounded-codex-claude-opencode-identity-and-fixed-trials');
  assert.equal(status.accounting_capabilities.provider_enforced_spend,false);assert.equal(status.accounting_capabilities.exclusive_provider_quota,false);
  assert.match(f.run('routing-enable','fixture-team').stderr,/subscription-mode-migration-required/);
 });

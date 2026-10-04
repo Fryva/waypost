@@ -132,6 +132,8 @@ test('same-peer summary preflight before the user frame admits a fresh no-tools 
  assert.deepEqual(f.requests.slice(4).map(r=>r.subtype),['get_hooks_listing','get_context_usage'],'initialize runs once per peer');
  const r=await f.endpoint.send('probe',{id:'one'});
  assert.equal(r.context_manifest.read_only,true);assert.equal(r.context_manifest.fresh_review_verified,true);assert.equal(r.usage_span.coverage,'complete');
+ // The profile collector admits only this isolated shape; renaming a field would silently spend every Claude trial and ACK slot.
+ assert.equal(r.context_manifest.provenance,'adapter-isolated');assert.equal(r.context_manifest.isolation,'read-only');assert.deepEqual(r.context_manifest.tools,[]);assert.deepEqual(r.context_manifest.author_contexts,[]);assert.equal(r.context_manifest.fresh,true);assert.equal(r.context_manifest.author_history_inherited,false);assert.match(r.context_manifest.initial_instructions_digest,/^[a-f0-9]{64}$/);
  assert.equal(r.context_manifest.preflight.evidence_digest,again.evidence_digest);assert.equal(r.context_manifest.preflight.version,'2.1.289');assert.equal(r.context_manifest.preflight.pid,f.pid);
  assert.equal(JSON.stringify(r).includes('private@example.com')||JSON.stringify(r).includes('Private Org'),false);
  assert.equal((await f.endpoint.inspectContext()).blocker,'native-context-already-used');

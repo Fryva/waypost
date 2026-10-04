@@ -347,3 +347,59 @@ and the error propagates. Also: the check is rewritten only when non-routine
 findings change, `lastNativeCheck` advances only after a successful write, the
 throttle applies only with a native quota policy, a coded ACK blocker is kept
 in the summary and upper-case system codes are kept as blockers.
+
+Note (2026-10-04): with Claude admitted to calibration and control actions, a
+Claude participant can be elected. Its billing metadata is always unavailable,
+so it can never be a provider-account quota source: its exhaustion cannot
+trigger an automatic handover and it stays quota-eligible as a candidate. This
+is OpenCode's position too; only Codex has a built-in observer.
+
+### Stop-proof reconciliation of uncertain v2 calls plan (3d, 2026-10-04, Claude Code)
+
+Gap: a v2 subscription call that is consumed but never gets a terminal receipt
+(timeout, crash, a handover stop killing it) stays `uncertain` (or `consumed`)
+forever. Its reservation blocks every admission on that team counter
+(`subscription-uncertain-usage-blocks-admission`) and `idleWork` refuses every
+quota handover prepare and acknowledgement while it exists; there is no v2
+reconcile command, and a revoked or departed participant's call cannot even be
+marked uncertain. Spec 2.14 promises terminal stop/reconciliation of the exact
+prior invocation after epoch, allocation or quota changes.
+
+Plan, first scope protocol control calls (they carry a ledger-bound
+`operation_id`, so the owned runtime's closure can be bound to them):
+
+1. New command `subscription-reconcile-v2` by the invocation's bound collector
+   with `{invocation_id, nonce, completion}`. The completion is the owned
+   runtime closure for that exact invocation, validated as the ACK capture
+   validates it (scope team/participant/incarnation/epoch/descriptor, the
+   stored `operation_id`, kind, invocation id, nonce, native id,
+   `subscription-consume-v2`, stopped, callback drained, evidence digest,
+   created no later than consume), except that it needs no settlement time.
+2. Allowed only for a `protocol-control` invocation in state `consumed` or
+   `uncertain`; it works after epoch, allocation, quota or policy changes and
+   for a revoked or departed participant (binding still checked against the
+   stored incarnation and descriptor), because it grants nothing.
+3. The invocation becomes a new terminal state `reconciled` with
+   `charged_tokens` equal to its reserved estimate, `usage: "unknown"`, the
+   completion evidence digest, and `overshoot_allocation_revision` set to the
+   unit's current allocation revision: actual usage is unknown and may exceed
+   the estimate, so new admissions on that counter stay blocked until the owner
+   explicitly raises the allocation, as for a measured overshoot. Its control
+   slot stays consumed; no seal, profile, ACK or capture follows from it.
+4. Every place that treats `settled`/`aborted` as terminal also accepts
+   `reconciled`; `totals` counts it as actual usage with the overshoot latch;
+   readers of `receipt` skip it. No stored event can contain the new state or
+   command, so replay is unchanged.
+5. Host `reconcileProtocolControl({invocationId})` collects the closure from
+   the participant's runtime directory and submits it; it refuses without one
+   (`completion-*` blockers). Identity and calibration calls have no ledger
+   operation id and stay out of scope (named in docs).
+
+Tests: reducer — reconcile of an uncertain and of a consumed control call
+settles to `reconciled` with the estimate charged and the latch set; admissions
+on the counter are refused until the owner raises the allocation; `idleWork`
+no longer refuses after the raise; a wrong operation, nonce, native id, scope,
+unstopped or undrained completion, a non-control purpose, a settled or aborted
+call, and a non-collector actor each refuse unchanged; works after a revoke.
+Host — a control ACK whose send times out (uncertain) is reconciled from its
+owned closure, then a quota handover can be prepared after the allocation raise.

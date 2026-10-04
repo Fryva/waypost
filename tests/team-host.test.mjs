@@ -504,6 +504,38 @@ test('a Claude transport that does not declare its pre-consume inspection is ref
  assert.equal(calls.includes('native-inspect'),false);assert.equal(f.calls.includes('subscription-reserve-v2'),false);
 });
 
+// A Claude peer whose receipts carry the manifest the real transport writes for
+// an isolated first turn: each call is a fresh owned context.
+function claudeProfileTransport(calls,root,answer){
+ let created=0;
+ return async()=>{const native_id='owned-claude-'+(++created);let last=null;return {native_id,usage_counter_schema:'claude-native-first-turn-total-v1',owns_process:true,preflight_before_consume:true,
+  async inspectContext(){calls.push('native-inspect');last=createHash('sha256').update(native_id+calls.length).digest('hex');return {verified:true,source:'native-get-context-usage-summary',evidence_digest:last};},
+  async captureAccountingMetadata(){return {provider:null,origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'unavailable',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:0,consistent:true};},
+  async send(prompt,invocation){calls.push('native-send');return {invocation_id:invocation.id,output:answer(prompt,invocation),native_id,usage_span:{schema:'claude-native-first-turn-total-v1',native_id,turn_id:'00000000-0000-4000-8000-00000000000'+created,coverage:'complete',before:'0',after:'30',actual_tokens:'30'},actualModel:{provider:'anthropic',model_id:'claude-model',reasoning:'unknown',observed_at:new Date().toISOString()},context_manifest:{protocol:1,id:'claude-ctx-'+created,native_id,harness:'claude',cwd:root,version:'unknown',fresh:true,author_history_inherited:false,read_only:true,tools:[],author_contexts:[],provenance:'adapter-isolated',isolation:'read-only',fresh_review_verified:true,mode:'read-only',preflight:{evidence_digest:last}}};},
+  close(){calls.push('native-close');}};};
+}
+test('a Claude peer with a same-peer preflight gets a native profile and runs a calibration trial with a preflight on each call',async t=>{
+ const calls=[];let suite=null;
+ const f=fixture(t,{dependencies:{createNativeEndpoint:(...args)=>transport(...args)}});
+ const transport=claudeProfileTransport(calls,f.root,(prompt)=>{if(!suite)return prompt.split(' ').at(-1);const trial=suite.trials.find(row=>formatProtocolTrial(suite,row.id)===prompt);assert.ok(trial,'only the installed trial prompt may be sent');return JSON.stringify(trial.answer_key);});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'claude',cwd:f.root,mode:'read-only'}});
+ function ownerEvent(type,data){const next=reduceTeamEvent(f.state,{type,team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),...data});Object.assign(f.team,next.state.teams.team);Object.assign(f.state,next.state);f.state.teams.team=f.team;}
+ ownerEvent('subscription-accounting-enable-v2',{policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});
+ const initial=await f.host.subscriptionBootstrap({nonce:'claude-baseline',estimateTokens:'40',maxTokens:'100'});
+ assert.equal(initial.native_profile_blocker,null);assert.ok(initial.native_profile);assert.equal(initial.native_profile.profile.harness,'claude');
+ const unit_digest=Object.keys(f.state.subscription_allocations)[0],unit_scope=f.state.subscription_allocations[unit_digest].unit_scope;
+ ownerEvent('subscription-allocation-update-v2',{unit_scope,max_tokens:'2000',revision:2});
+ const p=f.team.participants.participant;
+ const request={id:'claude-cohort',seed:'claude-seed',members:[{participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:p.native_binding.descriptor_digest,profile_id:initial.native_profile.profile_id}],roles:['coordinate','review'],unit_allocations:[{unit_digest,max_tokens:'1000',allocation_revision:2}],expires_at:new Date(Date.now()+600000).toISOString()};
+ suite=createProtocolRoleSuite({seed:request.seed,cohort:request.id,profiles:[initial.native_profile.profile_id]});
+ await f.host.openCalibrationCohort(request);
+ const trial=suite.trials.find(row=>row.role==='coordinate'&&row.variant===0),begin=calls.length;
+ const result=await f.host.subscriptionCalibrationTrial({cohortId:request.id,caseId:trial.id,nonce:'claude-trial',estimateTokens:'40'});
+ assert.equal(result.trial_capture.pass,true);assert.equal(result.protected_roles_granted,false);
+ assert.deepEqual(calls.slice(begin),['native-inspect','native-inspect','native-send','native-close']);
+ const x=f.state.subscription_invocations['subscription-claude-trial'];assert.equal(x.state,'settled');assert.equal(x.receipt.isolation_verified,true);assert.equal(x.measurement_seal.original_output,JSON.stringify(trial.answer_key));
+});
+
 test('the Host uses the built-in observer only for Codex and an installed one otherwise',async()=>{
  const {nativeProtocolQuotaObserver}=await import('../scripts/team-host.mjs'),installed=async()=>({});
  assert.equal(nativeProtocolQuotaObserver({observeNativeProtocolProviderQuota:installed},{harness:'opencode'},Date.now),installed);
