@@ -99,3 +99,37 @@ test('missing opt-in preserves policy freeze and request shapes; late opt-in can
 test('original exhaustion basis survives later negative observations and changed account',async()=>{
  const {f,a}=await leader();enableQuota(f,{same_leader_reactivation:true});await quota(f,a);const original=structuredClone(f.t.native_quota_freeze);await quota(f,a,'exhausted',now+1000,'second-exhaustion');assert.deepEqual(f.t.native_quota_freeze,original);for(const b of [f.state.subscription_invocations[a.invocation_id].receipt.billing_before,f.state.subscription_invocations[a.invocation_id].receipt.billing_after,f.state.subscription_invocations[a.invocation_id].context.billing_observation])b.account=routingDigest('changed-account');await quota(f,a,'available',now+2000,'different-account');assert.deepEqual(f.t.native_quota_freeze,original);assert.equal(f.t.native_account_quotas[original.reactivation_basis.account_key].proof.status,'exhausted');
 });
+
+async function renew(f,a,{clock,id,status='available',actor=a.actor}={}){
+ const record=await collectNativeProtocolQuota({state:f.state,team:f.t,participant:f.t.participants[a.p.id],sourceInvocationId:a.invocation_id,observe:async binding=>providerProof(binding,status,id,clock),now:clock});
+ return f.send('native-protocol-quota-renew-v2',{observation:serializeNativeProtocolQuota(record)},actor,clock);
+}
+async function leased(){const {f,a}=await leader();enableQuota(f);await quota(f,a,'available',now,'first-positive');return {f,a,revisions:[f.t.native_quota_revision,f.t.quota_revision]};}
+test('an unexpired same-meaning positive lease renews without changing revisions, election or review state',async()=>{
+ const {f,a,revisions}=await leased(),before=structuredClone({leader:f.t.leader,candidate:f.t.candidate,review_candidate:f.t.review_candidate,status:f.t.status,floor:f.t.review_floor});
+ assert.equal(nativeQuotaEligible(f.t,f.t.participants[a.p.id],now+61000),false,'the first lease alone lapses');
+ const r=(await renew(f,a,{clock:now+20000,id:'renewal-one'})).result;assert.equal(r.renewed,true);assert.equal(r.protected_actions_granted,false);
+ assert.deepEqual([f.t.native_quota_revision,f.t.quota_revision],revisions);
+ assert.deepEqual({leader:f.t.leader,candidate:f.t.candidate,review_candidate:f.t.review_candidate,status:f.t.status,floor:f.t.review_floor},before);
+ assert.equal(nativeQuotaEligible(f.t,f.t.participants[a.p.id],now+61000),true);assert.equal(nativeQuotaEligible(f.t,f.t.participants[a.p.id],now+81000),false);
+ assert.equal(f.t.participants[a.p.id].native_protocol_quota.proof.observation_id,'renewal-one');
+});
+test('renewal refuses a lapsed lease, another status, an older or equal observation, a reused id, a wrong collector, a freeze, an exhausted account, a policy change and any eligibility change',async()=>{
+ const cases={
+  'lapsed lease':[async(f,a)=>renew(f,a,{clock:now+61000,id:'late'}),/unexpired-same-meaning/],
+  'exhausted status':[async(f,a)=>renew(f,a,{clock:now+20000,id:'negative',status:'exhausted'}),/unexpired-same-meaning/],
+  'equal observation time':[async(f,a)=>renew(f,a,{clock:now,id:'same-time'}),/order-required/],
+  'wrong collector':[async(f,a)=>renew(f,a,{clock:now+20000,id:'foreign',actor:'collector:'+f.peers.find(x=>x.p.id!==a.p.id).p.native_binding.collector_id}),/bound-provider-collector/],
+  'exhausted account record':[async(f,a)=>{for(const r of Object.values(f.t.native_account_quotas))r.proof.status='exhausted';return renew(f,a,{clock:now+20000,id:'sticky'});},/available-account-record/],
+  'freeze':[async(f,a)=>{f.t.native_quota_freeze={old_leader:f.t.leader};return renew(f,a,{clock:now+20000,id:'frozen'});},/outside-handover/],
+  'unapplied handover':[async(f,a)=>{f.t.native_protocol_handover={state:'fenced'};return renew(f,a,{clock:now+20000,id:'fenced'});},/outside-handover/],
+  'policy revision':[async(f,a)=>{f.t.native_quota_policy.revision=2;return renew(f,a,{clock:now+20000,id:'new-policy'});},/unexpired-same-meaning/],
+  'reused observation id':[async(f,a)=>renew(f,a,{clock:now+20000,id:'first-positive'}),/observation-id-reused/],
+  'eligibility change':[async(f,a)=>{const other=Object.values(f.t.participants).find(p=>p.id!==a.p.id&&p.native_binding);other.native_account_exclusions={keys:['stale-key'],available:{}};return renew(f,a,{clock:now+20000,id:'shifts'});},/eligibility-changed/]
+ };
+ for(const [name,[run,code]] of Object.entries(cases)){
+  const {f,a,revisions}=await leased(),lease=structuredClone(f.t.participants[a.p.id].native_protocol_quota);
+  await assert.rejects(Promise.resolve().then(()=>run(f,a)),code,name);
+  assert.deepEqual(f.t.participants[a.p.id].native_protocol_quota,lease,name);assert.deepEqual([f.t.native_quota_revision,f.t.quota_revision],revisions,name);
+ }
+});

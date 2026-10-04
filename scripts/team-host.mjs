@@ -10,7 +10,7 @@ import { routingDigest } from './model-routing.mjs';
 import { createProtocolRoleSuite, formatProtocolTrial, summarizeProtocolRole } from './team-role-suite.mjs';
 import { createRoutingGrant, serializeRoutingGrant } from './team-evidence.mjs';
 import { collectQuotaObservation, serializeQuotaObservation, quotaEligible } from './team-quota.mjs';
-import { collectNativeProtocolQuota, serializeNativeProtocolQuota } from './team-native-quota.mjs';
+import { collectNativeProtocolQuota, serializeNativeProtocolQuota, renewNativeQuotaLease } from './team-native-quota.mjs';
 import { observeNativeProviderQuota, observeCodexProtocolAccountQuota } from './team-quota-native.mjs';
 import { createNativeEndpoint, createNativeModelInventoryEndpoint, nativeInventoryFailureClosure, validateNativeDescriptor } from './team-transport.mjs';
 import { harness as harnessDefinition } from './agents.mjs';
@@ -193,6 +193,7 @@ export function createTeamHost(config, dependencies={}) {
   return {...result,leader_acknowledged:true,leadership_ack:applied};
  }
  async function acknowledgeProtocolLeadership({actionId,nonce,estimateTokens='16000'}={}) {
+  await ensureNativeQuotaLease();
   owner();const {t}=getTeam(),d=endpoint();
   const core=createProtocolLeaderAckRequest(t,{actionId,now:Date.parse(now())});
   if(t.native_control_policy?.protocol!==2||Date.parse(t.native_control_policy.expires_at)<=Date.parse(now()))fail('host-explicit-protocol-control-policy-required');
@@ -209,6 +210,7 @@ export function createTeamHost(config, dependencies={}) {
   return {...result,protocol_review_captured:true,protocol_review:captured,protected_actions_granted:false};
  }
  async function auditProtocolLeadership({actionId,sourceInvocationId,nonce,estimateTokens='16000'}={}) {
+  await ensureNativeQuotaLease();
   owner();const {v,t}=getTeam(),d=endpoint();
   const core=createProtocolLeadershipAuditRequest(v.state,t,{actionId,sourceInvocationId,now:Date.parse(now())});
   if(t.native_review_policy?.protocol!==2||Date.parse(t.native_review_policy.expires_at)<=Date.parse(now()))fail('host-explicit-protocol-review-policy-required');
@@ -290,7 +292,7 @@ export function createTeamHost(config, dependencies={}) {
   }
   return candidate.acknowledgeNativeProtocolHandover({actionId:actionId||'handover-'+token,nonce:attemptNonce,estimateTokens:estimateTokens||t.native_handover_policy?.max_estimate_tokens||'16000'});
  }
- async function observeNativeProtocolQuota({sourceInvocationId,drive=true}={}){
+ async function observeNativeProtocolQuota({sourceInvocationId,drive=true,renewOnly=false}={}){
   owner();if(operationBusy||activeOperation)fail('host-native-quota-observation-operation-active');
   const d=endpoint();
   const observe=nativeProtocolQuotaObserver(dependencies,d.descriptor,()=>Date.parse(now()));
@@ -298,10 +300,32 @@ export function createTeamHost(config, dependencies={}) {
   const {v,t}=getTeam(),p=t.participants[d.participant];
   const observation=await collectNativeProtocolQuota({state:v.state,team:t,participant:p,sourceInvocationId,now:()=>Date.parse(now()),observe:binding=>observe({binding,descriptor:d.descriptor})});
   const record=serializeNativeProtocolQuota(observation);
+  // A positive the reducer would renew, tried on a copy of the current state,
+  // renews without a revision change; a refusal of that command has no fallback.
+  // A renew-only caller never captures a positive; an exhaustion is always captured.
+  if(record.proof.status==='available'){
+   const copy=structuredClone(getTeam().v.state);let renewable=true;try{renewNativeQuotaLease(copy,copy.teams[team],record,Date.parse(now()));}catch{renewable=false;}
+   if(renewable)return {...mutate('native-protocol-quota-renew-v2',{observation:record},collector(),'native-quota-renew-'+routingDigest(record)).result,redistribution_required:false};
+   if(renewOnly){const lease=getTeam().t.participants[d.participant]?.native_protocol_quota;fail(lease?.proof.status==='available'&&!(Date.parse(lease.proof.expires_at)>Date.parse(now()))?'host-native-quota-lease-lapsed':'host-native-quota-lease-not-renewable');}
+  }
   const result=mutate('native-protocol-quota-capture-v2',{observation:record},collector(),'native-quota-'+routingDigest(record)).result;
   const redistribution_required=Boolean(getTeam().t.native_protocol_handover&&getTeam().t.native_protocol_handover.state!=='applied');
   if(drive&&redistribution_required){try{return {...result,redistribution_required,redistribution:await driveNativeProtocolQuotaHandover()};}catch(error){return {...result,redistribution_required,redistribution_blocker:error.code||'host-native-handover-blocked'};}}
   return {...result,redistribution_required};
+ }
+ // A positive provider-account lease lasts 60 seconds from its observation. Each
+ // Host entry renews its own one when 50 seconds or less are left, before the
+ // action request is built and outside any operation; never under a freeze or an
+ // unapplied handover. An exhaustion found here is recorded and stops the call.
+ // A protocol turn and its capture must then finish within the renewed lease.
+ async function ensureNativeQuotaLease(){
+  const {t}=getTeam();if(!t.native_quota_policy||t.native_quota_freeze||t.native_protocol_handover&&t.native_protocol_handover.state!=='applied')return null;
+  const lease=t.participants[endpoint().participant]?.native_protocol_quota;
+  if(lease?.proof.status!=='available'||Date.parse(lease.proof.expires_at)-Date.parse(now())>50000)return null;
+  if(!(Date.parse(lease.proof.expires_at)>Date.parse(now())))fail('host-native-quota-lease-lapsed');
+  const result=await observeNativeProtocolQuota({sourceInvocationId:lease.binding.source_invocation_id,drive:false,renewOnly:true});
+  if(result.renewed!==true)fail(result.status==='exhausted'?'host-native-quota-exhausted':'host-native-quota-lease-not-renewed');
+  return result;
  }
  async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
@@ -794,5 +818,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:options=>managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options)),subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options));},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options));},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

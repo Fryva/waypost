@@ -242,3 +242,69 @@ Live exhaustion is not claimed. Independent code review returned revise: an
 Host wiring, and reset-credit detail reads; all are fixed above. Full `npm test`
 before those fixes: 1365 passed, 0 failed, 5 skipped; after them: 1368 passed,
 0 failed, 5 skipped. A delta review of the fixes returned ship.
+
+### Available lease renewal plan (3b, 2026-10-04, Claude Code)
+
+Gap: an `available` provider-account proof expires 60 seconds after its
+observation. After that its participant is ineligible for election and
+`assertNativeBillingQuotaEligible` refuses context capture, reserve and consume
+on that account, so a healthy coordinator stops working a minute after a
+positive proof. Capturing a new positive through the existing command bumps
+`native_quota_revision` and `quota_revision`, which invalidates bindings and
+approvals on every renewal; changing that command's semantics would break replay
+of existing ledgers.
+
+Plan: a new reducer command `native-protocol-quota-renew-v2` (old events replay
+unchanged) accepts, from the participant's bound collector, a fresh validated
+observation whose status is `available`, whose binding is the current proof's
+binding and whose proof differs from it only in observation id and clocks, with
+a strictly later observation time, while the current proof is still unexpired,
+no quota freeze or unapplied handover exists, and the account record is not
+exhausted (stickiness holds). It replaces the participant and account records
+and recomputes account exclusions without changing quota revisions, election,
+candidates or review state. A lapsed lease, any other status or any change of
+meaning goes through the existing capture. The Host renews before a
+subscription call when the lease has 30 seconds or less left, using the
+binding's source invocation and its observer; a renewal observation that shows
+exhaustion is captured through the existing command so it is never lost.
+Done when reducer tests cover acceptance and each refusal (lapsed, freeze,
+other status, changed binding or meaning, older observation, exhausted account,
+wrong collector) with unchanged revisions and replay, and a Host test renews
+before a call and records an exhaustion found during renewal.
+
+Plan revision after fresh-context criticism (revise): the Host hook moves to
+each entry point before the action request is built and outside any operation
+(the observer is not supervised by one); nothing observes under a freeze or
+unapplied handover, keeping renewal out of the 30-second reactivation window;
+a refused renewal never falls back to capture; renewal is refused unless every
+participant's account keys, available keys and eligibility stay the same;
+ordering is checked against the stored participant and account histories, and
+renewal writes both; a same-meaning positive from `native-quota-observe` also
+renews, so idle Hosts can stay eligible on a schedule.
+
+Implementation (3b): `renewNativeQuotaLease` and the
+`native-protocol-quota-renew-v2` branch in `scripts/team-native-quota.mjs`
+(registered as deferred in `team-state.mjs`); `ensureNativeQuotaLease` and
+renewal routing in `scripts/team-host.mjs`. The renewal threshold is 50 seconds
+left, not the 30 seconds of the first plan, so a 60-second lease is renewed
+before it can lapse during a long observation.
+
+Diff review (fresh context, revise) found that the entry hook could still
+capture a positive when the lease lapsed during observation, that Host routing
+compared only the binding while the reducer checks the full meaning, and that
+the bootstrap test could not fail. Fixes: the Host routes by running the
+reducer's own renewal on a copy of the state; the entry hook is renew-only and
+refuses with `host-native-quota-lease-lapsed` or
+`host-native-quota-lease-not-renewable` without any mutation; renewal also
+refuses a reused observation id.
+
+Reducer tests: renewal keeps revisions, election and review state and extends
+eligibility; ten refusals (lapsed, exhausted status, equal time, reused id,
+wrong collector, exhausted account, freeze, unapplied handover, policy revision,
+eligibility change) each leave the lease and revisions unchanged. Host tests: a
+repeated positive renews without a revision change; a bootstrap entry's first
+mutation is the renewal and the lease id changes with revisions unchanged; more
+than 50 seconds left starts no observer; a lapsed lease, a lease lapsing during
+observation and a reused id each refuse with no mutation; an exhaustion found at
+the entry is captured, freezes the team and refuses the call without a send, and
+no observer starts under the freeze.

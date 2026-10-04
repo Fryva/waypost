@@ -82,8 +82,26 @@ export function assertNativeHandoverReady(s,t,now,{excluding=null}={}){
  if(h.reactivation&&!same(h.reactivation,reactivation(s,t,now)))fail('reactivation-original-positive-changed');
  if(frontier.blocker||frontier.candidate!==h.candidate||frontier.reviewer!==h.reviewer||frontier.candidate===t.leader&&(!h.reactivation||!same(h.reactivation,reactivation(s,t,now))))fail('current-strongest-handover-frontier-required');return {handover:h,frontier};
 }
+// Renews an unexpired positive lease with the same meaning in place. It changes
+// no revision, election or review state, so it is refused whenever anything else
+// would change: a freeze or unapplied handover, another status or meaning, a
+// reused observation id, an exhausted account, an older observation or any
+// participant's exclusions or eligibility. The Host runs it on a copy to route.
+export function renewNativeQuotaLease(s,t,observation,now){
+ if(t.native_quota_freeze||t.native_protocol_handover&&t.native_protocol_handover.state!=='applied')fail('renewal-outside-handover-required');
+ const p=t.participants[observation.binding.participant],old=p?.native_protocol_quota,proof=observation.proof,key=accountKey({...observation.binding.billing,provenance:'native-runtime',consistent:true}),account=t.native_account_quotas?.[key];
+ if(proof.status!=='available'||old?.proof.status!=='available'||!(Date.parse(old.proof.expires_at)>now)||!same(quotaMeaning(old),quotaMeaning(observation)))fail('unexpired-same-meaning-available-lease-required');
+ if(account?.proof.status!=='available')fail('available-account-record-required');
+ const stored=[old,t.native_quota_observations?.[p.id],account,t.native_account_quota_observations?.[key]].filter(Boolean);
+ if(stored.some(x=>x.proof.observation_id===proof.observation_id))fail('renewal-observation-id-reused');
+ if(!(Date.parse(proof.observed_at)>Math.max(...stored.map(x=>Date.parse(x.proof.observed_at)))))fail('renewal-observation-order-required');
+ const eligibility=()=>routingDigest(Object.values(t.participants).map(x=>[x.id,[...(x.native_account_exclusions?.keys||[])].sort(),Object.keys(x.native_account_exclusions?.available||{}).sort(),nativeQuotaEligible(t,x,now)]));
+ const before=eligibility();
+ p.native_protocol_quota=clone(observation);t.native_quota_observations[p.id]=clone(observation);t.native_account_quotas[key]=clone(observation);t.native_account_quota_observations[key]=clone(observation);updateAccountExclusions(s,t);
+ if(eligibility()!==before)fail('renewal-eligibility-changed');
+}
 export function applyNativeProtocolQuota(s,t,c,now,H){
- if(!['native-protocol-quota-enable-v2','native-protocol-quota-capture-v2','native-protocol-handover-stop-capture-v2','native-protocol-handover-prepare-v2'].includes(c.type))return null;
+ if(!['native-protocol-quota-enable-v2','native-protocol-quota-capture-v2','native-protocol-quota-renew-v2','native-protocol-handover-stop-capture-v2','native-protocol-handover-prepare-v2'].includes(c.type))return null;
  nativeMode(t);let result;
  if(c.type==='native-protocol-quota-enable-v2'){
   H.owner(s,c);exact(c.policy,['automatic_handover','expires_at','source_rules',...(Object.hasOwn(c.policy,'same_leader_reactivation')?['same_leader_reactivation']:[])]);if(Object.hasOwn(c.policy,'same_leader_reactivation')&&typeof c.policy.same_leader_reactivation!=='boolean')fail('reactivation-boolean-required');text(c.policy.expires_at,64);if(!Number.isFinite(Date.parse(c.policy.expires_at)))fail('finite-policy-expiry-required');if(c.policy.automatic_handover!==true||!Number.isSafeInteger(c.revision)||c.revision<1||c.revision<=(t.native_quota_policy?.revision??0)||Date.parse(c.policy.expires_at)<=now||Date.parse(c.policy.expires_at)>Date.parse(t.policy.expires_at)||!Array.isArray(c.policy.source_rules)||!c.policy.source_rules.length||c.policy.source_rules.length>64)fail('bounded-owner-policy-required');
@@ -107,6 +125,11 @@ export function applyNativeProtocolQuota(s,t,c,now,H){
   if(t.native_quota_freeze&&(t.native_quota_policy.same_leader_reactivation===true||t.native_quota_freeze.reactivation_basis)){try{assertNativeHandoverConsumedLatch(s,t);}catch(e){t.status='paused';t.native_quota_blocker=e.code;}}
   if(t.native_quota_freeze){const freeze=t.native_quota_freeze;t.native_protocol_handover={protocol:2,id:'native-handover-'+routingDigest(freeze),state:t.native_quota_blocker?'blocked':'fenced',old_leader:freeze.old_leader,old_epoch:freeze.old_epoch,target_epoch:freeze.old_epoch+1,stop_set:clone(freeze.stop_scopes)};}
   result={participant:p.id,status:proof.status,candidate:t.candidate,quota_revision:t.native_quota_revision,blocker:t.native_quota_blocker,protected_actions_granted:false};
+ }else if(c.type==='native-protocol-quota-renew-v2'){
+  const observation=validateObservation(s,t,c.observation,now),p=t.participants[observation.binding.participant],collector=s.collectors?.[p.native_binding.collector_id];
+  if(c.actor!=='collector:'+collector?.id||collector.revoked||collector.team!==t.id||!['runtime','usage'].every(x=>collector.purposes?.includes(x)))fail('bound-provider-collector-required');
+  renewNativeQuotaLease(s,t,observation,now);
+  result={renewed:true,participant:p.id,expires_at:observation.proof.expires_at,quota_revision:t.native_quota_revision,protected_actions_granted:false};
  }else if(c.type==='native-protocol-handover-stop-capture-v2'){
   policy(t,now);if(!t.native_quota_freeze||t.native_quota_freeze.old_epoch!==t.epoch)fail('frozen-old-epoch-required');
   const proof=exact(c.stop_proof,['protocol','purpose','team','participant','incarnation','epoch','descriptor_digest','callback_drained','epoch_barrier','required_operations','operations','evidence_digest']),p=t.participants[proof.participant],collector=s.collectors?.[p?.native_binding?.collector_id];

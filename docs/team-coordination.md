@@ -855,6 +855,32 @@ the 0.160.0 `account.rs` protocol definition).
 Live on this Mac (2026-10-04, Codex 0.160.0, ChatGPT Plus, no inference): the
 transport reported known subscription billing and the observer returned an
 `available` proof. Live exhaustion and recovery are not demonstrated.
-Known limits: an `available` proof is a 60-second lease with no protocol-2
-renewal yet, so an eligible participant lapses when it expires; ordering across
-hosts relies on their clocks.
+Ordering across hosts relies on their clocks.
+
+### Renewing a positive provider-account lease
+
+An `available` proof is a lease of at most 60 seconds from its observation.
+`native-protocol-quota-renew-v2` (a new command; stored events replay as before)
+replaces it with a fresh same-meaning positive from the participant's bound
+collector without changing `native_quota_revision`, `quota_revision`, the
+election or review state. It is refused for a lapsed lease, another status or
+meaning (binding, policy revision, source rule), a reused observation id, an
+observation not later than every stored participant and account observation,
+an exhausted account record (stickiness), a freeze or unapplied handover, and
+any change in any participant's account keys, available keys or eligibility.
+Refusal has no fallback.
+
+The Host routes a positive to this command when the reducer, tried on a copy of
+the current state, would accept it (so `native-quota-observe` can renew on a
+schedule and keep idle Hosts eligible); any other positive is captured as
+before. Before its subscription bootstrap, calibration trial, leader
+acknowledgement and leadership audit it renews its own lease when 50 seconds or
+less are left, outside any operation. There it never captures a positive: a
+lease that has lapsed, including one that lapses while the observer runs, is
+`host-native-quota-lease-lapsed`, and any other refusal (for example a reused
+observation id) is `host-native-quota-lease-not-renewable`. Under a freeze or
+unapplied handover it starts no observer. An exhaustion found while renewing is
+captured through the existing command, which freezes as before, and the call is
+refused with `host-native-quota-exhausted`; the entry does not drive the
+handover. A protocol turn and its capture must finish within the renewed lease;
+a longer one is refused at capture with its charge retained.

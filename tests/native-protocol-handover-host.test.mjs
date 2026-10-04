@@ -106,3 +106,48 @@ test('built-in Codex account observer proof passes Host capture under the export
  const after=f.load().state.teams.team;assert.notEqual(after.leader,f.old);
  const proof=Object.values(after.native_account_quotas)[0].proof;assert.equal(proof.provider_code,'rate_limit_reached');assert.equal(proof.method,'account/rateLimits/read');assert.equal(JSON.stringify(after).includes('private-account'),false);
 });
+
+// A provider may give a shorter lease than 60 seconds; 40 seconds leaves the Host
+// under its 50-second renewal threshold at once.
+function positiveObserver(f,{ttl=40000,status='available',calls,id,delay=0}={}){
+ let n=0;return async({binding})=>{calls?.push('observe');const observed=Math.max(Date.now()-1,Date.parse(binding.source_settled_at));if(delay)await new Promise(resolve=>setTimeout(resolve,delay));return {protocol:2,observation_id:id||status+'-lease-'+(++n),status,reason:'provider-quota-'+status,source:'https://provider.fixture/quota',method:'GET /quota',evidence_kind:'provider-quota',provider_code:'provider-'+status,scope:'provider-account',provider_confirmed:true,billing_digest:routingDigest(binding.billing),observed_at:new Date(observed).toISOString(),expires_at:new Date(observed+ttl).toISOString(),documentation:'https://provider.fixture/docs/quota'};};
+}
+const leaseOf=f=>f.load().state.teams.team.participants[f.old].native_protocol_quota;
+const revisionsOf=f=>{const t=f.load().state.teams.team;return [t.native_quota_revision,t.quota_revision];};
+async function leasedFixture(t,options){const f=await fixture(t),calls=[];f.dependencies.observeNativeProtocolProviderQuota=positiveObserver(f,{calls,...options});await f.ownerHost.observeNativeProtocolQuota({sourceInvocationId:f.source});await new Promise(resolve=>setTimeout(resolve,5));return {f,calls,revisions:revisionsOf(f),lease:leaseOf(f)};}
+test('a same-meaning positive observation renews the Host lease without a revision change',async t=>{
+ const {f,revisions,lease}=await leasedFixture(t);
+ const second=await f.ownerHost.observeNativeProtocolQuota({sourceInvocationId:f.source});assert.equal(second.renewed,true);
+ assert.deepEqual(revisionsOf(f),revisions);assert.ok(Date.parse(leaseOf(f).proof.expires_at)>Date.parse(lease.proof.expires_at));assert.equal(f.load().state.teams.team.leader,f.old);
+});
+test('a Host entry renews a lease with 50 seconds or less left before it builds its call',async t=>{
+ const {f,calls,revisions,lease}=await leasedFixture(t),start=f.calls.length;
+ await f.ownerHost.subscriptionBootstrap({nonce:'lease-renewed',estimateTokens:'40',maxTokens:'40'}).catch(()=>{});
+ const after=f.calls.slice(start),renew=after.indexOf('native-protocol-quota-renew-v2');
+ assert.equal(calls.length,2);assert.equal(renew,0,'the renewal is the first mutation of the entry');assert.equal(after.includes('native-protocol-quota-capture-v2'),false);
+ assert.notEqual(leaseOf(f).proof.observation_id,lease.proof.observation_id);assert.deepEqual(revisionsOf(f),revisions);
+});
+test('a Host entry with more than 50 seconds left starts no observer',async t=>{
+ const {f,calls}=await leasedFixture(t,{ttl:60000}),start=f.calls.length;
+ await f.ownerHost.subscriptionBootstrap({nonce:'lease-fresh',estimateTokens:'40',maxTokens:'40'}).catch(()=>{});
+ assert.equal(calls.length,1);assert.equal(f.calls.slice(start).some(x=>x.startsWith('native-protocol-quota')),false);
+});
+test('a lapsed lease is an explicit blocker, and a renewal refused at the entry never captures',async t=>{
+ const lapsed=await leasedFixture(t,{ttl:3000});await new Promise(resolve=>setTimeout(resolve,3100));const start=lapsed.f.calls.length;
+ await assert.rejects(lapsed.f.ownerHost.subscriptionBootstrap({nonce:'lapsed',estimateTokens:'40',maxTokens:'40'}),{message:/host-native-quota-lease-lapsed/});
+ assert.equal(lapsed.calls.length,1);assert.deepEqual(lapsed.f.calls.slice(start),[]);
+ // The lease lapses while the observer runs: the positive is not captured.
+ const slow=await leasedFixture(t,{ttl:3000}),slowCalls=[];slow.f.dependencies.observeNativeProtocolProviderQuota=positiveObserver(slow.f,{ttl:8000,delay:3200,id:'late-positive',calls:slowCalls});const slowStart=slow.f.calls.length;
+ await assert.rejects(slow.f.ownerHost.subscriptionBootstrap({nonce:'lapses',estimateTokens:'40',maxTokens:'40'}),{message:/host-native-quota-lease-lapsed/});
+ assert.equal(slowCalls.length,1,'the observer ran');assert.deepEqual(slow.f.calls.slice(slowStart),[]);assert.deepEqual(revisionsOf(slow.f),slow.revisions);
+ // A reused observation id is not renewable and is not captured either.
+ const reused=await leasedFixture(t);reused.f.dependencies.observeNativeProtocolProviderQuota=positiveObserver(reused.f,{id:reused.lease.proof.observation_id});const reusedStart=reused.f.calls.length;
+ await assert.rejects(reused.f.ownerHost.subscriptionBootstrap({nonce:'reused',estimateTokens:'40',maxTokens:'40'}),{message:/host-native-quota-lease-not-renewable/});
+ assert.deepEqual(reused.f.calls.slice(reusedStart),[]);assert.deepEqual(leaseOf(reused.f),reused.lease);
+});
+test('an exhaustion found while renewing at an entry is captured, freezes the team and refuses the call',async t=>{
+ const {f:g,calls:gcalls}=await leasedFixture(t);g.dependencies.observeNativeProtocolProviderQuota=positiveObserver(g,{status:'exhausted',calls:gcalls});const gsends=g.calls.filter(x=>x==='native-send').length;
+ await assert.rejects(g.ownerHost.subscriptionBootstrap({nonce:'lease-exhausted',estimateTokens:'40',maxTokens:'40'}),{message:/host-native-quota-exhausted/});
+ assert.equal(g.calls.filter(x=>x==='native-send').length,gsends);const team=g.load().state.teams.team;assert.equal(team.participants[g.old].native_protocol_quota.proof.status,'exhausted');assert.ok(team.native_quota_freeze);
+ const observed=gcalls.length;await g.ownerHost.subscriptionBootstrap({nonce:'under-freeze',estimateTokens:'40',maxTokens:'40'}).catch(()=>{});assert.equal(gcalls.length,observed,'no observer starts under a freeze');
+});
