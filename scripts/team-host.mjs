@@ -11,7 +11,7 @@ import { createProtocolRoleSuite, formatProtocolTrial, summarizeProtocolRole } f
 import { createRoutingGrant, serializeRoutingGrant } from './team-evidence.mjs';
 import { collectQuotaObservation, serializeQuotaObservation, quotaEligible } from './team-quota.mjs';
 import { collectNativeProtocolQuota, serializeNativeProtocolQuota } from './team-native-quota.mjs';
-import { observeNativeProviderQuota } from './team-quota-native.mjs';
+import { observeNativeProviderQuota, observeCodexProtocolAccountQuota } from './team-quota-native.mjs';
 import { createNativeEndpoint, createNativeModelInventoryEndpoint, nativeInventoryFailureClosure, validateNativeDescriptor } from './team-transport.mjs';
 import { harness as harnessDefinition } from './agents.mjs';
 import { collectModelInventory, metadataDescriptor } from './team-model-inventory.mjs';
@@ -36,6 +36,13 @@ export function validateBoundedUsageReceipt({usage,invocation,grant,evidence}) {
 export function validateDispatchAdmission({admission,descriptor,invocation,grant,evidence}) {
  if(!admission || admission.provider_enforced!==true || admission.invocation_id!==invocation.id || admission.descriptor_digest!==routingDigest(descriptor) || admission.route_digest!==grant.route_digest || admission.quote_id!==grant.quote_id || admission.allocation_id!==grant.allocation_id || admission.max_units!==invocation.max_units || admission.route_digest!==routingDigest(evidence.route))fail('host-provider-dispatch-admission-required');
  return admission;
+}
+// Codex has a built-in typed provider-account observer that reads on the Host's
+// clock; other harnesses need an installed one and otherwise refuse before any read.
+export function nativeProtocolQuotaObserver(dependencies,descriptor,now){
+ if(typeof dependencies.observeNativeProtocolProviderQuota==='function')return dependencies.observeNativeProtocolProviderQuota;
+ if(descriptor?.harness!=='codex')return null;
+ return args=>observeCodexProtocolAccountQuota({...args,now,spawnProcess:dependencies.spawnProcess});
 }
 export function createTeamHost(config, dependencies={}) {
  const {authorityRoot,projectRoot,team,ownerCredential,collectorPath,participantCredential,endpointPath,dispatcher}=config;
@@ -285,9 +292,11 @@ export function createTeamHost(config, dependencies={}) {
  }
  async function observeNativeProtocolQuota({sourceInvocationId,drive=true}={}){
   owner();if(operationBusy||activeOperation)fail('host-native-quota-observation-operation-active');
-  if(typeof dependencies.observeNativeProtocolProviderQuota!=='function')fail('host-native-protocol-provider-observer-unsupported');
-  const d=endpoint(),{v,t}=getTeam(),p=t.participants[d.participant];
-  const observation=await collectNativeProtocolQuota({state:v.state,team:t,participant:p,sourceInvocationId,now:()=>Date.parse(now()),observe:binding=>dependencies.observeNativeProtocolProviderQuota({binding,descriptor:d.descriptor})});
+  const d=endpoint();
+  const observe=nativeProtocolQuotaObserver(dependencies,d.descriptor,()=>Date.parse(now()));
+  if(typeof observe!=='function')fail('host-native-protocol-provider-observer-unsupported');
+  const {v,t}=getTeam(),p=t.participants[d.participant];
+  const observation=await collectNativeProtocolQuota({state:v.state,team:t,participant:p,sourceInvocationId,now:()=>Date.parse(now()),observe:binding=>observe({binding,descriptor:d.descriptor})});
   const record=serializeNativeProtocolQuota(observation);
   const result=mutate('native-protocol-quota-capture-v2',{observation:record},collector(),'native-quota-'+routingDigest(record)).result;
   const redistribution_required=Boolean(getTeam().t.native_protocol_handover&&getTeam().t.native_protocol_handover.state!=='applied');

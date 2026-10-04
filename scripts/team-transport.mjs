@@ -157,11 +157,31 @@ function waitFrame(peer, timeout, match, start) {
   });
 }
 
+// Codex account and rate-limit metadata semantics were read from these app-server
+// versions only (initialize userAgent); other versions keep billing unknown.
+export const CODEX_ACCOUNT_METADATA_VERSIONS = ['0.160.0'];
+// Personal plans: the routed account is the login's own. Workspace plans share
+// one routing id between members whose limits differ, so they stay unknown.
+export const CODEX_PERSONAL_PLANS = {free:'free',go:'subscription',plus:'subscription',pro:'subscription',prolite:'subscription',promax:'subscription'};
+export function codexAppServerVersion(init) {
+  const match = typeof init?.userAgent === 'string' && /^[^/\s][^/]{0,64}\/(\d{1,4}\.\d{1,4}\.\d{1,6}) /.exec(init.userAgent);
+  return match ? match[1] : null;
+}
+// The account bucket `codex` carries the account's credits and must report none;
+// the app-server gives every other bucket `credits: null`. With no credits, a
+// ChatGPT login has no paid continuation once included usage is exhausted.
+export function codexBucketsWithoutCredits(rate) {
+  const map = rate?.rateLimitsByLimitId;
+  if (!map || typeof map !== 'object' || Array.isArray(map) || !Object.keys(map).length || Object.keys(map).length > 128) return false;
+  const none = c => c && typeof c === 'object' && !Array.isArray(c) && c.hasCredits === false && c.unlimited === false && (c.balance === undefined || c.balance === null || (typeof c.balance === 'string' && /^\d+(?:\.\d+)?$/.test(c.balance) && Number(c.balance) === 0));
+  return none(map.codex?.credits) && Object.entries(map).every(([id,b]) => b && typeof b === 'object' && (id === 'codex' || b.credits === null || none(b.credits)));
+}
+
 async function codexEndpoint(d, spawnProcess) {
   const overrides=(d._disabledMcpNames||[]).flatMap(name=>['-c','mcp_servers.'+name+'.enabled=false']);
   if(d._disabledPluginNames?.length)overrides.push('-c','plugins={'+d._disabledPluginNames.map(name=>JSON.stringify(name)+'={enabled=false}').join(',')+'}');
   const peer = processPeer(d, ['-c','features.apps=false','-c','apps._default.enabled=false',...overrides,'app-server','--listen','stdio://'], spawnProcess);
-  let seq = 0, thread;
+  let seq = 0, thread, appServerVersion = null;
   const request = (method, params) => {
     const id = ++seq;
     return waitFrame(peer,d.timeout_ms,m => {
@@ -170,7 +190,7 @@ async function codexEndpoint(d, spawnProcess) {
     }, () => peer.write({ id, method, params }));
   };
   try {
-    await request('initialize',{clientInfo:{name:'waypost',version:'1.0.0'}});
+    appServerVersion = codexAppServerVersion(await request('initialize',{clientInfo:{name:'waypost',version:'1.0.0'}}));
     peer.write({method:'initialized',params:{}});
     if(d.mode==='read-only' && !d._mcpConfigInspected) {
       // Discover only names in our own backend configuration. Do not write
@@ -206,11 +226,25 @@ async function codexEndpoint(d, spawnProcess) {
     try{const u=new URL(routing?.backendOrigin);if(u.protocol==='https:'&&u.origin===routing.backendOrigin&&!u.username&&!u.password)origin=u.origin;}catch{}
     // These are same-peer native profile observations, not execution billing proof.
     // Keep unavailable fields explicit; never assert no-credit fallback from OAuth.
-    return {provider:clean(thread.modelProvider||thread.thread.modelProvider),origin,
+    // Known billing needs the thread's own provider to be OpenAI over the ChatGPT
+    // login of a personal plan, on a pinned version, with the same account
+    // reporting no credits; usage percentages and reset times are never read.
+    const provider = clean(thread.modelProvider||thread.thread.modelProvider), plan = clean(account?.account?.planType);
+    let mode = 'unknown', paid_fallback = 'unknown', credit_availability = 'unknown';
+    if (provider === 'openai' && auth?.authMethod === 'chatgpt' && auth.requiresOpenaiAuth === true && account?.account?.type === 'chatgpt' && Object.hasOwn(CODEX_PERSONAL_PLANS,plan) && origin === 'https://chatgpt.com' && clean(routing?.chatgptAccountId) && CODEX_ACCOUNT_METADATA_VERSIONS.includes(appServerVersion)) {
+      // `openai_base_url` reroutes the built-in provider's inference without
+      // changing its id or login; billing is known only with it unset.
+      const config = await request('config/read',{includeLayers:false});
+      // A failed read aborts this observation rather than turning known into unknown.
+      const rate = config?.config && Object.hasOwn(config.config,'openai_base_url') && config.config.openai_base_url === null && [null,undefined,'openai'].includes(config.config.model_provider) ? await request('account/rateLimits/read',{excludeResetCreditDetails:true}) : null;
+      if (rate && rate.accountId !== routing.chatgptAccountId) throw fail('native-accounting-account-changed');
+      if (rate && codexBucketsWithoutCredits(rate)) { mode = CODEX_PERSONAL_PLANS[plan]; paid_fallback = false; credit_availability = 'unavailable'; }
+    }
+    return {provider,origin,
       account:clean(routing?.chatgptAccountId)?createHash('sha256').update(routing.chatgptAccountId).digest('hex'):null,
-      sku:clean(account?.account?.planType),mode:'unknown',paid_fallback:'unknown',
-      provenance:auth||account||clean(thread.modelProvider||thread.thread.modelProvider)?'native-runtime':'unavailable',auth_method:['chatgpt','apikey','apiKey','chatgptAuthTokens'].includes(auth?.authMethod)?auth.authMethod:null,
-      credit_availability:'unknown',observed_at:new Date().toISOString(),
+      sku:plan,mode,paid_fallback,
+      provenance:auth||account||provider?'native-runtime':'unavailable',auth_method:['chatgpt','apikey','apiKey','chatgptAuthTokens'].includes(auth?.authMethod)?auth.authMethod:null,
+      credit_availability,observed_at:new Date().toISOString(),
       account_generation:accountGeneration,consistent:generation===accountGeneration};
   }
 

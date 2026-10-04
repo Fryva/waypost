@@ -503,3 +503,13 @@ test('a Claude transport that does not declare its pre-consume inspection is ref
  await assert.rejects(f.host.subscriptionBootstrap({nonce:'claude-undeclared',estimateTokens:'40',maxTokens:'100'}),{code:'host-subscription-owned-read-only-context-unverified'});
  assert.equal(calls.includes('native-inspect'),false);assert.equal(f.calls.includes('subscription-reserve-v2'),false);
 });
+
+test('the Host uses the built-in observer only for Codex and an installed one otherwise',async()=>{
+ const {nativeProtocolQuotaObserver}=await import('../scripts/team-host.mjs'),installed=async()=>({});
+ assert.equal(nativeProtocolQuotaObserver({observeNativeProtocolProviderQuota:installed},{harness:'opencode'},Date.now),installed);
+ assert.equal(nativeProtocolQuotaObserver({},{harness:'opencode'},Date.now),null);assert.equal(nativeProtocolQuotaObserver({},{harness:'claude'},Date.now),null);
+ let spawned=0;const observe=nativeProtocolQuotaObserver({spawnProcess:()=>{spawned++;throw Object.assign(new Error('no process'),{code:'ENOENT'});}},{harness:'codex'},()=>Date.parse('2026-10-04T00:00:00Z'));
+ assert.equal(typeof observe,'function');
+ await assert.rejects(observe({binding:{billing:{provider:'openai',origin:'https://chatgpt.com',auth_method:'chatgpt',account:'a'.repeat(64),sku:'plus',mode:'subscription'}},descriptor:{harness:'codex',managed:true,cwd:realpathSync(tmpdir()),timeout_ms:100}}));
+ assert.equal(spawned,1,'the built-in observer runs through the Host-supplied spawn');
+});

@@ -817,3 +817,44 @@ complete 1,852-token first-turn span, an isolated manifest bound to the second
 inspection, and closed its process group. This is direct transport evidence,
 not Host ledger capture on a live authority, calibration, desktop behaviour or
 model strength.
+
+### Built-in Codex provider-account observer (protocol 2)
+
+A protocol-2 quota source must be an own settled admitted call with known
+billing. The Codex transport now reports it only when the thread's own
+`modelProvider` is `openai`, `getAuthStatus` says `chatgpt` with
+`requiresOpenaiAuth`, the plan is personal (`free`, `go`, `plus`, `pro`,
+`prolite`, `promax`; workspace plans share a routing id between members whose
+limits differ, so they stay unknown), the app-server version read from the
+`initialize` user agent is pinned (0.160.0), the same peer's `config/read`
+shows `openai_base_url` unset (it reroutes the built-in provider without
+changing its id or login) and no other model provider, and its
+`account/rateLimits/read` returns the routed account with no credits on the
+`codex` account bucket (other buckets carry `credits: null`). Then `mode` is `subscription` (or `free`), `paid_fallback` false and
+`credit_availability` unavailable; otherwise all three stay unknown. A failed or mismatched read aborts the
+observation: before the call that refuses the call, and after it the context
+is quarantined through `billing_after`, retaining its charge.
+
+`observeCodexProtocolAccountQuota` (`scripts/team-quota-native.mjs`) is the
+Host's default observer for Codex participants; other harnesses still refuse
+with `host-native-protocol-provider-observer-unsupported`. It runs its own
+metadata-only app-server (no thread or turn), reads account and rate limits
+twice (with `excludeResetCreditDetails`) with an unchanged login and the same
+status and code in both reads, and requires the hashed
+account, origin and plan of the source binding. Account scope only: `available`
+needs `ordinaryUsageAllowed: true`, no reached bucket, no spend control or
+individual limit, no credits; `exhausted` needs `ordinaryUsageAllowed: false`,
+the `codex` account bucket reached with `rate_limit_reached` or a workspace
+usage/credit reason, no credits and no reset credits; other reached buckets
+neither block nor replace it (no "exactly one blocking bucket" rule). Percentages and
+reset times are never evidence. A positive proof is dated at the start of its
+reads and a negative at the end. `codexAccountQuotaSourceRules(collector)`
+returns exactly the owner rules that match its proofs (documentation:
+the 0.160.0 `account.rs` protocol definition).
+
+Live on this Mac (2026-10-04, Codex 0.160.0, ChatGPT Plus, no inference): the
+transport reported known subscription billing and the observer returned an
+`available` proof. Live exhaustion and recovery are not demonstrated.
+Known limits: an `available` proof is a 60-second lease with no protocol-2
+renewal yet, so an eligible participant lapses when it expires; ordering across
+hosts relies on their clocks.

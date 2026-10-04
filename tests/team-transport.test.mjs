@@ -186,16 +186,21 @@ test('an externally bound OpenCode server cannot receive an owned process stop p
 });
 
 const counters=(total,input=total-2,extra={})=>({totalTokens:total,inputTokens:input,cachedInputTokens:1,outputTokens:total-input,reasoningOutputTokens:1,...extra});
-async function tokenEndpoint(turns,{fresh=true,replyAfterUsage=false,serverCollision=false,conflictingStart=false,metadata=false,accountChange=false}={}) {
+// The live ChatGPT Plus shape (Codex 0.160.0) with identifiers replaced.
+const codexBucket=(over={})=>({limitId:'codex',limitName:null,normalModelSlug:null,primary:{usedPercent:3,windowDurationMins:300,resetsAt:1791142753},secondary:{usedPercent:90,windowDurationMins:10080,resetsAt:1791580344},credits:{hasCredits:false,unlimited:false,balance:'0'},individualLimit:null,spendControlReached:false,planType:'plus',rateLimitReachedType:null,...over});
+function codexRate(over={},bucket={}){const b=codexBucket(bucket);return {ordinaryUsageAllowed:true,rateLimits:b,rateLimitsByLimitId:{codex:b},rateLimitResetCredits:{availableCount:0,credits:[]},accountId:'native-private-account',rateLimitUpsell:null,...over};}
+async function tokenEndpoint(turns,{fresh=true,replyAfterUsage=false,serverCollision=false,conflictingStart=false,metadata=false,accountChange=false,billing=null}={}) {
+ if(billing)metadata=true;
  let number=0,collisionId=null,collisionRejected=false;
  return createNativeEndpoint({harness:'codex',cwd,managed:true},{spawnProcess:()=>childMock((m,emit)=>{
   if(m.method===undefined && collisionId!==null && m.id===collisionId && m.error?.code===-32601)collisionRejected=true;
-  if(m.method==='initialize')emit({id:m.id,result:{}});
-  if(m.method==='thread/start')emit({id:m.id,result:{thread:{id:'token-owned',sessionId:'token-owned',cwd,ephemeral:fresh,turns:[],forkedFromId:null},model:'actual',modelProvider:'openai',reasoningEffort:'low',sandbox:{type:'readOnly',networkAccess:false}}});
+  if(m.method==='initialize')emit({id:m.id,result:billing?{userAgent:'Codex Desktop/'+(billing.version||'0.160.0')+' (Mac OS 27.0.1; arm64) dumb (waypost; 1.0.0)'}:{}});
+  if(m.method==='account/rateLimits/read')emit(billing?.rateError?{id:m.id,error:{code:-32603}}:{id:m.id,result:(billing?.rate||codexRate)()});
+  if(m.method==='thread/start')emit({id:m.id,result:{thread:{id:'token-owned',sessionId:'token-owned',cwd,ephemeral:fresh,turns:[],forkedFromId:null},model:'actual',modelProvider:billing?.provider||'openai',reasoningEffort:'low',sandbox:{type:'readOnly',networkAccess:false}}});
   if(m.method==='mcpServerStatus/list')emit({id:m.id,result:{data:[],nextCursor:null}});
   if(m.method==='app/installed')emit({id:m.id,result:{apps:[]}});
-  if(m.method==='getAuthStatus'){assert.equal(m.params.includeToken,false);assert.equal(m.params.refreshToken,false);if(accountChange)emit({method:'account/updated',params:{}});emit(metadata?{id:m.id,result:{authMethod:'chatgpt',authToken:'never-store-this'}}:{id:m.id,error:{code:-32601}});}
-  if(m.method==='account/read'){assert.equal(m.params.refreshToken,false);emit(metadata?{id:m.id,result:{account:{type:'chatgpt',planType:'plus',email:'private-profile@example.test'},workspaceRouting:{chatgptAccountId:'native-private-account',backendOrigin:'https://chatgpt.com'}}}:{id:m.id,error:{code:-32601}});}
+  if(m.method==='getAuthStatus'){assert.equal(m.params.includeToken,false);assert.equal(m.params.refreshToken,false);if(accountChange)emit({method:'account/updated',params:{}});emit(metadata?{id:m.id,result:{authMethod:billing?.auth||'chatgpt',authToken:'never-store-this',...(billing?{requiresOpenaiAuth:true}:{})}}:{id:m.id,error:{code:-32601}});}
+  if(m.method==='account/read'){assert.equal(m.params.refreshToken,false);emit(metadata?{id:m.id,result:{account:{type:'chatgpt',planType:billing?.plan||'plus',email:'private-profile@example.test'},workspaceRouting:{chatgptAccountId:'native-private-account',backendOrigin:'https://chatgpt.com'}}}:{id:m.id,error:{code:-32601}});}
   if(m.method==='turn/start'){
    const index=number++,turn='token-turn-'+index;
    if(serverCollision){collisionId=m.id;emit({id:m.id,method:'item/tool/call',params:{threadId:'token-owned'}});}
@@ -207,7 +212,7 @@ async function tokenEndpoint(turns,{fresh=true,replyAfterUsage=false,serverColli
    emit({method:'item/completed',params:{threadId:'token-owned',item:{type:'agentMessage',text:'ok'}}});
    emit({method:'turn/completed',params:{threadId:'token-owned',turn:{id:turn,status:'completed'}}});
   }
- })});
+ },billing?{openai_base_url:Object.hasOwn(billing,'baseUrl')?billing.baseUrl:null,model_provider:null,mcp_servers:{}}:undefined)});
 }
 test('Codex native cumulative span binds two own turns without summing cached or reasoning subsets',async()=>{
  const first=counters(10),second=counters(30,25),last=counters(7,5);
@@ -407,4 +412,20 @@ test('OpenCode stored frame differences remain unverified after structural compa
   const {endpoint}=await accountingOpenCode({historyMutate:h=>{change(h[1]);return h;}});
   try{const r=await endpoint.send('probe',{id:'conflicting-inventory'});assert.equal(r.usage_span.coverage,'partial');assert.equal(r.usage_span.actual_tokens,null);assert.ok(r.usage_span.blockers.includes('native-step-inventory-unverified'));}finally{endpoint.close();}
  }
+});
+
+test('Codex billing is known only for the OpenAI thread provider over a personal ChatGPT plan with no credits on a pinned version',async()=>{
+ const read=async billing=>{const endpoint=await tokenEndpoint([],{billing});try{return await endpoint.captureAccountingMetadata();}finally{endpoint.close();}};
+ const known=await read({});assert.equal(known.mode,'subscription');assert.equal(known.paid_fallback,false);assert.equal(known.credit_availability,'unavailable');assert.equal(known.sku,'plus');assert.match(known.account,/^[a-f0-9]{64}$/);
+ assert.doesNotMatch(JSON.stringify(known),/never-store-this|private-profile|native-private-account|usedPercent|resetsAt/);
+ assert.equal((await read({plan:'free'})).mode,'free');
+ for(const billing of [{baseUrl:'https://gateway.invalid/v1'},{provider:'azure'},{auth:'apikey'},{plan:'team'},{plan:'enterprise'},{version:'0.161.0'},{rate:()=>codexRate({},{credits:{hasCredits:true,unlimited:false,balance:'5'}})},{rate:()=>codexRate({},{credits:{hasCredits:false,unlimited:true,balance:null}})},{rate:()=>codexRate({},{credits:null})}]){
+  const x=await read(billing);assert.deepEqual([x.mode,x.paid_fallback,x.credit_availability],['unknown','unknown','unknown'],JSON.stringify(billing));
+ }
+ // The app-server gives model buckets `credits: null`; only the account bucket carries credits.
+ const spark={limitId:'spark',normalModelSlug:'spark',credits:null,rateLimitReachedType:null,planType:'plus'};
+ assert.equal((await read({rate:()=>{const r=codexRate();r.rateLimitsByLimitId.spark=spark;return r;}})).paid_fallback,false);
+ assert.equal((await read({rate:()=>{const r=codexRate();r.rateLimitsByLimitId.spark={...spark,credits:{hasCredits:true,unlimited:false,balance:'1'}};return r;}})).paid_fallback,'unknown');
+ await assert.rejects(read({rate:()=>codexRate({accountId:'another-account'})}),/native-accounting-account-changed/);
+ await assert.rejects(read({rateError:true}),/native-/);
 });

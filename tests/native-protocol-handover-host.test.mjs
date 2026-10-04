@@ -2,14 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {protocolHostFixture} from './helpers/native-protocol-host.mjs';
 import {routingDigest} from '../scripts/model-routing.mjs';
-import {readdirSync,unlinkSync} from 'node:fs';
+import {readdirSync,unlinkSync,realpathSync} from 'node:fs';
+import {EventEmitter} from 'node:events';
+import {PassThrough} from 'node:stream';
+import {tmpdir} from 'node:os';
+import {createHash} from 'node:crypto';
+import {observeCodexProtocolAccountQuota,codexAccountQuotaSourceRules} from '../scripts/team-quota-native.mjs';
 import {join} from 'node:path';
 const billing={provider:'route',origin:'https://provider.fixture',account:routingDigest('quota-fixture-account'),sku:'fixture-subscription',mode:'subscription',paid_fallback:false,provenance:'native-runtime',auth_method:'native-fixture',credit_availability:'unavailable',account_generation:0,consistent:true};
 async function fixture(t,options={}){
  const f=await protocolHostFixture(t,{registerHosts:true,billing:name=>({...billing,account:routingDigest('quota-fixture-account-'+name)}),...options});
  await f.host.acknowledgeProtocolLeadership({actionId:'source-ack',nonce:'source-ack',estimateTokens:'40'});
  const state=f.load().state,team=state.teams.team,old=team.leader,source='subscription-source-ack';
- const sourceRules=['exhausted','available'].map(status=>({collector_id:team.participants[old].native_binding.collector_id,source:'https://provider.fixture/quota',method:'GET /quota',evidence_kind:'provider-quota',provider_code:'provider-'+status,scope:'provider-account',status,documentation:'https://provider.fixture/docs/quota'}));
+ const sourceRules=options.sourceRules?options.sourceRules(team.participants[old].native_binding.collector_id):['exhausted','available'].map(status=>({collector_id:team.participants[old].native_binding.collector_id,source:'https://provider.fixture/quota',method:'GET /quota',evidence_kind:'provider-quota',provider_code:'provider-'+status,scope:'provider-account',status,documentation:'https://provider.fixture/docs/quota'}));
  f.host.enableNativeProtocolQuota({revision:1,policy:{automatic_handover:true,...(options.sameLeaderReactivation?{same_leader_reactivation:true}:{}),expires_at:f.expiry,source_rules:sourceRules}});
  f.host.enableNativeProtocolHandover({revision:1,policy:{kind:'protocol-handover-ack',allow_unknown_quota:true,max_calls:2,max_estimate_tokens:'40',timeout_ms:1000,expires_at:f.expiry,unit_allocations:[{unit_digest:routingDigest(f.unit),max_tokens:'80',allocation_revision:f.allocation.revision}]}});
  f.dependencies.observeNativeProtocolProviderQuota=async({binding})=>({protocol:2,observation_id:'exhaustion-one',status:'exhausted',reason:'provider-quota-exhausted',source:'https://provider.fixture/quota',method:'GET /quota',evidence_kind:'provider-quota',provider_code:'provider-exhausted',scope:'provider-account',provider_confirmed:true,billing_digest:routingDigest(binding.billing),observed_at:new Date().toISOString(),expires_at:new Date(Date.now()+30000).toISOString(),documentation:'https://provider.fixture/docs/quota'});
@@ -80,4 +85,24 @@ test('old coordinator interrupted recovery ACK reuses its original settled invoc
  const result=await restoreOldLeader(f);assert.equal(result.redistribution_blocker,'host-native-handover-blocked');const count=f.calls.filter(x=>x==='native-send').length;
  const x=Object.values(f.load().state.subscription_invocations).find(x=>x.action?.kind==='protocol-handover-ack');assert.equal(x.state,'settled');assert.equal(x.protocol_handover_ack,undefined);
  const recovered=await f.ownerHost.driveNativeProtocolQuotaHandover();assert.equal(recovered.handover_acknowledged,true);assert.ok(Date.now()-f.restoredAt<=RECOVERY_HEADROOM_MS,'recovery took '+(Date.now()-f.restoredAt)+'ms');assert.equal(f.calls.filter(x=>x==='native-send').length,count);assert.equal(f.load().state.teams.team.leader,f.old);assert.equal(f.load().state.teams.team.epoch,x.action.request.target_epoch);
+});
+
+// The built-in Codex account observer, fed by a fake metadata-only app-server
+// in the live ChatGPT Plus shape (Codex 0.160.0), through the Host's own capture.
+const codexAccount=name=>'private-account-'+name;
+const codexBilling=name=>({provider:'openai',origin:'https://chatgpt.com',account:createHash('sha256').update(codexAccount(name)).digest('hex'),sku:'plus',mode:'subscription',paid_fallback:false,provenance:'native-runtime',auth_method:'chatgpt',credit_availability:'unavailable',account_generation:0,consistent:true});
+function fakeCodexMetadata(name,{exhausted}){
+ return ()=>{const child=new EventEmitter();child.stdout=new PassThrough();child.stderr=new PassThrough();child.stdin=new EventEmitter();
+  const bucket={limitId:'codex',limitName:null,normalModelSlug:null,primary:{usedPercent:exhausted?100:3,windowDurationMins:300,resetsAt:1791142753},secondary:{usedPercent:90,windowDurationMins:10080,resetsAt:1791580344},credits:{hasCredits:false,unlimited:false,balance:'0'},individualLimit:null,spendControlReached:false,planType:'plus',rateLimitReachedType:exhausted?'rate_limit_reached':null};
+  child.stdin.write=line=>{const m=JSON.parse(line);queueMicrotask(()=>{if(m.id===undefined)return;const result=m.method==='initialize'?{userAgent:'Codex Desktop/0.160.0 (Mac OS 27.0.1; arm64) dumb (waypost-quota; 1.0.0)'}:m.method==='account/read'?{account:{type:'chatgpt',email:'private@example.invalid',planType:'plus'},requiresOpenaiAuth:true,workspaceRouting:{chatgptAccountId:codexAccount(name),backendOrigin:'https://chatgpt.com'}}:{ordinaryUsageAllowed:!exhausted,rateLimits:structuredClone(bucket),rateLimitsByLimitId:{codex:bucket},rateLimitResetCredits:{availableCount:0,credits:[]},accountId:codexAccount(name),rateLimitUpsell:null};child.stdout.write(JSON.stringify({id:m.id,result})+'\n');});};
+  child.kill=()=>{queueMicrotask(()=>child.emit('close',0));return true;};return child;};
+}
+test('built-in Codex account observer proof passes Host capture under the exported owner rules and drives the handover',async t=>{
+ const f=await fixture(t,{billing:codexBilling,sourceRules:codexAccountQuotaSourceRules});
+ const name=f.old.slice(-1),codex={harness:'codex',managed:true,cwd:realpathSync(tmpdir()),timeout_ms:1000};
+ f.dependencies.observeNativeProtocolProviderQuota=({binding})=>observeCodexProtocolAccountQuota({binding,descriptor:codex,spawnProcess:fakeCodexMetadata(name,{exhausted:true})});
+ const result=await f.ownerHost.observeNativeProtocolQuota({sourceInvocationId:f.source});
+ assert.equal(result.status,'exhausted');assert.equal(result.redistribution?.handover_acknowledged,true,result.redistribution_blocker);
+ const after=f.load().state.teams.team;assert.notEqual(after.leader,f.old);
+ const proof=Object.values(after.native_account_quotas)[0].proof;assert.equal(proof.provider_code,'rate_limit_reached');assert.equal(proof.method,'account/rateLimits/read');assert.equal(JSON.stringify(after).includes('private-account'),false);
 });

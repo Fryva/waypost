@@ -167,3 +167,78 @@ asserting completion within 15 seconds; each handover Host case now takes about
 9/9 within the full suite. Full `npm test`:
 1330 passed, 5 skipped, one failure in `tests/slots.test.mjs` caused by this
 session's `FORCE_COLOR` environment, which passes when it is unset.
+
+### Codex typed provider-account observer plan (2026-10-04, Claude Code)
+
+Gap: protocol-2 quota sources need known billing on the settled admitted call
+(`mode` subscription or free, `paid_fallback: false`, `credit_availability:
+"unavailable"`, account digest, origin, SKU, auth method), but the Codex
+transport reports mode, paid fallback and credits as unknown, so no live call
+can ever become a quota source; and the Host has no built-in observer.
+
+Live metadata (Codex CLI 0.160.0, no thread or inference): `account/read`
+returns `type: chatgpt`, `planType`, `workspaceRouting.chatgptAccountId` and
+`backendOrigin: https://chatgpt.com`; `account/rateLimits/read` returns a typed
+account permission `ordinaryUsageAllowed`, per-bucket `rateLimitReachedType`,
+`spendControlReached`, `individualLimit`, `credits {hasCredits, unlimited,
+balance}`, `rateLimitResetCredits.availableCount` and the same `accountId`.
+
+Plan:
+1. Codex `captureAccountingMetadata` also reads `account/rateLimits/read` on the
+   same peer. Only when its `accountId` equals the routing account, the auth
+   method is `chatgpt` and the account bucket reports no credits (`hasCredits`
+   and `unlimited` false, balance absent or zero) does it report `credit_availability: "unavailable"` and
+   `paid_fallback: false`; `mode` is `free` for the free plan and `subscription`
+   for known paid plans. Anything else keeps those fields unknown. Usage
+   percentages and reset times are never read as availability or exhaustion.
+2. A built-in protocol-2 observer in `team-quota-native.mjs` starts its own
+   metadata-only app-server (no thread or turn), reads account and rate limits
+   twice with account continuity, and requires the hashed account, origin and
+   plan to equal the source binding's billing. Account scope only:
+   `available` needs `ordinaryUsageAllowed: true`, no bucket with a reached
+   type, spend control or individual limit, and no credits; `exhausted` needs
+   `ordinaryUsageAllowed: false` and the account bucket's reached type an
+   account-wide reason (workspace usage or credits, or
+   `rate_limit_reached` on the model-agnostic bucket), and no credits or reset
+   credits. Everything else refuses. The proof cites the method, a fixed
+   evidence kind, the reached type (or `ordinary-usage-allowed`) as provider
+   code, the billing origin as source and the Codex app-server documentation,
+   expires 60 seconds after observation and is exported with the matching
+   owner source rules so the owner installs exactly them.
+3. The Host uses this observer by default for Codex participants; other
+   harnesses keep `host-native-protocol-provider-observer-unsupported`.
+Done when hermetic tests cover each refusal and both statuses through the
+Host's existing capture, the transport reports known billing only from the
+typed fields, and live metadata on this machine shows the transport billing
+and an `available` proof. Live exhaustion and recovery are not claimed.
+
+Plan revision after fresh-context criticism (revise): known billing also needs
+the thread's own provider to be `openai` with `requiresOpenaiAuth`, because a
+custom provider can route inference elsewhere under a ChatGPT login; only
+personal plans qualify, because a workspace routing id is shared by members
+with separate limits; the account bucket is identified by `limitId: "codex"`,
+not by the display slug; repeated maps compare canonically; semantics are
+pinned to the app-server version; positives are dated at the start of their
+reads and negatives at the end. Deferred to a follow-up: protocol-2 renewal of
+an `available` lease without revision churn (a new command type, so existing
+replay is untouched) and cross-host clock ordering.
+
+Implementation (3a): Codex transport billing, `observeCodexProtocolAccountQuota`
+with `codexAccountQuotaSourceRules`, the Host default for Codex, and canonical
+comparison in the legacy collector (whose metadata process is now shared).
+Hermetic tests: Codex billing known only on the exact conditions (nine unknown
+variants including `openai_base_url`, model buckets with null or present
+credits, account mismatch and failed read abort); observer availability, both
+exhaustion codes, a reached model bucket beside the account bucket, fifteen
+refusals, one percentage-only positive case, a stale read and key-order
+independence; the legacy collector's canonical comparison (mutation-checked);
+the Host's observer selection and its use of the Host spawn (the clock is passed
+but not exercised by that test); and one
+Host case that drives the exhaustion handover from the built-in observer under
+the exported rules through the real capture. Live on Codex 0.160.0 (2026-10-04T16:26Z and, after the review fixes,
+16:47Z, no inference): known subscription billing and an `available` proof.
+Live exhaustion is not claimed. Independent code review returned revise: an
+`openai_base_url` reroute, model-bucket credit shape, untested refusals and
+Host wiring, and reset-credit detail reads; all are fixed above. Full `npm test`
+before those fixes: 1365 passed, 0 failed, 5 skipped; after them: 1368 passed,
+0 failed, 5 skipped. A delta review of the fixes returned ship.
