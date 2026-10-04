@@ -461,3 +461,45 @@ test('late metadata failure on shutdown preserves previous snapshot and original
  await f.host.observeModelInventory();const original=structuredClone(f.team.model_inventory.participant.snapshot);late=true;
  const result=await f.host.observeModelInventory();assert.equal(result.blocker,'native-inventory-unexpected-frame');assert.deepEqual(f.team.model_inventory.participant.snapshot,original);assert.equal(f.team.model_inventory.participant.attempt.blocker,'native-inventory-unexpected-frame');assert.equal(JSON.stringify(f.requests).includes('private-detail'),false);
 });
+
+function claudePreflightTransport(calls,{refuseAt=0,staleBinding=false}={}){
+ let inspections=0,last=null;
+ return async()=>({native_id:'owned-claude',usage_counter_schema:'claude-native-first-turn-total-v1',owns_process:true,preflight_before_consume:true,
+  async inspectContext(){calls.push('native-inspect');inspections++;if(inspections===refuseAt)return {verified:false,blocker:'native-claude-context-not-fresh-no-tools'};last=String(inspections).padStart(64,'e');return {verified:true,source:'native-get-context-usage-summary',evidence_digest:last};},
+  async captureAccountingMetadata(){return {provider:null,origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'unavailable',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:0,consistent:true};},
+  async send(prompt,invocation){calls.push('native-send');return {invocation_id:invocation.id,output:prompt.split(' ').at(-1),native_id:'owned-claude',usage_span:{schema:'claude-native-first-turn-total-v1',native_id:'owned-claude',turn_id:'00000000-0000-4000-8000-000000000001',coverage:'complete',before:'0',after:'30',actual_tokens:'30'},actualModel:{provider:'anthropic',model_id:'claude-model',reasoning:'unknown'},context_manifest:{id:'ctx',native_id:'owned-claude',fresh:true,read_only:true,fresh_review_verified:true,preflight:{evidence_digest:staleBinding?'f'.repeat(64):last}}};},
+  close(){calls.push('native-close');}});
+}
+async function claudeSubscriptionFixture(t,transport){
+ const f=fixture(t,{dependencies:{createNativeEndpoint:transport}});await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'claude',cwd:f.root,mode:'read-only'}});
+ const next=reduceTeamEvent(f.state,{type:'subscription-accounting-enable-v2',team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});
+ Object.assign(f.team,next.state.teams.team);Object.assign(f.state,next.state);f.state.teams.team=f.team;return f;
+}
+test('Claude identity probe is admitted only after a same-peer preflight before capture and again between reserve and consume',async t=>{
+ const calls=[],f=await claudeSubscriptionFixture(t,claudePreflightTransport(calls));
+ const result=await f.host.subscriptionBootstrap({nonce:'claude-probe',estimateTokens:'40',maxTokens:'100'});
+ assert.equal(result.probe_passed,true);assert.equal(result.actual_tokens,'30');assert.equal(result.protected_roles_granted,false);
+ const x=f.state.subscription_invocations['subscription-claude-probe'];assert.equal(x.state,'settled');assert.equal(x.receipt.isolation_verified,true);
+ assert.equal(x.receipt.billing_before.provenance,'unavailable');assert.equal(x.receipt.billing_before.paid_fallback,'unknown');
+ assert.deepEqual(calls,['native-inspect','native-inspect','native-send','native-close']);
+ assert.ok(f.calls.indexOf('subscription-reserve-v2')<f.calls.indexOf('subscription-consume-v2'));
+});
+test('Claude preflight refused between reserve and consume aborts the reservation without inference or an uncertain charge',async t=>{
+ const calls=[],f=await claudeSubscriptionFixture(t,claudePreflightTransport(calls,{refuseAt:2}));
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'claude-refused',estimateTokens:'40',maxTokens:'100'}),{code:'host-subscription-owned-read-only-context-unverified'});
+ assert.equal(calls.includes('native-send'),false);assert.equal(f.calls.includes('subscription-consume-v2'),false);
+ assert.equal(f.state.subscription_invocations['subscription-claude-refused'].state,'aborted');
+ const first=[],g=await claudeSubscriptionFixture(t,claudePreflightTransport(first,{refuseAt:1}));
+ await assert.rejects(g.host.subscriptionBootstrap({nonce:'claude-first',estimateTokens:'40',maxTokens:'100'}),{code:'host-subscription-owned-read-only-context-unverified'});
+ assert.equal(g.calls.includes('subscription-reserve-v2'),false);assert.equal(first.includes('native-send'),false);
+});
+test('a Claude receipt bound to another preflight is settled with its tokens but not as an isolated context',async t=>{
+ const calls=[],f=await claudeSubscriptionFixture(t,claudePreflightTransport(calls,{staleBinding:true}));
+ await f.host.subscriptionBootstrap({nonce:'claude-stale',estimateTokens:'40',maxTokens:'100'});
+ const x=f.state.subscription_invocations['subscription-claude-stale'];assert.equal(x.receipt.actual_tokens,'30');assert.equal(x.receipt.isolation_verified,false);
+});
+test('a Claude transport that does not declare its pre-consume inspection is refused before any inspection',async t=>{
+ const calls=[],make=claudePreflightTransport(calls),f=await claudeSubscriptionFixture(t,async()=>({...await make(),preflight_before_consume:false}));
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'claude-undeclared',estimateTokens:'40',maxTokens:'100'}),{code:'host-subscription-owned-read-only-context-unverified'});
+ assert.equal(calls.includes('native-inspect'),false);assert.equal(f.calls.includes('subscription-reserve-v2'),false);
+});

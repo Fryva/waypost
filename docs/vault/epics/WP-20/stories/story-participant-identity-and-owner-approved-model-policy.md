@@ -139,3 +139,84 @@ Live transport plus projection on macOS with Claude Code 2.1.286 at
 closure. No user frame was sent. This is not live Host ledger capture, a calibrated
 cohort, Claude Host execution admission, desktop model discovery or full story
 acceptance. Those boundaries remain open.
+
+
+### Claude same-peer pre-inference preflight plan (2026-10-04, Claude Code)
+
+Gap: the Claude transport learns `system/init` tools only after the user frame,
+so the Host cannot verify a fresh no-tools context before reserve, consume and
+send, and keeps Claude out of subscription admission. Live observation on
+Claude Code 2.1.289 (no user frame sent): the native `get_context_usage`
+control request is answered by the same process before any turn, with context
+categories, `mcpTools`, `agents`, `memoryFiles`, a message breakdown and
+`apiUsage: null`. With `--tools ''` the categories are only System prompt,
+Messages, Autocompact buffer and Free space; with default tools it adds System
+tools, System tools (deferred) and Skills. `--safe-mode` loaded no memory files
+in the project directory.
+
+Plan: `claudeEndpoint.inspectContext` sends that request on the inference peer
+itself and verifies, fail-closed, that no turn, output or stream gap happened
+yet; only the four known categories appear; tools, agents and memory files are
+empty; every message bucket except a small unattributed baseline is zero with
+no tool calls or attachments; and `apiUsage` is null. Unknown categories or
+fields, malformed or duplicate responses refuse. `send` repeats the inspection
+immediately before writing the user frame and refuses without it. The receipt
+manifest marks the context fresh and read-only only when the pre-inference
+inspection and the existing post-turn `system/init` empty tools both hold.
+The Host admits Claude with its existing first-turn counter schema. Billing
+metadata stays unavailable (`unknown`), so no provider quota proof, paid
+fallback exclusion or account identity is claimed. Done when transport tests
+cover each refusal, Host tests admit a mocked Claude peer only after the
+preflight and refuse it otherwise, and one live owned call shows a verified
+preflight followed by a complete first-turn span.
+
+Plan revision after fresh-context criticism (revise): the default `full` detail
+of `get_context_usage` calls the authenticated token-count API per category and
+substitutes a placeholder message, which produced the Messages row; a gateway
+could even fall back to a one-token completion. The preflight therefore uses
+`detail: "summary"` (local estimates; live: no Messages row, unattributed 0,
+`apiUsage` null) and refuses gateway, Bedrock, Vertex and API-key routes from
+both the inherited environment and the initialize account route. The inference
+peer itself must answer an initialize request (`hooks: null`) whose `pid` is the
+spawned child; only route enums are kept, never email or organization. Rows are
+classified by `kind`: one `used` row named System prompt, any `buffer`/`free`
+rows, and nothing `deferred` or unknown. Semantics are pinned to binary versions
+read natively with `get_binary_version` (2.1.289 observed); other versions are
+unverified. `get_hooks_listing` must show no hooks. Inspection runs before
+context capture and again between reserve and consume, where a refusal aborts
+the reservation instead of leaving an uncertain charge; `send` writes the user
+frame only after checking the sticky gap state and marks the receipt fresh and
+read-only only when the bound preflight and the post-turn `system/init` empty
+tools both hold. Claude has unknown billing metadata (no account, quota or
+paid-fallback claim). Host admission is limited to the identity probe; trials
+and protocol control actions stay refused for Claude.
+
+Implementation: `scripts/team-transport.mjs` adds the preflight, post-turn init
+checks (no MCP server, `apiKeySource: "none"`, the preflighted binary) and
+unknown billing metadata for Claude; `scripts/team-host.mjs` admits Claude for
+the identity probe with a second inspection between reserve and consume and
+binds the receipt's isolation to that evidence digest. Hermetic tests: 37 Claude
+transport cases (22 new, including a spawn-time route variable) including every listed refusal, route environment,
+token-source routes, failed, unsolicited and duplicate control frames, a flagged
+frame between preflight answers, a concurrent send (busy) and a control timeout;
+mutation checks confirmed the recheck and busy guard are each caught (the
+pending-request guard is defence in depth, unreachable through the wrapper);
+four Host cases (undeclared pre-consume inspection refused, admitted,
+refused between reserve and consume with an aborted reservation and no send,
+stale binding settled but not isolated). Live on Claude Code 2.1.289: verified
+preflight, `OK`, complete 1,852-token span, isolated manifest bound to the
+evidence, process group closed. No live Host ledger capture, calibration,
+desktop, quota or strength evidence is claimed.
+
+Independent code review returned revise without blockers; fixed: post-turn
+`system/init` must carry empty `mcp_servers`, `apiKeySource: "none"` and the
+preflighted version (absent fields refuse), any `tokenSource` or other account
+key refuses, the route is checked on the spawn-time environment too, the Host
+requires the Claude transport to declare its pre-consume inspection, and the
+fake child carries a pid only on POSIX. Claude `inspect`/`review` contexts
+without a preflight are now reported as not isolated. Full `npm test` before
+these fixes: 1355 passed, 0 failed, 5 skipped; after them: 1357 passed, 0
+failed, 5 skipped. The live call repeated on the final code with the same
+result (2026-10-04T15:56:20Z).
+A delta review of these fixes returned ship; its two unpinned guards (spawn-time
+route, undeclared Host inspection) now have tests.

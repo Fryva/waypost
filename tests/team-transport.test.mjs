@@ -70,13 +70,13 @@ test('Codex isolated manifest requires observed fresh sandbox and empty external
   assert.equal(result.context_manifest.fresh_review_verified,true); assert.equal(result.context_manifest.provenance,'adapter-isolated');
   assert.equal(result.context_manifest.isolation_evidence.before.source,'native-thread-mcp-app-runtime'); endpoint.close();
 });
-test('Claude context isolation is admitted only after matching native init proves zero tools', async () => {
+test('Claude post-turn empty init tools alone no longer admit isolation without a same-peer preflight', async () => {
   const endpoint = await createNativeEndpoint({harness:'claude',cwd,managed:true}, {spawnProcess:() => childMock((m,emit) => {
     emit({type:'system',subtype:'init',session_id:m.session_id,tools:[]});
     emit({type:'result',session_id:m.session_id,result:'ok',modelUsage:{'claude-exact':{}}});
   })});
   const result = await endpoint.send({prompt:'hello',invocation_nonce:'nonce',read_only:true,max_output_chars:8192});
-  assert.equal(result.context_manifest.provenance,'adapter-isolated'); assert.equal(result.context_manifest.read_only,true);
+  assert.equal(result.context_manifest.provenance,'unverified'); assert.equal(result.context_manifest.read_only,false); assert.equal(result.context_manifest.preflight,null);
   assert.equal(result.actualModel.reasoning,'unknown'); endpoint.close();
 });
 test('timeout poisons the endpoint; a new invocation cannot duplicate uncertain inference', async () => {

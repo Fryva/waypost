@@ -297,7 +297,10 @@ export function createTeamHost(config, dependencies={}) {
  async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('host-subscription-v2-owner-opt-in-required');
-  if(!['codex','opencode'].includes(d.descriptor.harness)||d.descriptor.mode!=='read-only'||d.descriptor.harness==='opencode'&&d.descriptor.spawn_server!==true)fail('host-subscription-bootstrap-counter-adapter-unsupported');
+  if(!['codex','opencode','claude'].includes(d.descriptor.harness)||d.descriptor.mode!=='read-only'||d.descriptor.harness==='opencode'&&d.descriptor.spawn_server!==true)fail('host-subscription-bootstrap-counter-adapter-unsupported');
+  // Claude is admitted only for the identity probe; calibration and protocol
+  // control actions need evidence this increment does not establish.
+  if(d.descriptor.harness==='claude'&&(trialBinding||controlAction))fail('host-subscription-claude-identity-probe-only');
   if(typeof nonce!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(nonce))fail('host-subscription-bootstrap-nonce-required');
   for(const value of [estimateTokens,maxTokens])if(typeof value!=='string'||!/^[1-9][0-9]{0,17}$/.test(value))fail('host-subscription-bootstrap-token-bound-required');
   const invocationId='subscription-'+nonce;
@@ -320,7 +323,7 @@ export function createTeamHost(config, dependencies={}) {
    const nativeReceipt={invocation_id:receipt.invocation_id,native_id:receipt.native_id,usage_span:receipt.usage_span??null,actualModel:receipt.actualModel??null,context_manifest:receipt.context_manifest??null,output:rawOutput};
    const actionSeal=controlAction&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=8192?{action:controlAction,original_output:rawOutput,output_digest:routingDigest(rawOutput),native_receipt_digest:routingDigest(nativeReceipt),native_receipt:nativeReceipt,observed_at:receipt.actualModel?.observed_at??now(),outcome:nativeFailure===null?'completed':'failed'}:null;
    const measurementSeal=trialBinding&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=8192?{...trialBinding.measurement,observed_at:receipt.actualModel?.observed_at??now(),original_output:rawOutput,output_digest:routingDigest(rawOutput),native_receipt_digest:routingDigest(nativeReceipt),native_receipt:nativeReceipt,outcome:nativeFailure===null?'completed':'failed'}:null;
-   const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&receipt.context_manifest?.fresh_review_verified===true,billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null,...(measurementSeal?{measurement:measurementSeal}:{}),...(actionSeal?{action_seal:actionSeal}:{})}},collector());
+   const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&receipt.context_manifest?.fresh_review_verified===true&&(!transport.preflight_before_consume||typeof binding.preflight==='string'&&receipt.context_manifest?.preflight?.evidence_digest===binding.preflight),billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null,...(measurementSeal?{measurement:measurementSeal}:{}),...(actionSeal?{action_seal:actionSeal}:{})}},collector());
    const probePassed=!trialBinding&&nativeFailure===null&&typeof receipt.output==='string'&&receipt.output.trim()===token;
    let controlPassed=false;if(controlAction&&nativeFailure===null&&rawOutput!==null)try{readProtocolActionResponse(rawOutput,controlAction);controlPassed=true;}catch{}
    const eligibleReceipt=controlAction?controlPassed&&actionSeal!==null:trialBinding?nativeFailure===null&&measurementSeal!==null:probePassed;
@@ -346,6 +349,7 @@ export function createTeamHost(config, dependencies={}) {
    return {...settled.result,invocation_id:invocationId,probe_passed:probePassed,...(controlAction?{protocol_control_passed:controlPassed,action_capture:actionCapture}:{}),...(trialBinding?{calibration_trial:trialBinding.trial.id,trial_capture:trialCapture}:{}),native_failure:nativeFailure,observed_model:observed,observed_identity_kind:receipt.context_manifest?.model_provider_is_billing_route?'native-routing-id':'native-effective-model',usage_span:span||null,metadata_blocker:metadataBlocker,native_profile:nativeProfile,native_profile_status:nativeProfile?'retired-observation':'unavailable',native_profile_blocker:profileBlocker,billing_policy:'inherited-native',protected_roles_granted:false};
   }
   try{
+   if(d.descriptor.harness==='claude'&&transport.preflight_before_consume!==true)fail('host-subscription-owned-read-only-context-unverified');
    const isolated=await transport.inspectContext();if(isolated.verified!==true||transport.owns_process===false)fail('host-subscription-owned-read-only-context-unverified');
    let before=await transport.captureAccountingMetadata();
    // Native login initialization may notify during the first nonbillable read.
@@ -353,7 +357,7 @@ export function createTeamHost(config, dependencies={}) {
    if(before.consistent===false)before=await transport.captureAccountingMetadata();
    const contextId='subscription-context-'+randomUUID();
    const schema=transport.usage_counter_schema;
-   const allowedSchema={codex:'codex-thread-cumulative-total-v1',opencode:'opencode-native-normalized-step-total-v1'};
+   const allowedSchema={codex:'codex-thread-cumulative-total-v1',opencode:'opencode-native-normalized-step-total-v1',claude:'claude-native-first-turn-total-v1'};
    if(schema!==allowedSchema[d.descriptor.harness])fail('host-subscription-bootstrap-counter-adapter-unsupported');
    const unit={scope:'team-native-counter',team:t.id,counter_schema:schema},unitDigest=routingDigest(unit);
    binding={before,contextId,unit};
@@ -367,6 +371,9 @@ export function createTeamHost(config, dependencies={}) {
    }
    const latest=getTeam().t;
    mutate('subscription-reserve-v2',{reservation:{id:invocationId,participant:p.id,incarnation:p.incarnation,context_id:contextId,purpose:controlAction?'protocol-control':trialBinding?'calibration':'identity',...(controlAction?{action:controlAction}:{}),...(trialBinding?{measurement:trialBinding.measurement}:{}),requested_model:{provider:'unknown',model_id:d.descriptor.model_id||'native-default',reasoning:d.descriptor.reasoning||'native-default'},nonce,suite_digest:suiteDigest,max_calls:1,timeout_ms:d.descriptor.timeout_ms||60000,estimate_tokens:estimateTokens,epoch:latest.epoch,quota_revision:latest.quota_revision||0,mode_revision:latest.accounting.revision,allocation_revision:allocation.revision}},o);
+   // A transport whose isolation is only observable before its first turn is
+   // inspected again here, where a refusal still aborts the reservation.
+   if(transport.preflight_before_consume){const again=await transport.inspectContext();if(again.verified!==true||typeof again.evidence_digest!=='string')fail('host-subscription-owned-read-only-context-unverified');binding.preflight=again.evidence_digest;}
    mutate('subscription-consume-v2',{invocation_id:invocationId,nonce,native_id:transport.native_id,...(controlAction?{prompt_digest:controlAction.prompt_digest}:trialBinding?{prompt_digest:trialBinding.measurement.prompt_digest}:{})},collector());consumed=true;
    const receipt=await transport.send(prompt,{id:nonce,purpose:controlAction?'protocol-control':trialBinding?'calibration':'identity',read_only:true,max_output_chars:trialBinding||controlAction?8192:256});
    return await accountReceipt(receipt);

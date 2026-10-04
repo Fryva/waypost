@@ -425,9 +425,10 @@ within output tokens and is never added to the total. The distinction between pe
 whole-call `modelUsage` makes the fresh single-turn boundary essential.
 See [Claude SDK usage tracking](https://code.claude.com/docs/en/agent-sdk/cost-tracking).
 
-Claude subscription Host admission remains unsupported: nonbillable pre-inference
-isolation inspection has not been verified. Transport telemetry does not enable
-bootstrap, calibration, coordinator acknowledgement or protected task execution.
+Until 2026-10-04 Claude subscription Host admission was unsupported because no
+nonbillable pre-inference isolation inspection was verified; the same-peer
+preflight below now admits the identity probe only. Transport telemetry still
+does not enable calibration, coordinator acknowledgement or protected task execution.
 Desktop telemetry requires its own observation. On 2026-10-03, a separate owned
 Claude Code 2.1.286 CLI session returned `OK` with observed
 `anthropic / claude-opus-5-5`, unknown reasoning, empty native tools and a complete
@@ -775,3 +776,44 @@ case locally). A synthetic ledger of 1,000 events with a 3 MB state replays
 cold in 4.8 s and reads warm in 26 ms; the first read of a new process still
 pays the cold cost. This is hermetic evidence with mocked provider transport,
 not live provider recovery.
+
+### Claude same-peer pre-inference preflight
+
+The Claude CLI reports its tools in `system/init` only after the user frame, so
+the Host could not see a fresh no-tools context before reserve, consume and
+send. The transport now asks the inference process itself, before any user
+frame, through native control requests: `initialize` (`hooks: null`; its `pid`
+must be the spawned child and its account route `firstParty` without an API key
+source; email and organization are discarded), `get_binary_version` (semantics
+pinned to 2.1.289), `get_hooks_listing` (no hooks) and `get_context_usage` with
+`detail: "summary"`. The default `full` detail calls the authenticated
+token-count API and inserts a placeholder message, so it is never used. The
+summary must show one `used` row (System prompt) and only `buffer`/`free` rows
+otherwise, no memory files, MCP tools or agents, every message bucket zero and
+`apiUsage: null`; unknown fields, kinds or versions refuse, and a refusal is
+sticky for that process. Gateway, Bedrock, Vertex, Foundry, API-key and bridge
+environment routes refuse before any request. Any unsolicited control frame,
+duplicate answer, output or turn breaks the bound evidence.
+
+The Host inspects before context capture and again between reserve and consume,
+where a refusal aborts the reservation instead of leaving an uncertain charge.
+The receipt is isolated only when its manifest carries the evidence digest of
+that last inspection and the turn's `system/init` carries empty tools, empty
+`mcp_servers`, `apiKeySource: "none"` and the preflighted binary version; an
+absent field refuses. Any account key beyond email, organization, subscription
+type and `apiProvider` (such as `tokenSource`) refuses, and the route is judged
+on the spawn-time environment as well as at inspection. Other Claude contexts
+(`inspect`, `review`) that skip the preflight are reported as not isolated. Billing metadata
+stays unavailable: no account, quota or paid-fallback claim. Admission is
+limited to the identity probe; calibration trials and protocol control actions
+remain refused for Claude.
+
+Live on macOS with Claude Code 2.1.289 (2026-10-04): with `--tools ''`, strict
+empty MCP, `--safe-mode` and `--restricted` the summary showed System prompt
+1,428 tokens, buffer and free rows only and `apiUsage: null`; with default tools
+it adds System tools, deferred tools and Skills rows. One owned transport call
+verified the preflight twice, returned `OK` from `claude-opus-5-5` with a
+complete 1,852-token first-turn span, an isolated manifest bound to the second
+inspection, and closed its process group. This is direct transport evidence,
+not Host ledger capture on a live authority, calibration, desktop behaviour or
+model strength.

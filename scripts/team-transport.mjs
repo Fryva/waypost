@@ -138,6 +138,7 @@ function processPeer(d, argv, spawnProcess, metadataGuard = null) {
     }
   });
   return {
+    pid: child.pid,
     resetBudget() { bytes = 0; },
     write(message) { if (stopped) throw fail('native-process-ended'); child.stdin.write(JSON.stringify(message) + '\n'); },
     listen(fn) { listeners.add(fn); return () => listeners.delete(fn); },
@@ -300,6 +301,37 @@ async function codexEndpoint(d, spawnProcess) {
   };
 }
 
+// Pre-inference evidence from the inference peer itself. Semantics were read
+// from these native binaries only; any other version stays unverified.
+const CLAUDE_PREFLIGHT_VERSIONS = ['2.1.289'];
+const CLAUDE_CONTEXT_KEYS = ['categories','totalTokens','maxTokens','rawMaxTokens','autocompactSource','percentage','gridRows','model','memoryFiles','mcpTools','agents','autoCompactThreshold','isAutoCompactEnabled','messageBreakdown','apiUsage'];
+const CLAUDE_MESSAGE_COUNTERS = ['toolCallTokens','toolResultTokens','attachmentTokens','assistantMessageTokens','userMessageTokens','redirectedContextTokens','unattributedTokens'];
+const plainObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const emptyList = value => Array.isArray(value) && value.length === 0;
+// `summary` detail is the CLI's local estimate; the default `full` detail calls
+// the authenticated token-count API and substitutes a placeholder message.
+function claudeFreshNoToolsContext(r) {
+  if (!plainObject(r) || Object.keys(r).some(key => !CLAUDE_CONTEXT_KEYS.includes(key))) return null;
+  if (r.apiUsage !== null || !emptyList(r.memoryFiles) || !emptyList(r.mcpTools) || !emptyList(r.agents)) return null;
+  const b = r.messageBreakdown;
+  if (!plainObject(b) || Object.keys(b).length !== CLAUDE_MESSAGE_COUNTERS.length + 2 || CLAUDE_MESSAGE_COUNTERS.some(key => b[key] !== 0) || !emptyList(b.toolCallsByType) || !emptyList(b.attachmentsByType)) return null;
+  if (!Array.isArray(r.categories) || !r.categories.length || r.categories.length > 16) return null;
+  // Classify rows by their kind; display names are not a stable contract,
+  // except that the only content in use may be the system prompt.
+  let used = null;
+  for (const row of r.categories) {
+    if (!plainObject(row) || Object.keys(row).some(key => !['name','tokens','color','kind'].includes(key)) || !bounded(row.name,128) || !Number.isSafeInteger(row.tokens) || row.tokens < 0) return null;
+    if (row.kind === 'used') { if (used !== null || row.name !== 'System prompt') return null; used = row.tokens; }
+    else if (!['buffer','free'].includes(row.kind)) return null;
+  }
+  return used === null ? null : {system_prompt_tokens:used};
+}
+function claudeSubscriptionRouteFromEnvironment(env = process.env) {
+  const set = name => typeof env[name] === 'string' && env[name] !== '' && !['0','false'].includes(env[name].toLowerCase());
+  // A bridge or hosted worker environment reports empty memory files regardless.
+  return !['ANTHROPIC_BASE_URL','ANTHROPIC_API_KEY','ANTHROPIC_AUTH_TOKEN','CLAUDE_CODE_USE_BEDROCK','CLAUDE_CODE_USE_VERTEX','CLAUDE_CODE_USE_FOUNDRY','CLAUDE_CODE_ENVIRONMENT_KIND'].some(set);
+}
+
 async function claudeEndpoint(d, spawnProcess) {
   const nativeId = randomUUID();
   const argv = ['-p','--verbose','--input-format','stream-json','--output-format','stream-json','--session-id',nativeId,'--tools','','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--safe-mode','--restricted','--max-turns','1','--no-session-persistence'];
@@ -314,10 +346,17 @@ async function claudeEndpoint(d, spawnProcess) {
   const modelFields = [...camel,'webSearchRequests','costUSD','contextWindow','maxOutputTokens','canonicalModel','provider','thinkingTokens','costBasis'];
   let initTools = null, gap = false, isolationGap = false, sends = 0, outputSeen = false;
   const terminals = new Map();
+  // The route is judged on the environment the child was spawned with, and again at inspection.
+  const spawnRoute = claudeSubscriptionRouteFromEnvironment();
+  let preflight = null, preflightBroken = false, peerIdentity = null;
+  const pendingControl = new Set();
   // A late init cannot retroactively certify an earlier output. Stream gaps are
   // sticky; a fresh result or a later empty tools list never repairs them.
   const offInit = peer.listen(m => {
     if (!m) return;
+    // Only answers to this endpoint's own outstanding requests are expected.
+    // A native control request would ask permission for a tool.
+    if (m.type === 'control_request' || (m.type === 'control_response' && !pendingControl.has(m.response?.request_id))) { gap = true; isolationGap = true; }
     if (m.session_id && m.session_id !== nativeId) { gap = true; isolationGap = true; return; }
     if (m.parent_tool_use_id || m.event?.parent_tool_use_id || ['tool_progress','tool_use_summary','tool_result','tool_use','error'].includes(m.type) || (m.type === 'system' && ['task_started','task_progress','task_notification','compact_boundary','conversation_reset','api_error','new_turn'].includes(m.subtype))) { gap = true; isolationGap = true; }
     const blocks = m.message?.content || (m.event?.type === 'content_block_start' ? [m.event.content_block] : []);
@@ -325,6 +364,8 @@ async function claudeEndpoint(d, spawnProcess) {
     if (m.type === 'system' && m.subtype === 'init') {
       if (m.session_id !== nativeId || outputSeen || initTools !== null || !Array.isArray(m.tools)) { gap = true; isolationGap = true; }
       if (Array.isArray(m.tools)) { initTools = m.tools; if (m.tools.length) { gap = true; isolationGap = true; } }
+      // The turn itself must run the same binary, with no MCP server and no API key route.
+      if (!emptyList(m.mcp_servers) || m.apiKeySource !== 'none' || m.claude_code_version !== peerIdentity?.version) isolationGap = true;
     } else if (['assistant','stream_event','result'].includes(m.type)) {
       outputSeen = true;
       if (sends === 0) { gap = true; isolationGap = true; }
@@ -338,7 +379,51 @@ async function claudeEndpoint(d, spawnProcess) {
       else { terminals.set(m.uuid,(terminals.get(m.uuid)||0)+1); if (terminals.get(m.uuid)>1) gap = true; }
     }
   });
-  return {native_id:nativeId,usage_counter_schema:schema,async send(text) {
+  const used = () => sends > 0 || outputSeen || gap || isolationGap;
+  const control = request => {
+    const id = 'waypost-' + randomUUID(); pendingControl.add(id);
+    return waitFrame(peer,d.timeout_ms,m => {
+      if (m.type !== 'control_response' || m.response?.request_id !== id) return;
+      pendingControl.delete(id);
+      if (m.response.subtype !== 'success' || !plainObject(m.response.response)) throw fail('native-preflight-rejected');
+      return m.response.response;
+    },() => peer.write({type:'control_request',request_id:id,request}));
+  };
+  async function inspectContext() {
+    const refuse = blocker => { preflightBroken = true; preflight = null; return {verified:false,blocker}; };
+    if (preflightBroken) return {verified:false,blocker:'native-claude-preflight-refused'};
+    if (used()) return refuse('native-context-already-used');
+    if (!spawnRoute || !claudeSubscriptionRouteFromEnvironment()) return refuse('native-claude-first-party-subscription-route-unverified');
+    try {
+      if (!peerIdentity) {
+        const init = await control({subtype:'initialize',hooks:null});
+        // Keep only the route enum; never the account's email or organization.
+        // Any token or API key source names a route other than the login subscription.
+        if (!Number.isSafeInteger(init.pid) || init.pid !== peer.pid || !plainObject(init.account) || init.account.apiProvider !== 'firstParty' || Object.keys(init.account).some(key => !['email','organization','subscriptionType','apiProvider'].includes(key))) return refuse('native-claude-first-party-subscription-route-unverified');
+        const binary = await control({subtype:'get_binary_version'});
+        if (!CLAUDE_PREFLIGHT_VERSIONS.includes(binary.version)) return refuse('native-claude-preflight-version-unverified');
+        peerIdentity = {pid:init.pid,version:binary.version,api_provider:'firstParty'};
+      }
+      const hooks = await control({subtype:'get_hooks_listing'});
+      if (!emptyList(hooks.events) || !emptyList(hooks.hooks)) return refuse('native-claude-hooks-present');
+      const fresh = claudeFreshNoToolsContext(await control({subtype:'get_context_usage',detail:'summary'}));
+      if (!fresh) return refuse('native-claude-context-not-fresh-no-tools');
+      if (used()) return refuse('native-context-already-used');
+      const observed_at = new Date().toISOString();
+      preflight = {source:'native-get-context-usage-summary',native_id:nativeId,...peerIdentity,...fresh,observed_at};
+      preflight.evidence_digest = digest(preflight);
+      return {verified:true,source:preflight.source,observed_at,evidence_digest:preflight.evidence_digest};
+    } catch { return refuse('native-claude-preflight-failed'); }
+  }
+  return {native_id:nativeId,usage_counter_schema:schema,preflight_before_consume:true,inspectContext,
+    async captureAccountingMetadata() {
+      // No native same-peer billing observation exists; never infer one.
+      return {provider:null,origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'unavailable',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:0,consistent:true};
+    },
+    async send(text) {
+    // The preflight binds only if no flagged frame, output, turn or outstanding
+    // control request happened on this peer since.
+    const bound = !used() && pendingControl.size === 0 ? preflight : null;
     const first = ++sends === 1; if (!first) gap = true;
     peer.resetBudget();
     const m = await waitFrame(peer,d.timeout_ms,message => {
@@ -372,10 +457,10 @@ async function claudeEndpoint(d, spawnProcess) {
     }
     const sum = top?.reduce((total,n) => total + BigInt(n),0n);
     const complete = first && !gap && ownTerminal && terminals.get(m.uuid) === 1 && initTools?.length === 0 && m.num_turns === 1 && typeof m.is_error === 'boolean' && top && aggregate && top.every((n,i) => BigInt(n) === aggregate[i]) && sum > 0n;
-    const isolated = !isolationGap && initTools?.length === 0;
+    const isolated = !isolationGap && initTools?.length === 0 && bound !== null;
     const result = {output:typeof m.result === 'string' ? m.result : '',actualModel:{provider:process.env.ANTHROPIC_BASE_URL ? 'unknown' : 'anthropic',model_id:models.length === 1 ? models[0] : 'unknown',reasoning:'unknown',observed_at:new Date().toISOString()},usage:m.usage || null,native_id:nativeId,
       usage_span:{protocol:1,schema,native_id:nativeId,turn_id:ownTerminal ? m.uuid : null,coverage:complete ? 'complete' : top ? 'partial' : 'absent',before:complete ? '0' : null,after:complete ? String(sum) : null,actual_tokens:complete ? String(sum) : null,scope:'observed-first-owned-main-loop-buckets',baseline_source:complete ? 'native-first-turn-matched-model-usage' : null},
-      context_manifest:manifest(d,nativeId,first,{tools:initTools,read_only:isolated,isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated && first,reasoning_requested:d.reasoning || null})};
+      context_manifest:manifest(d,nativeId,first,{tools:initTools,preflight:bound,read_only:isolated,isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated && first,reasoning_requested:d.reasoning || null})};
     if (m.is_error) throw Object.assign(fail('native-turn-failed'),{native_receipt:result});
     return result;
   },close:() => {offInit();peer.close();},stopAndWait:options => {offInit();return peer.stopAndWait(options);} };
@@ -475,7 +560,7 @@ export async function createNativeEndpoint(descriptor, dependencies = {}) {
     endpoint = d.harness === 'codex' ? await codexEndpoint(d,dependencies.spawnProcess || spawn) : d.harness === 'claude' ? await claudeEndpoint(d,dependencies.spawnProcess || spawn) : await opencodeEndpoint(d,dependencies.fetchImpl || fetch);
   } catch (e) { if(server)await server.stopAndWait();throw e; }
   let busy = false, poisoned = false, closed = false; const attempts = new Set();
-  return {async captureAccountingMetadata(){if(closed||poisoned)throw fail('native-endpoint-closed');if(busy)throw fail('native-endpoint-busy');if(!endpoint.captureAccountingMetadata)throw fail('native-accounting-metadata-unsupported');busy=true;try{return await endpoint.captureAccountingMetadata();}catch(error){poisoned=true;endpoint.close();server?.close();throw error;}finally{busy=false;}},native_id:endpoint.native_id,usage_counter_schema:endpoint.usage_counter_schema || null,owns_process:Boolean(server)||d.harness!=='opencode',descriptor:{harness:d.harness,cwd:d.cwd,mode:d.mode,version:d.version || 'unknown'},async inspectContext(){if(!endpoint.inspectContext)throw fail('native-context-inspection-unsupported');return endpoint.inspectContext();},async send(text,invocation) {
+  return {async captureAccountingMetadata(){if(closed||poisoned)throw fail('native-endpoint-closed');if(busy)throw fail('native-endpoint-busy');if(!endpoint.captureAccountingMetadata)throw fail('native-accounting-metadata-unsupported');busy=true;try{return await endpoint.captureAccountingMetadata();}catch(error){poisoned=true;endpoint.close();server?.close();throw error;}finally{busy=false;}},native_id:endpoint.native_id,usage_counter_schema:endpoint.usage_counter_schema || null,owns_process:Boolean(server)||d.harness!=='opencode',descriptor:{harness:d.harness,cwd:d.cwd,mode:d.mode,version:d.version || 'unknown'},preflight_before_consume:endpoint.preflight_before_consume===true,async inspectContext(){if(!endpoint.inspectContext)throw fail('native-context-inspection-unsupported');if(closed||poisoned)throw fail('native-endpoint-closed');if(busy)throw fail('native-endpoint-busy');busy=true;try{return await endpoint.inspectContext();}finally{busy=false;}},async send(text,invocation) {
     if (text && typeof text === 'object') { const request = text; text = request.prompt; invocation = {id:request.invocation_nonce,purpose:request.purpose,max_output_chars:request.max_output_chars,read_only:request.read_only}; }
     if (closed) throw fail('native-endpoint-closed');
     if (poisoned) throw fail('native-outcome-uncertain');
