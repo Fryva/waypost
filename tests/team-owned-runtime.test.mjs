@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, realpathSync, rmSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, verifyOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion } from '../scripts/team-owned-runtime.mjs';
+import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, verifyOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion, serializeOwnedRuntimeStopProof } from '../scripts/team-owned-runtime.mjs';
 
 const defer=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 function fixture(){const directory=mkdtempSync(join(realpathSync(tmpdir()),'waypost-owned-runtime-'));const options={directory,team:'team',participant:'worker',incarnation:'inc',epoch:1,descriptorDigest:'a'.repeat(64)};return {options,runtime:createOwnedRuntime(options),cleanup:()=>rmSync(directory,{recursive:true,force:true})};}
@@ -93,4 +93,22 @@ test('completion refuses unclosed callbacks, unrelated native proof and mismatch
   const closedName=readdirSync(f.options.directory).find(n=>n.endsWith('.closed.json')),closed=record(f,'.closed.json');closed.closure_proofs[0].native_id='foreign';writeFileSync(join(f.options.directory,closedName),JSON.stringify(closed));assert.throws(()=>collectOwnedRuntimeCompletion(selectors),/native-closure/);
   closed.closure_proofs[0].native_id=selectors.native_id;writeFileSync(join(f.options.directory,closedName),JSON.stringify(closed));const effectName=readdirSync(f.options.directory).find(n=>n.endsWith('.effect-0.json')),effect=JSON.parse(readFileSync(join(f.options.directory,effectName),'utf8'));effect.nonce='changed';writeFileSync(join(f.options.directory,effectName),JSON.stringify(effect));assert.throws(()=>collectOwnedRuntimeCompletion(selectors),/effect-mismatch/);
  }finally{release.resolve();f.cleanup();}
+});
+
+
+test('strict epoch stop serialization comes only from actual callback drain and group proofs',async()=>{
+ const f=fixture();try{
+  await f.runtime.run({kind:'protocol-control',operation:'strict-stop'},async scope=>{await scope.native(async()=>({native_id:'strict-native',async stopAndWait(){return {stopped:true,owned_processes:1,process_group_closed:true};}}));scope.annotate({type:'subscription-consume-v2',nonce:'strict-nonce',invocation_id:'strict-invocation',native_id:'strict-native'});});
+  const stopped=await stopOwnedRuntime({...f.options,requiredOperations:['strict-invocation','strict-nonce']});
+  assert.deepEqual(Object.keys(stopped),['stopped','team','participant','incarnation','epoch','descriptor_digest','operations','evidence_digest']);
+  const proof=serializeOwnedRuntimeStopProof(stopped);assert.equal(proof.protocol,2);assert.equal(proof.callback_drained,true);assert.equal(proof.epoch_barrier,true);assert.deepEqual(proof.required_operations,['strict-invocation','strict-nonce']);
+  for(const copy of [structuredClone(stopped),JSON.parse(JSON.stringify(stopped))])assert.throws(()=>serializeOwnedRuntimeStopProof(copy),/provenance/);
+  stopped.epoch++;assert.throws(()=>serializeOwnedRuntimeStopProof(stopped),/provenance/);
+ }finally{f.cleanup();}
+});
+test('legacy child-only stop evidence cannot become a strict protocol epoch stop',async()=>{
+ const f=fixture();try{
+  await f.runtime.run({kind:'legacy',operation:'child-only'},scope=>scope.native(endpoint));
+  const stopped=await stopOwnedRuntime(f.options);assert.equal(stopped.stopped,true);assert.throws(()=>serializeOwnedRuntimeStopProof(stopped),/provenance/);
+ }finally{f.cleanup();}
 });

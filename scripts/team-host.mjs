@@ -10,13 +10,14 @@ import { routingDigest } from './model-routing.mjs';
 import { createProtocolRoleSuite, formatProtocolTrial, summarizeProtocolRole } from './team-role-suite.mjs';
 import { createRoutingGrant, serializeRoutingGrant } from './team-evidence.mjs';
 import { collectQuotaObservation, serializeQuotaObservation, quotaEligible } from './team-quota.mjs';
+import { collectNativeProtocolQuota, serializeNativeProtocolQuota } from './team-native-quota.mjs';
 import { observeNativeProviderQuota } from './team-quota-native.mjs';
 import { createNativeEndpoint, createNativeModelInventoryEndpoint, nativeInventoryFailureClosure, validateNativeDescriptor } from './team-transport.mjs';
 import { harness as harnessDefinition } from './agents.mjs';
 import { collectModelInventory, metadataDescriptor } from './team-model-inventory.mjs';
-import { createProtocolLeaderAckRequest, createProtocolLeadershipAuditRequest, formatProtocolLeaderAck, formatProtocolAction, readProtocolActionResponse } from './team-native-action.mjs';
+import { createProtocolLeaderAckRequest, createProtocolLeadershipAuditRequest, createProtocolHandoverAckRequest, formatProtocolLeaderAck, formatProtocolAction, readProtocolActionResponse } from './team-native-action.mjs';
 import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
-import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion } from './team-owned-runtime.mjs';
+import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion, serializeOwnedRuntimeStopProof } from './team-owned-runtime.mjs';
 import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest } from './team-integration.mjs';
 import { leasesOverStaged } from './commit.mjs';
 import { sessionId } from './lib.mjs';
@@ -64,7 +65,7 @@ export function createTeamHost(config, dependencies={}) {
   return d;
  }
  function record(name){return join(hostDir,portable(name)+'.json');}
- async function managedOperation(kind,fn,{handoverControl=false,forceOwned=false,operation,afterCompletion}={}) {
+ async function managedOperation(kind,fn,{handoverControl=false,nativeHandoverControl=false,forceOwned=false,operation,afterCompletion}={}) {
   if(operationBusy)fail('host-operation-busy');
   operationBusy=true;
   try{
@@ -76,6 +77,11 @@ export function createTeamHost(config, dependencies={}) {
   if(d.descriptor.mode==='workspace-write'||(d.descriptor.executable&&!['codex','claude','opencode'].includes(d.descriptor.executable)))fail('host-owned-supervision-verified-read-only-adapter-required');
   if(d.descriptor.harness==='opencode'&&!d.descriptor.spawn_server){if(forceOwned)fail('host-owned-control-endpoint-required');return await fn();}
   let epoch=t.epoch;
+  if(nativeHandoverControl){
+   const transition=t.native_protocol_handover;
+   if(transition?.state!=='prepared'||transition.candidate!==p.id||transition.old_epoch!==t.epoch||transition.target_epoch!==t.epoch+1)fail('host-native-handover-control-binding-required');
+   epoch=transition.target_epoch;
+  }
   if(handoverControl){
    if(t.status!=='handover'||t.candidate!==p.id||!t.handover||t.handover.target_epoch!==t.epoch+1)fail('host-authority-bound-handover-control-required');
    epoch=t.handover.target_epoch;
@@ -209,7 +215,7 @@ export function createTeamHost(config, dependencies={}) {
    owner();const d=endpoint(),{v}=getTeam(),x=v.state.subscription_invocations?.[invocationId];
    if(x?.action?.kind!==kind||x.team!==team||x.participant!==d.participant||x.incarnation!==v.state.teams[team].participants[d.participant].incarnation||x.descriptor_digest!==routingDigest(d.descriptor))fail('host-protocol-recovery-source-required');
    const p=v.state.teams[team].participants[d.participant],registered=p.host_binding?readParticipantHost({state:v.state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)}):null;
-   if(!x.action_observation&&!x.action_ack&&!x.protocol_review){
+   if(!x.action_observation&&!x.action_ack&&!x.protocol_review&&!x.protocol_handover_ack){
     const seal=x.action_seal;
     if(x.state!=='settled'||x.action_blocker||seal?.outcome!=='completed'||Date.parse(seal.observed_at)+900000<=Date.parse(now()))fail('host-original-settled-action-profile-source-required');
     const receipt=seal.native_receipt,ctx=receipt.context_manifest;
@@ -217,11 +223,77 @@ export function createTeamHost(config, dependencies={}) {
     const profile=await collectNativeActionProfile({participant:p,action:x.action,request:x.action.request,adapter_revision:'waypost-native-profile-1',requested_configuration:{model_id:d.descriptor.model_id??null,provider_id:d.descriptor.provider_id??null,reasoning:d.descriptor.reasoning??null,mode:d.descriptor.mode,initial_instructions_digest:ctx.initial_instructions_digest??null,rules_digest:d.descriptor.rules_digest??null},execution_environment:{platform:process.platform,architecture:process.arch},now:()=>Date.parse(seal.sealed_at),observe:async()=>({...receipt,observed_at:seal.observed_at,correlation:{participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,nonce:x.nonce,invocation_id:receipt.invocation_id,native_id:receipt.native_id,context_id:ctx.id},admission:{purpose:'protocol-control',state:x.state,context_quarantined:false,billing_policy:'inherited-native',nonce:x.nonce,invocation_id:x.id,participant:x.participant,incarnation:x.incarnation,model_revision:x.model_revision,native_id:x.context.native_id,actual_tokens:x.charged_tokens,action:x.action,request_digest:x.action.request_digest,original_output:seal.original_output,output_digest:seal.output_digest,native_receipt_digest:seal.native_receipt_digest,observed_at:seal.observed_at}})});
     mutate('native-action-profile-capture-v2',{invocation_id:x.id,nonce:x.nonce,profile:serializeNativeModelProfile(profile,{now:()=>Date.parse(now())})},collector(),'native-action-profile-'+x.nonce);
    }
-   return afterCompletion({invocation_id:x.id,recovery:true},{directory:join(registered?dirname(registered.binding.host_file):hostDir,'runtime'),team,participant:p.id,incarnation:x.incarnation,epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.action.operation_id});
+   return afterCompletion({invocation_id:x.id,recovery:true},{directory:join(registered?dirname(registered.binding.host_file):hostDir,'runtime'),team,participant:p.id,incarnation:x.incarnation,epoch:x.action.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.action.operation_id});
   }finally{operationBusy=false;}
  }
  const recoverProtocolLeadership=options=>recoverProtocolAction(options,'protocol-leader-ack',captureProtocolLeadership);
  const recoverProtocolAudit=options=>recoverProtocolAction(options,'protocol-leadership-audit',captureProtocolAudit);
+ function enableNativeProtocolQuota({revision,policy}={}){
+  return mutate('native-protocol-quota-enable-v2',{revision,policy},owner());
+ }
+ function enableNativeProtocolHandover({revision,policy}={}){
+  return mutate('native-protocol-handover-enable-v2',{revision,policy},owner());
+ }
+ function captureProtocolHandover(result,selectors){
+  const x=load().state.subscription_invocations?.[result.invocation_id];
+  if(x?.protocol_handover_ack)return {...result,handover_acknowledged:true,replayed:true,handover_ack:x.protocol_handover_ack,protected_actions_granted:false};
+  if(!x?.action_observation)return {...result,handover_acknowledged:false,action_blocker:x?.action_blocker||result.native_profile_blocker||'native-action-profile-required'};
+  const completion=collectOwnedRuntimeCompletion({...selectors,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id});
+  const applied=mutate('native-protocol-handover-ack-capture-v2',{invocation_id:x.id,nonce:x.nonce,completion:serializeOwnedRuntimeCompletion(completion)},collector(),'native-handover-ack-'+x.nonce).result;
+  return {...result,handover_acknowledged:true,handover_ack:applied,protected_actions_granted:false};
+ }
+ async function acknowledgeNativeProtocolHandover({actionId,nonce,estimateTokens='16000'}={}){
+  owner();const d=endpoint(),{v,t}=getTeam();
+  const core=createProtocolHandoverAckRequest(v.state,t,{actionId,now:Date.parse(now())});
+  if(core.request.participant!==d.participant)fail('host-native-handover-candidate-endpoint-required');
+  const action={...core,operation_id:randomUUID(),prompt_digest:routingDigest(formatProtocolAction(core))};
+  return managedOperation('protocol-handover-ack',()=>subscriptionSingleCall({nonce,estimateTokens,controlAction:action}),{nativeHandoverControl:true,forceOwned:true,operation:action.operation_id,afterCompletion:captureProtocolHandover});
+ }
+ const recoverProtocolHandover=options=>recoverProtocolAction(options,'protocol-handover-ack',captureProtocolHandover);
+ async function captureNativeProtocolStop({epoch}={}){
+  owner();if(operationBusy||activeOperation)fail('host-native-handover-stop-callback-active');
+  const d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
+  const record=await stopParticipant({participant:p,epoch});
+  const proof=serializeOwnedRuntimeStopProof(record);
+  return mutate('native-protocol-handover-stop-capture-v2',{stop_proof:proof},collector(),'native-handover-stop-'+routingDigest(proof)).result;
+ }
+ async function driveNativeProtocolQuotaHandover({actionId,nonce,estimateTokens}={}){
+  owner();if(operationBusy||activeOperation)fail('host-native-handover-requires-callback-drain');
+  let {t}=getTeam(),transition=t.native_protocol_handover;
+  if(!transition||transition.state==='applied')return {redistributed:false,status:t.status,scope:'waypost-protocol',protected_actions_granted:false};
+  const resolveHost=dependencies.resolveParticipantHost||resolveParticipantHost;
+  if(transition.state!=='prepared'){
+   for(const scope of transition.stop_set){
+    const host=await resolveHost(scope.participant);
+    if(typeof host?.captureNativeProtocolStop!=='function')fail('host-native-handover-stop-capability-unavailable');
+    await host.captureNativeProtocolStop({epoch:scope.epoch});
+   }
+   mutate('native-protocol-handover-prepare-v2',{},owner(),'native-handover-prepare-'+transition.id);
+  }
+  t=getTeam().t;transition=t.native_protocol_handover;
+  if(transition?.state!=='prepared')fail('host-native-handover-prepare-required');
+  const candidate=await resolveHost(transition.candidate);
+  if(typeof candidate?.acknowledgeNativeProtocolHandover!=='function')fail('host-native-handover-candidate-capability-unavailable');
+  const token=sha(transition.id).slice(0,32),attemptNonce=nonce||'handover_'+token,invocationId='subscription-'+attemptNonce;
+  const previous=load().state.subscription_invocations?.[invocationId];
+  if(previous){
+   if(previous.action?.kind!=='protocol-handover-ack'||previous.action.request.handover_id!==transition.id)fail('host-native-handover-attempt-binding-changed');
+   if(typeof candidate.recoverProtocolHandover!=='function')fail('host-native-handover-recovery-capability-unavailable');
+   return candidate.recoverProtocolHandover({invocationId});
+  }
+  return candidate.acknowledgeNativeProtocolHandover({actionId:actionId||'handover-'+token,nonce:attemptNonce,estimateTokens:estimateTokens||t.native_handover_policy?.max_estimate_tokens||'16000'});
+ }
+ async function observeNativeProtocolQuota({sourceInvocationId,drive=true}={}){
+  owner();if(operationBusy||activeOperation)fail('host-native-quota-observation-operation-active');
+  if(typeof dependencies.observeNativeProtocolProviderQuota!=='function')fail('host-native-protocol-provider-observer-unsupported');
+  const d=endpoint(),{v,t}=getTeam(),p=t.participants[d.participant];
+  const observation=await collectNativeProtocolQuota({state:v.state,team:t,participant:p,sourceInvocationId,now:()=>Date.parse(now()),observe:binding=>dependencies.observeNativeProtocolProviderQuota({binding,descriptor:d.descriptor})});
+  const record=serializeNativeProtocolQuota(observation);
+  const result=mutate('native-protocol-quota-capture-v2',{observation:record},collector(),'native-quota-'+routingDigest(record)).result;
+  const redistribution_required=Boolean(getTeam().t.native_protocol_handover&&getTeam().t.native_protocol_handover.state!=='applied');
+  if(drive&&redistribution_required){try{return {...result,redistribution_required,redistribution:await driveNativeProtocolQuotaHandover()};}catch(error){return {...result,redistribution_required,redistribution_blocker:error.code||'host-native-handover-blocked'};}}
+  return {...result,redistribution_required};
+ }
  async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('host-subscription-v2-owner-opt-in-required');
@@ -286,7 +358,7 @@ export function createTeamHost(config, dependencies={}) {
    const unit={scope:'team-native-counter',team:t.id,counter_schema:schema},unitDigest=routingDigest(unit);
    binding={before,contextId,unit};
    const context={id:contextId,native_id:transport.native_id,descriptor_digest:routingDigest(d.descriptor),incarnation:p.incarnation,unit_scope:unit,billing_observation:before,observed_model:null,observed_at:now(),expires_at:new Date(Date.parse(now())+300000).toISOString(),read_only:true,owned:true};
-   mutate('subscription-context-capture-v2',{participant_id:p.id,context},collector());
+   mutate('subscription-context-capture-v2',{participant_id:p.id,context,...(controlAction?.kind==='protocol-handover-ack'?{protocol_handover_digest:routingDigest(getTeam().t.native_protocol_handover)}:{})},collector());
    let allocation=load().state.subscription_allocations?.[unitDigest];
    if((trialBinding||controlAction)&&!allocation)fail('host-calibration-allocation-required');
    if(!trialBinding&&!controlAction&&(!allocation||BigInt(maxTokens)>BigInt(allocation.max_tokens))){
@@ -402,6 +474,11 @@ export function createTeamHost(config, dependencies={}) {
    const grant=t.routing_evidence?.[x.evidence_digest]?.grant;
    if(grant?.participant===p.id&&grant.incarnation===p.incarnation)required.push(x.id);
    else if(!grant&&t.work[x.work_id]?.worker===p.id)required.push(x.id);
+  }
+  // Subscription consumption is work even after terminal accounting. A missing
+  // historical whole-operation ledger must block an epoch stop.
+  for(const x of Object.values(v.state.subscription_invocations||{}))if(x.team===team&&x.participant===p.id&&x.incarnation===p.incarnation&&x.epoch===epoch&&x.consumed_at){
+   required.push(x.id,x.nonce);if(x.action?.operation_id)required.push(x.action.operation_id);
   }
   for(const w of Object.values(t.work||{}))if(w.worker===p.id&&w.epoch===epoch&&w.invocation_id)required.push(w.invocation_id);
   if(Object.values(t.work||{}).some(w=>w.worker===p.id&&w.epoch===epoch&&!['assigned','integrated','cancelled'].includes(w.status)&&!w.invocation_id))fail('host-legacy-work-owned-operation-stop-unverified');
@@ -701,5 +778,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:options=>managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options)),subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:options=>managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options)),subscriptionBootstrap:options=>managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options)),registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

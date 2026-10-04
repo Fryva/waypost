@@ -1,3 +1,4 @@
+import { applyNativeProtocolQuota } from './team-native-quota.mjs';
 // Deterministic team transitions. Authentication and file IO belong to the CLI/store.
 import { validatePolicy, validateDescriptor, rankParticipant, selectCoordinator, selectProtocolReviewerCandidate, updateReviewFloor, policyStrengthShape } from './team.mjs';
 import { proposeModelRoute } from './model-routing.mjs';
@@ -8,7 +9,7 @@ import { compileCalibrationPolicyV2 } from './model-strength.mjs';
 import { quotaEligible, effectiveReviewFloor } from './team-quota.mjs';
 const clone = structuredClone;
 const KINDS = new Set(['question', 'answer', 'progress', 'result', 'assignment', 'ack', 'quiesce', 'handover', 'review-request', 'review-result', 'cancel']);
-const DEFERRED = new Set(['native-protocol-review-enable-v2','native-protocol-review-capture-v2','native-protocol-control-enable-v2','native-action-profile-capture-v2','native-leader-ack-capture-v2','native-model-inventory-capture-v1','native-model-inventory-attempt-v1','native-policy-install-v2','subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','participant-host-register-v1','quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
+const DEFERRED = new Set(['native-protocol-quota-enable-v2','native-protocol-quota-capture-v2','native-protocol-handover-stop-capture-v2','native-protocol-handover-prepare-v2','native-protocol-handover-enable-v2','native-protocol-handover-ack-capture-v2','native-protocol-review-enable-v2','native-protocol-review-capture-v2','native-protocol-control-enable-v2','native-action-profile-capture-v2','native-leader-ack-capture-v2','native-model-inventory-capture-v1','native-model-inventory-attempt-v1','native-policy-install-v2','subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','participant-host-register-v1','quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
 function fail(message) { throw new Error(message); }
 function text(v, name, max = 256) { if (typeof v !== 'string' || !v || v.length > max || /[\x00-\x1f]/.test(v)) fail('invalid-' + name); return v; }
 function id(v) { if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(v || '') || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(v)) fail('invalid-team-id'); return v; }
@@ -153,11 +154,13 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       s.deferred_commands.push({id:c.request_key,command:clone(c)});
       return {state:s,result:{deferred:true,id:c.request_key,reason:'publication-fence'}};
     }
+    if(t.native_quota_freeze&&['runtime-request-v1','runtime-consume-v1','delivery-consume-v1','review-request-v1','review-consume-v1','invocation-reserve-v1','invocation-consume-v1','control-invocation-reserve-v1'].includes(c.type))fail('native-quota-transition-frozen');
     if(t.policy?.protocol===2 && (['policy','leader-ack','assign','assign-routed-v1','work-ack','submit','supervise','cancel','routing-enable','quota-policy-enable-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1'].includes(c.type)||/^(review-|integration-|revise-work|assign-routed|work-dispatch|routing-enable-v2)/.test(c.type)||c.type==='strength-check'&&c.policy))fail('native-policy-protected-action-admission-required');
     if(c.type==='native-policy-install-v2'){result=installNativePolicy(s,t,c,authority,now);}
     else if (c.type === 'join') {
       owner(s, c); const p = clone(c.participant);
       if((t.native_policy_bootstrap||t.policy?.protocol===2)&&p.native_admission!==undefined)fail('native-admission-reducer-only');
+      if((t.native_policy_bootstrap||t.policy?.protocol===2)&&['native_protocol_quota','native_account_exclusions'].some(k=>Object.hasOwn(p,k)))fail('native-quota-reducer-only');
       id(p.id); text(p.incarnation, 'incarnation'); text(p.session, 'session'); text(p.harness, 'harness'); text(p.root, 'root', 4096);
       p.model = validateDescriptor(p.model);
       if (p.surface !== undefined && !['cli','desktop','desktop-code','desktop-chat','web','unknown'].includes(p.surface)) fail('invalid-participant-surface');
@@ -274,7 +277,8 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       if (Object.keys(t.work).length) fail('reviewed-integration-not-implemented');
       t.status = 'closed'; delete s.task_bindings[t.task]; result = { closed: t.id };
     } else {
-      const inventory=applyModelInventory(s,t,c,now);
+      const nativeQuota=applyNativeProtocolQuota(s,t,c,now,{owner,floor});
+      const inventory=nativeQuota||applyModelInventory(s,t,c,now);
       const advanced=inventory.handled?inventory:applyWorkflow(s,t,c,now,{owner,member,leader,qualified,participant,selectCoordinator:(ps,policy,current,opts)=>selectCoordinator(ps.filter(p=>!t.quota_policy?.automatic_redistribution || quotaEligible(p,opts.now)),policy,current,opts),envelope,floor,propose});
       if(!advanced.handled)fail('unsupported-team-transition');result=advanced.result;
       if(t.policy?.protocol===2&&c.type==='collector-revoke-v1'){

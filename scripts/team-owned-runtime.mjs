@@ -5,6 +5,7 @@ import { resolve, join, parse } from 'node:path';
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 
 const completions=new WeakMap();
+const stops=new WeakMap();
 const hash=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const fail=code=>Object.assign(new Error('owned-runtime-'+code),{code:'owned-runtime-'+code});
 const text=v=>typeof v==='string'&&v.length>0&&v.length<=256&&!/[\x00-\x1f\x7f]/.test(v);
@@ -101,9 +102,22 @@ export async function stopOwnedRuntime(options){
  // A durable ledger cannot cover historical consumed work that predates it.
  const covered=new Set(proofs.flatMap(p=>[p.operation,...p.consumptions.flatMap(x=>[x.nonce,x.invocation_id].filter(Boolean))]));
  if(required.some(x=>!covered.has(x)))throw fail('historical-consumption-stop-unconfirmed');
- return {stopped:true,team:scope.team,participant:scope.participant,incarnation:scope.incarnation,epoch:scope.epoch,descriptor_digest:scope.descriptor_digest,operations:proofs.map(p=>p.operation),evidence_digest:hash({barrier:read(barrier),proofs})};
+ const result={stopped:true,team:scope.team,participant:scope.participant,incarnation:scope.incarnation,epoch:scope.epoch,descriptor_digest:scope.descriptor_digest,operations:proofs.map(p=>p.operation),evidence_digest:hash({barrier:read(barrier),proofs})};
+ // Preserve the historical public shape. Only the new serializer admits strict
+ // process-group evidence; the original stop remains backward compatible.
+ const groupsClosed=proofs.every(p=>Array.isArray(p.native_ids)&&Array.isArray(p.closure_proofs)&&p.closure_proofs.every(x=>x.stopped===true&&x.process_group_closed===true&&Number.isSafeInteger(x.owned_processes)&&x.owned_processes>=0)&&p.native_ids.every(id=>p.closure_proofs.some(x=>x.native_id===id)));
+ stops.set(result,{digest:hash(result),groupsClosed,required:[...new Set(required)].sort()});
+ return result;
 }
 
+
+// No imported JSON, stored PID or child-exit assertion can mint an epoch stop.
+export function serializeOwnedRuntimeStopProof(record){
+ const proof=stops.get(record);
+ if(!proof||proof.digest!==hash(record)||!proof.groupsClosed)throw fail('strict-stop-provenance-required');
+ const {stopped,...scope}=record;
+ return {protocol:2,purpose:'protocol-quota-handover-stop',...scope,callback_drained:true,epoch_barrier:true,required_operations:[...proof.required]};
+}
 
 // Read only the held host's derived operation paths. This lookup creates neither
 // directories nor epoch barriers and never stops a process or renews evidence.

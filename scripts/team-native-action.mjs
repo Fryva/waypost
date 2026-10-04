@@ -1,4 +1,5 @@
 // Fixed protocol-control requests. No imported request grants execution authority.
+import {assertNativeHandoverReady,nativeQuotaEligible} from './team-native-quota.mjs';
 import { routingDigest } from './model-routing.mjs';
 import { selectCoordinator, selectProtocolReviewerCandidate } from './team.mjs';
 import { buildProtocolLeadershipAuditTarget, formatProtocolLeadershipAudit, readProtocolLeadershipAudit } from './team-protocol-review.mjs';
@@ -25,10 +26,18 @@ export function createProtocolLeadershipAuditRequest(s,t,{actionId,sourceInvocat
  const request={protocol:2,kind:'protocol-leadership-audit',team:t.id,action_id:id(actionId),participant:reviewer.id,incarnation:reviewer.incarnation,descriptor_digest:reviewer.native_binding.descriptor_digest,current_epoch:t.epoch,policy_revision:t.policy.revision,policy_digest:routingDigest(t.policy),profile:structuredClone(profile.identity),calibration_digest:routingDigest(profile.calibration.review),current_leader:t.leader,source_invocation_id:sourceInvocationId,target_digest:routingDigest(target),target};
  return {kind:request.kind,action_id:request.action_id,request_digest:routingDigest(request),request};
 }
-export function formatProtocolAction(action){if(action?.kind==='protocol-leader-ack')return formatProtocolLeaderAck(action);if(action?.kind==='protocol-leadership-audit')return formatProtocolLeadershipAudit(action);fail('fixed-action-kind-required');}
-export function readProtocolActionResponse(raw,action){if(action?.kind==='protocol-leader-ack')return readProtocolAck(raw,action);if(action?.kind==='protocol-leadership-audit')return readProtocolLeadershipAudit(raw,action);fail('fixed-action-kind-required');}
+export function createProtocolHandoverAckRequest(s,t,{actionId,now=Date.now(),excluding=null}={}){
+ const {handover:h}=assertNativeHandoverReady(s,t,now,{excluding});const p=t.participants[h.candidate],critic=t.participants[h.reviewer];
+ const profile=t.policy.profiles.find(row=>row.identity.profile_id===p.native_admission.identity.profile_id),review=t.policy.profiles.find(row=>row.identity.profile_id===critic.native_admission.identity.profile_id);
+ const request={protocol:2,kind:'protocol-handover-ack',team:t.id,action_id:id(actionId),participant:p.id,incarnation:p.incarnation,descriptor_digest:p.native_binding.descriptor_digest,current_epoch:t.epoch,target_epoch:h.target_epoch,runtime_epoch:h.target_epoch,policy_revision:t.policy.revision,policy_digest:routingDigest(t.policy),quota_revision:t.native_quota_revision,handover_id:h.id,handover_digest:routingDigest(h),profile:structuredClone(profile.identity),calibration_digest:routingDigest(profile.calibration.coordinate),review_candidate:{participant:critic.id,incarnation:critic.incarnation,descriptor_digest:critic.native_binding.descriptor_digest,profile:structuredClone(review.identity),calibration_digest:routingDigest(review.calibration.review)}};
+ return {kind:request.kind,action_id:request.action_id,request_digest:routingDigest(request),request};
+}
+function formatProtocolHandoverAck(action){protocolActionSlot(action);return 'Bounded protocol-only quota handover. Acknowledge this exact stopped-old-epoch coordinator transition. No generic work or protected permission is granted. Return only one JSON object with exactly ack:true, action_id and request_digest as shown. Do not call tools.\n'+JSON.stringify({request:action.request,response:{ack:true,action_id:action.action_id,request_digest:action.request_digest}});}
+export function formatProtocolAction(action){if(action?.kind==='protocol-leader-ack')return formatProtocolLeaderAck(action);if(action?.kind==='protocol-leadership-audit')return formatProtocolLeadershipAudit(action);if(action?.kind==='protocol-handover-ack')return formatProtocolHandoverAck(action);fail('fixed-action-kind-required');}
+export function readProtocolActionResponse(raw,action){if(action?.kind==='protocol-leader-ack')return readProtocolAck(raw,action);if(action?.kind==='protocol-leadership-audit')return readProtocolLeadershipAudit(raw,action);if(action?.kind==='protocol-handover-ack'){protocolActionSlot(action);return readProtocolAck(raw,{...action,kind:'protocol-leader-ack'});}fail('fixed-action-kind-required');}
 export function protocolActionSlot(action){
  if(action?.kind==='protocol-leader-ack')return protocolLeaderAckSlot(action);
+ if(action?.kind==='protocol-handover-ack'){const r=action.request;if(r?.kind!==action.kind||r.action_id!==action.action_id||action.request_digest!==routingDigest(r))fail('fixed-request-binding-required');return routingDigest({team:r.team,kind:r.kind,current_epoch:r.current_epoch,target_epoch:r.target_epoch,participant:r.participant,incarnation:r.incarnation,});}
  const r=action?.request;if(action?.kind!=='protocol-leadership-audit'||r?.kind!==action.kind||action.action_id!==r.action_id||action.request_digest!==routingDigest(r)||r.target_digest!==routingDigest(r.target))fail('fixed-request-binding-required');
  return routingDigest({team:r.team,kind:r.kind,target_digest:r.target_digest,current_epoch:r.current_epoch,policy_revision:r.policy_revision,participant:r.participant,incarnation:r.incarnation});
 }
@@ -54,7 +63,7 @@ const integer=v=>{if(typeof v!=='string'||!/^(0|[1-9][0-9]{0,17})$/.test(v))fail
 function object(v,allowed,max=32768){if(!v||typeof v!=='object'||Array.isArray(v)||Buffer.byteLength(JSON.stringify(v))>max||Object.keys(v).some(k=>!allowed.includes(k)))fail('bounded-fields-required');return structuredClone(v);}
 const coreAction=a=>({kind:a.kind,action_id:a.action_id,request_digest:a.request_digest,request:a.request});
 function mode(t){if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native'||t.policy?.protocol!==2)fail('native-calibrated-accounting-required');}
-function currentPolicy(t,now,kind='protocol-leader-ack'){mode(t);if(!['protocol-leader-ack','protocol-leadership-audit'].includes(kind))fail('fixed-action-kind-required');const p=kind==='protocol-leader-ack'?t.native_control_policy:t.native_review_policy;if(!p||p.protocol!==2||p.kind!==kind||p.allow_unknown_quota!==true||Date.parse(p.expires_at)<=now||Date.parse(p.enabled_at)>now)fail('current-owner-control-policy-required');return p;}
+function currentPolicy(t,now,kind='protocol-leader-ack'){mode(t);if(!['protocol-leader-ack','protocol-leadership-audit','protocol-handover-ack'].includes(kind))fail('fixed-action-kind-required');const p=kind==='protocol-leader-ack'?t.native_control_policy:kind==='protocol-leadership-audit'?t.native_review_policy:t.native_handover_policy;if(!p||p.protocol!==2||p.kind!==kind||p.allow_unknown_quota!==true||Date.parse(p.expires_at)<=now||Date.parse(p.enabled_at)>now)fail('current-owner-control-policy-required');return p;}
 function controlBudget(s,t,unitDigest,now,additional=0n,excluding=null,addCall=0,kind='protocol-leader-ack'){
  const policy=currentPolicy(t,now,kind),limit=policy.unit_allocations.find(u=>u.unit_digest===unitDigest),allocation=s.subscription_allocations?.[unitDigest];
  if(!limit||allocation?.protocol!==2||allocation.unit_scope.team!==t.id||allocation.revision!==limit.allocation_revision)fail('existing-control-unit-allocation-required');
@@ -70,7 +79,7 @@ function boundCollector(s,t,c,x){
  if(!p||p.revoked||p.availability==='left'||p.incarnation!==x.incarnation||p.model?.model_revision!==x.model_revision||p.native_binding?.descriptor_digest!==x.descriptor_digest||c.actor!=='collector:'+key||c.actor!==x.collector||registered?.revoked||registered?.team!==t.id||!['runtime','usage'].every(k=>registered?.purposes?.includes(k)))fail('bound-action-collector-required');return p;
 }
 function nonquarantined(t,x){if(Object.values(x.binding_changes||{}).some(Boolean)||Object.values(t.subscription_contexts||{}).some(ctx=>ctx.native_id===x.context.native_id&&ctx.collector===x.collector&&ctx.quarantined))fail('nonquarantined-action-required');}
-function fixedAction(s,t,action,now){const fixed=action.kind==='protocol-leader-ack'?createProtocolLeaderAckRequest(t,{actionId:action.action_id,now}):action.kind==='protocol-leadership-audit'?createProtocolLeadershipAuditRequest(s,t,{actionId:action.action_id,sourceInvocationId:action.request?.source_invocation_id,now}):null;if(!fixed)fail('fixed-action-kind-required');if(!same(fixed,coreAction(action)))fail('current-fixed-action-required');return fixed;}
+function fixedAction(s,t,action,now,excluding=null){const fixed=action.kind==='protocol-leader-ack'?createProtocolLeaderAckRequest(t,{actionId:action.action_id,now}):action.kind==='protocol-leadership-audit'?createProtocolLeadershipAuditRequest(s,t,{actionId:action.action_id,sourceInvocationId:action.request?.source_invocation_id,now}):action.kind==='protocol-handover-ack'?createProtocolHandoverAckRequest(s,t,{actionId:action.action_id,now,excluding}):null;if(!fixed)fail('fixed-action-kind-required');if(!same(fixed,coreAction(action)))fail('current-fixed-action-required');return fixed;}
 export function validateProtocolAction(s,t,reservation,participant,context,now){
  if(reservation.purpose!=='protocol-control'){if(reservation.action!==undefined)fail('protocol-control-purpose-required');return null;}
  const action=object(reservation.action,['kind','action_id','request_digest','request','prompt_digest','operation_id'],24576),policy=currentPolicy(t,now,action.kind);
@@ -83,7 +92,7 @@ export function validateProtocolAction(s,t,reservation,participant,context,now){
 }
 export function consumeProtocolAction(s,t,x,now,command){
  if(!x.action)return;
- const policy=currentPolicy(t,now,x.action.kind);if((x.control_policy_kind??'protocol-leader-ack')!==x.action.kind||x.control_policy_revision!==policy.revision||command.prompt_digest!==x.action.prompt_digest)fail('current-fixed-action-consume-required');fixedAction(s,t,x.action,now);
+ const policy=currentPolicy(t,now,x.action.kind);if((x.control_policy_kind??'protocol-leader-ack')!==x.action.kind||x.control_policy_revision!==policy.revision||command.prompt_digest!==x.action.prompt_digest)fail('current-fixed-action-consume-required');fixedAction(s,t,x.action,now,x.id);
  const slot=protocolActionSlot(x.action);if(t.native_control_slots?.[slot])fail('action-slot-already-consumed');freshContext(s,x.context,x.id);controlBudget(s,t,x.unit_digest,now,integer(x.estimate_tokens),x.id,1,x.action.kind);
  t.native_control_slots||={};t.native_control_slots[slot]={invocation_id:x.id,nonce:x.nonce,operation_id:x.action.operation_id,consumed_at:new Date(now).toISOString(),applied:false};
 }
@@ -125,18 +134,18 @@ function profileCapture(t,x,raw,p){
  return profile;
 }
 function closedCompletion(t,x,completion){
- const c=object(completion,['protocol','scope','operation','kind','invocation_id','nonce','native_id','consume_type','created_at','closed_at','stopped','callback_drained','evidence_digest'],8192),scope={team:t.id,participant:x.participant,incarnation:x.incarnation,epoch:x.epoch,descriptor_digest:x.descriptor_digest};
+ const c=object(completion,['protocol','scope','operation','kind','invocation_id','nonce','native_id','consume_type','created_at','closed_at','stopped','callback_drained','evidence_digest'],8192),scope={team:t.id,participant:x.participant,incarnation:x.incarnation,epoch:x.action.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch,descriptor_digest:x.descriptor_digest};
  if(c.protocol!==1||!same(c.scope,scope)||c.operation!==x.action.operation_id||c.kind!==x.action.kind||c.invocation_id!==x.id||c.nonce!==x.nonce||c.native_id!==x.context.native_id||c.consume_type!=='subscription-consume-v2'||c.stopped!==true||c.callback_drained!==true||!/^[a-f0-9]{64}$/.test(c.evidence_digest||'')||!Number.isFinite(Date.parse(c.created_at))||Date.parse(c.created_at)>Date.parse(x.consumed_at)||!Number.isFinite(Date.parse(c.closed_at))||Date.parse(c.closed_at)<Date.parse(x.settled_at))fail('exact-owned-operation-completion-required');return c;
 }
 export function applyNativeProtocolControl(s,t,c,now,H){
- if(!['native-protocol-control-enable-v2','native-protocol-review-enable-v2','native-action-profile-capture-v2','native-leader-ack-capture-v2','native-protocol-review-capture-v2'].includes(c.type))return null;
- object(c,['type','team','actor','at','request_key','incarnation','epoch',...(['native-protocol-control-enable-v2','native-protocol-review-enable-v2'].includes(c.type)?['revision','policy']:c.type==='native-action-profile-capture-v2'?['invocation_id','nonce','profile']:['invocation_id','nonce','completion'])],65536);
+ if(!['native-protocol-control-enable-v2','native-protocol-review-enable-v2','native-action-profile-capture-v2','native-leader-ack-capture-v2','native-protocol-review-capture-v2','native-protocol-handover-enable-v2','native-protocol-handover-ack-capture-v2'].includes(c.type))return null;
+ object(c,['type','team','actor','at','request_key','incarnation','epoch',...(['native-protocol-control-enable-v2','native-protocol-review-enable-v2','native-protocol-handover-enable-v2'].includes(c.type)?['revision','policy']:c.type==='native-action-profile-capture-v2'?['invocation_id','nonce','profile']:['invocation_id','nonce','completion'])],65536);
  let result;
- if(['native-protocol-control-enable-v2','native-protocol-review-enable-v2'].includes(c.type)){
-  const kind=c.type==='native-protocol-control-enable-v2'?'protocol-leader-ack':'protocol-leadership-audit',policyKey=kind==='protocol-leader-ack'?'native_control_policy':'native_review_policy';
+ if(['native-protocol-control-enable-v2','native-protocol-review-enable-v2','native-protocol-handover-enable-v2'].includes(c.type)){
+  const kind=c.type==='native-protocol-control-enable-v2'?'protocol-leader-ack':c.type==='native-protocol-review-enable-v2'?'protocol-leadership-audit':'protocol-handover-ack',policyKey=kind==='protocol-leader-ack'?'native_control_policy':kind==='protocol-leadership-audit'?'native_review_policy':'native_handover_policy';
   H.owner(s,c);mode(t);const policy=object(c.policy,['kind','allow_unknown_quota','max_calls','max_estimate_tokens','timeout_ms','expires_at','unit_allocations']);
   if(policy.kind!==kind||policy.allow_unknown_quota!==true||!Number.isSafeInteger(c.revision)||c.revision<1||c.revision<=(t[policyKey]?.revision||0)||!Number.isSafeInteger(policy.max_calls)||policy.max_calls<1||policy.max_calls>128||integer(policy.max_estimate_tokens)<=0n||!Number.isSafeInteger(policy.timeout_ms)||policy.timeout_ms<100||policy.timeout_ms>300000||!Number.isFinite(Date.parse(policy.expires_at))||Date.parse(policy.expires_at)<=now||Date.parse(policy.expires_at)>Date.parse(t.policy.expires_at)||!Array.isArray(policy.unit_allocations)||!policy.unit_allocations.length||policy.unit_allocations.length>128||new Set(policy.unit_allocations.map(u=>u.unit_digest)).size!==policy.unit_allocations.length)fail('bounded-owner-control-policy-required');
-  if(kind==='protocol-leader-ack')createProtocolLeaderAckRequest(t,{actionId:'enable-check',now});else if(t.status!=='active'||!t.leader)fail('active-independent-audit-required');
+  if(kind==='protocol-leader-ack')createProtocolLeaderAckRequest(t,{actionId:'enable-check',now});else if(kind==='protocol-leadership-audit'&&(t.status!=='active'||!t.leader))fail('active-independent-audit-required');else if(kind==='protocol-handover-ack'&&!t.native_quota_policy)fail('owner-native-quota-policy-required');
   if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.purpose==='protocol-control'&&(x.control_policy_kind??'protocol-leader-ack')===kind&&!['settled','aborted'].includes(x.state)))fail('unfinished-control-policy-migration');
   for(const unit of policy.unit_allocations){object(unit,['unit_digest','max_tokens','allocation_revision']);const allocation=s.subscription_allocations?.[unit.unit_digest];if(allocation?.protocol!==2||allocation.unit_scope.team!==t.id||unit.allocation_revision!==allocation.revision||integer(unit.max_tokens)<=0n||integer(unit.max_tokens)>integer(allocation.max_tokens))fail('existing-control-unit-allocation-required');}
   t[policyKey]={...policy,protocol:2,revision:c.revision,enabled_at:c.at};result={enabled:true,revision:c.revision,purpose:'protocol-control',allocation_expanded:false};
@@ -146,13 +155,14 @@ export function applyNativeProtocolControl(s,t,c,now,H){
    const profile=profileCapture(t,x,c.profile,p);
    if(x.action_observation&&!same(x.action_observation,profile))fail('action-observation-immutable');x.action_observation=profile;result={captured:x.id,ack_applied:false};
   }else{
-   const audit=c.type==='native-protocol-review-capture-v2';if(x.action.kind!==(audit?'protocol-leadership-audit':'protocol-leader-ack'))fail('capture-action-kind-required');
+   const audit=c.type==='native-protocol-review-capture-v2',handover=c.type==='native-protocol-handover-ack-capture-v2';if(x.action.kind!==(audit?'protocol-leadership-audit':handover?'protocol-handover-ack':'protocol-leader-ack'))fail('capture-action-kind-required');
    if(c.profile!==undefined||c.output!==undefined||c.policy!==undefined)fail('own-action-source-only');const completion=closedCompletion(t,x,c.completion);
    if(audit&&x.protocol_review){if(!same(x.protocol_review.completion,completion))fail('protocol-review-immutable');return {handled:true,result:{captured:x.id,unchanged:true,verdict:x.protocol_review.verdict,protected_actions_granted:false}};}
+   if(handover&&x.protocol_handover_ack){if(!same(x.protocol_handover_ack.completion,completion))fail('handover-ack-immutable');return {handled:true,result:{applied:true,unchanged:true,leader:x.protocol_handover_ack.leader,epoch:x.protocol_handover_ack.epoch,protected_actions_granted:false}};}
    if(x.action_ack){if(!same(x.action_ack.completion,completion))fail('action-ack-immutable');return {handled:true,result:{applied:true,unchanged:true,leader:x.action_ack.leader,epoch:x.action_ack.epoch}};}
    source(t,x);if(!x.action_observation)fail('own-action-observation-required');profileCapture(t,x,x.action_observation,p);
-   const policy=currentPolicy(t,now,x.action.kind);if((x.control_policy_kind??'protocol-leader-ack')!==x.action.kind||x.control_policy_revision!==policy.revision||Date.parse(x.action_observation.expires_at)<=now||Date.parse(x.action_observation.observed_at)>now||x.epoch!==t.epoch||x.quota_revision!==(t.quota_revision||0)||x.mode_revision!==t.accounting.revision||x.overshoot_allocation_revision!==undefined||p.quota_observation?.status==='exhausted')fail('current-action-ack-admission-required');
-   fixedAction(s,t,x.action,now);controlBudget(s,t,x.unit_digest,now,0n,null,0,x.action.kind);
+   const policy=currentPolicy(t,now,x.action.kind);if((x.control_policy_kind??'protocol-leader-ack')!==x.action.kind||x.control_policy_revision!==policy.revision||Date.parse(x.action_observation.expires_at)<=now||Date.parse(x.action_observation.observed_at)>now||x.epoch!==t.epoch||x.quota_revision!==(t.quota_revision||0)||x.mode_revision!==t.accounting.revision||x.overshoot_allocation_revision!==undefined||p.quota_observation?.status==='exhausted'||!nativeQuotaEligible(t,p,now))fail('current-action-ack-admission-required');
+   fixedAction(s,t,x.action,now,x.id);controlBudget(s,t,x.unit_digest,now,0n,null,0,x.action.kind);
    const allocation=s.subscription_allocations?.[x.unit_digest];let used=0n;
    for(const invocation of Object.values(s.subscription_invocations||{}).filter(y=>y.unit_digest===x.unit_digest&&y.state!=='aborted')){if(invocation.state==='uncertain'||invocation.overshoot_allocation_revision!==undefined&&allocation.revision<=invocation.overshoot_allocation_revision)fail('unreconciled-action-unit');used+=integer(invocation.state==='settled'?invocation.charged_tokens:invocation.estimate_tokens);}
    if(used>integer(allocation.max_tokens)||x.allocation_revision!==allocation.revision||Date.parse(completion.closed_at)>now)fail('current-action-allocation-required');
@@ -162,8 +172,9 @@ export function applyNativeProtocolControl(s,t,c,now,H){
     t.native_protocol_reviews||={};const aggregate=t.native_protocol_reviews[verdict.target_digest]||{records:[],unresolved_negative:false};
     aggregate.records.push(record);aggregate.unresolved_negative ||= verdict.verdict!=='approve';t.native_protocol_reviews[verdict.target_digest]=aggregate;x.protocol_review=structuredClone(record);slot.applied=true;result={captured:x.id,verdict:verdict.verdict,target_digest:verdict.target_digest,unresolved_negative:aggregate.unresolved_negative,scope:'stored-ack-binding-accounting-closure',protected_actions_granted:false};
    }else{
+   if(handover){assertNativeHandoverReady(s,t,now,{excluding:x.id});t.native_protocol_handover.state='applied';t.native_protocol_handover.applied_invocation_id=x.id;t.native_protocol_handover.applied_at=c.at;delete t.native_quota_freeze;}
    t.leader=x.participant;t.candidate=null;t.epoch=x.action.request.target_epoch;t.status='active';slot.applied=true;
-   x.action_ack={leader:t.leader,epoch:t.epoch,applied_at:c.at,completion};result={applied:true,leader:t.leader,epoch:t.epoch,scope:'waypost-protocol',protected_actions_granted:false};
+   if(handover)x.protocol_handover_ack={leader:t.leader,epoch:t.epoch,applied_at:c.at,completion,handover_id:t.native_protocol_handover.id};else x.action_ack={leader:t.leader,epoch:t.epoch,applied_at:c.at,completion};result={applied:true,leader:t.leader,epoch:t.epoch,scope:'waypost-protocol',protected_actions_granted:false};
    }
   }
  }

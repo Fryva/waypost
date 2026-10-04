@@ -681,3 +681,51 @@ requirements or role admission. Protocol-v2 periodic refresh only checks origina
 calibration freshness and reselects candidates; it does not run identity inference,
 fetch proxy scores or silently purchase a new calibration cohort. Fresh calibrated
 execution admission and economical worker dispatch still require their own gates.
+
+
+### Native protocol quota handover
+
+Native configuration policy 2 uses a separate opt-in quota and transfer protocol;
+the legacy tuple-based quota adapter cannot authorize it. Host operations
+`native-quota-enable` and `native-handover-enable` accept separate owner policies.
+`native-quota-observe --source-invocation ID` requires an installed trusted provider
+observer and an own settled action with its admitted profile and known, unchanged
+native billing observations. The CLI currently has no verified typed provider
+observer; it returns `host-native-protocol-provider-observer-unsupported` before
+native inference. Source rules bind collector, HTTPS source/method, interpretation
+documentation, exact provider code, scope and status. They cannot substitute local
+allocation exhaustion, generic 429, price hints, reset time or UI percentages for
+provider-confirmed exhaustion.
+
+Only an account-wide provider scope is supported here. Model and shared-pool
+scopes require verified bucket membership and are refused. A newer observation
+with the same binding and interpretation during a prepared transfer updates the
+latest observation log without changing the frozen election sample or its original
+expiry. This lets an interrupted settled ACK recover without another inference.
+A material change after consumption invalidates the transition and retains the
+charge; automatic replacement of that ACK is not supported. If the old leader
+recovers before transfer, the protocol pauses rather than reactivating that epoch.
+Account-wide exhaustion excludes every participant with a matching own verified
+billing account, regardless of model, SKU or account generation. Actual billing is
+checked again before context admission and consumption; bounded unknown-quota
+permission cannot override a known exhausted account.
+
+A confirmed exhausted leader fences the old epoch. `native-quota-handover` stops
+all enrolled native scopes through their registered own Host/collector, including
+subscription calls after settlement. It requires the actual whole callback,
+process-group closures and a durable epoch barrier. Unknown historical journal
+coverage, unsettled tokens or pending generic work block preparation. The strongest
+current surviving calibrated coordinator and a separate critic must qualify at
+the retained historical review floor; this increment does not waive that floor
+when a stronger critic is exhausted.
+
+`native-handover-ack` is a fixed single fresh no-tools protocol call under separate
+owner ceilings and the shared team token allocation. Its accounting authority
+epoch stays old; its owned runtime runs in the provisional target epoch. Exact
+settlement, actual profile and complete own closure precede atomic epoch advance.
+`native-handover-recover --invocation ID` uses saved accounting/seal/closure without
+another call. A renamed action, nonce or refreshed policy cannot retry a consumed
+semantic transfer. These operations grant no generic work, review or integration
+permission. Unknown candidate quota requires the explicit bounded owner opt-in.
+Provider refusal/recovery, complete live native cohort and desktop transfer remain
+separate runtime evidence requirements.

@@ -12,7 +12,7 @@ export async function authorityFixture(overrides={}){
  send('subscription-accounting-enable-v2',{revision:1,policy:{bootstrap:true,billing_policy:'inherited-native'}});
  const unit={scope:'team-native-counter',team:'team',counter_schema:overrides.counter_schema??'fixture-counter'};
  send('subscription-allocation-update-v2',{unit_scope:unit,max_tokens:'100000',revision:1});
- const billing={provider:null,origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'unavailable',auth_method:null,credit_availability:'unknown',observed_at:at,account_generation:0,consistent:true};
+ const billingFor=name=>{const supplied=typeof overrides.billing==='function'?overrides.billing(name):overrides.billing;return supplied?{...structuredClone(supplied),observed_at:at}:{provider:null,origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'unavailable',auth_method:null,credit_availability:'unknown',observed_at:at,account_generation:0,consistent:true};};
  const peers=[];
  for(const name of ['a','b','c','d']){
   const p={id:'peer-'+name,incarnation:'inc-'+name,model:{model_revision:1,resolved:false,provider:'route',model_id:'model-'+name,reasoning:'unknown'},availability:'ready',revoked:false,native_binding:{collector_id:'collector-'+name,descriptor_digest:overrides.descriptor_digest?.(name)??routingDigest({adapter:name})}};
@@ -27,6 +27,7 @@ export async function authorityFixture(overrides={}){
  const members=peers.map(({p,profile_id})=>({participant:p.id,incarnation:p.incarnation,model_revision:1,descriptor_digest:p.native_binding.descriptor_digest,profile_id}));
  send('native-calibration-cohort-open-v2',{cohort:{id:'cohort',seed:'policy-fixture-seed',members,roles:['coordinate','review'],unit_allocations:[{unit_digest:routingDigest(unit),max_tokens:'100000',allocation_revision:1}],suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,expires_at:expiry}});
  for(const peer of peers){
+  const billing=billingFor(peer.name);
   const roleList=peer.name==='a'?['coordinate']:peer.name==='b'?['coordinate','review']:peer.name==='c'?['review']:['coordinate'];
   for(const role of roleList)for(const trial of suite.trials.filter(t=>t.role===role)){
    const {p}=peer,nonce=peer.name+'-'+role+'-'+trial.family+'-'+trial.variant,invocation_id='subscription-'+nonce,ctx=peer.manifest(nonce),context_id='ledger-'+nonce,actor='collector:'+p.native_binding.collector_id;

@@ -1,3 +1,4 @@
+import { nativeParticipantQuotaEligible } from './team-native-quota.mjs';
 // Waypost team identity and evidenced model policy. Pure computation:
 // authority credentials, inboxes, revisions and grants belong to the store.
 import { randomUUID } from "node:crypto";
@@ -287,6 +288,7 @@ export function rankParticipant(participant, policy, role, { action, coverage, n
 }
 
 function rankNativeParticipant(participant, policy, role, { action, coverage, now }) {
+  if(!nativeParticipantQuotaEligible(participant,now))return null;
   if (action !== undefined || role === "implement" || coverage !== "waypost-protocol-" + role || !Number.isFinite(now) || now < Date.parse(policy.generated_at) || now >= Date.parse(policy.expires_at) || participant.revoked !== false || participant.availability === "left") return null;
   try {
     const admission = exact(participant.native_admission, "native admission", ["protocol", "identity", "observation_id", "participant", "incarnation", "model_revision", "descriptor_digest", "collector", "source_invocation", "observed_at", "expires_at"]);

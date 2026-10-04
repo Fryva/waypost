@@ -322,3 +322,35 @@ host, CLI and ledger tests passed (91 cases across the final scoped checks).
 Independent reviewer returned scoped ship after original-proof and fixture fixes.
 The result is a diagnostic proposal, not activated policy or an action grant;
 common-cohort activation and historical review requirements remain open.
+
+
+## Native protocol-only quota transfer extension
+
+22. A separate native quota policy admits only installed provider observations
+    from an own settled admitted action and known unchanged native billing route,
+    account generation and no alternate credits/fallback. Source/code/scope/status
+    and HTTPS interpretation documentation bind the collector. It never maps the
+    profile to a legacy authored-model tuple. Exhaustion remains sticky after
+    expiry/reset; positive provider evidence is separately ordered. The new
+    transition preserves all historical typed review identities and floor.
+    Only account-wide scope is supported until provider bucket membership can be
+    verified. Prepared transfers retain their original election sample when an
+    equivalent observation refreshes the latest log; freshness is not extended.
+23. Quota-triggered protocol transfer freezes old-epoch identity/calibration/control
+    admissions, while allowing terminal accounting. Every enrolled owned scope
+    must stop with own callback-drained group proof and durable barrier, including
+    settled subscription consumptions. Missing journals or unresolved usage block.
+    Preparation uses stored own collector stops, not owner-imported proof vectors,
+    and rechecks strongest current independent candidates. Pending generic work
+    blocks this extension; it neither adopts work nor grants protected task rights.
+24. Fixed protocol-handover-ack uses a distinct policy kind and semantic consumed
+    slot. Its reservation remains in the old authority epoch, and its new owned
+    runtime/closure binds the provisional target epoch and immutable transition.
+    Current frontier, quota, profile, policy, ceilings, complete settlement and own
+    callback/group closure are mandatory at capture. Recovery uses original seals
+    without inference. Existing ACK/audit stored shapes and replay remain intact.
+    Unknown candidate quota needs the explicit bounded owner policy; native typed
+    provider adapters and live transfer remain separate unverified capabilities.
+    Material changes after consumption pause with retained accounting; no new ACK
+    washes a consumed slot. Recovery of the old leader before transfer also pauses;
+    automatic same-leader reactivation is outside this increment.

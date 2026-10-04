@@ -1,3 +1,4 @@
+import {assertNativeBillingQuotaEligible} from './team-native-quota.mjs';
 // Versioned local subscription token accounting. No native adapter or privilege is minted here.
 import { applyNativeProtocolControl,validateProtocolAction,consumeProtocolAction,sealProtocolAction } from './team-native-action.mjs';
 import { routingDigest } from './model-routing.mjs';
@@ -183,7 +184,7 @@ function nativeContextUsable(t,context,p,now) {
  if(context?.protocol!==2||context.participant!==p.id||context.incarnation!==p.incarnation||context.descriptor_digest!==p.native_binding.descriptor_digest||context.collector!=='collector:'+p.native_binding.collector_id)fail('subscription-owned-context-binding-required');
  notRetired(t,context.collector,context.native_id,context.descriptor_digest);
  if(Object.values(t.subscription_contexts||{}).some(other=>other.protocol===2&&other.native_id===context.native_id&&other.collector===context.collector&&other.quarantined))fail('subscription-native-context-quarantined');
- freshContext(context,now);
+ freshContext(context,now);assertNativeBillingQuotaEligible(t,context.billing_observation,now);
 }
 function nativeAdmissionCurrent(t,x,p,allocation,now) {
  if(x.epoch!==t.epoch||x.quota_revision!==(t.quota_revision||0)||x.mode_revision!==t.accounting.revision||x.allocation_revision!==allocation?.revision||x.incarnation!==p.incarnation)fail('subscription-stale-admission');
@@ -193,6 +194,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
  const kinds=['subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-context-retire-v2','subscription-reserve-v2','subscription-consume-v2','subscription-usage-v2','subscription-uncertain-v2','subscription-abort-v2'];
  if(!kinds.includes(c.type))return null;
  bounded(c,98304);let result;
+ if(t.native_quota_freeze&&['subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v2'].includes(c.type)){const action=c.reservation?.action||s.subscription_invocations?.[c.invocation_id]?.action;if(c.type!=='subscription-context-capture-v2'&&action?.kind!=='protocol-handover-ack')fail('subscription-native-quota-transition-frozen');if(c.type==='subscription-context-capture-v2'&&(!t.native_protocol_handover||t.native_protocol_handover.state!=='prepared'||c.participant_id!==t.native_protocol_handover.candidate||c.protocol_handover_digest!==routingDigest(t.native_protocol_handover)))fail('subscription-native-quota-transition-frozen');}
  if(c.type==='subscription-accounting-enable-v2') {
   H.owner(s,c);const policy=bounded(c.policy);fields(policy,['bootstrap','billing_policy']);
   if(policy.bootstrap!==true||policy.billing_policy!=='inherited-native')fail('subscription-inherited-native-owner-policy-required');
@@ -219,7 +221,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    id(context.id);id(context.native_id);digest(context.descriptor_digest);
    if(context.incarnation!==p.incarnation||context.descriptor_digest!==p.native_binding.descriptor_digest||context.read_only!==true||context.owned!==true)fail('subscription-owned-context-binding-required');
    notRetired(t,actor,context.native_id,context.descriptor_digest);
-   const unit=validateNativeCounterUnit(context.unit_scope,t.id);validateBillingObservation(context.billing_observation);
+   const unit=validateNativeCounterUnit(context.unit_scope,t.id);validateBillingObservation(context.billing_observation);assertNativeBillingQuotaEligible(t,context.billing_observation,now);
    if(context.observed_model!==null)tuple(context.observed_model,true);freshContext(context,now);
    const value={...context,protocol:2,participant:p.id,collector:actor,unit_digest:routingDigest(unit)},old=t.subscription_contexts?.[context.id];
    if(old&&!same(old,value))fail('subscription-context-immutable');
@@ -239,7 +241,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    const used=totals(s,context.unit_digest);if(used.overshoot)fail('subscription-unreconciled-token-overshoot');if(used.uncertain)fail('subscription-uncertain-usage-blocks-admission');
    if(used.actual+used.reserved+decimal(r.estimate_tokens)>decimal(allocation.max_tokens))fail('subscription-token-allocation-exceeded');
    const measurement=validateProtocolMeasurement(s,t,r,p,context,now);if(measurement)stored.measurement=measurement;
-   const action=validateProtocolAction(s,t,r,p,context,now);if(action){stored.action=action;if(action.kind==='protocol-leadership-audit')stored.control_policy_kind=action.kind;stored.control_policy_revision=(action.kind==='protocol-leader-ack'?t.native_control_policy:t.native_review_policy).revision;stored.model_revision=p.model.model_revision;}
+   const action=validateProtocolAction(s,t,r,p,context,now);if(action){stored.action=action;if(action.kind!=='protocol-leader-ack')stored.control_policy_kind=action.kind;stored.control_policy_revision=(action.kind==='protocol-leader-ack'?t.native_control_policy:action.kind==='protocol-leadership-audit'?t.native_review_policy:t.native_handover_policy).revision;stored.model_revision=p.model.model_revision;}
    s.subscription_invocations||={};s.subscription_invocations[r.id]=stored;result={reserved:r.id,bootstrap_only:true};
   } else if(c.type==='subscription-abort-v2') {
    H.owner(s,c);const x=s.subscription_invocations?.[c.invocation_id];
