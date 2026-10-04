@@ -352,5 +352,27 @@ common-cohort activation and historical review requirements remain open.
     Unknown candidate quota needs the explicit bounded owner policy; native typed
     provider adapters and live transfer remain separate unverified capabilities.
     Material changes after consumption pause with retained accounting; no new ACK
-    washes a consumed slot. Recovery of the old leader before transfer also pauses;
-    automatic same-leader reactivation is outside this increment.
+    washes a consumed slot. Without the optional extension below, recovery of the
+    old leader before transfer pauses.
+
+25. A separate explicit native quota policy opt-in, `same_leader_reactivation:
+    true`, may recover the frozen old coordinator only into a new epoch. An
+    immutable exhaustion basis binds its original participant/incarnation/model
+    revision/descriptor/full native admission digest and provider account. The basis
+    is created once at the first exhaustion freeze, with opt-in already enabled;
+    later observations cannot replace it or retrofit an earlier freeze. A separately
+    ordered positive provider proof for that same account is mandatory, including
+    its original 30-second freshness and expiry bounds at every action gate. A
+    positive proof may come from a different admitted alias of the same account.
+    Every enrolled old scope still stops; idle accounting, current calibration and
+    a strongest independent critic at the retained floor remain mandatory. The
+    prepared transition and its fixed ACK bind the recovery basis and original
+    positive proof. Admission and atomic capture recheck both; reset time or a
+    heartbeat cannot reactivate an epoch. Equivalent positive refresh may update
+    observation history without extending the pinned proof expiry or permitting
+    another consumed ACK. An old-epoch consumed latch covers every candidate and
+    nonce; only the original matching invocation may recover. Disabling opt-in
+    blocks pending recovery. Missing opt-in preserves the existing pause and stored
+    event shapes. No generic work/adoption rights are granted. Independent review
+    and deterministic implementation checks are recorded in the quota story;
+    live provider recovery remains a separate evidence requirement.

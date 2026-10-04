@@ -704,7 +704,8 @@ latest observation log without changing the frozen election sample or its origin
 expiry. This lets an interrupted settled ACK recover without another inference.
 A material change after consumption invalidates the transition and retains the
 charge; automatic replacement of that ACK is not supported. If the old leader
-recovers before transfer, the protocol pauses rather than reactivating that epoch.
+recovers before transfer, the default protocol pauses. The optional recovery path
+below advances into a new epoch.
 Account-wide exhaustion excludes every participant with a matching own verified
 billing account, regardless of model, SKU or account generation. Actual billing is
 checked again before context admission and consumption; bounded unknown-quota
@@ -729,3 +730,21 @@ semantic transfer. These operations grant no generic work, review or integration
 permission. Unknown candidate quota requires the explicit bounded owner opt-in.
 Provider refusal/recovery, complete live native cohort and desktop transfer remain
 separate runtime evidence requirements.
+
+An owner may enable `same_leader_reactivation: true` in the native quota policy
+before the first exhaustion freeze. That freeze records the original leader's
+complete admission and account binding once. Enabling the option afterwards
+cannot reconstruct this evidence. Recovery requires a separately ordered positive
+provider observation for the same account, with its original 30-second freshness
+and expiry checked at every admission and recovery gate. A currently admitted
+account alias may supply that observation through its own settled billing proof.
+
+The recovered leader must still qualify as the strongest coordinator with a
+separate qualified critic at the retained review floor. All enrolled old scopes
+must stop before a fixed ACK runs in the new target epoch. The transition and ACK
+bind the exhaustion basis and positive observation; an equivalent refresh records
+history without extending this evidence or reopening the ACK. In this opt-in
+scope, any consumed handover ACK closes the entire old epoch to a second ACK,
+even if the candidate, nonce or policy changes. Only recovery of the original
+matching settled invocation remains possible. Disabling the option, changed
+admission or expired proof blocks pending recovery and retains consumed charges.

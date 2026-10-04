@@ -91,3 +91,37 @@ Owned-runtime/authority tests use mocked provider transport, not live inference.
 current CLI has no verified typed provider observer and returns an explicit
 unsupported blocker. Hermetic provider fixtures are not live provider refusal
 or live cross-harness/desktop transfer. Full story acceptance remains open.
+
+### Same-leader recovery implementation plan (2026-10-04)
+
+Add an explicit optional owner policy for recovery after confirmed exhaustion.
+Pin the original old coordinator binding and account exhaustion when freezing.
+Require a fresh ordered positive provider proof, all enrolled scope stops, idle
+accounting and unchanged strongest independent review before a new target epoch
+ACK. Preserve default pause and historical event shapes without the opt-in.
+Bind recovery evidence in the prepared transition and fixed request, recheck at
+consume/capture, and recover interrupted publication without another inference.
+Equivalent refresh must not extend pinned positive expiry. Independent criticism
+and reducer/registered Host tests precede implementation claims or completion.
+
+The implementation now keeps an immutable first-freeze basis and binds it with
+the original ordered positive account proof in the new-epoch ACK. An epoch-wide
+consumed latch prevents a second ACK across candidates/nonces. Independent review
+found and corrected account-alias refresh cases that could hide a newer provider
+exhaustion; the guard also covers opted-in transfers to another coordinator.
+
+The first six-file run passed 54/60 in 425.513 seconds. Four new alias fixtures
+used ACK output for an audit and were corrected to the exact audit response.
+Two new registered Host cases correctly refused recovery when authority replay
+CPU time exceeded the original 30-second proof age. Their positive-path rerun
+uses a controlled Date clock, with a separate tick between exhaustion and recovery;
+production expiry checks are unchanged. The seven existing Host cases retain
+real wall clocks. Original proof-age rejection at reserve, consume and capture
+passed. The complete affected reducer file then passed 17/17 in 9.454 seconds;
+the two controlled-time Host cases passed 2/2 in 113.417 seconds. The other 41
+cases passed unchanged in the initial run. Independent code and fixture review
+returned scoped ship; there is no demonstrated wall-clock recovery within the
+original 30-second bound on this ledger. Doctor reported 0 issues/0 warnings;
+`next` and `git diff --check` showed no consistency failures. The quota story
+and WP-20 remain in progress.
+Provider transport remains mocked; this is not live provider recovery evidence.
