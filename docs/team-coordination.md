@@ -825,7 +825,8 @@ a leader, and a second preflight refused before consume aborts the reservation
 without taking the slot. A live Claude identity probe through a real Host ledger (2026-10-04, Claude
 Code 2.1.289) passed with a complete 1,916-token span, an isolated settled
 receipt and a profile for `anthropic/claude-opus-5-5` at `2.1.289`
-(`native-binary-version`). No live Claude trial or control action has been run;
+(`native-binary-version`). A live coordinate trial then passed with a clean
+JSON answer and 2,229 settled tokens. No live Claude control action has been run;
 a fenced or malformed live control answer would use up its action slot, and an
 estimate below Claude's per-call baseline (about 1.85K tokens observed) would
 leave an overshoot that blocks applying it.

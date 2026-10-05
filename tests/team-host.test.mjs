@@ -591,6 +591,10 @@ test('a profile version comes from native health or the same preflighted Claude 
  assert.deepEqual(nativeProfileVersion({harness:'claude',native_id:'n',preflight}),{version:'2.1.289',version_provenance:'native-binary-version'});
  for(const ctx of [{harness:'claude',native_id:'other',preflight},{harness:'claude',native_id:'n',preflight:{...preflight,source:'other'}},{harness:'claude',native_id:'n',preflight:{...preflight,version:'2.1.289-beta'}},{harness:'codex',native_id:'n',preflight},{harness:'opencode',version:'1.18.33'},{harness:'claude',native_id:'n',preflight:null},{harness:'claude',native_id:'n',version:'9.9.9',version_provenance:'native-health'},{harness:'opencode',version:'1.0\n',version_provenance:'native-health'}])assert.deepEqual(nativeProfileVersion(ctx),{version:'unknown',version_provenance:'unknown'});
 });
+test('a Host whose endpoint file does not exist names the missing participant option',async t=>{
+ const f=fixture(t);const host=createTeamHost({authorityRoot:f.root,projectRoot:f.root,team:'team',ownerCredential:join(f.root,'owner.json'),collectorPath:f.collector,endpointPath:join(f.root,'missing-endpoint.json'),participant:'participant'},f.dependencies);
+ await assert.rejects(host.subscriptionBootstrap({nonce:'no-endpoint',estimateTokens:'40',maxTokens:'100'}),{code:'host-endpoint-file-missing-pass-participant'});
+});
 test('the Host uses the built-in observer only for Codex and an installed one otherwise',async()=>{
  const {nativeProtocolQuotaObserver}=await import('../scripts/team-host.mjs'),installed=async()=>({});
  assert.equal(nativeProtocolQuotaObserver({observeNativeProtocolProviderQuota:installed},{harness:'opencode'},Date.now),installed);

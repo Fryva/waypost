@@ -282,3 +282,15 @@ granting anything. One earlier invocation of the step failed before inference
 (missing `--participant`), so exactly one inference ran. This is live Host
 ledger evidence for the identity probe only, not a live trial, control action,
 calibration, strength or quota evidence.
+
+Live calibration trial through a real Host ledger (2026-10-04, Claude Code
+2.1.289): after an identity probe (1,914 tokens, profile `2.1.289` /
+`native-binary-version`, `claude-opus-5-5`) and an owner allocation raise, a
+one-member cohort was opened and one coordinate trial ran: the raw answer was
+clean unfenced JSON (`{"eligible_ids":[...]}`), `trial_capture.pass: true`,
+2,229 tokens settled with an isolated receipt, the measurement profile equal to
+the identity profile, no roles granted; the summary shows one coordinate sample
+(Wilson lower bound 0.21), not qualified. Exactly two inferences. Host
+operations other than bootstrap need `--participant` in the CLI; without it the
+Host now fails with `host-endpoint-file-missing-pass-participant` instead of a
+raw ENOENT. Not run live: a Claude control action, a full 24+24 cohort.

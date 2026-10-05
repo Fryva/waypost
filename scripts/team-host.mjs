@@ -66,7 +66,8 @@ export function createTeamHost(config, dependencies={}) {
  function owner(){const c=credential(ownerCredential);const {v}=getTeam();if(!authorizeActor(v.state,team,c).startsWith('owner:'))fail('owner-required');return c;}
  function collector(){return credential(collectorPath);}
  function endpoint(){
-  const d=read(endpointPath,true);if(d.team!==team||d.participant!==config.participant)fail('host-endpoint-binding-mismatch');if(d.descriptor?.native_id)fail('host-personal-session-import-forbidden');
+  // A CLI Host without --participant looks for endpoint.json; name the fix rather than a raw ENOENT.
+  let d;try{d=read(endpointPath,true);}catch(error){if(error.code==='ENOENT')fail('host-endpoint-file-missing-pass-participant');throw error;}if(d.team!==team||d.participant!==config.participant)fail('host-endpoint-binding-mismatch');if(d.descriptor?.native_id)fail('host-personal-session-import-forbidden');
   const {v,t}=getTeam(),c=collector(),b=t.participants[d.participant]?.native_binding;
   if(authorizeActor(v.state,team,c)!=='collector:'+c.collector||!b||b.endpoint_file!==resolve(endpointPath)||b.collector_file!==resolve(collectorPath)||b.collector_id!==c.collector||b.descriptor_digest!==routingDigest(d.descriptor))fail('host-authority-native-binding-mismatch');
   return d;
