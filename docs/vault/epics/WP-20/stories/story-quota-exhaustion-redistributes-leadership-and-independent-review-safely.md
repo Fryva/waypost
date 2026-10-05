@@ -10,7 +10,7 @@ created: 2026-10-01
 updated: 2026-10-02
 external_refs: {}
 tags: []
-code_refs: ["scripts/native-model-profile.mjs", "scripts/team-host-registry.mjs", "scripts/team-host.mjs", "scripts/team-native-action.mjs", "scripts/team-native-quota.mjs", "scripts/team-owned-runtime.mjs", "scripts/team-quota-native.mjs", "scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/team-workflow.mjs", "scripts/team.mjs", "tests/helpers/native-calibration.mjs", "tests/helpers/native-protocol-host.mjs", "tests/native-protocol-handover-host.test.mjs", "tests/native-protocol-handover.test.mjs", "tests/native-protocol-quota.test.mjs", "tests/team-host-registry.test.mjs", "tests/team-host.test.mjs", "tests/team-owned-runtime.test.mjs", "tests/team-quota-native.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-quota.test.mjs", "tests/team-transport.test.mjs", "scripts/team-store.mjs", "tests/team-store.test.mjs", "scripts/team-cli.mjs", "tests/team-model-inventory-cli.test.mjs"]
+code_refs: ["scripts/native-model-profile.mjs", "scripts/team-host-registry.mjs", "scripts/team-host.mjs", "scripts/team-native-action.mjs", "scripts/team-native-quota.mjs", "scripts/team-owned-runtime.mjs", "scripts/team-quota-native.mjs", "scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/team-workflow.mjs", "scripts/team.mjs", "tests/helpers/native-calibration.mjs", "tests/helpers/native-protocol-host.mjs", "tests/native-protocol-handover-host.test.mjs", "tests/native-protocol-handover.test.mjs", "tests/native-protocol-quota.test.mjs", "tests/team-host-registry.test.mjs", "tests/team-host.test.mjs", "tests/team-owned-runtime.test.mjs", "tests/team-quota-native.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-quota.test.mjs", "tests/team-transport.test.mjs", "scripts/team-store.mjs", "tests/team-store.test.mjs", "scripts/team-cli.mjs", "tests/team-model-inventory-cli.test.mjs", "scripts/team-diagnostics.mjs", "scripts/team-role-calibration.mjs", "tests/native-protocol-host.test.mjs", "tests/team-diagnostics.test.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: "2026-10-02T00:57:09.984Z"
 closed_at: null
@@ -403,3 +403,47 @@ unstopped or undrained completion, a non-control purpose, a settled or aborted
 call, and a non-collector actor each refuse unchanged; works after a revoke.
 Host — a control ACK whose send times out (uncertain) is reconciled from its
 owned closure, then a quota handover can be prepared after the allocation raise.
+
+Plan criticism (fresh context, revise) and resolution: raising the allocation
+to clear the latch would invalidate the control policies' pinned allocation
+revision, so a per-call owner command `subscription-unknown-usage-accept-v2`
+(charge at least the estimate) clears it instead; a reconciled call frees its
+control slot and the consumed-handover latch ignores it, so a lost handover
+acknowledgement no longer blocks the handover forever (the drive retries with a
+new nonce); reconciled contexts count as used; every terminal-state site and
+the control and calibration budgets include `reconciled`; the closure must
+close after consume and not in the future; a repeated reconcile with the same
+closure is unchanged at the Host; `waypost doctor` names unsettled and
+unaccepted calls; CLI operations `native-control-reconcile` and
+`unknown-usage-accept`. Documented limits: a crashed or killed Host leaves no
+closure; identity and calibration calls (no ledger-bound operation id) are the
+next step.
+
+Tests: a lost leader acknowledgement is reconciled (estimate charged, slot
+freed, no leader), a repeat is unchanged, late uncertain or usage commands are
+refused, admission is refused until a charge of at least the estimate is
+accepted, after which a new acknowledgement elects the leader; the reducer
+refuses another operation, native id, an unstopped or undrained closure, one
+that closed before consume, an owner actor, another nonce and a settled call.
+A handover acknowledgement lost mid-call is reconciled by the candidate Host;
+after the accepted charge the next drive applies the handover with a `_1`
+attempt, the review floor kept. Doctor warnings are unit-tested.
+
+Diff review (fresh context, revise, one blocker) and fixes: a call whose answer
+is already on the ledger in a partial receipt (partial or absent usage
+coverage) must not lose its slot, or a recorded negative audit or malformed ACK
+could be asked again (the reviewer reproduced both). Reconcile now records
+`slot_released` only without a partial receipt; the slot check, the
+consumed-handover latch and the drive retry honour only released slots. The
+drive also skips aborted attempts; a registry error is surfaced when no closure
+is found; repeated owner acceptance with the same charge is unchanged; doctor
+wording distinguishes partial receipts and names reconcile only for calls with
+a ledger-bound operation; the legacy provider-invocation edits were reverted.
+New tests: an answered partial ACK keeps its slot after reconcile and a retry
+is refused without a send; reconcile of a consumed call and after a participant
+revoke; refusal after a collector revoke, for a closure in the future and for a
+settled call with its own exact closure; the consumed-handover latch with
+same-leader reactivation for uncertain, settled, answered and unanswered
+reconciled and aborted calls. Open for the owner: per-call acceptance amends
+spec 2.14 and the proposed accounting ADR, which say the allocation must be
+raised.

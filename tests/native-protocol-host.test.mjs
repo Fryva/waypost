@@ -50,3 +50,48 @@ test('a malformed Claude ACK spends its slot without a leader, and a refused sec
  assert.equal(refused.load().state.subscription_invocations['subscription-claude-refused'].state,'aborted');assert.equal(refused.calls.includes('native-send'),false);assert.equal(refused.calls.includes('subscription-consume-v2'),false);
  const ok=await refused.host.acknowledgeProtocolLeadership({actionId:'claude-after',nonce:'claude-after',estimateTokens:'40'});assert.equal(ok.leader_acknowledged,true,'the aborted reservation did not take the slot');
 });
+test('an uncertain control call is reconciled from its owned closure: the estimate is charged, the slot is freed, and admission waits for the owner to accept a charge',async t=>{
+ const {reduceTeamEvent}=await import('../scripts/team-state.mjs'),{collectOwnedRuntimeCompletion,serializeOwnedRuntimeCompletion}=await import('../scripts/team-owned-runtime.mjs');
+ const f=await fixture(t,{failSend:created=>created===1});
+ await assert.rejects(f.host.acknowledgeProtocolLeadership({actionId:'lost-action',nonce:'lost-action',estimateTokens:'40'}),/native-outcome-uncertain/);
+ let x=f.load().state.subscription_invocations['subscription-lost-action'];assert.equal(x.state,'uncertain');
+ const lost=structuredClone(f.load());
+ const r=f.host.reconcileProtocolControl({invocationId:x.id});assert.equal(r.reconciled,x.id);assert.equal(r.charged_tokens,'40');assert.equal(r.protected_actions_granted,false);
+ x=f.load().state.subscription_invocations[x.id];assert.equal(x.state,'reconciled');assert.equal(x.usage,'unknown');assert.equal(f.load().state.teams.team.leader,null);
+ assert.equal(Object.values(f.load().state.teams.team.native_control_slots||{}).some(slot=>slot.invocation_id===x.id),false);
+ assert.equal(f.host.reconcileProtocolControl({invocationId:x.id}).unchanged,true);
+ {const after=f.load();for(const type of ['subscription-uncertain-v2','subscription-usage-v2'])assert.throws(()=>reduceTeamEvent(structuredClone(after.state),{type,team:'team',actor:x.collector,at:new Date().toISOString(),request_key:'late-'+type,invocation_id:x.id,nonce:x.nonce,...(type==='subscription-usage-v2'?{receipt:{}}:{})},{revision:after.revision}),/consumed-invocation-required/,type);}
+ // Unknown usage blocks new admissions on the counter until the owner accepts a charge.
+ await assert.rejects(f.host.acknowledgeProtocolLeadership({actionId:'blocked-action',nonce:'blocked-action',estimateTokens:'40'}),/overshoot|unreconciled/);
+ await assert.rejects(Promise.resolve().then(()=>f.host.acceptUnknownUsage({invocationId:x.id,chargedTokens:'39'})),/accepted-charge-below-reservation/);
+ assert.equal(f.host.acceptUnknownUsage({invocationId:x.id,chargedTokens:'40'}).charged_tokens,'40');
+ const ok=await f.host.acknowledgeProtocolLeadership({actionId:'after-action',nonce:'after-action',estimateTokens:'40'});assert.equal(ok.leader_acknowledged,true,ok.action_blocker);
+ // The reducer refuses a closure bound to anything else, a settled call and another actor.
+ const directory=join(f.hostDir,'runtime'),selectors={directory,team:'team',participant:x.participant,incarnation:x.incarnation,epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.action.operation_id,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id};
+ const completion=serializeOwnedRuntimeCompletion(collectOwnedRuntimeCompletion(selectors)),state=lost.state,collectorActor=x.collector,at=new Date().toISOString();
+ const command=patch=>({type:'subscription-reconcile-v2',team:'team',actor:collectorActor,at,request_key:'k',invocation_id:x.id,nonce:x.nonce,completion,...patch});
+ assert.equal(reduceTeamEvent(structuredClone(state),command({}),{revision:lost.revision}).state.subscription_invocations[x.id].state,'reconciled');
+ for(const [name,patch,code] of [['operation',{completion:{...completion,operation:'other-operation'}},/exact-owned-operation-completion/],['native id',{completion:{...completion,native_id:'native-other'}},/exact-owned-operation-completion/],['not stopped',{completion:{...completion,stopped:false}},/exact-owned-operation-completion/],['undrained',{completion:{...completion,callback_drained:false}},/exact-owned-operation-completion/],['closed before consume',{completion:{...completion,closed_at:new Date(Date.parse(x.consumed_at)-1).toISOString()}},/exact-owned-operation-completion/],['owner actor',{actor:'owner:'+state.owner_hash},/bound-invocation-collector/],['nonce',{nonce:'other'},/consumed-control-invocation/]])
+  assert.throws(()=>reduceTeamEvent(structuredClone(state),command(patch),{revision:lost.revision}),code,name);
+ // It works for a consumed call and after the participant is revoked, but not after its collector is revoked or with a closure in the future.
+ const variant=edit=>{const copy=structuredClone(state);edit(copy);return copy;},collectorId=x.collector.replace(/^collector:/,'');
+ assert.equal(reduceTeamEvent(variant(c=>{c.subscription_invocations[x.id].state='consumed';}),command({}),{revision:lost.revision}).state.subscription_invocations[x.id].state,'reconciled');
+ assert.equal(reduceTeamEvent(variant(c=>{c.teams.team.participants[x.participant].revoked=true;}),command({}),{revision:lost.revision}).state.subscription_invocations[x.id].state,'reconciled');
+ assert.throws(()=>reduceTeamEvent(variant(c=>{c.collectors[collectorId].revoked=true;}),command({}),{revision:lost.revision}),/bound-invocation-collector/);
+ assert.throws(()=>reduceTeamEvent(structuredClone(state),command({completion:{...completion,closed_at:new Date(Date.now()+3600000).toISOString()}}),{revision:lost.revision}),/exact-owned-operation-completion/);
+ // A settled call is refused by state even with its own exact closure.
+ const settled=Object.values(f.load().state.subscription_invocations).find(y=>y.nonce==='after-action');
+ const own=serializeOwnedRuntimeCompletion(collectOwnedRuntimeCompletion({...selectors,epoch:settled.epoch,operation:settled.action.operation_id,invocation_id:settled.id,nonce:settled.nonce,native_id:settled.context.native_id}));
+ assert.throws(()=>reduceTeamEvent(structuredClone(f.load().state),command({invocation_id:settled.id,nonce:settled.nonce,completion:own}),{revision:f.load().revision}),/consumed-control-invocation-required/);
+});
+test('a control call whose answer reached the authority in a partial receipt keeps its slot when reconciled, so the answer cannot be asked again',async t=>{
+ const f=await fixture(t,{partial:true});
+ const first=await f.host.acknowledgeProtocolLeadership({actionId:'partial-action',nonce:'partial-action',estimateTokens:'40'});assert.equal(first.leader_acknowledged,false);
+ const x=f.load().state.subscription_invocations['subscription-partial-action'];assert.equal(x.state,'uncertain');assert.ok(x.partial_receipt);
+ const r=f.host.reconcileProtocolControl({invocationId:x.id});assert.equal(r.slot_released,false);
+ assert.equal(Object.values(f.load().state.teams.team.native_control_slots).some(slot=>slot.invocation_id===x.id),true);
+ assert.equal(f.host.acceptUnknownUsage({invocationId:x.id,chargedTokens:'40'}).charged_tokens,'40');assert.equal(f.host.acceptUnknownUsage({invocationId:x.id,chargedTokens:'40'}).unchanged,true);
+ const sends=f.calls.filter(y=>y==='native-send').length;
+ await assert.rejects(f.host.acknowledgeProtocolLeadership({actionId:'retry-action',nonce:'retry-action',estimateTokens:'40'}),/action-slot-already/);
+ assert.equal(f.calls.filter(y=>y==='native-send').length,sends);assert.equal(f.load().state.teams.team.leader,null);
+});

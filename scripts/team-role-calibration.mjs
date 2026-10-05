@@ -14,9 +14,9 @@ function bundleFor(cohort){const bundle=createProtocolRoleSuite({seed:cohort.see
 function locate(t,measurement){const cohort=Object.hasOwn(t.native_calibration_cohorts||{},measurement.cohort_id)?t.native_calibration_cohorts[measurement.cohort_id]:null;if(!cohort)fail('opened-cohort-required');const member=cohort.members.find(m=>m.profile_id===measurement.profile_id);if(!member)fail('cohort-profile-required');return {cohort,member,bundle:bundleFor(cohort)};}
 const slotKey=m=>routingDigest({profile:m.profile_id,role:m.role,case:m.case_id});
 function freshNativeContext(s,context,excluding=null){
- if(Object.values(s.subscription_invocations||{}).some(x=>x.id!==excluding&&['consumed','uncertain','settled'].includes(x.state)&&x.collector===context.collector&&x.context?.native_id===context.native_id))fail('single-call-fresh-native-context-required');
+ if(Object.values(s.subscription_invocations||{}).some(x=>x.id!==excluding&&['consumed','uncertain','settled','reconciled'].includes(x.state)&&x.collector===context.collector&&x.context?.native_id===context.native_id))fail('single-call-fresh-native-context-required');
 }
-function budget(s,cohort,unitDigest,additional=0n,excluding=null){const limit=cohort.unit_allocations.find(u=>u.unit_digest===unitDigest);if(!limit)fail('cohort-unit-allocation-required');let used=additional;for(const x of Object.values(s.subscription_invocations||{})){if(x.id===excluding||x.measurement?.cohort_id!==cohort.id||x.unit_digest!==unitDigest||x.state==='aborted')continue;used+=integer(x.state==='settled'?x.charged_tokens:x.estimate_tokens);}if(used>integer(limit.max_tokens))fail('cohort-token-allocation-exceeded');}
+function budget(s,cohort,unitDigest,additional=0n,excluding=null){const limit=cohort.unit_allocations.find(u=>u.unit_digest===unitDigest);if(!limit)fail('cohort-unit-allocation-required');let used=additional;for(const x of Object.values(s.subscription_invocations||{})){if(x.id===excluding||x.measurement?.cohort_id!==cohort.id||x.unit_digest!==unitDigest||x.state==='aborted')continue;used+=integer(['settled','reconciled'].includes(x.state)?x.charged_tokens:x.estimate_tokens);}if(used>integer(limit.max_tokens))fail('cohort-token-allocation-exceeded');}
 
 export function validateProtocolMeasurement(s,t,reservation,participant,context,now){
  if(reservation.measurement===undefined)return null;

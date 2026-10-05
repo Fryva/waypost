@@ -235,6 +235,27 @@ export function createTeamHost(config, dependencies={}) {
    return afterCompletion({invocation_id:x.id,recovery:true},{directory:join(registered?dirname(registered.binding.host_file):hostDir,'runtime'),team,participant:p.id,incarnation:x.incarnation,epoch:x.action.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.action.operation_id});
   }finally{operationBusy=false;}
  }
+ // A consumed control call that never got a terminal receipt is reconciled from
+ // the owned runtime closure of its ledger-bound operation. A crash or kill of
+ // the Host leaves no closure, so such a call stays unreconciled.
+ function reconcileProtocolControl({invocationId}={}){
+  owner();const {v}=getTeam(),x=v.state.subscription_invocations?.[invocationId];
+  if(x?.purpose!=='protocol-control'||x.team!==team||!x.action?.operation_id)fail('host-control-reconcile-source-required');
+  if(!['consumed','uncertain','reconciled'].includes(x.state))fail('host-control-reconcile-unsettled-call-required');
+  let directory=hostDir;
+  const p=v.state.teams[team].participants[x.participant];
+  let registryError=null;
+  if(p?.host_binding)try{directory=dirname(readParticipantHost({state:v.state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)}).binding.host_file);}catch(error){registryError=error.code||'host-participant-registry-unavailable';}
+  let completion;try{completion=collectOwnedRuntimeCompletion({directory:join(directory,'runtime'),team,participant:x.participant,incarnation:x.incarnation,epoch:x.action.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.action.operation_id,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id});}catch(error){if(registryError)fail(registryError);throw error;}
+  const serialized=serializeOwnedRuntimeCompletion(completion);
+  if(x.state==='reconciled'){if(x.reconcile_evidence_digest!==serialized.evidence_digest)fail('host-control-reconcile-conflict');return {unchanged:true,reconciled:x.id};}
+  return mutate('subscription-reconcile-v2',{invocation_id:x.id,nonce:x.nonce,completion:serialized},collector(),'subscription-reconcile-'+x.nonce).result;
+ }
+ function acceptUnknownUsage({invocationId,chargedTokens}={}){
+  const x=load().state.subscription_invocations?.[invocationId];if(!x)fail('host-reconciled-call-required');
+  if(x.unknown_usage_accepted===true){if(x.charged_tokens!==chargedTokens)fail('host-unknown-usage-already-accepted');return {unchanged:true,accepted:x.id,charged_tokens:x.charged_tokens};}
+  return mutate('subscription-unknown-usage-accept-v2',{invocation_id:x.id,nonce:x.nonce,charged_tokens:chargedTokens},owner(),'subscription-unknown-usage-'+x.nonce).result;
+ }
  const recoverProtocolLeadership=options=>recoverProtocolAction(options,'protocol-leader-ack',captureProtocolLeadership);
  const recoverProtocolAudit=options=>recoverProtocolAction(options,'protocol-leadership-audit',captureProtocolAudit);
  function enableNativeProtocolQuota({revision,policy}={}){
@@ -283,14 +304,18 @@ export function createTeamHost(config, dependencies={}) {
   if(transition?.state!=='prepared')fail('host-native-handover-prepare-required');
   const candidate=await resolveHost(transition.candidate);
   if(typeof candidate?.acknowledgeNativeProtocolHandover!=='function')fail('host-native-handover-candidate-capability-unavailable');
-  const token=sha(transition.id).slice(0,32),attemptNonce=nonce||'handover_'+token,invocationId='subscription-'+attemptNonce;
-  const previous=load().state.subscription_invocations?.[invocationId];
+  // An aborted attempt never held the slot and a reconciled unanswered one freed
+  // it; the next attempt uses a new nonce. An answered reconciled one keeps it.
+  const token=sha(transition.id).slice(0,32),invocations=load().state.subscription_invocations||{};
+  let attempt=0;for(let y;!nonce&&(y=invocations['subscription-handover_'+token+(attempt?'_'+attempt:'')])&&(y.state==='aborted'||y.state==='reconciled'&&y.slot_released===true);)attempt++;
+  const suffix=attempt?'_'+attempt:'',attemptNonce=nonce||'handover_'+token+suffix,invocationId='subscription-'+attemptNonce;
+  const previous=invocations[invocationId];
   if(previous){
    if(previous.action?.kind!=='protocol-handover-ack'||previous.action.request.handover_id!==transition.id)fail('host-native-handover-attempt-binding-changed');
    if(typeof candidate.recoverProtocolHandover!=='function')fail('host-native-handover-recovery-capability-unavailable');
    return candidate.recoverProtocolHandover({invocationId});
   }
-  return candidate.acknowledgeNativeProtocolHandover({actionId:actionId||'handover-'+token,nonce:attemptNonce,estimateTokens:estimateTokens||t.native_handover_policy?.max_estimate_tokens||'16000'});
+  return candidate.acknowledgeNativeProtocolHandover({actionId:actionId||'handover-'+token+suffix,nonce:attemptNonce,estimateTokens:estimateTokens||t.native_handover_policy?.max_estimate_tokens||'16000'});
  }
  async function observeNativeProtocolQuota({sourceInvocationId,drive=true,renewOnly=false}={}){
   owner();if(operationBusy||activeOperation)fail('host-native-quota-observation-operation-active');
@@ -839,5 +864,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options));},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options));},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options));},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options));},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

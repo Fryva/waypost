@@ -70,11 +70,11 @@ function controlBudget(s,t,unitDigest,now,additional=0n,excluding=null,addCall=0
  if(!limit||allocation?.protocol!==2||allocation.unit_scope.team!==t.id||allocation.revision!==limit.allocation_revision)fail('existing-control-unit-allocation-required');
  let tokens=additional,calls=addCall;
  for(const x of Object.values(s.subscription_invocations||{}))if(x.id!==excluding&&x.team===t.id&&x.purpose==='protocol-control'&&(x.control_policy_kind??'protocol-leader-ack')===kind&&x.control_policy_revision===policy.revision&&x.state!=='aborted'){
-  calls++;if(x.unit_digest===unitDigest)tokens+=integer(x.state==='settled'?x.charged_tokens:x.estimate_tokens);
+  calls++;if(x.unit_digest===unitDigest)tokens+=integer(['settled','reconciled'].includes(x.state)?x.charged_tokens:x.estimate_tokens);
  }
  if(calls>policy.max_calls||tokens>integer(limit.max_tokens))fail('control-ceiling-exceeded');return policy;
 }
-function freshContext(s,context,excluding=null){if(Object.values(s.subscription_invocations||{}).some(x=>x.id!==excluding&&['consumed','uncertain','settled'].includes(x.state)&&x.collector===context.collector&&x.context.native_id===context.native_id))fail('fresh-single-call-action-context-required');}
+function freshContext(s,context,excluding=null){if(Object.values(s.subscription_invocations||{}).some(x=>x.id!==excluding&&['consumed','uncertain','settled','reconciled'].includes(x.state)&&x.collector===context.collector&&x.context.native_id===context.native_id))fail('fresh-single-call-action-context-required');}
 function boundCollector(s,t,c,x){
  const p=t.participants[x.participant],key=p?.native_binding?.collector_id,registered=s.collectors?.[key];
  if(!p||p.revoked||p.availability==='left'||p.incarnation!==x.incarnation||p.model?.model_revision!==x.model_revision||p.native_binding?.descriptor_digest!==x.descriptor_digest||c.actor!=='collector:'+key||c.actor!==x.collector||registered?.revoked||registered?.team!==t.id||!['runtime','usage'].every(k=>registered?.purposes?.includes(k)))fail('bound-action-collector-required');return p;
@@ -87,7 +87,7 @@ export function validateProtocolAction(s,t,reservation,participant,context,now){
  fixedAction(s,t,action,now);
  if(action.request.participant!==participant.id||action.request.incarnation!==reservation.incarnation||action.request.descriptor_digest!==context.descriptor_digest||reservation.measurement!==undefined||reservation.max_calls!==1||integer(reservation.estimate_tokens)<=0n||integer(reservation.estimate_tokens)>integer(policy.max_estimate_tokens)||reservation.timeout_ms>policy.timeout_ms||action.prompt_digest!==routingDigest(formatProtocolAction(coreAction(action)))||reservation.suite_digest!==action.prompt_digest||!/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(action.operation_id||''))fail('fixed-bounded-action-reservation-required');
  const slot=protocolActionSlot(action);
- if(t.native_control_slots?.[slot]||Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.purpose==='protocol-control'&&x.state!=='aborted'&&protocolActionSlot(x.action)===slot))fail('action-slot-already-reserved-or-consumed');
+ if(t.native_control_slots?.[slot]||Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.purpose==='protocol-control'&&x.state!=='aborted'&&!(x.state==='reconciled'&&x.slot_released===true)&&protocolActionSlot(x.action)===slot))fail('action-slot-already-reserved-or-consumed');
  if(action.kind==='protocol-leadership-audit'){const source=action.request.target.source_context;if(context.native_id===source.native_id||[source.reservation_context_id,source.receipt_context_id].includes(context.id))fail('independent-audit-context-required');}
  freshContext(s,context);controlBudget(s,t,context.unit_digest,now,integer(reservation.estimate_tokens),null,1,action.kind);return action;
 }
@@ -134,6 +134,26 @@ function profileCapture(t,x,raw,p){
  if(ctx.provenance!=='adapter-isolated'||ctx.read_only!==true||ctx.fresh!==true||ctx.fresh_review_verified!==true||ctx.author_history_inherited!==false||ctx.tools?.length!==0||ctx.author_contexts?.length!==0||profile.profile.native_routing_id!==native.actualModel.provider||profile.profile.native_model_id!==native.actualModel.model_id||profile.profile.execution_scope?.cwd!==ctx.cwd)fail('isolated-action-profile-required');
  return profile;
 }
+// A consumed control call without a terminal receipt becomes terminal from the
+// owned runtime closure of its ledger-bound operation. Its usage is unknown: the
+// reservation is charged and latched until the owner accepts a charge. Its slot
+// is freed only when no answer reached the authority (no partial receipt); an
+// answered call keeps its slot, so a recorded answer cannot be asked again. It
+// grants nothing.
+export function reconcileProtocolControl(s,t,c,now){
+ object(c,['type','team','actor','at','request_key','incarnation','epoch','invocation_id','nonce','completion'],16384);
+ const x=s.subscription_invocations?.[c.invocation_id];
+ if(x?.protocol!==2||x.team!==t.id||x.nonce!==c.nonce||x.purpose!=='protocol-control'||!x.action?.operation_id)fail('consumed-control-invocation-required');
+ const registered=s.collectors?.[x.collector?.replace(/^collector:/,'')];
+ if(c.actor!==x.collector||!registered||registered.revoked||registered.team!==t.id)fail('bound-invocation-collector-required');
+ const completion=closedCompletion(t,x,c.completion);
+ if(!(Date.parse(completion.closed_at)>=Date.parse(x.consumed_at))||Date.parse(completion.closed_at)>now)fail('exact-owned-operation-completion-required');
+ if(x.state==='reconciled'){if(x.reconcile_evidence_digest!==completion.evidence_digest)fail('subscription-reconcile-conflict');return {unchanged:true,reconciled:x.id};}
+ if(!['consumed','uncertain'].includes(x.state))fail('consumed-control-invocation-required');
+ x.state='reconciled';x.charged_tokens=x.estimate_tokens;x.usage='unknown';x.unknown_usage_accepted=false;x.reconciled_at=c.at;x.reconcile_evidence_digest=completion.evidence_digest;x.slot_released=x.partial_receipt===undefined;
+ const slot=protocolActionSlot(x.action);if(x.slot_released&&t.native_control_slots?.[slot]?.invocation_id===x.id)delete t.native_control_slots[slot];
+ return {reconciled:x.id,charged_tokens:x.charged_tokens,usage:'unknown',slot_released:x.slot_released,protected_actions_granted:false};
+}
 function closedCompletion(t,x,completion){
  const c=object(completion,['protocol','scope','operation','kind','invocation_id','nonce','native_id','consume_type','created_at','closed_at','stopped','callback_drained','evidence_digest'],8192),scope={team:t.id,participant:x.participant,incarnation:x.incarnation,epoch:x.action.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch,descriptor_digest:x.descriptor_digest};
  if(c.protocol!==1||!same(c.scope,scope)||c.operation!==x.action.operation_id||c.kind!==x.action.kind||c.invocation_id!==x.id||c.nonce!==x.nonce||c.native_id!==x.context.native_id||c.consume_type!=='subscription-consume-v2'||c.stopped!==true||c.callback_drained!==true||!/^[a-f0-9]{64}$/.test(c.evidence_digest||'')||!Number.isFinite(Date.parse(c.created_at))||Date.parse(c.created_at)>Date.parse(x.consumed_at)||!Number.isFinite(Date.parse(c.closed_at))||Date.parse(c.closed_at)<Date.parse(x.settled_at))fail('exact-owned-operation-completion-required');return c;
@@ -147,7 +167,7 @@ export function applyNativeProtocolControl(s,t,c,now,H){
   H.owner(s,c);mode(t);const policy=object(c.policy,['kind','allow_unknown_quota','max_calls','max_estimate_tokens','timeout_ms','expires_at','unit_allocations']);
   if(policy.kind!==kind||policy.allow_unknown_quota!==true||!Number.isSafeInteger(c.revision)||c.revision<1||c.revision<=(t[policyKey]?.revision||0)||!Number.isSafeInteger(policy.max_calls)||policy.max_calls<1||policy.max_calls>128||integer(policy.max_estimate_tokens)<=0n||!Number.isSafeInteger(policy.timeout_ms)||policy.timeout_ms<100||policy.timeout_ms>300000||!Number.isFinite(Date.parse(policy.expires_at))||Date.parse(policy.expires_at)<=now||Date.parse(policy.expires_at)>Date.parse(t.policy.expires_at)||!Array.isArray(policy.unit_allocations)||!policy.unit_allocations.length||policy.unit_allocations.length>128||new Set(policy.unit_allocations.map(u=>u.unit_digest)).size!==policy.unit_allocations.length)fail('bounded-owner-control-policy-required');
   if(kind==='protocol-leader-ack')createProtocolLeaderAckRequest(t,{actionId:'enable-check',now});else if(kind==='protocol-leadership-audit'&&(t.status!=='active'||!t.leader))fail('active-independent-audit-required');else if(kind==='protocol-handover-ack'&&!t.native_quota_policy)fail('owner-native-quota-policy-required');
-  if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.purpose==='protocol-control'&&(x.control_policy_kind??'protocol-leader-ack')===kind&&!['settled','aborted'].includes(x.state)))fail('unfinished-control-policy-migration');
+  if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.purpose==='protocol-control'&&(x.control_policy_kind??'protocol-leader-ack')===kind&&!['settled','aborted','reconciled'].includes(x.state)))fail('unfinished-control-policy-migration');
   for(const unit of policy.unit_allocations){object(unit,['unit_digest','max_tokens','allocation_revision']);const allocation=s.subscription_allocations?.[unit.unit_digest];if(allocation?.protocol!==2||allocation.unit_scope.team!==t.id||unit.allocation_revision!==allocation.revision||integer(unit.max_tokens)<=0n||integer(unit.max_tokens)>integer(allocation.max_tokens))fail('existing-control-unit-allocation-required');}
   t[policyKey]={...policy,protocol:2,revision:c.revision,enabled_at:c.at};result={enabled:true,revision:c.revision,purpose:'protocol-control',allocation_expanded:false};
  }else{
@@ -165,7 +185,7 @@ export function applyNativeProtocolControl(s,t,c,now,H){
    const policy=currentPolicy(t,now,x.action.kind);if((x.control_policy_kind??'protocol-leader-ack')!==x.action.kind||x.control_policy_revision!==policy.revision||Date.parse(x.action_observation.expires_at)<=now||Date.parse(x.action_observation.observed_at)>now||x.epoch!==t.epoch||x.quota_revision!==(t.quota_revision||0)||x.mode_revision!==t.accounting.revision||x.overshoot_allocation_revision!==undefined||p.quota_observation?.status==='exhausted'||!nativeQuotaEligible(t,p,now))fail('current-action-ack-admission-required');
    fixedAction(s,t,x.action,now,x.id);controlBudget(s,t,x.unit_digest,now,0n,null,0,x.action.kind);
    const allocation=s.subscription_allocations?.[x.unit_digest];let used=0n;
-   for(const invocation of Object.values(s.subscription_invocations||{}).filter(y=>y.unit_digest===x.unit_digest&&y.state!=='aborted')){if(invocation.state==='uncertain'||invocation.overshoot_allocation_revision!==undefined&&allocation.revision<=invocation.overshoot_allocation_revision)fail('unreconciled-action-unit');used+=integer(invocation.state==='settled'?invocation.charged_tokens:invocation.estimate_tokens);}
+   for(const invocation of Object.values(s.subscription_invocations||{}).filter(y=>y.unit_digest===x.unit_digest&&y.state!=='aborted')){if(invocation.state==='uncertain'||invocation.state==='reconciled'&&invocation.unknown_usage_accepted!==true||invocation.overshoot_allocation_revision!==undefined&&allocation.revision<=invocation.overshoot_allocation_revision)fail('unreconciled-action-unit');used+=integer(['settled','reconciled'].includes(invocation.state)?invocation.charged_tokens:invocation.estimate_tokens);}
    if(used>integer(allocation.max_tokens)||x.allocation_revision!==allocation.revision||Date.parse(completion.closed_at)>now)fail('current-action-allocation-required');
    const slot=t.native_control_slots?.[protocolActionSlot(x.action)];if(slot?.invocation_id!==x.id||slot.applied)fail('consumed-own-action-slot-required');
    if(audit){

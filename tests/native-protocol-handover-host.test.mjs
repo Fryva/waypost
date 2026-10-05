@@ -171,3 +171,23 @@ test('an exhaustion whose capture loses to a concurrent positive renewal is neve
  await assert.rejects(f.ownerHost.maintainNativeQuotaLease(),{code:'authority-stale-revision'});
  assert.equal(leaseOf(f).proof.observation_id,'positive-winner');
 });
+test('a handover acknowledgement lost mid-call is reconciled from its owned closure, and the next drive applies the handover with a new attempt',async t=>{
+ let failed=false;const f=await fixture(t,{failSend:(_created,invocation)=>{if(!failed&&invocation.id.startsWith('handover_')){failed=true;return true;}return false;}}),before=f.load().state.teams.team;
+ const first=await f.ownerHost.observeNativeProtocolQuota({sourceInvocationId:f.source});assert.equal(first.redistribution_required,true);assert.ok(first.redistribution_blocker,'the lost acknowledgement blocks this drive');
+ const lost=Object.values(f.load().state.subscription_invocations).find(x=>x.action?.kind==='protocol-handover-ack');assert.equal(lost.state,'uncertain');
+ const candidateHost=f.hostFor(lost.participant);
+ await assert.rejects(f.ownerHost.driveNativeProtocolQuotaHandover(),'an unreconciled attempt still blocks the drive');
+ assert.equal(candidateHost.reconcileProtocolControl({invocationId:lost.id}).reconciled,lost.id);
+ candidateHost.acceptUnknownUsage({invocationId:lost.id,chargedTokens:lost.estimate_tokens});
+ const applied=await f.ownerHost.driveNativeProtocolQuotaHandover();assert.equal(applied.handover_acknowledged,true);
+ const after=f.load().state.teams.team;assert.notEqual(after.leader,f.old);assert.equal(after.epoch,before.epoch+1);assert.equal(after.review_floor,before.review_floor);
+ const attempts=Object.values(f.load().state.subscription_invocations).filter(x=>x.action?.kind==='protocol-handover-ack');assert.deepEqual(attempts.map(x=>x.state).sort(),['reconciled','settled']);assert.ok(attempts.find(x=>x.state==='settled').nonce.endsWith('_1'));
+});
+test('a handover attempt aborted before consume is skipped by the next drive, which applies the handover with a new attempt',async t=>{
+ const f=await fixture(t),original=f.dependencies.mutate;let refused=false;
+ f.dependencies.mutate=(path,request,...rest)=>{if(!refused&&request.command.type==='subscription-consume-v2'&&String(request.command.nonce).startsWith('handover_')){refused=true;throw Object.assign(Error('fixture refused consume'),{code:'fixture-refused-consume'});}return original(path,request,...rest);};
+ const first=await f.ownerHost.observeNativeProtocolQuota({sourceInvocationId:f.source});assert.ok(first.redistribution_blocker);
+ const aborted=Object.values(f.load().state.subscription_invocations).find(x=>x.action?.kind==='protocol-handover-ack');assert.equal(aborted.state,'aborted');
+ const applied=await f.ownerHost.driveNativeProtocolQuotaHandover();assert.equal(applied.handover_acknowledged,true);assert.notEqual(f.load().state.teams.team.leader,f.old);
+ assert.ok(Object.values(f.load().state.subscription_invocations).find(x=>x.action?.kind==='protocol-handover-ack'&&x.state==='settled').nonce.endsWith('_1'));
+});

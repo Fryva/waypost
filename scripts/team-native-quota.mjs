@@ -63,7 +63,7 @@ export function selectNativeQuotaFrontier(t,now=Date.now()){
  const reviewer=!t.review_blocker&&candidate?selectProtocolReviewerCandidate(ps,t.policy,t.review_floor,{coordinator:candidate.id,now}):null;
  return {candidate:candidate?.id??null,reviewer:reviewer?.id??null,blocker:!candidate?'native-quota-no-qualified-coordinator':!reviewer?'native-quota-retained-review-floor-unavailable':null};
 }
-function idleWork(s,t,excluding=null){if(t.handover||Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state))||Object.values(t.runtime_requests||{}).some(x=>!x.captured&&!x.reconciled_stopped)||Object.values(t.review_requests||{}).some(x=>!x.output_digest&&!x.reconciled_stopped)||Object.values(t.deliveries||{}).some(x=>['dispatching','uncertain'].includes(x.state)))fail('idle-reconciled-protocol-only-required');if(Object.values(t.work||{}).some(w=>!['integrated','cancelled'].includes(w.status))||Object.values(s.subscription_invocations||{}).some(x=>x.id!==excluding&&x.team===t.id&&!['settled','aborted'].includes(x.state))||Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.overshoot_allocation_revision!==undefined&&(s.subscription_allocations?.[x.unit_digest]?.revision??0)<=x.overshoot_allocation_revision))fail('idle-reconciled-protocol-only-required');}
+function idleWork(s,t,excluding=null){if(t.handover||Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state))||Object.values(t.runtime_requests||{}).some(x=>!x.captured&&!x.reconciled_stopped)||Object.values(t.review_requests||{}).some(x=>!x.output_digest&&!x.reconciled_stopped)||Object.values(t.deliveries||{}).some(x=>['dispatching','uncertain'].includes(x.state)))fail('idle-reconciled-protocol-only-required');if(Object.values(t.work||{}).some(w=>!['integrated','cancelled'].includes(w.status))||Object.values(s.subscription_invocations||{}).some(x=>x.id!==excluding&&x.team===t.id&&!['settled','aborted','reconciled'].includes(x.state))||Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.overshoot_allocation_revision!==undefined&&(s.subscription_allocations?.[x.unit_digest]?.revision??0)<=x.overshoot_allocation_revision))fail('idle-reconciled-protocol-only-required');}
 function reactivation(s,t,now){
  const basis=t.native_quota_freeze?.reactivation_basis,old=t.participants[t.leader];
  if(t.native_quota_policy?.same_leader_reactivation!==true||!basis)fail('reactivation-original-opt-in-basis-required');
@@ -73,7 +73,7 @@ function reactivation(s,t,now){
 }
 export function assertNativeHandoverConsumedLatch(s,t,{excluding=null}={}){
  if(t.native_quota_policy?.same_leader_reactivation!==true&&!t.native_quota_freeze?.reactivation_basis)return;
- if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.epoch===t.epoch&&x.action?.kind==='protocol-handover-ack'&&x.consumed_at&&x.id!==excluding))fail('old-epoch-handover-already-consumed');
+ if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.epoch===t.epoch&&x.action?.kind==='protocol-handover-ack'&&x.consumed_at&&!(x.state==='reconciled'&&x.slot_released===true)&&x.id!==excluding))fail('old-epoch-handover-already-consumed');
 }
 export function assertNativeHandoverReady(s,t,now,{excluding=null}={}){
  policy(t,now);assertNativeHandoverConsumedLatch(s,t,{excluding});idleWork(s,t,excluding);const h=t.native_protocol_handover;

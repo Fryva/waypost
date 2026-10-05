@@ -81,7 +81,7 @@ function installNativePolicy(s,t,c,authority,now){
   if(t.quota_policy?.automatic_redistribution)fail('native-policy-quota-migration-required');
   if(t.handover||Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('native-policy-pending-runtime-required');
   if(t.required_review_models?.length)fail('native-policy-legacy-history-bridge-required');
-  if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('unresolved-subscription-invocations');
+  if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted','reconciled'].includes(x.state)))fail('unresolved-subscription-invocations');
   if(Object.values(t.runtime_requests||{}).some(x=>!x.captured&&!x.reconciled_stopped)||Object.values(t.review_requests||{}).some(x=>!x.output_digest&&!x.reconciled_stopped)||Object.values(t.deliveries||{}).some(x=>['dispatching','uncertain'].includes(x.state)))fail('native-policy-pending-runtime-required');
   const summary=buildAuthenticatedCalibrationSummary({teamId:t.id,cohortId:c.cohort_id,loaded:{state:s,revision:authority.revision},now});
   const proposal=compileCalibrationPolicyV2(summary,{revision:t.policy.revision+1,now});
@@ -272,7 +272,7 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       // Running editors must acknowledge a stop before overlapping scope is reusable.
       w.status = ['assigned','blocked'].includes(w.status) ? 'cancelled' : 'uncertain'; result = { work: w.id, status: w.status, requested_by: p.id };
     } else if (c.type === 'close') {
-      if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('unresolved-subscription-invocations');
+      if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted','reconciled'].includes(x.state)))fail('unresolved-subscription-invocations');
       owner(s, c); if (Object.values(t.work).some(w => w.status !== 'integrated' && w.status !== 'cancelled')) fail('unfinished-team-work');
       if (Object.keys(t.work).length) fail('reviewed-integration-not-implemented');
       t.status = 'closed'; delete s.task_bindings[t.task]; result = { closed: t.id };

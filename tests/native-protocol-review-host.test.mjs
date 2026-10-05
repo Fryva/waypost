@@ -59,3 +59,12 @@ test('a negative native audit is preserved separately from project work and cann
  assert.equal(aggregate.unresolved_negative,true);assert.equal(aggregate.records.length,1);assert.equal(x.protocol_review.verdict,'changes-requested');assert.deepEqual(state.teams.team.work,{});
  const original=structuredClone(x.protocol_review);await f.hostFor(f.reviewer).recoverProtocolAudit({invocationId:x.id});assert.deepEqual(f.load().state.subscription_invocations[x.id].protocol_review,original);assert.equal(f.calls.filter(x=>x==='native-send').length,2);
 });
+test('a negative audit recorded in a partial receipt keeps its slot when reconciled, so a later policy revision cannot ask again for approval',async t=>{
+ const f=await fixture(t,{auditPartial:true,auditVerdict:'changes-requested',auditFindings:[{event_id:'e',rule_id:'r'}]});
+ await audit(f);const x=f.load().state.subscription_invocations['subscription-audit-one'];assert.equal(x.state,'uncertain');assert.ok(x.partial_receipt);
+ assert.equal(f.reviewHost.reconcileProtocolControl({invocationId:x.id}).slot_released,false);f.reviewHost.acceptUnknownUsage({invocationId:x.id,chargedTokens:'40'});
+ f.reviewHost.enableProtocolReview({revision:2,policy:{kind:'protocol-leadership-audit',allow_unknown_quota:true,max_calls:2,max_estimate_tokens:'40',timeout_ms:1000,expires_at:f.expiry,unit_allocations:[{unit_digest:routingDigest(f.unit),max_tokens:'200',allocation_revision:f.allocation.revision}]}});
+ const sends=f.calls.filter(y=>y==='native-send').length;
+ await assert.rejects(f.reviewHost.auditProtocolLeadership({actionId:'audit-again',sourceInvocationId:f.sourceInvocationId,nonce:'audit-again',estimateTokens:'40'}),/action-slot-already/);
+ assert.equal(f.calls.filter(y=>y==='native-send').length,sends);assert.equal(Object.keys(f.load().state.teams.team.native_protocol_reviews||{}).length,0);
+});

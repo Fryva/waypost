@@ -21,6 +21,16 @@ export function teamOrientation(vault) {
   return {facts,text};
  }catch(error){return {facts:[],error:error.code||'authority-verification-failed',text:'\nTeam authority could not be verified; run waypost doctor before changing coordinated work.\n'};}
 }
+// Subscription calls without a terminal receipt, and reconciled calls whose
+// unknown usage is not yet accepted, block admission and quota handover.
+export function subscriptionCallWarnings(state){
+ const out=[];
+ for(const x of Object.values(state?.subscription_invocations||{})){
+  if(['consumed','uncertain'].includes(x.state))out.push(`${x.team}: subscription call ${x.id} has ${x.partial_receipt?'only a partial receipt':'no terminal receipt'} and blocks admission and quota handover; ${x.purpose==='protocol-control'&&x.action?.operation_id?'run the participant Host operation native-control-reconcile --invocation '+x.id:'it has no ledger-bound operation to reconcile'}. Do not retry it.`);
+  else if(x.state==='reconciled'&&x.unknown_usage_accepted!==true)out.push(`${x.team}: reconciled call ${x.id} has unknown usage; admission on its counter waits until the owner runs unknown-usage-accept --invocation ${x.id} --charged-tokens <at least ${x.estimate_tokens}>.`);
+ }
+ return out;
+}
 export function checkTeamAuthority(vault) {
  const root=join(coordinationDirs(vault).primary,'teams','authority'),out=[];
  const finding=(level,message)=>out.push({group:'vault',level,check:'team-authority',message,file:root});
@@ -36,6 +46,7 @@ export function checkTeamAuthority(vault) {
    if(Object.values(t.runtime_requests||{}).some(r=>r.consumed&&!r.captured&&!r.reconciled_stopped) || Object.values(t.review_requests||{}).some(r=>r.consumed&&!r.output_digest&&!r.reconciled_stopped) || Object.values(t.deliveries||{}).some(r=>r.state==='dispatching'))finding('warn',`${t.id}: consumed native operation has no final receipt or stopped-process proof; do not retry.`);
   }
   if(state?.publication_fence)finding('warn',`${state.publication_fence.team}: Git publication fence requires exact receipt or stopped-child reconciliation.`);
+  for(const message of subscriptionCallWarnings(state))finding('warn',message);
   if(Object.values(state?.invocations||{}).some(i=>!['settled','aborted'].includes(i.state)))finding('warn','Outstanding provider invocation liabilities remain reserved; inspect dispatch and invoice evidence before retry.');
  }catch(e){finding('issue',`Team authority cannot be verified: ${e.code||e.message}`);}
  return out;

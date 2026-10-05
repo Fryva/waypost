@@ -1,6 +1,6 @@
 import {assertNativeBillingQuotaEligible} from './team-native-quota.mjs';
 // Versioned local subscription token accounting. No native adapter or privilege is minted here.
-import { applyNativeProtocolControl,validateProtocolAction,consumeProtocolAction,sealProtocolAction } from './team-native-action.mjs';
+import { applyNativeProtocolControl,validateProtocolAction,consumeProtocolAction,sealProtocolAction,reconcileProtocolControl } from './team-native-action.mjs';
 import { routingDigest } from './model-routing.mjs';
 import { applyProtocolCalibration,validateProtocolMeasurement,consumeProtocolMeasurement,sealProtocolMeasurement } from './team-role-calibration.mjs';
 const fail = code => { throw new Error(code); };
@@ -40,7 +40,7 @@ function collector(s,t,c,p) {
 }
 function enabled(t) { if(t.accounting?.protocol!==1||t.accounting.mode!=='subscription-tokens'||t.routing?.protocol!==3||!t.routing.required)fail('subscription-accounting-mode-required'); }
 function unfinished(s,t) {
- return Object.values(t.invocations||{}).some(x=>!['settled','aborted'].includes(x.state))||Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state))||Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state))||Object.values(t.work||{}).some(x=>!['integrated','cancelled'].includes(x.status))||Object.values(t.review_requests||{}).some(x=>!x.output_digest&&!x.reconciled_stopped)||Object.values(t.runtime_requests||{}).some(x=>x.consumed&&!x.captured&&!x.reconciled_stopped)||Object.values(t.deliveries||{}).some(x=>['dispatching','uncertain'].includes(x.state))||s.publication_fence?.team===t.id;
+ return Object.values(t.invocations||{}).some(x=>!['settled','aborted'].includes(x.state))||Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state))||Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted','reconciled'].includes(x.state))||Object.values(t.work||{}).some(x=>!['integrated','cancelled'].includes(x.status))||Object.values(t.review_requests||{}).some(x=>!x.output_digest&&!x.reconciled_stopped)||Object.values(t.runtime_requests||{}).some(x=>x.consumed&&!x.captured&&!x.reconciled_stopped)||Object.values(t.deliveries||{}).some(x=>['dispatching','uncertain'].includes(x.state))||s.publication_fence?.team===t.id;
 }
 function freshContext(context,now) { if(!Number.isFinite(Date.parse(context.observed_at))||!Number.isFinite(Date.parse(context.expires_at))||Date.parse(context.observed_at)>now||Date.parse(context.expires_at)<=now||Date.parse(context.expires_at)-Date.parse(context.observed_at)>300000)fail('subscription-current-context-required'); }
 function exhausted(p) { if(p.quota_observation?.status==='exhausted')fail('subscription-quota-exhausted'); }
@@ -48,6 +48,8 @@ function totals(s,unitDigest) {
  let actual=0n,reserved=0n,uncertain=false,overshoot=false;
  for(const x of Object.values(s.subscription_invocations||{}).filter(x=>x.unit_digest===unitDigest&&x.state!=='aborted')) {
   if(x.state==='settled'){actual+=decimal(x.charged_tokens);overshoot ||= x.overshoot_allocation_revision!==undefined&&(s.subscription_allocations?.[unitDigest]?.revision||0)<=x.overshoot_allocation_revision;}
+  // Reconciled usage is unknown: its charged reservation blocks admission until the owner accepts a charge.
+  else if(x.state==='reconciled'){actual+=decimal(x.charged_tokens);overshoot ||= x.unknown_usage_accepted!==true;}
   else {reserved+=decimal(x.estimate_tokens);uncertain ||= x.state==='uncertain';}
  }
  return {actual,reserved,uncertain,overshoot};
@@ -191,7 +193,7 @@ function nativeAdmissionCurrent(t,x,p,allocation,now) {
  nativeContextUsable(t,t.subscription_contexts?.[x.context.id],p,now);exhausted(p);
 }
 function applyInheritedNativeAccounting(s,t,c,now,H) {
- const kinds=['subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-context-retire-v2','subscription-reserve-v2','subscription-consume-v2','subscription-usage-v2','subscription-uncertain-v2','subscription-abort-v2'];
+ const kinds=['subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-context-retire-v2','subscription-reserve-v2','subscription-consume-v2','subscription-usage-v2','subscription-uncertain-v2','subscription-abort-v2','subscription-reconcile-v2','subscription-unknown-usage-accept-v2'];
  if(!kinds.includes(c.type))return null;
  bounded(c,98304);let result;
  if(t.native_quota_freeze&&['subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v2'].includes(c.type)){const action=c.reservation?.action||s.subscription_invocations?.[c.invocation_id]?.action;if(c.type!=='subscription-context-capture-v2'&&action?.kind!=='protocol-handover-ack')fail('subscription-native-quota-transition-frozen');if(c.type==='subscription-context-capture-v2'&&(!t.native_protocol_handover||t.native_protocol_handover.state!=='prepared'||c.participant_id!==t.native_protocol_handover.candidate||c.protocol_handover_digest!==routingDigest(t.native_protocol_handover)))fail('subscription-native-quota-transition-frozen');}
@@ -243,6 +245,15 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    const measurement=validateProtocolMeasurement(s,t,r,p,context,now);if(measurement)stored.measurement=measurement;
    const action=validateProtocolAction(s,t,r,p,context,now);if(action){stored.action=action;if(action.kind!=='protocol-leader-ack')stored.control_policy_kind=action.kind;stored.control_policy_revision=(action.kind==='protocol-leader-ack'?t.native_control_policy:action.kind==='protocol-leadership-audit'?t.native_review_policy:t.native_handover_policy).revision;stored.model_revision=p.model.model_revision;}
    s.subscription_invocations||={};s.subscription_invocations[r.id]=stored;result={reserved:r.id,bootstrap_only:true};
+  } else if(c.type==='subscription-reconcile-v2') {
+   result=reconcileProtocolControl(s,t,c,now);
+  } else if(c.type==='subscription-unknown-usage-accept-v2') {
+   // The owner accepts a charge of at least the reserved estimate for one
+   // reconciled call; nothing else changes and no allocation revision moves.
+   H.owner(s,c);const x=s.subscription_invocations?.[c.invocation_id];
+   if(x?.protocol!==2||x.team!==t.id||x.nonce!==c.nonce||x.state!=='reconciled'||x.unknown_usage_accepted===true)fail('reconciled-unknown-usage-required');
+   if(decimal(c.charged_tokens)<decimal(x.estimate_tokens))fail('accepted-charge-below-reservation');
+   x.charged_tokens=c.charged_tokens;x.unknown_usage_accepted=true;x.unknown_usage_accepted_at=c.at;result={accepted:x.id,charged_tokens:x.charged_tokens};
   } else if(c.type==='subscription-abort-v2') {
    H.owner(s,c);const x=s.subscription_invocations?.[c.invocation_id];
    if(x?.protocol!==2||x.team!==t.id||x.state!=='prepared'||x.nonce!==c.nonce)fail('subscription-undispatched-prepared-required');

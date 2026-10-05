@@ -596,7 +596,9 @@ must be a strict JSON object with exactly `ack: true`, `action_id` and
 
 Usage is settled before admission. Malformed responses, changed profiles,
 partial counters or failed closure retain their charges or unresolved holds.
-A consumed semantic election slot cannot be retried with a new nonce or action ID.
+A consumed semantic election slot cannot be retried with a new nonce or action ID;
+the one exception is a call reconciled from its owned closure with no answer on
+the ledger (see Reconciling a lost protocol control call below).
 The authority applies the epoch change only after the owned callback drains and
 the process group closes, then rechecks the original source and current frontier.
 `--operation native-leader-ack-recover --invocation INVOCATION` derives that same
@@ -877,6 +879,43 @@ Live on this Mac (2026-10-04, Codex 0.160.0, ChatGPT Plus, no inference): the
 transport reported known subscription billing and the observer returned an
 `available` proof. Live exhaustion and recovery are not demonstrated.
 Ordering across hosts relies on their clocks.
+
+### Reconciling a lost protocol control call
+
+A consumed v2 subscription call that never gets a terminal receipt (a timeout,
+a transport error, a quota-handover stop of its process) stays `uncertain`. It
+blocks every admission on its team counter and every quota handover. For a
+protocol control call (leader acknowledgement, leadership audit, handover
+acknowledgement), the participant Host operation `native-control-reconcile
+--invocation <id>` submits the owned runtime closure of the call's ledger-bound
+operation (`subscription-reconcile-v2`, by the call's bound collector; it works
+after epoch, policy or quota changes and for a revoked or departed participant
+while its collector is not revoked, so reconcile before revoking a collector).
+The closure must match the scope, operation, kind, invocation, nonce and native
+id, be stopped and drained, and close after consume. The call becomes
+`reconciled`: usage `unknown`, the reserved estimate charged, its native
+context counted as used, its control slot freed when no answer reached the
+authority, and nothing granted. A call whose answer reached the authority in
+a partial receipt (partial or absent usage coverage) is reconciled the same way
+but keeps its slot, so a recorded answer, such as a negative audit, cannot be
+asked again. Unknown usage may exceed the estimate, so new
+admissions on that counter wait until the owner accepts a charge of at least
+the estimate with `unknown-usage-accept --invocation <id> --charged-tokens <n>`
+(`subscription-unknown-usage-accept-v2`); no allocation revision moves, so
+control policies stay valid. A quota handover whose acknowledgement was
+reconciled without an answer, or aborted before consume, is driven again with
+a new attempt nonce. An accepted charge above a control policy's token ceiling
+blocks that policy's calls until a new policy revision. Spec 2.14 and the
+proposed subscription accounting ADR say an overshoot blocks admission until
+the allocation is increased; per-call owner acceptance is a proposed amendment
+awaiting owner approval, because raising the allocation would invalidate the
+control policies pinned to its revision. `waypost doctor` names
+each unsettled or unaccepted call with the step that clears it.
+
+Limits: a crash or kill of the Host process writes no closure, so its call
+cannot be reconciled this way and keeps blocking (the native child may outlive
+the Host); Windows has no owned process-group closure. Identity and calibration
+calls have no ledger-bound operation and are not reconciled yet.
 
 ### Renewing a positive provider-account lease
 

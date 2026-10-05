@@ -299,7 +299,7 @@ export function applyWorkflow(s,t,c,now,H) {
   x.state='aborted';result={aborted:x.id};
  }else if(c.type==='close-v1') {
   H.owner(s,c);
-  if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('unresolved-subscription-invocations');
+  if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted','reconciled'].includes(x.state)))fail('unresolved-subscription-invocations');
   if(Object.values(t.deliveries||{}).some(r=>['dispatching','uncertain'].includes(r.state)) || Object.values(t.runtime_requests||{}).some(r=>r.consumed&&!r.captured&&!r.reconciled_stopped) || Object.values(t.review_requests||{}).some(r=>r.consumed&&!r.output_digest&&!r.reconciled_stopped))fail('unresolved-native-operations');
   if(t.handover || s.publication_fence?.team===t.id || s.deferred_commands?.some(x=>x.command.team===t.id) || Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('unresolved-team-operations');
   if(Object.values(t.work).some(w=>!terminal(w) || w.status==='integrated'&&(!w.commit || !w.integrated_evidence || w.integrated_evidence.commit!==w.commit || w.integrated_evidence.tree!==w.result?.tree || w.integrated_evidence.target_digest!==w.result?.target_digest || w.integrated_evidence.criteria_digest!==w.criteria_digest || w.integrated_evidence.tests_digest!==w.result?.tests_digest || w.integrated_evidence.review_receipt?.nonce!==w.integrated_evidence.review || w.integrated_evidence.review_receipt?.verdict!=='approve')))fail('unfinished-reviewed-team-work');
