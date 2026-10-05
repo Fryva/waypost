@@ -20,6 +20,35 @@ function bound(record,scope){if(record.protocol!==1||hash(record.scope)!==hash(s
 async function listen(server){await new Promise((yes,no)=>{server.once('error',no);server.listen(0,'127.0.0.1',()=>{server.removeListener('error',no);yes();});});return 'http://127.0.0.1:'+server.address().port+'/stop';}
 async function bounded(promise,timeout){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(fail('stop-unconfirmed')),timeout);})]);}finally{clearTimeout(timer);}}
 
+// One process-wide interrupt path for every owned operation, nested or
+// concurrent: the first SIGINT, SIGTERM or SIGHUP stops each active operation
+// the way an authenticated /stop does, so each still writes its closure, and no
+// new operation starts. When the last one has finished, the signal is raised
+// again unless another listener (such as team watch) was there to handle it. A
+// second signal, or operations that do not drain within 15 seconds, exit at once
+// without closures. Windows has no owned closure path and keeps its default.
+const INTERRUPTS=process.platform==='win32'?[]:['SIGINT','SIGTERM','SIGHUP'],INTERRUPT_CODES={SIGHUP:129,SIGINT:130,SIGTERM:143};
+const interruptible=new Set();let interrupted=null,interruptHandledElsewhere=false,interruptTimer=null;
+function onInterrupt(signal){
+ if(interrupted)process.exit(INTERRUPT_CODES[interrupted]);
+ interrupted=signal;interruptHandledElsewhere=process.listenerCount(signal)>1;
+ for(const run of interruptible)run.interrupt();
+ interruptTimer=setTimeout(()=>process.exit(INTERRUPT_CODES[signal]),15000);
+}
+function enterInterruptible(run){
+ if(interrupted)throw fail('operation-interrupted');
+ // First in line, so a once-listener registered earlier is still counted.
+ if(!interruptible.size)for(const signal of INTERRUPTS)process.prependListener(signal,onInterrupt);
+ interruptible.add(run);
+}
+function leaveInterruptible(run){
+ if(!interruptible.delete(run)||interruptible.size)return;
+ for(const signal of INTERRUPTS)process.removeListener(signal,onInterrupt);
+ if(!interrupted)return;
+ clearTimeout(interruptTimer);const signal=interrupted,elsewhere=interruptHandledElsewhere;interrupted=null;interruptHandledElsewhere=false;
+ if(!elsewhere)process.kill(process.pid,signal);
+}
+
 export function createOwnedRuntime(options){
  const config=setup(options),{scope,d,prefix,barrier}=config;
  return {async run({kind,operation=randomUUID()}={},callback){
@@ -44,6 +73,8 @@ export function createOwnedRuntime(options){
    if(result.some(x=>x.status==='rejected')){failedStop=true;throw fail('endpoint-stop-unconfirmed');}
    return result.map(x=>x.value);
   }
+  const handle={interrupt(){stopped=true;closeAll().catch(()=>{failedStop=true;});}};
+  try{enterInterruptible(handle);}catch(error){closeUnstarted();finishDrain();throw error;}
   const token=randomBytes(32).toString('hex');
   const server=createServer((req,res)=>{
    const supplied=req.headers.authorization,expected='Bearer '+token;
@@ -57,7 +88,7 @@ export function createOwnedRuntime(options){
   server.requestTimeout=5000;server.headersTimeout=5000;
   let url;
   try{url=await listen(server);write(base+'.capability.json',{protocol:1,scope,operation,url,token});assertActive();}
-   catch(error){stopped=true;try{closeUnstarted();}finally{server.close();finishDrain();}throw error;}
+   catch(error){stopped=true;try{closeUnstarted();}finally{server.close();finishDrain();leaveInterruptible(handle);}throw error;}
   const operationScope={assertActive,get stopRequested(){return stopped||exists(barrier);},
    annotate(command){assertActive();if(!command||typeof command!=='object'||Array.isArray(command))throw fail('command-required');
     if(typeof command.type==='string'&&(/consume/.test(command.type)||command.type==='work-dispatch-ack-v1')){
@@ -77,6 +108,7 @@ export function createOwnedRuntime(options){
    try{const proofs=await closeAll();if(failedStop)throw fail('stop-unconfirmed');write(base+'.closed.json',{protocol:1,scope,operation,kind,closed_at:new Date().toISOString(),stopped:true,callback_drained:true,consumptions:effects,native_ids:[...new Set(effects.map(x=>x.native_id).filter(Boolean))],closure_proofs:proofs});done=true;}
    catch(e){error=e;}
    finishDrain();server.close();
+   leaveInterruptible(handle);
   }
   if(!done)throw error||fail('stop-unconfirmed');if(error)throw error;return result;
  }};

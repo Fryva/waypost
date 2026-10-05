@@ -181,7 +181,7 @@ export async function main(argv = process.argv.slice(2)) {
         const cred = loadCredential(resolve(opt('--owner-credential') || defaultOwner));
         const actor = authorizeActor(v.state, target, cred); if (!actor.startsWith('owner:')) throw new Error('owner-required');
         const inventoryInspections=[],inventoryScopes=new Set();
-        for(const p of Object.values(t.participants).filter(p=>p.native_binding&&!p.revoked&&p.availability!=='left'&&inventoryDue(t.model_inventory?.[p.id]))){
+        for(const p of Object.values(t.participants).filter(p=>p.native_binding&&!p.revoked&&p.availability!=='left'&&inventoryDue(t.model_inventory?.[p.id]))){if(stopped)break;
           const {createTeamHost}=await import('./team-host.mjs'),b=p.native_binding;
           if(inventoryScopes.has(b.descriptor_digest))continue;
           inventoryScopes.add(b.descriptor_digest);
@@ -194,7 +194,7 @@ export async function main(argv = process.argv.slice(2)) {
         const quotaInspections=[];
         if(t.quota_policy?.automatic_redistribution){
           const {createTeamHost}=await import('./team-host.mjs');
-          for(const p of Object.values(t.participants).filter(p=>p.native_binding&&!p.revoked&&p.availability!=='left')){
+          for(const p of Object.values(t.participants).filter(p=>p.native_binding&&!p.revoked&&p.availability!=='left')){if(stopped)break;
             const b=p.native_binding;
             try{
               const host=createTeamHost({authorityRoot:root,projectRoot:projectRoot(),vaultPath:cfg.vault_path,team:target,hostDir:join(root,'host',target),ownerCredential:resolve(opt('--owner-credential')||defaultOwner),collectorPath:b.collector_file,endpointPath:b.endpoint_file,participant:p.id});
@@ -204,7 +204,7 @@ export async function main(argv = process.argv.slice(2)) {
           v=loaded();t=v.state.teams[target];
         }
         const inspections = [];
-        for (const p of Object.values(t.participants).filter(p => t.policy.protocol!==2 && nativeInspectionDue(p))) {
+        for (const p of Object.values(t.participants).filter(p => t.policy.protocol!==2 && nativeInspectionDue(p))) {if(stopped)break;
           // A strict budget needs a provider-backed control reservation. Never
           // turn a periodic freshness check into an unaccounted paid call.
           if (t.routing?.required) { inspections.push({ participant:p.id, verified:false, blocker:'bounded-control-invocation-required' }); continue; }
@@ -227,7 +227,7 @@ export async function main(argv = process.argv.slice(2)) {
         const nativeQuotaInspections=[];
         if(t.policy.protocol===2&&t.native_quota_policy){
           const {createTeamHost}=await import('./team-host.mjs');
-          for(const p of Object.values(t.participants).filter(p=>p.native_binding&&!p.revoked&&p.availability!=='left'&&p.native_protocol_quota?.proof.status==='available')){
+          for(const p of Object.values(t.participants).filter(p=>p.native_binding&&!p.revoked&&p.availability!=='left'&&p.native_protocol_quota?.proof.status==='available')){if(stopped)break;
             const b=p.native_binding;
             try{
               const host=createTeamHost({authorityRoot:root,projectRoot:projectRoot(),vaultPath:cfg.vault_path,team:target,hostDir:join(root,'host',target),ownerCredential:resolve(opt('--owner-credential')||defaultOwner),collectorPath:b.collector_file,endpointPath:b.endpoint_file,participant:p.id});

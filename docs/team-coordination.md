@@ -924,9 +924,22 @@ before this change, and calls of an injected trusted transport without
 `ownedSubscriptionCalls`, have no ledger-bound operation; a call whose closure
 is missing is refused with `host-reconcile-owned-closure-unavailable`.
 
-Limits: a crash or kill of the Host process writes no closure, so its call
-cannot be reconciled this way and keeps blocking (the native child may outlive
-the Host); Windows has no owned process-group closure.
+An interrupt (SIGINT from Ctrl-C, the SIGTERM a harness sends when a command
+times out, or SIGHUP from a closed terminal) while owned operations run stops
+every one of them, nested or concurrent, the way an authenticated stop does:
+native processes are stopped, callbacks drain (a consumed call is marked
+uncertain), each closure is written and no new operation starts. Then the
+process dies by the same signal, unless another listener was registered for it:
+`team watch`, for example, aborts the Host operation of its current pass (a
+consumed call there needs reconciliation), skips the remaining Host operations
+of that pass, and exits as it already did. A second signal, or operations that do not drain within 15
+seconds, exit at once without closures.
+
+Limits: SIGKILL, a crash or a lost machine writes no closure, so its call cannot
+be reconciled this way and keeps blocking (the native child may outlive the
+Host); Windows has no owned process-group closure, so no handler is installed
+there and Ctrl-C keeps its default. A SIGTERM sent only to the `waypost`
+dispatcher process does not reach the Host it started.
 
 ### Renewing a positive provider-account lease
 

@@ -236,8 +236,8 @@ export function createTeamHost(config, dependencies={}) {
   }finally{operationBusy=false;}
  }
  // A consumed control, identity or calibration call that never got a terminal
- // receipt is reconciled from the owned runtime closure of its ledger-bound operation. A crash or kill of
- // the Host leaves no closure, so such a call stays unreconciled.
+ // receipt is reconciled from the owned runtime closure of its ledger-bound operation. SIGKILL or a crash
+ // of the Host leaves no closure, so such a call stays unreconciled.
  function reconcileProtocolControl({invocationId}={}){
   owner();const {v}=getTeam(),x=v.state.subscription_invocations?.[invocationId];
   const operation=x?.purpose==='protocol-control'?x.action?.operation_id:x?.operation_id;

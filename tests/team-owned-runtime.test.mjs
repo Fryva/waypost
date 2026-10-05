@@ -112,3 +112,54 @@ test('legacy child-only stop evidence cannot become a strict protocol epoch stop
   const stopped=await stopOwnedRuntime(f.options);assert.equal(stopped.stopped,true);assert.throws(()=>serializeOwnedRuntimeStopProof(stopped),/provenance/);
  }finally{f.cleanup();}
 });
+
+// A child process holds owned operations (nested when asked) whose native stop
+// is the only way their callbacks drain, then reports readiness.
+async function interruptChild({signal='SIGTERM',nested=false,listener=''}={}){
+ const {spawn}=await import('node:child_process'),{fileURLToPath}=await import('node:url');
+ const directory=mkdtempSync(join(realpathSync(tmpdir()),'waypost-owned-interrupt-')),module=fileURLToPath(new URL('../scripts/team-owned-runtime.mjs',import.meta.url));
+ const script=`import {createOwnedRuntime} from ${JSON.stringify(module)};
+${listener}
+const runtime=createOwnedRuntime({directory:${JSON.stringify(directory)},team:'team',participant:'worker',incarnation:'inc',epoch:1,descriptorDigest:'a'.repeat(64)});
+const hold=(name,inner)=>runtime.run({kind:'subscription-bootstrap',operation:name},async scope=>{
+ let fail;const pending=new Promise((_,reject)=>{fail=reject;});
+ await scope.native(async()=>({native_id:name+'-context',async stopAndWait(){fail(Object.assign(new Error('native-outcome-uncertain'),{code:'native-outcome-uncertain'}));return {stopped:true,owned_processes:1,process_group_closed:true};}}));
+ scope.annotate({type:'subscription-consume-v2',nonce:name,invocation_id:'subscription-'+name,native_id:name+'-context'});
+ if(inner)await Promise.allSettled([inner(),pending]);else{process.stdout.write('ready\\n');await pending;}
+});
+await hold('outer',${nested?"()=>hold('inner')":'null'}).catch(()=>{});
+process.stdout.write('after\\n');`;
+ try{
+  const child=spawn(process.execPath,['--input-type=module','-e',script],{stdio:['ignore','pipe','pipe']});
+  let stdout='',stderr='';child.stdout.on('data',d=>{stdout+=d;});child.stderr.on('data',d=>{stderr+=d;});
+  await new Promise((resolve,reject)=>{child.stdout.on('data',()=>{if(stdout.includes('ready'))resolve();});child.once('exit',()=>reject(new Error('child exited early: '+stderr)));});
+  child.kill(signal);
+  const [code,died]=await new Promise(resolve=>child.once('exit',(c,s)=>resolve([c,s])));
+  const closures=Object.fromEntries(readdirSync(directory).filter(n=>n.endsWith('.closed.json')).map(n=>{const r=JSON.parse(readFileSync(join(directory,n),'utf8'));return [r.operation,r];}));
+  // Each closure yields the completion a reconcile submits for its consumed call.
+  const completions=Object.fromEntries(Object.keys(closures).map(name=>[name,collectOwnedRuntimeCompletion({directory,team:'team',participant:'worker',incarnation:'inc',epoch:1,descriptorDigest:'a'.repeat(64),operation:name,invocation_id:'subscription-'+name,nonce:name,native_id:name+'-context'})]));
+  return {code,signal:died,stdout,stderr,closures,completions};
+ }finally{rmSync(directory,{recursive:true,force:true});}
+}
+const posix={skip:process.platform==='win32',timeout:30000};
+test('an interrupt during an owned operation stops its native process and still writes the closure before the process dies by that signal',posix,async()=>{
+ const r=await interruptChild();assert.equal(r.signal,'SIGTERM',r.stderr);assert.equal(r.code,null);
+ const closed=r.closures.outer;assert.ok(closed,'the closure was written before the process died');
+ assert.equal(r.completions.outer.kind,'subscription-bootstrap');assert.equal(closed.stopped,true);assert.equal(closed.callback_drained,true);assert.equal(closed.kind,'subscription-bootstrap');assert.deepEqual(closed.native_ids,['outer-context']);assert.equal(closed.closure_proofs[0].process_group_closed,true);assert.equal(closed.consumptions[0].invocation_id,'subscription-outer');
+});
+test('nested owned operations each write a closure on one interrupt, and SIGINT and SIGHUP are handled like SIGTERM',posix,async()=>{
+ for(const signal of ['SIGINT','SIGHUP']){
+  const r=await interruptChild({signal,nested:true});assert.equal(r.signal,signal,r.stderr);
+  assert.deepEqual(Object.keys(r.closures).sort(),['inner','outer'],signal);for(const c of Object.values(r.closures))assert.equal(c.callback_drained,true);
+ }
+});
+test('when another listener handles the interrupt, the closure is written and the process is left to that listener',posix,async()=>{
+ const r=await interruptChild({listener:"process.once('SIGTERM',()=>{process.stdout.write('graceful\\n');});"});
+ assert.equal(r.code,0,r.stderr);assert.equal(r.signal,null);assert.match(r.stdout,/graceful[\s\S]*after/);assert.ok(r.closures.outer);
+});
+test('interrupt listeners exist only while an owned operation runs',async()=>{
+ const f=fixture(),before=['SIGINT','SIGTERM','SIGHUP'].map(s=>process.listenerCount(s));let during;
+ try{await f.runtime.run({kind:'review'},async scope=>{await scope.native(endpoint);during=['SIGINT','SIGTERM','SIGHUP'].map(s=>process.listenerCount(s));});}finally{f.cleanup();}
+ assert.deepEqual(['SIGINT','SIGTERM','SIGHUP'].map(s=>process.listenerCount(s)),before);
+ if(process.platform!=='win32')assert.deepEqual(during,before.map(n=>n+1));
+});

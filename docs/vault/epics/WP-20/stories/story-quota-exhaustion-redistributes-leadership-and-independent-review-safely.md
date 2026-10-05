@@ -473,3 +473,35 @@ a reconciled trial's measurement slot still names it and a retry is refused with
 `host-calibration-trial-slot-already-recorded-no-replay`; the identity test
 counts both stops. The pending owner decision on per-call acceptance (spec 2.14
 amendment) now also covers identity and calibration calls.
+
+### Interrupted owned operations write their closure (3f, 2026-10-04, Claude Code)
+
+Gap (from the 3d plan criticism): Host operations had no signal handling, so
+Ctrl-C or a harness timeout's SIGTERM counted as a crash: no closure, and the
+consumed call could never be reconciled. `createOwnedRuntime().run` now
+handles SIGINT and SIGTERM while an operation runs: it stops the operation as
+an authenticated `/stop` does (native processes stopped, callback drained,
+closure written), removes its handlers and raises the same signal again, so the
+process still dies by it. A second signal or no drain within 15 seconds exits
+at once without a closure. Test: a child process holding an owned operation
+with a consumed call receives SIGTERM, dies by SIGTERM, and leaves a closure
+whose completion names the consumed call and a closed process group. SIGKILL,
+crashes and Windows remain without a closure.
+
+Diff review (fresh context, revise) and fixes: per-operation handlers lost the
+outer closure of nested operations (`review` runs `inspect` inside its own
+operation), because the inner re-raise looked like a second signal; they also
+double-delivered to other listeners and warned above ten runs. Now one
+process-wide coordinator (listener prepended, installed while any owned
+operation runs) stops every active operation on the first SIGINT, SIGTERM or
+SIGHUP, refuses new ones, and re-raises only after the last one finishes and
+only if no other listener was registered (so `team watch` keeps its exit);
+nothing is installed on Windows; an operation refused because an interrupt is
+in progress still writes an unstarted closure. Tests: SIGTERM single
+operation; nested operations under SIGINT and SIGHUP both write closures and
+the process dies by the signal; with another listener the process exits 0
+after the closure; listeners exist only during an operation.
+Delta review: ship. Applied its optional items: `team watch` skips the remaining
+Host operations of a pass once it has been asked to stop, so no paid call
+follows an interrupt; the interrupt tests check that each closure yields the
+completion a reconcile submits; the test helper always removes its directory.
