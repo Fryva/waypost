@@ -814,13 +814,18 @@ leadership audit, handover acknowledgement) are admitted for Claude through the
 same path as OpenCode: every call is a fresh owned context with the preflight
 before context capture and again between reserve and consume, and its receipt
 yields a native profile only when the manifest is isolated and bound to the
-last inspection. Claude's effective reasoning and binary version stay `unknown`
-in the profile, as OpenCode's reasoning does; a receipt with more than one model
+last inspection. Claude's effective reasoning stays `unknown` in the profile, as OpenCode's
+reasoning does; its binary version is the `get_binary_version` answer of the same
+preflighted peer bound into the receipt manifest (`version_provenance:
+"native-binary-version"`), and `unknown` when that binding is absent or malformed; a receipt with more than one model
 in `modelUsage` has no exact model and gets no profile. Host tests run a Claude identity
 profile and a coordinate trial, and a leader acknowledgement through the owned
 runtime, each with a preflight pair; a malformed answer spends its slot without
 a leader, and a second preflight refused before consume aborts the reservation
-without taking the slot. No live Claude trial or control action has been run;
+without taking the slot. A live Claude identity probe through a real Host ledger (2026-10-04, Claude
+Code 2.1.289) passed with a complete 1,916-token span, an isolated settled
+receipt and a profile for `anthropic/claude-opus-5-5` at `2.1.289`
+(`native-binary-version`). No live Claude trial or control action has been run;
 a fenced or malformed live control answer would use up its action slot, and an
 estimate below Claude's per-call baseline (about 1.85K tokens observed) would
 leave an overshoot that blocks applying it.

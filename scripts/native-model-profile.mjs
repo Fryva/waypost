@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { verifyProtocolRoleSuite,formatProtocolTrial } from './team-role-suite.mjs';
-import { readProtocolActionResponse } from './team-native-action.mjs';
+import { readProtocolActionResponse,nativeProfileVersion } from './team-native-action.mjs';
 
 const minted = new WeakMap();
 const TTL = 15 * 60 * 1000;
@@ -89,10 +89,10 @@ async function collectProfile({participant,observe,adapter_revision,requested_co
   if (!known(actual?.provider) || !known(actual?.model_id)) fail('native-route-model-required');
   const routeOnly = ctx.model_provider_is_billing_route === true || actual.provider_kind === 'billing-route';
   const effective_reasoning = !routeOnly && known(actual.reasoning) ? actual.reasoning : 'unknown';
-  const version = ctx.version_provenance === 'native-health' && known(ctx.version) ? ctx.version : 'unknown';
+  const {version,version_provenance} = nativeProfileVersion(ctx);
   const profile = {
     identity_kind:'native-configuration',revision:1,harness:ctx.harness,
-    version,version_provenance:version === 'unknown' ? 'unknown' : 'native-health',adapter_revision,
+    version,version_provenance,adapter_revision,
     native_routing_id:actual.provider,native_model_id:actual.model_id,
     requested_configuration_digest:digest(requested),
     observed:{effective_reasoning,backend_author:'unknown',native_variant:routeOnly && known(actual.reasoning) ? actual.reasoning : 'unknown'},

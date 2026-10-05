@@ -6,6 +6,15 @@ import { buildProtocolLeadershipAuditTarget, formatProtocolLeadershipAudit, read
 import { parseProtocolJSON } from './team-role-suite.mjs';
 const fail=code=>{throw Object.assign(new Error('native-action-'+code),{code:'native-action-'+code});};
 function id(value){if(typeof value!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value))fail('bounded-action-id-required');return value;}
+// A profile's binary version comes from native health (OpenCode) or, for Claude,
+// from get_binary_version of the same preflighted peer bound into the manifest.
+export function nativeProfileVersion(ctx){
+ const known=value=>typeof value==='string'&&value.length>0&&value.length<=128&&value!=='unknown'&&!/[\x00-\x1f\x7f]/.test(value);
+ if(ctx?.harness==='opencode'&&ctx.version_provenance==='native-health'&&known(ctx.version))return {version:ctx.version,version_provenance:'native-health'};
+ const p=ctx?.preflight;
+ if(ctx?.harness==='claude'&&p?.source==='native-get-context-usage-summary'&&p.native_id===ctx.native_id&&typeof p.version==='string'&&/^[0-9]+\.[0-9]+\.[0-9]+$/.test(p.version))return {version:p.version,version_provenance:'native-binary-version'};
+ return {version:'unknown',version_provenance:'unknown'};
+}
 export function createProtocolLeaderAckRequest(team,{actionId,now=Date.now()}={}){
  if(team?.policy?.protocol!==2||team.leader||team.status!=='forming'||team.handover||Object.values(team.work||{}).some(w=>!['integrated','cancelled'].includes(w.status)))fail('idle-native-candidate-required');
  if(!Number.isSafeInteger(now)||!Number.isSafeInteger(team.epoch)||team.epoch<0||team.epoch>=Number.MAX_SAFE_INTEGER)fail('clock-or-epoch-required');
@@ -126,11 +135,11 @@ function profileCapture(t,x,raw,p){
  if(x.action.kind==='protocol-leadership-audit'){const source=x.action.request.target.source_context;if(ctx.native_id===source.native_id||[source.reservation_context_id,source.receipt_context_id].includes(ctx.id))fail('independent-audit-context-required');}
  const actualProfile=profile.profile,scope=actualProfile.execution_scope,routeOnly=ctx.model_provider_is_billing_route===true||native.actualModel.provider_kind==='billing-route';
  const known=value=>typeof value==='string'&&value.length>0&&value!=='unknown';
- const observedVersion=ctx.version_provenance==='native-health'&&known(ctx.version)?ctx.version:'unknown';
+ const observed=nativeProfileVersion(ctx);
  const observedReasoning=!routeOnly&&known(native.actualModel.reasoning)?native.actualModel.reasoning:'unknown';
  const observedVariant=routeOnly&&known(native.actualModel.reasoning)?native.actualModel.reasoning:'unknown';
  const validDigest=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
- if(actualProfile.harness!==ctx.harness||actualProfile.version!==observedVersion||actualProfile.observed?.effective_reasoning!==observedReasoning||actualProfile.observed?.native_variant!==observedVariant||scope?.isolation!==ctx.isolation||scope.permissions?.rules_digest!==(validDigest(ctx.rules_digest)?ctx.rules_digest:null)||scope.context?.initial_instructions_digest!==(validDigest(ctx.initial_instructions_digest)?ctx.initial_instructions_digest:null))fail('native-action-profile-scope-changed');
+ if(actualProfile.harness!==ctx.harness||actualProfile.version!==observed.version||actualProfile.version_provenance!==observed.version_provenance||actualProfile.observed?.effective_reasoning!==observedReasoning||actualProfile.observed?.native_variant!==observedVariant||scope?.isolation!==ctx.isolation||scope.permissions?.rules_digest!==(validDigest(ctx.rules_digest)?ctx.rules_digest:null)||scope.context?.initial_instructions_digest!==(validDigest(ctx.initial_instructions_digest)?ctx.initial_instructions_digest:null))fail('native-action-profile-scope-changed');
  if(ctx.provenance!=='adapter-isolated'||ctx.read_only!==true||ctx.fresh!==true||ctx.fresh_review_verified!==true||ctx.author_history_inherited!==false||ctx.tools?.length!==0||ctx.author_contexts?.length!==0||profile.profile.native_routing_id!==native.actualModel.provider||profile.profile.native_model_id!==native.actualModel.model_id||profile.profile.execution_scope?.cwd!==ctx.cwd)fail('isolated-action-profile-required');
  return profile;
 }

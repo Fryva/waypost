@@ -7,7 +7,7 @@ status: in-progress
 priority: p1
 assignee: "Ivan Morozov"
 created: 2026-09-30
-updated: 2026-10-01
+updated: 2026-10-04
 external_refs: {}
 tags: []
 code_refs: ["scripts/team.mjs", "scripts/model-strength.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team-cli.mjs", "models/strength-sources.json", "models/policy.schema.json", "models/descriptor.schema.json", "tests/team-models.test.mjs", "tests/team-store.test.mjs", "tests/model-strength.test.mjs", "tests/team-periodic.test.mjs", "tests/team-cli.test.mjs", "scripts/team-transport.mjs", "scripts/team-host.mjs", "scripts/team-evidence.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs", "scripts/native-model-profile.mjs", "tests/native-model-profile.test.mjs", "scripts/team-role-suite.mjs", "tests/team-role-suite.test.mjs", "scripts/team-role-calibration.mjs", "tests/team-role-calibration.test.mjs", "scripts/team-subscription.mjs", "tests/team-subscription.test.mjs", "tests/calibration-policy.test.mjs", "tests/native-policy-models.test.mjs", "tests/native-policy-state.test.mjs", "tests/helpers/native-calibration.mjs", "scripts/team-model-inventory.mjs", "tests/team-model-inventory.test.mjs", "tests/native-model-inventory-transport.test.mjs", "tests/team-model-inventory-cli.test.mjs", "scripts/team-native-action.mjs", "scripts/team-protocol-review.mjs", "tests/native-action-profile.test.mjs", "tests/native-protocol-action.test.mjs", "tests/native-protocol-control.test.mjs", "tests/native-protocol-host.test.mjs", "tests/native-protocol-review.test.mjs", "tests/native-protocol-review-host.test.mjs", "tests/helpers/native-protocol-host.mjs", "tests/claude-native-counter.test.mjs"]
@@ -242,3 +242,43 @@ ship; its should-fix items (control-action test, pinned manifest fields, quota
 consequence, stale Codex/OpenCode wording and status labels) are done. Not
 done: a live Claude trial or control action, and a version source for Claude
 profiles (they keep `version: unknown`).
+
+### Claude profile version from the bound preflight (2026-10-04, Claude Code)
+
+Claude profiles recorded `version: unknown` because only OpenCode's native
+health counted as a version source. `nativeProfileVersion` (team-native-action)
+now serves both the profile collector and the action-profile capture check: an
+OpenCode `native-health` version, or for Claude the `get_binary_version` answer
+of the same preflighted peer that the receipt manifest binds (same native id,
+the summary preflight source, a plain `x.y.z` version), recorded as
+`native-binary-version`; anything else stays `unknown`. Existing OpenCode and
+Codex profiles are unchanged. Tests: the Claude identity profile carries
+`2.1.289` / `native-binary-version`; a foreign native id, another source, a
+pre-release string, another harness and an unprovenanced version give
+`unknown`.
+Review (fresh context, revise) and fixes: the protocol Host fixture's Claude
+manifests now carry the real preflight shape, so the leader ACK test asserts the
+reducer's own recomputation (`2.1.289`, `native-binary-version`); the capture
+check compares version and provenance; `native-health` counts only for
+OpenCode; control characters are refused. Replay note: the action-profile
+capture reducer recomputes the version from the stored manifest, so a Claude
+action observation captured with the previous rule would not replay. Claude
+control actions were admitted only on this unmerged branch (since 86bdb3a) and
+none has run live, so no such event exists; every Claude profile id changes
+once, and in-flight cohorts and policies expire within 15 minutes.
+
+Live through a real Host ledger (2026-10-04/05, Claude Code 2.1.289, macOS): a
+scratch project ran team create (`--native-policy-bootstrap`), join (harness
+claude), `subscription-accounting-enable-v2` (inherited-native), Host bootstrap
+with a read-only managed Claude descriptor and one `subscription-bootstrap`.
+Result: `probe_passed: true`; complete first-turn span of 1,916 tokens;
+invocation settled with `isolation_verified: true`; no binding changes or
+quarantine; native profile harness `claude`, version `2.1.289`
+(`native-binary-version`), model `anthropic/claude-opus-5-5`, effective
+reasoning `unknown`, no roles and not rank-eligible; native context retired.
+The joined participant declared `claude-sonnet-5-5`; the observed effective
+model was `claude-opus-5-5`, which the identity records as observed without
+granting anything. One earlier invocation of the step failed before inference
+(missing `--participant`), so exactly one inference ran. This is live Host
+ledger evidence for the identity probe only, not a live trial, control action,
+calibration, strength or quota evidence.

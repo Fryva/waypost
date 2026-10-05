@@ -39,7 +39,7 @@ test('a Claude leader ACK runs with a preflight before capture and before consum
  const calls=f.calls.slice(begin),inspects=calls.flatMap((x,i)=>x==='native-inspect'?[i]:[]);
  assert.equal(inspects.length,2);assert.ok(inspects[0]<calls.indexOf('subscription-context-capture-v2'));assert.ok(calls.indexOf('subscription-reserve-v2')<inspects[1]&&inspects[1]<calls.indexOf('subscription-consume-v2'));
  assert.ok(calls.indexOf('subscription-consume-v2')<calls.indexOf('native-send'));assert.ok(calls.lastIndexOf('native-stop')<calls.indexOf('native-leader-ack-capture-v2'));
- const x=f.load().state.subscription_invocations['subscription-claude-action'];assert.equal(x.receipt.isolation_verified,true);assert.equal(x.action_observation.profile.harness,'claude');
+ const x=f.load().state.subscription_invocations['subscription-claude-action'];assert.equal(x.receipt.isolation_verified,true);assert.equal(x.action_observation.profile.harness,'claude');assert.equal(x.action_observation.profile.version,'2.1.289');assert.equal(x.action_observation.profile.version_provenance,'native-binary-version');
 });
 test('a malformed Claude ACK spends its slot without a leader, and a refused second preflight aborts before the slot is taken',async t=>{
  const bad=await fixture(t,{harness:'claude',malformed:true}),result=await bad.host.acknowledgeProtocolLeadership({actionId:'claude-bad',nonce:'claude-bad',estimateTokens:'40'});
