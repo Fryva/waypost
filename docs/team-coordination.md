@@ -598,7 +598,7 @@ Usage is settled before admission. Malformed responses, changed profiles,
 partial counters or failed closure retain their charges or unresolved holds.
 A consumed semantic election slot cannot be retried with a new nonce or action ID;
 the one exception is a call reconciled from its owned closure with no answer on
-the ledger (see Reconciling a lost protocol control call below).
+the ledger (see Reconciling a lost subscription call below).
 The authority applies the epoch change only after the owned callback drains and
 the process group closes, then rechecks the original source and current frontier.
 `--operation native-leader-ack-recover --invocation INVOCATION` derives that same
@@ -880,7 +880,7 @@ transport reported known subscription billing and the observer returned an
 `available` proof. Live exhaustion and recovery are not demonstrated.
 Ordering across hosts relies on their clocks.
 
-### Reconciling a lost protocol control call
+### Reconciling a lost subscription call
 
 A consumed v2 subscription call that never gets a terminal receipt (a timeout,
 a transport error, a quota-handover stop of its process) stays `uncertain`. It
@@ -912,10 +912,21 @@ awaiting owner approval, because raising the allocation would invalidate the
 control policies pinned to its revision. `waypost doctor` names
 each unsettled or unaccepted call with the step that clears it.
 
+Identity probes and calibration trials started by an owned Host since this
+change carry their runtime operation id in the reservation (`operation_id`),
+so the same operation reconciles them from the closure of that operation
+(`subscription-bootstrap` or `calibration-trial`). Identity calls have no slot;
+a reconciled calibration trial keeps its measurement slot, so the case is not
+run again, and because a role qualifies only with every case of the suite, that
+profile and role cannot qualify in that cohort; the owner opens a new cohort.
+The operation id is recorded only while an owned operation runs. Calls reserved
+before this change, and calls of an injected trusted transport without
+`ownedSubscriptionCalls`, have no ledger-bound operation; a call whose closure
+is missing is refused with `host-reconcile-owned-closure-unavailable`.
+
 Limits: a crash or kill of the Host process writes no closure, so its call
 cannot be reconciled this way and keeps blocking (the native child may outlive
-the Host); Windows has no owned process-group closure. Identity and calibration
-calls have no ledger-bound operation and are not reconciled yet.
+the Host); Windows has no owned process-group closure.
 
 ### Renewing a positive provider-account lease
 

@@ -231,8 +231,10 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    t.subscription_contexts||={};t.subscription_contexts[context.id]=value;result={context:context.id,billing_policy:'inherited-native'};
   } else if(c.type==='subscription-reserve-v2') {
    H.owner(s,c);const r=bounded(c.reservation);
-   fields(r,['id','participant','incarnation','context_id','purpose','requested_model','nonce','suite_digest','max_calls','timeout_ms','estimate_tokens','epoch','quota_revision','mode_revision','allocation_revision','measurement','action']);
+   fields(r,['id','participant','incarnation','context_id','purpose','requested_model','nonce','suite_digest','max_calls','timeout_ms','estimate_tokens','epoch','quota_revision','mode_revision','allocation_revision','measurement','action','operation_id']);
    id(r.id);id(r.nonce);digest(r.suite_digest);tuple(r.requested_model);decimal(r.estimate_tokens);
+   // An owned identity or calibration call binds its runtime operation, so a lost one can be reconciled.
+   if(r.operation_id!==undefined&&(!['identity','calibration'].includes(r.purpose)||typeof r.operation_id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(r.operation_id)))fail('subscription-operation-binding-invalid');
    if(!['identity','calibration','protocol-control'].includes(r.purpose)||r.max_calls!==1||!Number.isInteger(r.timeout_ms)||r.timeout_ms<100||r.timeout_ms>300000)fail('subscription-bounded-bootstrap-required');
    const p=participant(t,r.participant),context=t.subscription_contexts?.[r.context_id],allocation=context&&s.subscription_allocations?.[context.unit_digest];
    nativeContextUsable(t,context,p,now);if(allocation?.protocol!==2)fail('subscription-team-counter-allocation-required');

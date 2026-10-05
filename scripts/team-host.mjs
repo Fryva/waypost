@@ -100,8 +100,8 @@ export function createTeamHost(config, dependencies={}) {
   return afterCompletion?await afterCompletion(result,{directory:runtimeDirectory,team,participant:p.id,incarnation:p.incarnation,epoch,descriptorDigest:routingDigest(d.descriptor),operation}):result;
   }finally{operationBusy=false;}
  }
- async function subscriptionBootstrap({nonce,estimateTokens='16000',maxTokens='20000'}={}) {
-  return subscriptionSingleCall({nonce,estimateTokens,maxTokens});
+ async function subscriptionBootstrap({nonce,estimateTokens='16000',maxTokens='20000',operationId=null}={}) {
+  return subscriptionSingleCall({nonce,estimateTokens,maxTokens,operationId});
  }
  function calibrationBundle(cohort) {
   const suite=createProtocolRoleSuite({seed:cohort.seed,cohort:cohort.id,profiles:cohort.members.map(m=>m.profile_id)});
@@ -118,7 +118,7 @@ export function createTeamHost(config, dependencies={}) {
   const suite=createProtocolRoleSuite({seed:request.seed,cohort:request.id,profiles:request.members?.map(m=>m.profile_id)});
   return mutate('native-calibration-cohort-open-v2',{cohort:{...request,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest}},owner()).result;
  }
- async function subscriptionCalibrationTrial({cohortId,caseId,nonce,estimateTokens='16000'}={}) {
+ async function subscriptionCalibrationTrial({cohortId,caseId,nonce,estimateTokens='16000',operationId=null}={}) {
   const cohort=calibrationCohort(cohortId),suite=calibrationBundle(cohort),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   const member=cohort.members.find(m=>m.participant===p.id&&m.incarnation===p.incarnation&&m.model_revision===p.model.model_revision&&m.descriptor_digest===routingDigest(d.descriptor));
   if(!member)fail('host-calibration-current-member-required');
@@ -128,7 +128,7 @@ export function createTeamHost(config, dependencies={}) {
   const measurement={kind:'objective-role-trial',cohort_id:cohort.id,role:trial.role,case_id:trial.id,profile_id:member.profile_id,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,prompt_digest:routingDigest(prompt)};
   const slot=routingDigest({profile:member.profile_id,role:trial.role,case:trial.id});
   if(cohort.slots?.[slot]||Object.values(load().state.subscription_invocations||{}).some(x=>x.team===team&&x.state!=='aborted'&&x.measurement?.cohort_id===cohort.id&&x.measurement.profile_id===member.profile_id&&x.measurement.case_id===trial.id))fail('host-calibration-trial-slot-already-recorded-no-replay');
-  return subscriptionSingleCall({nonce,estimateTokens,trialBinding:{cohort,suite,trial,member,measurement,prompt}});
+  return subscriptionSingleCall({nonce,estimateTokens,operationId,trialBinding:{cohort,suite,trial,member,measurement,prompt}});
  }
  function calibrationSummary({cohortId}={}) {
   const cohort=calibrationCohort(cohortId),suite=calibrationBundle(cohort),{t}=getTeam(),at=Date.parse(now());
@@ -235,18 +235,19 @@ export function createTeamHost(config, dependencies={}) {
    return afterCompletion({invocation_id:x.id,recovery:true},{directory:join(registered?dirname(registered.binding.host_file):hostDir,'runtime'),team,participant:p.id,incarnation:x.incarnation,epoch:x.action.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.action.operation_id});
   }finally{operationBusy=false;}
  }
- // A consumed control call that never got a terminal receipt is reconciled from
- // the owned runtime closure of its ledger-bound operation. A crash or kill of
+ // A consumed control, identity or calibration call that never got a terminal
+ // receipt is reconciled from the owned runtime closure of its ledger-bound operation. A crash or kill of
  // the Host leaves no closure, so such a call stays unreconciled.
  function reconcileProtocolControl({invocationId}={}){
   owner();const {v}=getTeam(),x=v.state.subscription_invocations?.[invocationId];
-  if(x?.purpose!=='protocol-control'||x.team!==team||!x.action?.operation_id)fail('host-control-reconcile-source-required');
+  const operation=x?.purpose==='protocol-control'?x.action?.operation_id:x?.operation_id;
+  if(!['protocol-control','identity','calibration'].includes(x?.purpose)||x.team!==team||!operation)fail('host-control-reconcile-source-required');
   if(!['consumed','uncertain','reconciled'].includes(x.state))fail('host-control-reconcile-unsettled-call-required');
   let directory=hostDir;
   const p=v.state.teams[team].participants[x.participant];
   let registryError=null;
   if(p?.host_binding)try{directory=dirname(readParticipantHost({state:v.state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)}).binding.host_file);}catch(error){registryError=error.code||'host-participant-registry-unavailable';}
-  let completion;try{completion=collectOwnedRuntimeCompletion({directory:join(directory,'runtime'),team,participant:x.participant,incarnation:x.incarnation,epoch:x.action.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.action.operation_id,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id});}catch(error){if(registryError)fail(registryError);throw error;}
+  let completion;try{completion=collectOwnedRuntimeCompletion({directory:join(directory,'runtime'),team,participant:x.participant,incarnation:x.incarnation,epoch:x.action?.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id});}catch(error){if(registryError)fail(registryError);if(error.code==='ENOENT')fail('host-reconcile-owned-closure-unavailable');throw error;}
   const serialized=serializeOwnedRuntimeCompletion(completion);
   if(x.state==='reconciled'){if(x.reconcile_evidence_digest!==serialized.evidence_digest)fail('host-control-reconcile-conflict');return {unchanged:true,reconciled:x.id};}
   return mutate('subscription-reconcile-v2',{invocation_id:x.id,nonce:x.nonce,completion:serialized},collector(),'subscription-reconcile-'+x.nonce).result;
@@ -376,7 +377,7 @@ export function createTeamHost(config, dependencies={}) {
    catch(e){return {...base,redistribution_required:true,redistribution_blocker:typeof e.code==='string'&&/^[a-z0-9-]{1,128}$/.test(e.code)?e.code:'host-native-handover-blocked'};}
   }
  }
- async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null}={}) {
+ async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null,operationId=null}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('host-subscription-v2-owner-opt-in-required');
   if(!['codex','opencode','claude'].includes(d.descriptor.harness)||d.descriptor.mode!=='read-only'||d.descriptor.harness==='opencode'&&d.descriptor.spawn_server!==true)fail('host-subscription-bootstrap-counter-adapter-unsupported');
@@ -449,7 +450,7 @@ export function createTeamHost(config, dependencies={}) {
     allocation=load().state.subscription_allocations[unitDigest];
    }
    const latest=getTeam().t;
-   mutate('subscription-reserve-v2',{reservation:{id:invocationId,participant:p.id,incarnation:p.incarnation,context_id:contextId,purpose:controlAction?'protocol-control':trialBinding?'calibration':'identity',...(controlAction?{action:controlAction}:{}),...(trialBinding?{measurement:trialBinding.measurement}:{}),requested_model:{provider:'unknown',model_id:d.descriptor.model_id||'native-default',reasoning:d.descriptor.reasoning||'native-default'},nonce,suite_digest:suiteDigest,max_calls:1,timeout_ms:d.descriptor.timeout_ms||60000,estimate_tokens:estimateTokens,epoch:latest.epoch,quota_revision:latest.quota_revision||0,mode_revision:latest.accounting.revision,allocation_revision:allocation.revision}},o);
+   mutate('subscription-reserve-v2',{reservation:{id:invocationId,participant:p.id,incarnation:p.incarnation,context_id:contextId,purpose:controlAction?'protocol-control':trialBinding?'calibration':'identity',...(controlAction?{action:controlAction}:{}),...(trialBinding?{measurement:trialBinding.measurement}:{}),...(operationId&&activeOperation&&!controlAction?{operation_id:operationId}:{}),requested_model:{provider:'unknown',model_id:d.descriptor.model_id||'native-default',reasoning:d.descriptor.reasoning||'native-default'},nonce,suite_digest:suiteDigest,max_calls:1,timeout_ms:d.descriptor.timeout_ms||60000,estimate_tokens:estimateTokens,epoch:latest.epoch,quota_revision:latest.quota_revision||0,mode_revision:latest.accounting.revision,allocation_revision:allocation.revision}},o);
    // A transport whose isolation is only observable before its first turn is
    // inspected again here, where a refusal still aborts the reservation.
    if(transport.preflight_before_consume){const again=await transport.inspectContext();if(again.verified!==true||typeof again.evidence_digest!=='string')fail('host-subscription-owned-read-only-context-unverified');binding.preflight=again.evidence_digest;}
@@ -864,5 +865,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial(options));},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap(options));},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>managedOperation('relay',()=>relay(options)),installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

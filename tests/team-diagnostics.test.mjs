@@ -18,8 +18,8 @@ test('a dangling authority symlink remains a verification error', {skip:process.
  assert.ok(teamOrientation(root).error);
 });
 test('unsettled and unaccepted reconciled subscription calls are named with the step that clears them',()=>{
- const state={subscription_invocations:{a:{id:'a',team:'t',state:'uncertain',purpose:'protocol-control',action:{operation_id:'op'}},b:{id:'b',team:'t',state:'consumed',purpose:'calibration'},c:{id:'c',team:'t',state:'reconciled',unknown_usage_accepted:false,estimate_tokens:'40'},d:{id:'d',team:'t',state:'reconciled',unknown_usage_accepted:true},e:{id:'e',team:'t',state:'settled'}}};
- const out=subscriptionCallWarnings(state);assert.equal(out.length,3);
- assert.match(out[0],/no terminal receipt.*native-control-reconcile --invocation a/);assert.match(subscriptionCallWarnings({subscription_invocations:{p:{id:'p',team:'t',state:'uncertain',purpose:'protocol-control',partial_receipt:{}}}})[0],/only a partial receipt.*no ledger-bound operation/);assert.match(out[1],/no ledger-bound operation/);assert.match(out[2],/unknown-usage-accept --invocation c --charged-tokens <at least 40>/);
+ const state={subscription_invocations:{a:{id:'a',team:'t',state:'uncertain',purpose:'protocol-control',action:{operation_id:'op'}},b:{id:'b',team:'t',state:'consumed',purpose:'calibration'},i:{id:'i',team:'t',state:'uncertain',purpose:'identity',operation_id:'op'},c:{id:'c',team:'t',state:'reconciled',unknown_usage_accepted:false,estimate_tokens:'40'},d:{id:'d',team:'t',state:'reconciled',unknown_usage_accepted:true},e:{id:'e',team:'t',state:'settled'}}};
+ const out=subscriptionCallWarnings(state);assert.equal(out.length,4);assert.ok(out.some(m=>/native-control-reconcile --invocation i/.test(m)));
+ assert.match(out[0],/no terminal receipt.*native-control-reconcile --invocation a/);assert.match(subscriptionCallWarnings({subscription_invocations:{p:{id:'p',team:'t',state:'uncertain',purpose:'protocol-control',partial_receipt:{}}}})[0],/only a partial receipt.*no ledger-bound operation/);assert.match(out[1],/no ledger-bound operation/);assert.match(out[3],/unknown-usage-accept --invocation c --charged-tokens <at least 40>/);
  assert.deepEqual(subscriptionCallWarnings({}),[]);
 });

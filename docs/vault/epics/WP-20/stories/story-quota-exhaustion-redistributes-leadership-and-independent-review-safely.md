@@ -7,7 +7,7 @@ status: in-progress
 priority: p1
 assignee: "Ivan Morozov"
 created: 2026-10-01
-updated: 2026-10-02
+updated: 2026-10-04
 external_refs: {}
 tags: []
 code_refs: ["scripts/native-model-profile.mjs", "scripts/team-host-registry.mjs", "scripts/team-host.mjs", "scripts/team-native-action.mjs", "scripts/team-native-quota.mjs", "scripts/team-owned-runtime.mjs", "scripts/team-quota-native.mjs", "scripts/team-quota.mjs", "scripts/team-state.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/team-workflow.mjs", "scripts/team.mjs", "tests/helpers/native-calibration.mjs", "tests/helpers/native-protocol-host.mjs", "tests/native-protocol-handover-host.test.mjs", "tests/native-protocol-handover.test.mjs", "tests/native-protocol-quota.test.mjs", "tests/team-host-registry.test.mjs", "tests/team-host.test.mjs", "tests/team-owned-runtime.test.mjs", "tests/team-quota-native.test.mjs", "tests/team-quota-state.test.mjs", "tests/team-quota.test.mjs", "tests/team-transport.test.mjs", "scripts/team-store.mjs", "tests/team-store.test.mjs", "scripts/team-cli.mjs", "tests/team-model-inventory-cli.test.mjs", "scripts/team-diagnostics.mjs", "scripts/team-role-calibration.mjs", "tests/native-protocol-host.test.mjs", "tests/team-diagnostics.test.mjs"]
@@ -447,3 +447,29 @@ same-leader reactivation for uncertain, settled, answered and unanswered
 reconciled and aborted calls. Open for the owner: per-call acceptance amends
 spec 2.14 and the proposed accounting ADR, which say the allocation must be
 raised.
+
+### Identity and calibration reconciliation (3e, 2026-10-04, Claude Code)
+
+Owned identity probes and calibration trials now reserve with the runtime
+operation id the Host generates for them (`operation_id`, accepted by
+`subscription-reserve-v2` only for these purposes), and
+`subscription-reconcile-v2` accepts the closure of that operation with kind
+`subscription-bootstrap` or `calibration-trial` in the call's epoch scope.
+Identity calls have no slot; a reconciled trial keeps its measurement slot.
+`ownedSubscriptionCalls` lets an injected trusted transport run these calls as
+owned operations, which the Host test uses. Host test: an owned Claude identity
+call lost mid-send stops its process, blocks admission, is reconciled from its
+closure, stays blocked until the owner accepts a charge, and the next probe
+passes. Doctor names reconcile for any call with a ledger-bound operation.
+
+Diff review (fresh context, revise, no blocker) and fixes: the operation id is
+recorded only while an owned operation runs; the two completion validators are
+one function with explicit operation, kind and epoch; a missing closure is the
+named `host-reconcile-owned-closure-unavailable`; docs name the cohort
+consequence of a kept trial slot. New tests: identity closures with a
+calibration or control kind, another operation or epoch, and an unbound call
+are refused; `operation_id` on a control reservation or malformed is refused;
+a reconciled trial's measurement slot still names it and a retry is refused with
+`host-calibration-trial-slot-already-recorded-no-replay`; the identity test
+counts both stops. The pending owner decision on per-call acceptance (spec 2.14
+amendment) now also covers identity and calibration calls.

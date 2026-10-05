@@ -143,20 +143,23 @@ function profileCapture(t,x,raw,p){
 export function reconcileProtocolControl(s,t,c,now){
  object(c,['type','team','actor','at','request_key','incarnation','epoch','invocation_id','nonce','completion'],16384);
  const x=s.subscription_invocations?.[c.invocation_id];
- if(x?.protocol!==2||x.team!==t.id||x.nonce!==c.nonce||x.purpose!=='protocol-control'||!x.action?.operation_id)fail('consumed-control-invocation-required');
+ const control=x?.purpose==='protocol-control';
+ if(x?.protocol!==2||x.team!==t.id||x.nonce!==c.nonce||!(control?x.action?.operation_id:['identity','calibration'].includes(x.purpose)&&x.operation_id))fail('consumed-control-invocation-required');
  const registered=s.collectors?.[x.collector?.replace(/^collector:/,'')];
  if(c.actor!==x.collector||!registered||registered.revoked||registered.team!==t.id)fail('bound-invocation-collector-required');
- const completion=closedCompletion(t,x,c.completion);
+ const completion=control?closedCompletion(t,x,c.completion):closedCompletion(t,x,c.completion,{operation:x.operation_id,kind:x.purpose==='identity'?'subscription-bootstrap':'calibration-trial',epoch:x.epoch});
  if(!(Date.parse(completion.closed_at)>=Date.parse(x.consumed_at))||Date.parse(completion.closed_at)>now)fail('exact-owned-operation-completion-required');
  if(x.state==='reconciled'){if(x.reconcile_evidence_digest!==completion.evidence_digest)fail('subscription-reconcile-conflict');return {unchanged:true,reconciled:x.id};}
  if(!['consumed','uncertain'].includes(x.state))fail('consumed-control-invocation-required');
- x.state='reconciled';x.charged_tokens=x.estimate_tokens;x.usage='unknown';x.unknown_usage_accepted=false;x.reconciled_at=c.at;x.reconcile_evidence_digest=completion.evidence_digest;x.slot_released=x.partial_receipt===undefined;
- const slot=protocolActionSlot(x.action);if(x.slot_released&&t.native_control_slots?.[slot]?.invocation_id===x.id)delete t.native_control_slots[slot];
+ // Identity calls have no slot; a calibration trial keeps its measurement slot.
+ x.state='reconciled';x.charged_tokens=x.estimate_tokens;x.usage='unknown';x.unknown_usage_accepted=false;x.reconciled_at=c.at;x.reconcile_evidence_digest=completion.evidence_digest;x.slot_released=control&&x.partial_receipt===undefined;
+ if(control){const slot=protocolActionSlot(x.action);if(x.slot_released&&t.native_control_slots?.[slot]?.invocation_id===x.id)delete t.native_control_slots[slot];}
  return {reconciled:x.id,charged_tokens:x.charged_tokens,usage:'unknown',slot_released:x.slot_released,protected_actions_granted:false};
 }
-function closedCompletion(t,x,completion){
- const c=object(completion,['protocol','scope','operation','kind','invocation_id','nonce','native_id','consume_type','created_at','closed_at','stopped','callback_drained','evidence_digest'],8192),scope={team:t.id,participant:x.participant,incarnation:x.incarnation,epoch:x.action.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch,descriptor_digest:x.descriptor_digest};
- if(c.protocol!==1||!same(c.scope,scope)||c.operation!==x.action.operation_id||c.kind!==x.action.kind||c.invocation_id!==x.id||c.nonce!==x.nonce||c.native_id!==x.context.native_id||c.consume_type!=='subscription-consume-v2'||c.stopped!==true||c.callback_drained!==true||!/^[a-f0-9]{64}$/.test(c.evidence_digest||'')||!Number.isFinite(Date.parse(c.created_at))||Date.parse(c.created_at)>Date.parse(x.consumed_at)||!Number.isFinite(Date.parse(c.closed_at))||Date.parse(c.closed_at)<Date.parse(x.settled_at))fail('exact-owned-operation-completion-required');return c;
+// An identity or calibration call binds its own operation id and the Host wrapper's kind.
+function closedCompletion(t,x,completion,{operation=x.action?.operation_id,kind=x.action?.kind,epoch=x.action?.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch}={}){
+ const c=object(completion,['protocol','scope','operation','kind','invocation_id','nonce','native_id','consume_type','created_at','closed_at','stopped','callback_drained','evidence_digest'],8192),scope={team:t.id,participant:x.participant,incarnation:x.incarnation,epoch,descriptor_digest:x.descriptor_digest};
+ if(c.protocol!==1||!same(c.scope,scope)||!operation||c.operation!==operation||c.kind!==kind||c.invocation_id!==x.id||c.nonce!==x.nonce||c.native_id!==x.context.native_id||c.consume_type!=='subscription-consume-v2'||c.stopped!==true||c.callback_drained!==true||!/^[a-f0-9]{64}$/.test(c.evidence_digest||'')||!Number.isFinite(Date.parse(c.created_at))||Date.parse(c.created_at)>Date.parse(x.consumed_at)||!Number.isFinite(Date.parse(c.closed_at))||Date.parse(c.closed_at)<Date.parse(x.settled_at))fail('exact-owned-operation-completion-required');return c;
 }
 export function applyNativeProtocolControl(s,t,c,now,H){
  if(!['native-protocol-control-enable-v2','native-protocol-review-enable-v2','native-action-profile-capture-v2','native-leader-ack-capture-v2','native-protocol-review-capture-v2','native-protocol-handover-enable-v2','native-protocol-handover-ack-capture-v2'].includes(c.type))return null;

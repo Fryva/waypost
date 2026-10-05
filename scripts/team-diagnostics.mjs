@@ -26,7 +26,7 @@ export function teamOrientation(vault) {
 export function subscriptionCallWarnings(state){
  const out=[];
  for(const x of Object.values(state?.subscription_invocations||{})){
-  if(['consumed','uncertain'].includes(x.state))out.push(`${x.team}: subscription call ${x.id} has ${x.partial_receipt?'only a partial receipt':'no terminal receipt'} and blocks admission and quota handover; ${x.purpose==='protocol-control'&&x.action?.operation_id?'run the participant Host operation native-control-reconcile --invocation '+x.id:'it has no ledger-bound operation to reconcile'}. Do not retry it.`);
+  if(['consumed','uncertain'].includes(x.state))out.push(`${x.team}: subscription call ${x.id} has ${x.partial_receipt?'only a partial receipt':'no terminal receipt'} and blocks admission and quota handover; ${(x.purpose==='protocol-control'?x.action?.operation_id:x.operation_id)?'run the participant Host operation native-control-reconcile --invocation '+x.id:'it has no ledger-bound operation to reconcile'}. Do not retry it.`);
   else if(x.state==='reconciled'&&x.unknown_usage_accepted!==true)out.push(`${x.team}: reconciled call ${x.id} has unknown usage; admission on its counter waits until the owner runs unknown-usage-accept --invocation ${x.id} --charged-tokens <at least ${x.estimate_tokens}>.`);
  }
  return out;

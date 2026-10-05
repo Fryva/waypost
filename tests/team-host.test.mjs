@@ -506,12 +506,13 @@ test('a Claude transport that does not declare its pre-consume inspection is ref
 
 // A Claude peer whose receipts carry the manifest the real transport writes for
 // an isolated first turn: each call is a fresh owned context.
-function claudeProfileTransport(calls,root,answer){
+function claudeProfileTransport(calls,root,answer,{failSend,owned=false}={}){
  let created=0;
  return async()=>{const native_id='owned-claude-'+(++created);let last=null;return {native_id,usage_counter_schema:'claude-native-first-turn-total-v1',owns_process:true,preflight_before_consume:true,
   async inspectContext(){calls.push('native-inspect');last=createHash('sha256').update(native_id+calls.length).digest('hex');return {verified:true,source:'native-get-context-usage-summary',evidence_digest:last};},
   async captureAccountingMetadata(){return {provider:null,origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'unavailable',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:0,consistent:true};},
-  async send(prompt,invocation){calls.push('native-send');return {invocation_id:invocation.id,output:answer(prompt,invocation),native_id,usage_span:{schema:'claude-native-first-turn-total-v1',native_id,turn_id:'00000000-0000-4000-8000-00000000000'+created,coverage:'complete',before:'0',after:'30',actual_tokens:'30'},actualModel:{provider:'anthropic',model_id:'claude-model',reasoning:'unknown',observed_at:new Date().toISOString()},context_manifest:{protocol:1,id:'claude-ctx-'+created,native_id,harness:'claude',cwd:root,version:'unknown',fresh:true,author_history_inherited:false,read_only:true,tools:[],author_contexts:[],provenance:'adapter-isolated',isolation:'read-only',fresh_review_verified:true,mode:'read-only',preflight:{evidence_digest:last}}};},
+  async send(prompt,invocation){calls.push('native-send');if(failSend?.(created))throw Object.assign(Error('native-outcome-uncertain'),{code:'native-outcome-uncertain'});return {invocation_id:invocation.id,output:answer(prompt,invocation),native_id,usage_span:{schema:'claude-native-first-turn-total-v1',native_id,turn_id:'00000000-0000-4000-8000-00000000000'+created,coverage:'complete',before:'0',after:'30',actual_tokens:'30'},actualModel:{provider:'anthropic',model_id:'claude-model',reasoning:'unknown',observed_at:new Date().toISOString()},context_manifest:{protocol:1,id:'claude-ctx-'+created,native_id,harness:'claude',cwd:root,version:'unknown',fresh:true,author_history_inherited:false,read_only:true,tools:[],author_contexts:[],provenance:'adapter-isolated',isolation:'read-only',fresh_review_verified:true,mode:'read-only',preflight:{evidence_digest:last}}};},
+  ...(owned?{async stopAndWait(){calls.push('native-stop');return {stopped:true,owned_processes:1,process_group_closed:true};}}:{}),
   close(){calls.push('native-close');}};};
 }
 test('a Claude peer with a same-peer preflight gets a native profile and runs a calibration trial with a preflight on each call',async t=>{
@@ -534,6 +535,53 @@ test('a Claude peer with a same-peer preflight gets a native profile and runs a 
  assert.equal(result.trial_capture.pass,true);assert.equal(result.protected_roles_granted,false);
  assert.deepEqual(calls.slice(begin),['native-inspect','native-inspect','native-send','native-close']);
  const x=f.state.subscription_invocations['subscription-claude-trial'];assert.equal(x.state,'settled');assert.equal(x.receipt.isolation_verified,true);assert.equal(x.measurement_seal.original_output,JSON.stringify(trial.answer_key));
+});
+
+test('an owned identity call lost mid-send is reconciled from the closure of its ledger-bound operation, and admission resumes after the owner accepts a charge',async t=>{
+ const calls=[];
+ const f=fixture(t,{dependencies:{createNativeEndpoint:(...args)=>transport(...args),ownedSubscriptionCalls:true}});
+ const transport=claudeProfileTransport(calls,f.root,prompt=>prompt.split(' ').at(-1),{failSend:created=>created===1,owned:true});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'claude',cwd:f.root,mode:'read-only'}});
+ const next=reduceTeamEvent(f.state,{type:'subscription-accounting-enable-v2',team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});Object.assign(f.team,next.state.teams.team);Object.assign(f.state,next.state);f.state.teams.team=f.team;
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'lost-probe',estimateTokens:'40',maxTokens:'100'}),/native-outcome-uncertain/);
+ const x=f.state.subscription_invocations['subscription-lost-probe'];assert.equal(x.state,'uncertain');assert.match(x.operation_id,/^[A-Za-z0-9_-]+$/);assert.equal(calls.filter(y=>y==='native-stop').length,2,'the Host and the owned runtime each stopped the native process');
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'blocked-probe',estimateTokens:'40',maxTokens:'100'}),/uncertain|overshoot/);
+ {const {collectOwnedRuntimeCompletion,serializeOwnedRuntimeCompletion}=await import('../scripts/team-owned-runtime.mjs');
+  const completion=serializeOwnedRuntimeCompletion(collectOwnedRuntimeCompletion({directory:join(f.root,'host','team','runtime'),team:'team',participant:x.participant,incarnation:x.incarnation,epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.operation_id,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id}));
+  assert.equal(completion.kind,'subscription-bootstrap');
+  const command=(patch,state=f.state)=>reduceTeamEvent(structuredClone(state),{type:'subscription-reconcile-v2',team:'team',actor:x.collector,at:new Date().toISOString(),request_key:'k',invocation_id:x.id,nonce:x.nonce,completion,...patch});
+  for(const [name,patch,code] of [['calibration kind',{completion:{...completion,kind:'calibration-trial'}},/exact-owned-operation-completion/],['control kind',{completion:{...completion,kind:'protocol-leader-ack'}},/exact-owned-operation-completion/],['another operation',{completion:{...completion,operation:'another-operation'}},/exact-owned-operation-completion/],['another epoch',{completion:{...completion,scope:{...completion.scope,epoch:completion.scope.epoch+1}}},/exact-owned-operation-completion/]])assert.throws(()=>command(patch),code,name);
+  const unbound=structuredClone(f.state);delete unbound.subscription_invocations[x.id].operation_id;assert.throws(()=>command({},unbound),/consumed-control-invocation-required/,'no ledger-bound operation');
+  const reservation=structuredClone(x);for(const [name,patch] of [['control purpose',{purpose:'protocol-control'}],['malformed id',{operation_id:'bad id!'}]]){const r={...Object.fromEntries(['id','participant','incarnation','context_id','purpose','requested_model','nonce','suite_digest','max_calls','timeout_ms','estimate_tokens','epoch','quota_revision','mode_revision','allocation_revision','operation_id'].map(k=>[k,reservation[k]])),id:'subscription-other-'+name.replace(/ /g,'-'),nonce:'other-'+name.replace(/ /g,'-'),...patch};assert.throws(()=>reduceTeamEvent(structuredClone(f.state),{type:'subscription-reserve-v2',team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),request_key:'r',reservation:r}),/subscription-operation-binding-invalid/,name);}
+ }
+ const r=f.host.reconcileProtocolControl({invocationId:x.id});assert.equal(r.reconciled,x.id);assert.equal(r.slot_released,false);assert.equal(f.state.subscription_invocations[x.id].state,'reconciled');
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'still-blocked',estimateTokens:'40',maxTokens:'100'}),/overshoot/);
+ f.host.acceptUnknownUsage({invocationId:x.id,chargedTokens:'40'});
+ const ok=await f.host.subscriptionBootstrap({nonce:'after-probe',estimateTokens:'40',maxTokens:'100'});assert.equal(ok.probe_passed,true);
+});
+
+test('an owned calibration trial lost mid-send is reconciled from its closure and keeps its measurement slot',async t=>{
+ const calls=[];let suite=null;
+ const f=fixture(t,{dependencies:{createNativeEndpoint:(...args)=>transport(...args),ownedSubscriptionCalls:true}});
+ const transport=claudeProfileTransport(calls,f.root,prompt=>{if(!suite)return prompt.split(' ').at(-1);const trial=suite.trials.find(row=>formatProtocolTrial(suite,row.id)===prompt);return JSON.stringify(trial.answer_key);},{failSend:created=>created===2,owned:true});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'claude',cwd:f.root,mode:'read-only'}});
+ function ownerEvent(type,data){const next=reduceTeamEvent(f.state,{type,team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),...data});Object.assign(f.team,next.state.teams.team);Object.assign(f.state,next.state);f.state.teams.team=f.team;}
+ ownerEvent('subscription-accounting-enable-v2',{policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});
+ const initial=await f.host.subscriptionBootstrap({nonce:'trial-baseline',estimateTokens:'40',maxTokens:'100'});assert.ok(initial.native_profile);
+ const unit_digest=Object.keys(f.state.subscription_allocations)[0],unit_scope=f.state.subscription_allocations[unit_digest].unit_scope;
+ ownerEvent('subscription-allocation-update-v2',{unit_scope,max_tokens:'2000',revision:2});
+ const p=f.team.participants.participant;
+ const request={id:'lost-cohort',seed:'lost-seed',members:[{participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:p.native_binding.descriptor_digest,profile_id:initial.native_profile.profile_id}],roles:['coordinate','review'],unit_allocations:[{unit_digest,max_tokens:'1000',allocation_revision:2}],expires_at:new Date(Date.now()+600000).toISOString()};
+ suite=createProtocolRoleSuite({seed:request.seed,cohort:request.id,profiles:[initial.native_profile.profile_id]});
+ await f.host.openCalibrationCohort(request);
+ const trial=suite.trials.find(row=>row.role==='coordinate'&&row.variant===0);
+ await assert.rejects(f.host.subscriptionCalibrationTrial({cohortId:request.id,caseId:trial.id,nonce:'lost-trial',estimateTokens:'40'}),/native-outcome-uncertain/);
+ const x=f.state.subscription_invocations['subscription-lost-trial'];assert.equal(x.state,'uncertain');
+ assert.match(x.operation_id,/^[A-Za-z0-9_-]+$/);const result=f.host.reconcileProtocolControl({invocationId:x.id});assert.equal(result.reconciled,x.id);assert.equal(result.slot_released,false);f.host.acceptUnknownUsage({invocationId:x.id,chargedTokens:'40'});
+ const slot=Object.values(f.team.native_calibration_cohorts['lost-cohort'].slots).find(row=>row.invocation_id===x.id);assert.ok(slot,'the measurement slot still names the reconciled call');
+ const sends=calls.filter(y=>y==='native-send').length;
+ await assert.rejects(f.host.subscriptionCalibrationTrial({cohortId:request.id,caseId:trial.id,nonce:'retry-trial',estimateTokens:'40'}),{code:'host-calibration-trial-slot-already-recorded-no-replay'});
+ assert.equal(calls.filter(y=>y==='native-send').length,sends);
 });
 
 test('the Host uses the built-in observer only for Codex and an installed one otherwise',async()=>{
