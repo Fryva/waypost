@@ -86,7 +86,10 @@ grant no new native calls or protected actions. Final model review pauses until
 its remaining allocation is explicitly replenished; it is never omitted.
 Unknown outcomes retain their
 reservation; a consumed attempt is never replayed without no-dispatch or provider
-reconciliation proof. Actual-model fallback requires new admission.
+reconciliation proof. A consumed call reconciled from owned stop evidence without a
+receipt is charged its reservation and blocks admission on its counter until the
+owner accepts a charge of at least that reservation for that call (owner decision
+2026-10-06); accepting one call moves no allocation revision. Actual-model fallback requires new admission.
 
 Provider quota observations remain independent of token budgets. Confirmed
 exhaustion drives the existing safe role handover. Expiry or a reset timestamp does
@@ -100,8 +103,9 @@ endpoint, native counter schema, available metadata, purpose, suite digest, loca
 estimate, call/attempt ceiling and timeout before the call. Missing strongest rank
 or task-class qualification cannot block this measurement admission, but it grants
 no coordination, execution, review or publication privilege. Unknown model-scope
-quota is labelled unknown and permits only an explicitly authorized bootstrap probe;
-known exhaustion still refuses. Preserve uncertain outcomes and compare pre/post
+quota is labelled unknown and permits only an explicitly authorized bootstrap probe
+or, under an explicit owner delivery ceiling, an addressed peer delivery in a fresh
+owned stand-in context (owner decision 2026-10-06); known exhaustion still refuses. Preserve uncertain outcomes and compare pre/post
 route/account observations. Unknown fields permit measurement but never invent
 model identity or a protected-role rank. Only actual receipts and trusted grading
 can promote the observed tuple.

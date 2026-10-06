@@ -911,11 +911,10 @@ the estimate with `unknown-usage-accept --invocation <id> --charged-tokens <n>`
 control policies stay valid. A quota handover whose acknowledgement was
 reconciled without an answer, or aborted before consume, is driven again with
 a new attempt nonce. An accepted charge above a control policy's token ceiling
-blocks that policy's calls until a new policy revision. Spec 2.14 and the
-proposed subscription accounting ADR say an overshoot blocks admission until
-the allocation is increased; per-call owner acceptance is a proposed amendment
-awaiting owner approval, because raising the allocation would invalidate the
-control policies pinned to its revision. `waypost doctor` names
+blocks that policy's calls until a new policy revision. Per-call owner acceptance is
+part of spec 2.14 and the subscription accounting ADR (owner decision
+2026-10-06), because raising the allocation would invalidate the control
+policies pinned to its revision. `waypost doctor` names
 each unsettled or unaccepted call with the step that clears it.
 
 Identity probes and calibration trials started by an owned Host since this

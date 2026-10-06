@@ -198,6 +198,12 @@ Plan criticism (fresh context, revise; 2026-10-04). Not implemented; blocked:
   answers, unverified isolation and quarantine; a replay test against a log
   recorded before the change.
 
+Owner decision (2026-10-06): addressed delivery under unknown quota is allowed
+under an explicit owner delivery ceiling, in a fresh owned stand-in context
+labelled as a stand-in answer (spec 2.13 amended). Reconciliation of lost v2
+calls landed in the quota story (3d/3e/3f). Implementation of the subscription
+relay follows the criticism list above.
+
 ## Dependencies
 
 - WP-20/story-local-authority-log-and-crash-safe-mutations

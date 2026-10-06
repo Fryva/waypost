@@ -213,8 +213,12 @@ explicit owner consent without demanding an already qualified model. Bind reques
 configuration, fixed purpose/suite, nonce, call/attempt ceiling, timeout, local token
 estimate and bound owned endpoint/native counter schema before dispatch; observed
 model identity remains separate until actual receipts. Unknown model-scope quota
-permits only the authorized measurement probe, never invented availability. Known
-exhaustion refuses. Bootstrap itself cannot elect a leader, qualify a cheap worker
+permits only the authorized measurement probe, never invented availability, and
+(owner decision 2026-10-06) addressed peer delivery under an explicit owner
+delivery ceiling (`allow_unknown_quota`, call count, per-call token estimate,
+unit allocations, expiry within the team policy). Such a delivery runs in a
+fresh owned stand-in context bound to the recipient participant, is labelled a
+stand-in answer, and grants no protected role. Known exhaustion refuses. Bootstrap itself cannot elect a leader, qualify a cheap worker
 or satisfy independent strongest review. Available auth/account/origin/credit
 observations belong to the same peer before/after the call; missing fields remain
 null/unknown and do not stop bounded measurement. No metadata observation alone
@@ -227,7 +231,11 @@ or provider-enforced liability. Cumulative usage requires same-context baseline 
 terminal snapshot; count each native span once without adding cached/reasoning subsets
 twice. Partial/absent usage remains uncertain, never zero; consumed attempts are not
 replayed. Actual usage above an estimate is recorded and blocks new admissions until
-allocation is increased explicitly. Terminal accounting/stop/reconciliation of the
+allocation is increased explicitly. A call reconciled from stop evidence without a
+receipt has unknown usage: its reservation is charged and blocks new admissions on
+its counter until the owner accepts a charge of at least that reservation for that
+call (owner decision 2026-10-06), without moving the allocation revision that
+control policies pin. Terminal accounting/stop/reconciliation of the
 exact prior invocation remains possible after epoch/allocation/quota changes, without
 granting new work. Final review waits for allocation rather than being omitted.
 V2 reservations share the local team/native-counter-schema allocation across its
