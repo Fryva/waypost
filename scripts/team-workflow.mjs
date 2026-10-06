@@ -73,7 +73,7 @@ export function applyWorkflow(s,t,c,now,H) {
   t.deliveries ||= {};if(t.deliveries[c.nonce] || Object.values(t.deliveries).some(x=>x.message_id===m.id&&!['rejected'].includes(x.state)))fail('native-message-already-consumed');
   t.deliveries[c.nonce]={nonce:c.nonce,message_id:m.id,participant:p.id,incarnation:p.incarnation,epoch:t.epoch,native_id:c.native_id,collector:c.actor,state:'dispatching'};result={consumed:c.nonce};
  }else if(c.type==='delivery-capture-v1') {
-  collector(s,t,c,'dispatch');const r=t.deliveries?.[c.nonce];if(!r || r.collector!==c.actor || r.state!=='dispatching')fail('bound-native-delivery-required');
+  collector(s,t,c,'dispatch');const r=t.deliveries?.[c.nonce];if(!r || r.protocol===2 || r.collector!==c.actor || r.state!=='dispatching')fail('bound-native-delivery-required');
   if(c.outcome==='uncertain'){r.state='uncertain';result={uncertain:r.nonce};}
   else {
    const p=H.participant(t,r.participant);if(r.epoch!==t.epoch || r.incarnation!==p.incarnation || c.native_id!==r.native_id || typeof c.output!=='string' || Buffer.byteLength(c.output)>65536 || hash(c.output)!==c.output_digest)fail('native-delivery-receipt-mismatch');
@@ -82,7 +82,7 @@ export function applyWorkflow(s,t,c,now,H) {
  }else if(c.type==='native-operation-reconcile-v1') {
   collector(s,t,c,'dispatch');if(c.stopped!==true)fail('explicit-native-stopped-proof-required');digest(c.evidence_digest);
   const records={runtime:t.runtime_requests,review:t.review_requests,delivery:t.deliveries},r=records[c.operation]?.[c.nonce];
-  if(!r || r.collector!==c.actor || (c.operation==='delivery'?!['dispatching','uncertain'].includes(r.state):!r.consumed||r.captured||r.output_digest))fail('uncertain-native-operation-required');
+  if(!r || r.protocol===2 || r.collector!==c.actor || (c.operation==='delivery'?!['dispatching','uncertain'].includes(r.state):!r.consumed||r.captured||r.output_digest))fail('uncertain-native-operation-required');
   r.reconciled_stopped=true;r.stop_evidence_digest=c.evidence_digest;if(c.operation==='delivery')r.state='stopped';result={stopped:c.nonce};
  }else if(c.type==='participant-host-register-v1') {
   H.owner(s,c);const p=H.participant(t,c.participant_id),binding=validateParticipantHostBinding(bounded(c.binding,8192),{participant:p});

@@ -886,6 +886,54 @@ transport reported known subscription billing and the observer returned an
 `available` proof. Live exhaustion and recovery are not demonstrated.
 Ordering across hosts relies on their clocks.
 
+### Addressed delivery for subscription v2 teams
+
+Under spec 2.13 as amended by the owner (2026-10-06), a protocol 2 team with
+inherited-native subscription accounting can relay addressed questions once the
+owner enables a delivery ceiling with `team host <team> --operation
+native-delivery-enable --request-file <json>`:
+`{"revision":1,"policy":{"kind":"addressed-delivery","allow_unknown_quota":true,
+"max_calls":N,"max_estimate_tokens":"T","timeout_ms":ms,"expires_at":"...",
+"unit_allocations":[{"unit_digest":"...","max_tokens":"..."}]}}`
+(`native-protocol-delivery-enable-v2`). Without a current ceiling, `relay`
+starts no new delivery and reports `host-native-delivery-owner-ceiling-required`;
+it still forwards answers received earlier.
+
+`relay` on the recipient's Host then takes each current-epoch, unacknowledged
+question for that participant and runs it in its own fresh owned context: one
+owned operation per message, the quota lease renewed before each, the Claude
+preflight pair where it applies, and the usual context capture, reservation
+(purpose `delivery`), consume, send, usage settlement and retirement. The
+reducer recomputes the prompt digest from the stored message with the frozen
+revision 1 wording, checks the ceiling's call count and per-unit tokens and the
+participant's quota eligibility at reserve and consume, and creates the
+delivery record in the same event as the consume, so a charged question always
+has a record and is never sent twice. Codex recipients are refused: their
+contexts carry a read-only shell, and a peer payload is untrusted data.
+
+A complete, isolated receipt seals the answer into the record (`received`).
+Anything else settles the tokens but marks the record `failed` with a reason
+(isolation unverified, a changed binding, a failed native turn, an invalid
+answer, an answer whose envelope would exceed the message limit, a changed epoch
+or incarnation); partial or absent usage
+marks it `uncertain`, and a call reconciled from its owned closure marks it
+`stopped`. Only `received` answers are forwarded, with the participant's own
+credential, as an `answer` message with the original `reply_to` and the payload
+`{text, delivery_nonce, stand_in: true}`, followed by the acknowledgement. The
+stand-in context is not the participant's own conversation, and the label says
+so. The answer text is stored once in the delivery record (the receipt
+keeps its digest) and once in the forwarded message. A forwarding failure is
+reported for that message and never stops the loop; an answer received before a
+crash is forwarded by the next relay without another inference, even after the
+ceiling lapsed, and an answer to a question of an earlier epoch is reported
+`stale-epoch` instead of forwarded. A question with a live reservation (a crash
+between reserve and consume) is skipped; `waypost doctor` names such an expired
+reservation with the owner `subscription-abort-v2` that releases it. A lost
+delivery call is reconciled like any other (`native-control-reconcile`), which
+marks its record `stopped`. Legacy v1 delivery commands cannot touch v2
+records. A sender who left or was revoked gets no answer, but the
+question is still acknowledged. Deliveries grant no protected role.
+
 ### Reconciling a lost subscription call
 
 A consumed v2 subscription call that never gets a terminal receipt (a timeout,

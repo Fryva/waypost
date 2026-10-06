@@ -153,15 +153,17 @@ export function reconcileProtocolControl(s,t,c,now){
  object(c,['type','team','actor','at','request_key','incarnation','epoch','invocation_id','nonce','completion'],16384);
  const x=s.subscription_invocations?.[c.invocation_id];
  const control=x?.purpose==='protocol-control';
- if(x?.protocol!==2||x.team!==t.id||x.nonce!==c.nonce||!(control?x.action?.operation_id:['identity','calibration'].includes(x.purpose)&&x.operation_id))fail('consumed-control-invocation-required');
+ if(x?.protocol!==2||x.team!==t.id||x.nonce!==c.nonce||!(control?x.action?.operation_id:['identity','calibration','delivery'].includes(x.purpose)&&x.operation_id))fail('consumed-control-invocation-required');
  const registered=s.collectors?.[x.collector?.replace(/^collector:/,'')];
  if(c.actor!==x.collector||!registered||registered.revoked||registered.team!==t.id)fail('bound-invocation-collector-required');
- const completion=control?closedCompletion(t,x,c.completion):closedCompletion(t,x,c.completion,{operation:x.operation_id,kind:x.purpose==='identity'?'subscription-bootstrap':'calibration-trial',epoch:x.epoch});
+ const completion=control?closedCompletion(t,x,c.completion):closedCompletion(t,x,c.completion,{operation:x.operation_id,kind:{identity:'subscription-bootstrap',calibration:'calibration-trial',delivery:'delivery'}[x.purpose],epoch:x.epoch});
  if(!(Date.parse(completion.closed_at)>=Date.parse(x.consumed_at))||Date.parse(completion.closed_at)>now)fail('exact-owned-operation-completion-required');
  if(x.state==='reconciled'){if(x.reconcile_evidence_digest!==completion.evidence_digest)fail('subscription-reconcile-conflict');return {unchanged:true,reconciled:x.id};}
  if(!['consumed','uncertain'].includes(x.state))fail('consumed-control-invocation-required');
  // Identity calls have no slot; a calibration trial keeps its measurement slot.
  x.state='reconciled';x.charged_tokens=x.estimate_tokens;x.usage='unknown';x.unknown_usage_accepted=false;x.reconciled_at=c.at;x.reconcile_evidence_digest=completion.evidence_digest;x.slot_released=control&&x.partial_receipt===undefined;
+ // A reconciled delivery is stopped: its question is never sent again.
+ const delivery=x.purpose==='delivery'&&t.deliveries?.[x.nonce];if(delivery?.invocation_id===x.id&&['dispatching','uncertain'].includes(delivery.state))delivery.state='stopped';
  if(control){const slot=protocolActionSlot(x.action);if(x.slot_released&&t.native_control_slots?.[slot]?.invocation_id===x.id)delete t.native_control_slots[slot];}
  return {reconciled:x.id,charged_tokens:x.charged_tokens,usage:'unknown',slot_released:x.slot_released,protected_actions_granted:false};
 }

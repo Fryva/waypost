@@ -102,7 +102,8 @@ export async function main(argv = process.argv.slice(2)) {
     else if (operation === 'calibration-policy-proposal') print(await host.calibrationPolicyProposal({cohortId:opt('--cohort'),revision:Number(opt('--revision')||1)}));
     else if (operation === 'register-participant-host') print(await host.registerParticipantHost());
     else if (operation === 'inspect') print(await host.inspect({ action: opt('--action'), ...(opt('--nonce') ? { nonce: opt('--nonce') } : {}) }));
-    else if (operation === 'relay') print(await host.relay({ limit: Number(opt('--limit') || 10), pollMs: Number(opt('--poll-ms') || 1000), maxPolls: Number(opt('--max-polls') || 1) }));
+    else if (operation === 'relay') print(await host.relay({ limit: Number(opt('--limit') || 10), pollMs: Number(opt('--poll-ms') || 1000), maxPolls: Number(opt('--max-polls') || 1), estimateTokens: opt('--estimate-tokens') }));
+    else if (operation === 'native-delivery-enable') print(host.enableNativeDelivery(json(resolve(opt('--request-file') || ''))));
     else if (operation === 'review') print(await host.review({ workId: opt('--work'), ...(opt('--nonce') ? { nonce: opt('--nonce') } : {}) }));
     else if (operation === 'checkout') print(await host.checkout({ workId: opt('--work') }));
     else if (operation === 'candidate') print(await host.candidate({ workId: opt('--work') }));
@@ -113,7 +114,7 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:native-control-reconcile|unknown-usage-accept|native-quota-enable|native-handover-enable|native-quota-observe|native-quota-handover|native-handover-ack|native-handover-recover|bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:native-delivery-enable|native-control-reconcile|unknown-usage-accept|native-quota-enable|native-handover-enable|native-quota-observe|native-quota-handover|native-handover-ack|native-handover-recover|bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
     return;
   }
   if (mode === 'status') {

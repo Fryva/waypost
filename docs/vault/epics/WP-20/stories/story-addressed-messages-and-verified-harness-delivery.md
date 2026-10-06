@@ -10,7 +10,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: []
-code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "scripts/agents.mjs", "scripts/presence.mjs", "scripts/team-mcp.mjs", "scripts/team-cli.mjs", "tests/team-mcp.test.mjs", "docs/team-coordination.md", "docs/harnesses.md", "scripts/team-transport.mjs", "scripts/team-host.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs", "scripts/team-mcp-config.mjs", "tests/team-mcp-config.test.mjs", "bin/waypost"]
+code_refs: ["harnesses/claude.json", "harnesses/opencode.json", "harnesses/codex.json", "scripts/agents.mjs", "scripts/presence.mjs", "scripts/team-mcp.mjs", "scripts/team-cli.mjs", "tests/team-mcp.test.mjs", "docs/team-coordination.md", "docs/harnesses.md", "scripts/team-transport.mjs", "scripts/team-host.mjs", "tests/team-transport.test.mjs", "tests/team-host.test.mjs", "scripts/team-mcp-config.mjs", "tests/team-mcp-config.test.mjs", "bin/waypost", "scripts/team-native-delivery.mjs", "tests/native-protocol-delivery-host.test.mjs", "scripts/team-subscription.mjs", "scripts/team-native-action.mjs", "tests/helpers/native-protocol-host.mjs", "scripts/team-diagnostics.mjs", "scripts/team-state.mjs", "scripts/team-workflow.mjs"]
 specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null
@@ -203,6 +203,51 @@ under an explicit owner delivery ceiling, in a fresh owned stand-in context
 labelled as a stand-in answer (spec 2.13 amended). Reconciliation of lost v2
 calls landed in the quota story (3d/3e/3f). Implementation of the subscription
 relay follows the criticism list above.
+
+Implementation (2026-10-06, Claude Code): `scripts/team-native-delivery.mjs`
+(owner ceiling `native-protocol-delivery-enable-v2`; reserve, consume and
+settle hooks wired into `scripts/team-subscription.mjs`; reconcile marks a
+delivery `stopped`), Host `relaySubscription` and `enableNativeDelivery` in
+`scripts/team-host.mjs`, CLI `native-delivery-enable` and relay estimate.
+Addressed the criticism: per-message owned operations with lease renewal; the
+reducer recomputes the prompt digest from a frozen formatter; delivery record
+in the consume event with `nonce`, `collector` and `invocation_id`; terminal
+states `received`, `failed` (named reason), `uncertain`, `stopped`; the answer
+stored once in the record and the forwarded message; envelope size checked at
+seal; forwarding never throws in the loop; Codex refused in Host and reducer;
+quota eligibility at reserve and consume; no automatic allocation raise.
+Tests (`tests/native-protocol-delivery-host.test.mjs`): labelled answer with
+`reply_to` and ack, order reserve, consume, send, no resend; no ceiling refuses
+before a native process; the ceiling's call count; an uncertain delivery keeps
+its hold and is not resent; an oversized answer fails without forwarding while
+tokens settle; an answer received before a crash is forwarded without another
+inference; a Claude stand-in runs both preflights; the reducer refuses a Codex
+recipient, a foreign prompt digest, an acknowledged question and a missing
+ceiling. Not yet: live delivery between own Claude and OpenCode CLI contexts.
+
+Diff review (fresh context, revise, two blockers) and fixes: the Host now
+reconciles delivery calls (a lost one no longer blocks the counter forever; the
+record becomes `stopped`); a failed native turn that still returns a receipt is
+settled `failed` (`delivery-native-turn-failed`) instead of being forwarded as
+an answer; questions with a live reservation are skipped and doctor names an
+expired orphan with the owner abort; the answer text is stored once in the
+record (the receipt keeps a digest and an outcome); forwarding checks epoch and
+incarnation; legacy v1 delivery commands refuse v2 records; recovery loads the
+authority once; the ceiling's unit allocations must belong to the team and be
+positive; the enable command is deferred under a publication fence; Codex is
+refused before the lease renewal. New tests: reconcile, accept and resume after
+a lost delivery; failed turn with a receipt; expired and zero ceilings; an
+estimate above the ceiling; a sender who left; v1 commands against v2 and v1
+records; doctor's orphan warning.
+
+Delta review (revise, one regression) and fixes: a complete receipt after a
+partial one now settles an `uncertain` record (it stayed stuck); an answer too
+large for the message limit is reported by the Host as outcome `too-large`
+rather than sending text that could overflow the command; stray
+`delivery_output` on other purposes is refused; stale-epoch answers drop out of
+the recovery list; doctor names the right abort command per protocol. Tests: a
+late complete receipt settles to `received` and is forwarded; a ceiling that
+lapses after enabling starts no delivery.
 
 ## Dependencies
 
