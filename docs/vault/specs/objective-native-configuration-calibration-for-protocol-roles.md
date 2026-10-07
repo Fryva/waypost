@@ -629,3 +629,20 @@ full ids, context, inter-hunk context, order file and path quoting; the
 candidate tree is pinned behind a private ref against gc; an existing checkout
 directory is adopted when its ownership matches; the marker is keyed by a
 digest of the work id; the comparison of tree with base commit was removed.
+
+Slice 1 increment 4 (2026-10-07, Claude Code): independent review —
+`scripts/team-native-work-review.mjs` (request, slot, frozen head, prompt
+digest over head and diff digest, strict answer grammar) wired as control kind
+`protocol-work-review` into `scripts/team-native-action.mjs` (policy view of the
+work ceiling's review part, fixed request rebuild, author-context independence,
+`native-work-review-capture-v2` with sticky negatives); `treeDiff` shared by
+capture and review; Host `reviewNativeWork`, `recoverWorkReview`, CLI
+`native-work-review`. Tests: a critic approves on its own Host after profile and
+closure; a negative stays and blocks a second review; a tampered diff and
+malformed answers are refused. After fresh-context review: the prompt suggests no
+verdict (response schema, template revision 1 in the digest), one pending review
+per target, the prompt size is checked before reservation, the critic renews its
+quota lease, `--text` diffs, findings bounded to fit 8 KiB, review and execution
+share one per-unit work cap and the current allocation, and the critic excludes
+the authors' native configurations (the owner's "another model" is enforced as
+another native configuration, not another model id).

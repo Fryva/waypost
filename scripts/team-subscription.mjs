@@ -251,7 +251,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    const measurement=validateProtocolMeasurement(s,t,r,p,context,now);if(measurement)stored.measurement=measurement;
    const work=validateProtocolWork(s,t,r,p,context,now);if(work){stored.work=work.work;stored.work_policy_revision=work.policy_revision;}
    const delivery=validateProtocolDelivery(s,t,r,p,context,now);if(delivery){stored.delivery=delivery.delivery;stored.delivery_policy_revision=delivery.policy_revision;}
-   const action=validateProtocolAction(s,t,r,p,context,now);if(action){stored.action=action;if(action.kind!=='protocol-leader-ack')stored.control_policy_kind=action.kind;stored.control_policy_revision=(action.kind==='protocol-leader-ack'?t.native_control_policy:action.kind==='protocol-leadership-audit'?t.native_review_policy:t.native_handover_policy).revision;stored.model_revision=p.model.model_revision;}
+   const action=validateProtocolAction(s,t,r,p,context,now);if(action){stored.action=action;if(action.kind!=='protocol-leader-ack')stored.control_policy_kind=action.kind;stored.control_policy_revision=(action.kind==='protocol-leader-ack'?t.native_control_policy:action.kind==='protocol-leadership-audit'?t.native_review_policy:action.kind==='protocol-work-review'?t.native_work_policy:t.native_handover_policy).revision;stored.model_revision=p.model.model_revision;}
    s.subscription_invocations||={};s.subscription_invocations[r.id]=stored;result={reserved:r.id,bootstrap_only:true};
   } else if(c.type==='subscription-reconcile-v2') {
    result=reconcileProtocolControl(s,t,c,now);

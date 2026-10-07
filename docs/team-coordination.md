@@ -986,6 +986,45 @@ present. A new path that the base ignores through `.gitignore` is not
 collected and fails the capture by name (`host-native-work-candidate-paths-differ`);
 the owner cancels such work.
 
+Review (increment 4): `waypost team host <team> --operation native-work-review
+--work <id>` runs on the critic's Host; `--operation native-work-review-recover
+--invocation <id>` records the verdict of an interrupted review from its owned
+closure. The authority selects the strongest independent critic on the
+protocol-review scale, excluding the worker, the leader and any participant
+admitted under their native configuration, and never weakened to fit (a Codex
+critic is refused rather than replaced); because that scale measures no code
+review, the verdict is labelled `unqualified-strongest-protocol-review-baseline`.
+The request pins the work, generation, manifest and criteria digests, base,
+tree, paths, candidate, diff, patch and tests digests, the patch ref, the review
+floor, the excluded participants and author contexts, the critic's profile and
+review calibration digest, epoch and policy revisions. The Host renews its quota
+lease, recomputes the diff from Git objects with the same pinned flags
+(`--text`, so attributes cannot hide a change) and refuses if its digest
+differs from the captured one, or if the prompt would exceed 64 KiB, before any
+reservation. The prompt is template revision 1: a fixed instruction head with
+the request and a response schema (no verdict is suggested), then a newline and
+`{"diff":…}` as data; its digest binds the template, the head and the diff
+digest. The answer is strict JSON under 8 KiB with exactly `verdict`
+(`approve`, `changes-requested` or `blocked`), `action_id`, `request_digest`,
+`target_digest` and `findings` (at most 16; `path` among the target paths or
+empty, `severity`, `text` up to 240 characters without control characters;
+approve if and only if there are none). The review runs in a fresh owned
+no-tools context outside the author contexts and is applied
+(`native-work-review-capture-v2`) only after settlement, the critic's own
+calibrated profile and the owned closure. Only one review of a target is
+pending at a time (`native-work-review-pending-for-target`), so a negative
+verdict cannot be overtaken by a parallel approval. Review calls count against
+the review call ceiling and share the per-unit work token cap with execution;
+like execution, they are checked against the current unit allocation rather
+than the revision pinned at enable. A negative verdict stays with its target:
+the work becomes `changes-requested` or `blocked` and only the owner's cancel
+ends it in this slice (cancel waits while a review call is consumed or
+uncertain); an approval makes the work `approved` only while no negative exists
+for that target. A malformed, oversized or partial answer is not applied and
+uses up that critic's slot for the target. Approved work is not reviewed again
+in this slice: a stronger admission before publication means cancelling and a
+new manifest.
+
 ### Concurrent Hosts
 
 Each participant's Host writes the same authority. The store serializes writes

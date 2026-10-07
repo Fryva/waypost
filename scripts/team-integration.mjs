@@ -245,9 +245,10 @@ export function pinCandidateTree({ checkout, tree, ref }) {
   if (!existing) git(checkout.path, ['update-ref', ref, tree, '0'.repeat(tree.length)]);
   return { ref, tree };
 }
-// The diff a reviewer reads, with pinned flags so its digest is reproducible.
-export function candidateDiff({ checkout, candidate }) {
-  checkout = check(checkout);
-  // Every presentation setting is pinned: full object ids, context, ordering, quoting.
-  return git(checkout.path, ['-c', 'core.quotePath=true', '-c', 'diff.suppressBlankEmpty=false', 'diff', '-O/dev/null', '--no-ext-diff', '--no-textconv', '--no-color', '--no-renames', '--full-index', '-U3', '--inter-hunk-context=0', '--indent-heuristic', '--diff-algorithm=myers', '--src-prefix=a/', '--dst-prefix=b/', candidate.base, candidate.tree]);
+// The diff a reviewer reads, with every presentation setting pinned (full object
+// ids, context, inter-hunk context, no order file, quoted paths), computed from
+// Git objects of the shared repository so capture and review agree on it.
+export function treeDiff({ projectRoot, base, tree }) {
+  const root = safe(projectRoot); oid(base); oid(tree);
+  return git(root, ['-c', 'core.quotePath=true', '-c', 'diff.suppressBlankEmpty=false', 'diff', '-O/dev/null', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '--no-renames', '--full-index', '-U3', '--inter-hunk-context=0', '--indent-heuristic', '--diff-algorithm=myers', '--src-prefix=a/', '--dst-prefix=b/', base, tree]);
 }

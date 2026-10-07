@@ -95,7 +95,7 @@ export function applyNativeWork(s, t, c, now, H) {
     if (!w || w.protocol !== 2 || terminal(w)) fail('native-work-unfinished-work-required');
     text(c.reason, 500);
     // A consumed or uncertain call for this work needs its reconciled closure first.
-    if (Object.values(s.subscription_invocations || {}).some(x => x.team === t.id && x.work?.work_id === w.id && ['consumed', 'uncertain'].includes(x.state))) fail('native-work-cancel-reconciled-closure-required');
+    if (Object.values(s.subscription_invocations || {}).some(x => x.team === t.id && (x.work?.work_id === w.id || x.action?.kind === 'protocol-work-review' && x.action.request.target.work_id === w.id) && ['consumed', 'uncertain'].includes(x.state))) fail('native-work-cancel-reconciled-closure-required');
     w.status = 'cancelled'; w.cancelled_at = c.at; w.cancel_reason = c.reason;
     result = { cancelled: w.id, protected_actions_granted: false };
   }
@@ -118,7 +118,10 @@ function workBudget(s, t, policy, unitDigest, additional, excluding) {
   const limit = policy.unit_allocations.find(u => u.unit_digest === unitDigest); if (!limit) fail('native-work-unit-allocation-required');
   let calls = 1, tokens = additional;
   for (const x of Object.values(s.subscription_invocations || {})) {
-    if (x.id === excluding || x.team !== t.id || x.purpose !== 'work' || x.work_policy_revision !== policy.revision || x.state === 'aborted') continue;
+    if (x.id === excluding || x.team !== t.id || x.state === 'aborted') continue;
+    // Review calls count against the same per-unit work cap, not the execution calls.
+    if (x.purpose === 'protocol-control' && x.action?.kind === 'protocol-work-review' && x.control_policy_revision === policy.revision) { if (x.unit_digest === unitDigest) tokens += integer(['settled', 'reconciled'].includes(x.state) ? x.charged_tokens : x.estimate_tokens); continue; }
+    if (x.purpose !== 'work' || x.work_policy_revision !== policy.revision) continue;
     calls++; if (x.unit_digest === unitDigest) tokens += integer(['settled', 'reconciled'].includes(x.state) ? x.charged_tokens : x.estimate_tokens);
   }
   if (calls > policy.ceilings.execution.max_calls || tokens > integer(limit.max_tokens)) fail('native-work-owner-ceiling-exceeded');

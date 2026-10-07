@@ -147,3 +147,140 @@ test('the material capture reducer binds the bound collector, the execution clos
  const paused=structuredClone(before);paused.state.teams.team.status='paused';paused.state.teams.team.native_quota_freeze={};assert.equal(cmd({},paused).state.teams.team.work['fix-sum'].status,'candidate','allowed while paused or frozen');
  const fenced=structuredClone(before);fenced.state.publication_fence={team:'team'};assert.equal(cmd({},fenced).result.deferred,true);
 });
+async function captured(t,options){const f=await fixture(t,options);await f.host.executeNativeWork({workId:'fix-sum',estimateTokens:'40'});f.host.captureNativeWork({workId:'fix-sum'});return f;}
+test('the strongest independent critic approves the exact diff of a candidate on its own Host, after its profile and owned closure',async t=>{
+ const f=await captured(t),team=f.load().state.teams.team,critic=team.review_candidate;
+ assert.notEqual(critic,team.leader);
+ await assert.rejects(f.host.reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),/host-native-work-review-endpoint-required/);
+ const r=await f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'});
+ assert.equal(r.work_review_captured,true,JSON.stringify(r));assert.equal(r.work_review.verdict,'approve');assert.equal(r.work_review.label,'unqualified-strongest-protocol-review-baseline');assert.equal(r.protected_actions_granted,false);
+ const w=work(f);assert.equal(w.status,'approved');assert.equal(w.reviews.length,1);
+ const x=f.load().state.subscription_invocations[r.invocation_id];assert.equal(x.action.request.participant,critic);assert.ok(x.action.request.excluded_participants.includes(team.leader));
+});
+test('a negative verdict stays: the work is changes-requested and no later approval of the same target clears it',async t=>{
+ const f=await captured(t,{workReviewVerdict:'changes-requested',workReviewFindings:[{path:'src/sum.js',severity:'major',text:'Subtraction is still used.'}]}),critic=f.load().state.teams.team.review_candidate;
+ const r=await f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'});assert.equal(r.work_review.verdict,'changes-requested');
+ assert.equal(work(f).status,'changes-requested');const target=Object.values(f.load().state.teams.team.native_work_reviews)[0];assert.equal(target.unresolved_negative,true);
+ await assert.rejects(f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),/candidate-required/,'no second review of a work that is no longer a candidate');
+ assert.equal(f.host.cancelNativeWork({workId:'fix-sum',reason:'rejected'}).cancelled,'fix-sum');
+});
+test('a review refuses a diff that no longer matches the captured digest, and an approval with findings',async t=>{
+ const {readWorkReview}=await import('../scripts/team-native-work-review.mjs');
+ const f=await captured(t),critic=f.load().state.teams.team.review_candidate,original=f.dependencies.integration;
+ f.dependencies.integration={treeDiff:()=>'tampered diff'};
+ await assert.rejects(f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),/host-native-work-review-diff-mismatch/);f.dependencies.integration=original;
+ const action={action_id:'a',request_digest:'r',request:{target_digest:'g',target:{paths:['src/sum.js']}}};
+ assert.throws(()=>readWorkReview(JSON.stringify({verdict:'approve',action_id:'a',request_digest:'r',target_digest:'g',findings:[{path:'src/sum.js',severity:'minor',text:'x'}]}),action),/approval-needs-no-findings/);
+ assert.throws(()=>readWorkReview(JSON.stringify({verdict:'approve',action_id:'a',request_digest:'r',target_digest:'g',findings:[],extra:1}),action),/exact-work-review-required/);
+ assert.throws(()=>readWorkReview(JSON.stringify({verdict:'changes-requested',action_id:'a',request_digest:'r',target_digest:'g',findings:[{path:'other.js',severity:'minor',text:'x'}]}),action),/finding-required/);
+});
+const rejectsCode=(promise,code)=>assert.rejects(promise,error=>{assert.equal(error.code??error.message,code);return true;});
+const reviewInvocations=f=>Object.values(f.load().state.subscription_invocations).filter(x=>x.action?.kind==='protocol-work-review');
+test('the critic prompt is the frozen head followed by the exact diff as data, with no verdict suggested',async t=>{
+ const {formatProtocolAction}=await import('../scripts/team-native-action.mjs'),{treeDiff}=await import('../scripts/team-integration.mjs');
+ const f=await captured(t),critic=f.load().state.teams.team.review_candidate;
+ const r=await f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'});assert.equal(r.work_review_captured,true,JSON.stringify(r));
+ const x=f.load().state.subscription_invocations[r.invocation_id],target=x.action.request.target,diff=treeDiff({projectRoot:f.root,base:target.base,tree:target.tree});
+ assert.equal(routingDigest(diff),target.diff_digest);
+ const prompts=f.prompts.filter(p=>p.purpose==='protocol-control'&&p.prompt.includes('"kind":"protocol-work-review"'));assert.equal(prompts.length,1);const prompt=prompts[0].prompt,head=formatProtocolAction(x.action);
+ assert.ok(prompt.startsWith(head));assert.ok(prompt.endsWith('\n'+JSON.stringify({diff})));assert.equal(prompt,head+'\n'+JSON.stringify({diff}),'nothing sits between the head and the diff');
+ assert.ok(head.includes('response_schema'));assert.equal(head.includes('"verdict":"approve"'),false,'no ready-made answer is offered');assert.equal(head.includes('"diff"'),false,'the diff is only in the suffix');
+});
+test('a blocked verdict blocks the work and leaves the target with an unresolved negative',async t=>{
+ const f=await captured(t,{workReviewVerdict:'blocked',workReviewFindings:[{path:'',severity:'blocker',text:'The change is unsafe.'}]}),critic=f.load().state.teams.team.review_candidate;
+ const r=await f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'});assert.equal(r.work_review.verdict,'blocked');assert.equal(r.work_review.work_status,'blocked');assert.equal(r.work_review.unresolved_negative,true);
+ assert.equal(work(f).status,'blocked');assert.equal(Object.values(f.load().state.teams.team.native_work_reviews)[0].unresolved_negative,true);
+});
+test('the same critic cannot review the same target twice in one epoch, and the first verdict is still recoverable',async t=>{
+ const f=await captured(t,{interruptWorkReview:true}),critic=f.load().state.teams.team.review_candidate,host=f.hostFor(critic);
+ await assert.rejects(host.reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),/interrupted work review capture/);
+ const [x]=reviewInvocations(f);assert.equal(x.state,'settled');assert.equal(x.work_review,undefined);
+ const sends=f.calls.filter(c=>c==='native-send').length;
+ await rejectsCode(host.reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),'native-action-action-slot-already-reserved-or-consumed');
+ assert.equal(reviewInvocations(f).length,1);assert.equal(f.calls.filter(c=>c==='native-send').length,sends);assert.equal(work(f).status,'candidate');
+ assert.equal((await host.recoverWorkReview({invocationId:x.id})).work_review_captured,true);assert.equal(work(f).status,'approved');
+});
+test('another critic is refused while the first review of the target is neither recorded nor released',async t=>{
+ const {validateProtocolAction,actionPromptDigest}=await import('../scripts/team-native-action.mjs'),{createProtocolWorkReviewRequest}=await import('../scripts/team-native-work-review.mjs');
+ const f=await captured(t,{interruptWorkReview:true}),critic=f.load().state.teams.team.review_candidate;
+ await assert.rejects(f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),/interrupted work review capture/);
+ const [x]=reviewInvocations(f);assert.equal(x.work_review,undefined);
+ // A later epoch gives the next review its own slot, so only the one-review-per-target rule can stop it.
+ const attempt=mutate=>{const s=structuredClone(f.load().state),team=s.teams.team;team.epoch+=1;mutate?.(s.subscription_invocations[x.id]);
+  const core=createProtocolWorkReviewRequest(s,team,{actionId:'second',workId:'fix-sum'}),action={...core,prompt_digest:actionPromptDigest(core),operation_id:'2b3a8c1e-5d4f-4a6b-8c7d-9e0f1a2b3c4d'};
+  return validateProtocolAction(s,team,{purpose:'protocol-control',incarnation:core.request.incarnation,max_calls:1,estimate_tokens:'40',timeout_ms:1000,suite_digest:action.prompt_digest,action},team.participants[core.request.participant],{descriptor_digest:core.request.descriptor_digest,native_id:'native-second',id:'context-second'},Date.now());};
+ assert.throws(()=>attempt(),error=>{assert.match(error.code??error.message,/native-work-review-pending-for-target/);return true;});
+ for(const [name,mutate] of [['recorded',y=>{y.work_review={verdict:'approve'};}],['aborted',y=>{y.state='aborted';}],['reconciled and released',y=>{y.state='reconciled';y.slot_released=true;}]])
+  try{attempt(mutate);}catch(error){assert.doesNotMatch(error.code??error.message,/pending-for-target/,name);}
+});
+test('a second review is also refused while the first call is uncertain, until it is reconciled',async t=>{
+ let lose=false;const f=await captured(t,{failSend:()=>lose}),critic=f.load().state.teams.team.review_candidate,host=f.hostFor(critic);
+ lose=true;await host.reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}).catch(()=>{});lose=false;
+ const [x]=reviewInvocations(f);assert.equal(x.state,'uncertain');assert.equal(x.work_review,undefined);
+ await rejectsCode(host.reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),'subscription-uncertain-usage-blocks-admission');
+ assert.equal(reviewInvocations(f).length,1);assert.equal(work(f).status,'candidate');
+});
+test('a target whose strongest independent critic is Codex is refused rather than weakened',async t=>{
+ const {createProtocolWorkReviewRequest}=await import('../scripts/team-native-work-review.mjs');
+ const f=await captured(t),v=f.load(),critic=v.state.teams.team.review_candidate;
+ assert.ok(createProtocolWorkReviewRequest(v.state,v.state.teams.team,{actionId:'ok',workId:'fix-sum'}),'the unmodified team selects its critic');
+ const state=structuredClone(v.state),team=state.teams.team;team.participants[critic].harness='codex';
+ assert.throws(()=>createProtocolWorkReviewRequest(state,team,{actionId:'codex',workId:'fix-sum'}),{message:'native-work-strongest-independent-review-unavailable'});
+ for(const p of Object.values(team.participants))if(p.id!==team.leader)p.harness='codex';
+ assert.throws(()=>createProtocolWorkReviewRequest(state,team,{actionId:'codex',workId:'fix-sum'}),{message:'native-work-strongest-independent-review-unavailable'});
+});
+test('a review prompt over 64 KiB is refused before any reservation',async t=>{
+ const f=await fixture(t,{workAnswer:()=>JSON.stringify({files:['src/sum.js','src/b.js'].map(path=>({path,content:'// '+'x'.repeat(32000)+'\n'}))})});
+ f.host.cancelNativeWork({workId:'fix-sum',reason:'replan'});writeFileSync(join(f.root,'src/b.js'),'export const b=1;\n');git(f.root,'add','src/b.js');git(f.root,'commit','-q','-m','b');newManifest(f,'big',['src/sum.js','src/b.js']);
+ const r=await f.host.executeNativeWork({workId:'big',estimateTokens:'40'});assert.equal(r.status,'sealed',JSON.stringify(r));f.host.captureNativeWork({workId:'big'});
+ const critic=f.load().state.teams.team.review_candidate,before=Object.keys(f.load().state.subscription_invocations),sends=f.calls.filter(c=>c==='native-send').length;
+ await rejectsCode(f.hostFor(critic).reviewNativeWork({workId:'big',estimateTokens:'40'}),'host-native-work-review-prompt-too-large');
+ assert.deepEqual(Object.keys(f.load().state.subscription_invocations),before);assert.equal(f.calls.filter(c=>c==='native-send').length,sends);assert.equal(f.load().state.teams.team.work.big.status,'candidate');
+});
+test('the work review capture reducer binds the collector and the closure, and an applied verdict is immutable',async t=>{
+ const {reduceTeamEvent}=await import('../scripts/team-state.mjs'),{collectOwnedRuntimeCompletion,serializeOwnedRuntimeCompletion}=await import('../scripts/team-owned-runtime.mjs');
+ const f=await captured(t,{interruptWorkReview:true}),critic=f.load().state.teams.team.review_candidate;
+ await assert.rejects(f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),/interrupted work review capture/);
+ const before=f.load(),[x]=reviewInvocations(f);assert.equal(x.state,'settled');assert.ok(x.action_observation);assert.equal(x.work_review,undefined);
+ const completion=serializeOwnedRuntimeCompletion(collectOwnedRuntimeCompletion({directory:join(f.configFor(critic).hostDir,'runtime'),team:'team',participant:x.participant,incarnation:x.incarnation,epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.action.operation_id,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id}));
+ const cmd=(patch={},state=before)=>reduceTeamEvent(structuredClone(state.state),{type:'native-work-review-capture-v2',team:'team',actor:x.collector,at:new Date().toISOString(),request_key:'k'+Math.random(),invocation_id:x.id,nonce:x.nonce,completion,...patch},{revision:state.revision});
+ assert.equal(cmd().state.teams.team.work['fix-sum'].status,'approved');
+ const other=Object.values(before.state.collectors).find(c=>'collector:'+c.id!==x.collector);
+ for(const [name,patch,code] of [
+  ['another collector',{actor:'collector:'+other.id},/bound-action-collector-required/],
+  ['closure kind',{completion:{...completion,kind:'subscription-bootstrap'}},/exact-owned-operation-completion-required/],
+  ['closure operation',{completion:{...completion,operation:'another'}},/exact-owned-operation-completion-required/],
+  ['closure epoch',{completion:{...completion,scope:{...completion.scope,epoch:completion.scope.epoch+1}}},/exact-owned-operation-completion-required/],
+  ['another invocation',{completion:{...completion,invocation_id:'other'}},/exact-owned-operation-completion-required/],
+  ['a nonce that is not the call\'s',{nonce:'other'},/stored-action-required/]])
+  assert.throws(()=>cmd(patch),code,name);
+ const done=cmd().state;const after={state:done,revision:before.revision+1};
+ assert.equal(cmd({},after).result.unchanged,true,'the same completion is idempotent');assert.equal(cmd({},after).result.verdict,'approve');
+ assert.throws(()=>cmd({completion:{...completion,evidence_digest:'f'.repeat(64)}},after),/work-review-immutable/);
+ const moved=structuredClone(before);moved.state.teams.team.work['fix-sum'].status='cancelled';assert.throws(()=>cmd({},moved),/native-work-review-candidate-required/);
+});
+test('an interrupted work review capture is recovered from the original sealed verdict without another native call',async t=>{
+ const f=await captured(t,{interruptWorkReview:true}),critic=f.load().state.teams.team.review_candidate,host=f.hostFor(critic);
+ await assert.rejects(host.reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),/interrupted work review capture/);
+ const [x]=reviewInvocations(f),sends=f.calls.filter(c=>c==='native-send').length;assert.equal(x.work_review,undefined);assert.equal(work(f).status,'candidate');
+ const recovered=await host.recoverWorkReview({invocationId:x.id});assert.equal(recovered.work_review_captured,true,JSON.stringify(recovered));assert.equal(recovered.work_review.verdict,'approve');
+ assert.equal(f.calls.filter(c=>c==='native-send').length,sends);assert.equal(work(f).status,'approved');assert.equal(f.load().state.subscription_invocations[x.id].work_review.verdict,'approve');
+ const again=await host.recoverWorkReview({invocationId:x.id});assert.equal(again.work_review_captured,true);assert.equal(again.replayed,true);assert.equal(work(f).reviews.length,1);
+ await rejectsCode(host.recoverWorkReview({invocationId:'missing'}),'host-protocol-recovery-source-required');
+});
+for(const [name,option,state] of [['malformed','workReviewMalformed','settled'],['partial','workReviewPartial','uncertain']])test('a '+name+' critic reply is not applied: the work stays a candidate and the spent slot stays on the ledger',async t=>{
+ const f=await captured(t,{[option]:true}),critic=f.load().state.teams.team.review_candidate;
+ const r=await f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'});assert.notEqual(r.work_review_captured,true,JSON.stringify(r));assert.equal(r.protected_actions_granted,false);
+ assert.equal(work(f).status,'candidate');assert.equal(work(f).reviews,undefined);assert.equal(f.load().state.teams.team.native_work_reviews,undefined);
+ const invocations=reviewInvocations(f);assert.equal(invocations.length,1);assert.equal(invocations[0].work_review,undefined);assert.equal(invocations[0].state,state);
+ const slots=Object.values(f.load().state.teams.team.native_control_slots).filter(s=>s.invocation_id===invocations[0].id);assert.equal(slots.length,1,'the slot of the spent call is on the ledger');assert.notEqual(slots[0].applied,true);
+ assert.equal(invocations[0].charged_tokens,state==='settled'?'30':undefined);
+ await rejectsCode(f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),state==='settled'?'native-action-action-slot-already-reserved-or-consumed':'subscription-uncertain-usage-blocks-admission');
+ assert.equal(reviewInvocations(f).length,1,'no further critic call was reserved');
+});
+test('a critic finding with a control character in its text is refused by the parser',async t=>{
+ const {readWorkReview}=await import('../scripts/team-native-work-review.mjs');
+ const action={action_id:'a',request_digest:'r',request:{target_digest:'g',target:{paths:['src/sum.js']}}},reply=text=>JSON.stringify({verdict:'blocked',action_id:'a',request_digest:'r',target_digest:'g',findings:[{path:'src/sum.js',severity:'major',text}]});
+ assert.equal(readWorkReview(reply('plain text'),action).findings[0].text,'plain text');
+ for(const text of ['line\nbreak','nul\u0000byte','tab\there','esc\u001b[31m','del\u007f','c1\u0085','x'.repeat(241),'   '])assert.throws(()=>readWorkReview(reply(text),action),{message:'exact-work-review-finding-required'},JSON.stringify(text));
+});

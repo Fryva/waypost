@@ -62,7 +62,7 @@ async function collectProfile({participant,observe,adapter_revision,requested_co
     if(output.trim() !== correlation.nonce)fail('nonce-receipt-mismatch');
   }else if(kind==='action'){
     actionBinding=boundedObject(action,24576);const originalRequest=boundedObject(request,24576);
-    if(!['protocol-leader-ack','protocol-leadership-audit','protocol-handover-ack'].includes(actionBinding.kind)||!text(actionBinding.action_id,128)||actionBinding.request_digest!==digest(originalRequest)||digest(actionBinding.request)!==digest(originalRequest))fail('action-request-binding-mismatch');
+    if(!['protocol-leader-ack','protocol-leadership-audit','protocol-handover-ack','protocol-work-review'].includes(actionBinding.kind)||!text(actionBinding.action_id,128)||actionBinding.request_digest!==digest(originalRequest)||digest(actionBinding.request)!==digest(originalRequest))fail('action-request-binding-mismatch');
     if(originalRequest.protocol!==2||originalRequest.kind!==actionBinding.kind||originalRequest.action_id!==actionBinding.action_id||originalRequest.participant!==binding.participant||originalRequest.incarnation!==binding.incarnation||typeof participant.native_binding?.descriptor_digest!=='string'||originalRequest.descriptor_digest!==participant.native_binding.descriptor_digest)fail('action-participant-request-mismatch');
     readProtocolActionResponse(output,actionBinding);
     admission=boundedObject(result.admission,49152);

@@ -16,10 +16,11 @@ import { observeNativeProviderQuota, observeCodexProtocolAccountQuota } from './
 import { createNativeEndpoint, createNativeModelInventoryEndpoint, nativeInventoryFailureClosure, validateNativeDescriptor } from './team-transport.mjs';
 import { harness as harnessDefinition } from './agents.mjs';
 import { collectModelInventory, metadataDescriptor } from './team-model-inventory.mjs';
-import { createProtocolLeaderAckRequest, createProtocolLeadershipAuditRequest, createProtocolHandoverAckRequest, formatProtocolLeaderAck, formatProtocolAction, readProtocolActionResponse } from './team-native-action.mjs';
+import { createProtocolLeaderAckRequest, createProtocolLeadershipAuditRequest, createProtocolHandoverAckRequest, formatProtocolLeaderAck, formatProtocolAction, readProtocolActionResponse, actionPromptDigest } from './team-native-action.mjs';
+import { createProtocolWorkReviewRequest, formatWorkReviewSuffix, WORK_REVIEW_KIND } from './team-native-work-review.mjs';
 import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
 import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion, serializeOwnedRuntimeStopProof } from './team-owned-runtime.mjs';
-import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest, readWorkInputs, workInputsDigest, validateWorkPatch, writeSealedPatch, readSealedPatch, applySealedPatch, candidateDiff, pinCandidateTree } from './team-integration.mjs';
+import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest, readWorkInputs, workInputsDigest, validateWorkPatch, writeSealedPatch, readSealedPatch, applySealedPatch, pinCandidateTree, treeDiff } from './team-integration.mjs';
 import { formatWorkPromptHead, workPromptDigest, workSuiteDigest, workPatchRef, WORK_MAX_OUTPUT_BYTES, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 import { leasesOverStaged } from './commit.mjs';
@@ -57,7 +58,7 @@ export function createTeamHost(config, dependencies={}) {
  const now=dependencies.now||(()=>new Date().toISOString());
  let activeOperation=null,operationBusy=false;
  const native=descriptor=>activeOperation?activeOperation.native(()=>(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor)):(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor);
- const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,readWorkInputs,workInputsDigest,validateWorkPatch,writeSealedPatch,readSealedPatch,applySealedPatch,candidateDiff,pinCandidateTree,...dependencies.integration};
+ const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,readWorkInputs,workInputsDigest,validateWorkPatch,writeSealedPatch,readSealedPatch,applySealedPatch,pinCandidateTree,treeDiff,...dependencies.integration};
  async function closeNative(transport){if(transport?.stopAndWait&&transport.owns_process!==false)await transport.stopAndWait();else transport?.close();}
  function getTeam(){const v=load();const t=v.state?.teams[team];if(!t)fail('team-not-found');return {v,t};}
  // Other Hosts (participants of other harnesses) write the same authority. A
@@ -248,7 +249,7 @@ export function createTeamHost(config, dependencies={}) {
  function captureNativeWork({workId}={}){
   owner();const c=collector(),{v,t}=getTeam(),w=t.work?.[workId];
   if(w?.protocol!==2)fail('host-protocol-2-work-required');
-  if(w.status==='candidate')return {captured:w.id,unchanged:true,tree:w.result.tree,protected_actions_granted:false};
+  if(w.result&&['candidate','approved','changes-requested','blocked'].includes(w.status))return {captured:w.id,unchanged:true,tree:w.result.tree,protected_actions_granted:false};
   const dispatch=w.dispatches?.[w.sealed_dispatch],x=dispatch&&v.state.subscription_invocations?.[dispatch.invocation_id];
   if(w.status!=='sealed'||!x)fail('host-native-work-sealed-call-required');
   const p=t.participants[x.participant];let directory=hostDir,registryError=null;
@@ -280,13 +281,36 @@ export function createTeamHost(config, dependencies={}) {
   const value=integration.collectCandidate({checkout:checkoutValue,scope:w.paths,testDigests:[],reconcile});
   if(JSON.stringify(value.paths)!==JSON.stringify(dispatch.paths))fail('host-native-work-candidate-paths-differ');
   integration.pinCandidateTree({checkout:checkoutValue,tree:value.tree,ref:'refs/waypost/candidates/'+team+'/'+w.id+'/'+w.generation+'-'+x.work.attempt});
-  const diff=integration.candidateDiff({checkout:checkoutValue,candidate:value});
+  const diff=integration.treeDiff({projectRoot,base:value.base,tree:value.tree});
   const candidateFile=record('candidate-'+value.digest);
   if(!existsSync(candidateFile))write(candidateFile,{protocol:1,team,work:workId,candidate:value});
   else if(routingDigest(read(candidateFile,true).candidate)!==routingDigest(value))fail('host-native-work-candidate-conflict');
   const evidence={base:value.base,tree:value.tree,paths:value.paths,candidate_digest:value.digest,diff_digest:routingDigest(diff),patch_digest:dispatch.patch_digest,patch_ref:dispatch.patch_ref,tests_digest:WORK_TESTS_NOT_RUN_DIGEST,tests_status:'not-run'};
   return mutate('native-work-material-capture-v2',{work_id:w.id,generation:w.generation,attempt:x.work.attempt,invocation_id:x.id,nonce:x.nonce,completion:serializeOwnedRuntimeCompletion(completion),evidence},c).result;
  }
+ // The strongest independent critic reviews a candidate's exact diff on its own
+ // Host. The diff is recomputed from Git objects and must match the captured
+ // digest; the verdict is applied after the critic's profile and owned closure.
+ async function reviewNativeWork({workId,nonce,actionId,estimateTokens}={}){
+  owner();const d=endpoint();await ensureNativeQuotaLease();const {v,t}=getTeam();
+  const core=createProtocolWorkReviewRequest(v.state,t,{actionId:actionId||'work-review-'+randomUUID(),workId,now:Date.parse(now())});
+  if(core.request.participant!==d.participant)fail('host-native-work-review-endpoint-required');
+  const target=core.request.target,diff=integration.treeDiff({projectRoot,base:target.base,tree:target.tree});
+  if(routingDigest(diff)!==target.diff_digest)fail('host-native-work-review-diff-mismatch');
+  const action={...core,prompt_digest:actionPromptDigest(core),operation_id:randomUUID()},promptSuffix=formatWorkReviewSuffix(diff);
+  // The transport refuses a prompt over 64 KiB only at send, after the reservation.
+  if(Buffer.byteLength(formatProtocolAction(action)+promptSuffix)>65536)fail('host-native-work-review-prompt-too-large');
+  return managedOperation('protocol-work-review',()=>subscriptionSingleCall({nonce:nonce||'review_'+randomUUID().replace(/-/g,''),estimateTokens:estimateTokens||t.native_work_policy?.ceilings?.review?.max_estimate_tokens||'16000',controlAction:action,promptSuffix}),{forceOwned:true,operation:action.operation_id,afterCompletion:captureWorkReview});
+ }
+ function captureWorkReview(result,completionSelectors){
+  const x=load().state.subscription_invocations?.[result.invocation_id];
+  if(x?.work_review)return {...result,work_review_captured:true,replayed:true,verdict:x.work_review.verdict,protected_actions_granted:false};
+  if(!x?.action_observation)return {...result,work_review_captured:false,action_blocker:x?.action_blocker||result.native_profile_blocker||'native-action-profile-required',protected_actions_granted:false};
+  const completion=collectOwnedRuntimeCompletion({...completionSelectors,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id});
+  const captured=mutate('native-work-review-capture-v2',{invocation_id:x.id,nonce:x.nonce,completion:serializeOwnedRuntimeCompletion(completion)},collector(),'native-work-review-'+x.nonce).result;
+  return {...result,work_review_captured:true,work_review:captured,protected_actions_granted:false};
+ }
+ const recoverWorkReview=options=>recoverProtocolAction(options,'protocol-work-review',captureWorkReview);
  function resumeProtocolLeadership(){
   // A retried call after a lost response finds the team already resumed.
   const {t}=getTeam();if(t.status==='active'&&t.leader)return {resumed:false,already_active:true,leader:t.leader,epoch:t.epoch,protected_actions_granted:false};
@@ -491,7 +515,7 @@ export function createTeamHost(config, dependencies={}) {
    catch(e){return {...base,redistribution_required:true,redistribution_blocker:typeof e.code==='string'&&/^[a-z0-9-]{1,128}$/.test(e.code)?e.code:'host-native-handover-blocked'};}
   }
  }
- async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null,operationId=null,deliveryMessage=null,workCall=null}={}) {
+ async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null,operationId=null,deliveryMessage=null,workCall=null,promptSuffix=''}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('host-subscription-v2-owner-opt-in-required');
   if(!['codex','opencode','claude'].includes(d.descriptor.harness)||d.descriptor.mode!=='read-only'||d.descriptor.harness==='opencode'&&d.descriptor.spawn_server!==true)fail('host-subscription-bootstrap-counter-adapter-unsupported');
@@ -502,8 +526,9 @@ export function createTeamHost(config, dependencies={}) {
   if(p.quota_observation?.status==='exhausted')fail('host-subscription-quota-exhausted');
   // A Codex context carries a read-only shell; peer payloads need a no-tools context.
   if((deliveryMessage||workCall)&&d.descriptor.harness==='codex')fail(workCall?'host-native-work-no-tools-context-required':'host-delivery-no-tools-context-required');
+  if(promptSuffix&&controlAction?.kind!==WORK_REVIEW_KIND)fail('host-prompt-suffix-work-review-only');
   const token='WAYPOST_PROBE_'+nonce;
-  const prompt=controlAction?formatProtocolAction(controlAction):trialBinding?trialBinding.prompt:workCall?workCall.prompt:deliveryMessage?formatDeliveryPrompt(deliveryMessage):'Synthetic protocol check. Return exactly this token and nothing else: '+token;
+  const prompt=controlAction?formatProtocolAction(controlAction)+promptSuffix:trialBinding?trialBinding.prompt:workCall?workCall.prompt:deliveryMessage?formatDeliveryPrompt(deliveryMessage):'Synthetic protocol check. Return exactly this token and nothing else: '+token;
   const deliveryBinding=deliveryMessage?{message_id:deliveryMessage.id,prompt_digest:routingDigest(prompt)}:null;
   const suiteDigest=controlAction?controlAction.prompt_digest:trialBinding?trialBinding.measurement.suite_digest:workCall?workSuiteDigest():deliveryMessage?deliverySuiteDigest():routingDigest({id:'waypost-identity-token',revision:1,template:'Return exactly WAYPOST_PROBE_<nonce>',read_only:true});
   const transport=await native(d.descriptor);
@@ -1039,5 +1064,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,executeNativeWork,captureNativeWork,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }
