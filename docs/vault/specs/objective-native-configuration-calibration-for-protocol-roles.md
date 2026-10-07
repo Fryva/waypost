@@ -776,8 +776,11 @@ enable.
 Slice 2 implementation (2026-10-07, Claude Code): increment 1 (d6efeb3) —
 `native-work-revise-v2` with the archive in `generations[]`, `w.revision`,
 execution template 2 chosen from `w.revision`, Host `reviseNativeWork` with the
-template-2 size check, CLI `native-work-revise`. Increment 2 — checkout reset
+template-2 prompt and next review request size checks, CLI
+`native-work-revise`. Increment 2 (7c263f7) — checkout reset
 before a later generation's apply (`resetWorkPaths`), per-generation apply
 marker, `native-work-rejected-candidate-repeated`, review template 2 with
 `request.prior`, `native-work-path-prefix`, `Waypost-Generation` trailer.
-Golden replay of two slice 1 logs (`tests/native-slice1-replay.test.mjs`).
+Golden replay of two slice 1 logs and one slice 2 log with a revise, a
+generation-2 approval and its publication (`tests/native-golden-replay.test.mjs`);
+both template-2 wordings and the revise state shape are now fixed for replay.
