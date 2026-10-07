@@ -539,3 +539,14 @@ merges, Waypost never writes the user's branch; O6 tests not run, explicit
 digest; O3 unknown quota only under an explicit flag, review never lowered for
 quota; O8 not required, an unresolved negative audit still blocks; O10 does not
 arise in slice 1; O5 deferred.
+
+Owner decisions (2026-10-06): calibration validity is decoupled from identity
+freshness — a calibration stays valid until its profile, suite or grading
+revision changes, and at most 7 days; identity is still proven per action by
+the action-profile capture. The proposed defaults for slice 1 are accepted:
+leader-baseline execution labelled unqualified, owner-written manifests, an
+independent critic of another model reviewing the diff in place of coordinator
+supervision (spec 6.4 amendment for this mode), publication only to a private
+ref that the owner merges, no project tests run (explicit not-run digest), and
+on any loss of `active` a pause plus owner cancel. Implementation order: slice
+0, then slice 1, each with a plan, a critic pass and a diff review.
