@@ -94,6 +94,7 @@ export async function main(argv = process.argv.slice(2)) {
     else if(operation==='native-work-manifest')print(host.installWorkManifest(json(resolve(opt('--request-file')||''))));
     else if(operation==='native-work-execute')print(await host.executeNativeWork({workId:opt('--work'),estimateTokens:opt('--estimate-tokens')}));
     else if(operation==='native-work-capture')print(host.captureNativeWork({workId:opt('--work')}));
+    else if(operation==='native-work-revise')print(host.reviseNativeWork({workId:opt('--work'),reason:opt('--reason')}));
     else if(operation==='native-work-publish'){const request=json(resolve(opt('--request-file')||''));print(await host.publishNativeWork({workId:opt('--work'),message:request.message,story:request.story,commitIdentity:request.commit_identity}));}
     else if(operation==='native-work-publish-recover')print(host.recoverNativePublication({gitChildStopped:flag('--git-child-confirmed-stopped')}));
     else if(operation==='native-work-publish-abort')print(host.abortNativePublication({reservationId:opt('--reservation')}));
@@ -125,7 +126,7 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:native-work-publish|native-work-publish-recover|native-work-publish-abort|native-work-review|native-work-review-recover|native-work-capture|native-work-execute|native-work-enable|native-work-manifest|native-work-cancel|native-leader-resume|native-delivery-enable|native-control-reconcile|unknown-usage-accept|native-quota-enable|native-handover-enable|native-quota-observe|native-quota-handover|native-handover-ack|native-handover-recover|bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:native-work-revise|native-work-publish|native-work-publish-recover|native-work-publish-abort|native-work-review|native-work-review-recover|native-work-capture|native-work-execute|native-work-enable|native-work-manifest|native-work-cancel|native-leader-resume|native-delivery-enable|native-control-reconcile|unknown-usage-accept|native-quota-enable|native-handover-enable|native-quota-observe|native-quota-handover|native-handover-ack|native-handover-recover|bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
     return;
   }
   if (mode === 'status') {

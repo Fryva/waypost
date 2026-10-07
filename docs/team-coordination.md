@@ -932,14 +932,35 @@ step is a `waypost team host <team> --operation <op>` on the named Host):
    Host: approved work becomes one commit on the checkout's private ref.
 7. The owner merges that ref into their branch; `close-v1` closes the team.
 
+After a negative review, `native-work-revise --work <id> --reason <text>`
+(owner, slice 2) opens the next generation instead of cancelling: back to step
+3 with the findings, until the attempt total runs out.
+
 `native-work-cancel` stops unfinished work at any point; recovery operations
 exist for each interruption (`native-control-reconcile`,
 `native-work-review-recover`, `native-work-publish-recover`). Not in this slice:
-a model writing the manifest, an executor other than the leader, a revision
-loop after findings, project tests, and adoption of in-flight work by a new
-leader. Everything is proven hermetically
+a model writing the manifest or deciding a revise, an executor other than the
+leader, project tests, and adoption of in-flight work by a new leader. Everything is proven hermetically
 (`tests/native-protocol-publication-host.test.mjs` runs steps 1-7); no live
 cohort has yet qualified a coordinator.
+
+#### Revision loop (slice 2)
+
+`native-work-revise` (`native-work-revise-v2 {work_id, generation,
+findings_digest, reason}`, owner) needs work in `changes-requested` or `blocked`
+whose current target has an unresolved negative of the current generation, an
+active leader that is still the pinned worker with an independent critic of
+another configuration, no unresolved negative audit of its acknowledgement, no
+execution or review call for the work outside settled, aborted or reconciled,
+an attempt left (`max_attempts` is a per-work total across generations) and one
+execution and one review call left under the work ceiling. The generation's
+result, author contexts, supervision, sealed dispatch, verdict and review
+invocations are archived in `generations`; its negatives stay with its target.
+The next generation is executed from the base again with execution template
+revision 2, which carries the latest negative's findings as a reviewer's
+unverified claims that never change the instructions; the Host refuses a revise
+whose template-2 prompt would exceed 64 KiB, and a retry finds a revise already
+applied. It waits behind a publication fence.
 
 #### Owner manifest, ceiling and cancel (increment 1)
 

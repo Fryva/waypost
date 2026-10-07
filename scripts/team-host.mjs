@@ -22,7 +22,7 @@ import { nativePublicationGate, nativeIntegrationOpen } from './team-native-inte
 import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
 import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion, serializeOwnedRuntimeStopProof } from './team-owned-runtime.mjs';
 import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest, readWorkInputs, workInputsDigest, validateWorkPatch, writeSealedPatch, readSealedPatch, applySealedPatch, pinCandidateTree, treeDiff, syncCheckoutIndex, workCommitText, workCommitMessageDigest, workCommit, publishWorkCommit, workPublicationState } from './team-integration.mjs';
-import { formatWorkPromptHead, workPromptDigest, workSuiteDigest, workPatchRef, WORK_MAX_OUTPUT_BYTES, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
+import { formatWorkPromptHead, workPromptDigest, workRevisionSource, workSuiteDigest, workPatchRef, WORK_MAX_OUTPUT_BYTES, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 import { leasesOverStaged } from './commit.mjs';
 import { sessionId, storyRefOf } from './lib.mjs';
@@ -201,6 +201,19 @@ export function createTeamHost(config, dependencies={}) {
     return mutate('native-model-inventory-attempt-v1',{participant_id:p.id,participant_incarnation:p.incarnation,descriptor_digest:routingDigest(d.descriptor),nonce,started_at:new Date(startedAt).toISOString(),blocker},c,'inventory-failure-'+nonce).result;
   }finally{if(transport)await closeNative(transport);}
  }
+ const workPrompt=(w,inputs,revision)=>formatWorkPromptHead(w.manifest,revision)+'\n'+JSON.stringify({base:inputs.base,files:inputs.files.map(f=>({path:f.path,content:f.content}))});
+ // Opens the next generation of rejected work (owner). The template-2 prompt of
+ // that generation is size-checked first, and a retry after a lost response
+ // finds the revise already applied.
+ function reviseNativeWork({workId,reason}={}){
+  const o=owner(),{t}=getTeam(),w=t.work?.[workId];
+  if(w?.protocol!==2)fail('host-protocol-2-work-required');
+  if(w.revision?.generation===w.generation&&w.revision.reason===reason&&!['changes-requested','blocked'].includes(w.status))return {revised:w.id,generation:w.generation,unchanged:true,protected_actions_granted:false};
+  const found=workRevisionSource(t,w);if(!found)fail('native-work-negative-review-required');
+  const inputs=integration.readWorkInputs({projectRoot,base:w.manifest.base,paths:w.paths});
+  if(Buffer.byteLength(workPrompt(w,inputs,{generation:w.generation+1,findings:found.source.findings}))>65536)fail('host-native-work-revise-prompt-too-large');
+  return mutate('native-work-revise-v2',{work_id:w.id,generation:w.generation,findings_digest:found.findings_digest,reason},o).result;
+ }
  function enableNativeWork({revision,policy}={}){return mutate('native-work-enable-v2',{revision,policy},owner()).result;}
  function installWorkManifest({workId,manifest}={}){
   // A retried call after a lost response finds the manifest already recorded.
@@ -223,11 +236,11 @@ export function createTeamHost(config, dependencies={}) {
   // Everything checkable without a native process runs before one is spawned.
   if(!['manifest','attempt-failed'].includes(w.status)||!policy||w.attempts+1>policy.max_attempts)fail('host-native-work-not-dispatchable');
   const inputs=integration.readWorkInputs({projectRoot,base:w.manifest.base,paths:w.paths}),inputsDigest=integration.workInputsDigest(inputs);
-  const prompt=formatWorkPromptHead(w.manifest)+'\n'+JSON.stringify({base:inputs.base,files:inputs.files.map(f=>({path:f.path,content:f.content}))});
+  const prompt=workPrompt(w,inputs,w.revision);
   if(Buffer.byteLength(prompt)>65536)fail('host-native-work-prompt-too-large');
   await ensureNativeQuotaLease();
   const attempt=w.attempts+1,nonce='work_'+randomUUID().replace(/-/g,''),operationId=randomUUID(),ref=workPatchRef(team,w,attempt,nonce);
-  const binding={work_id:w.id,generation:w.generation,attempt,inputs_digest:inputsDigest,prompt_digest:workPromptDigest(w.manifest,inputsDigest)};
+  const binding={work_id:w.id,generation:w.generation,attempt,inputs_digest:inputsDigest,prompt_digest:workPromptDigest(w.manifest,inputsDigest,w.revision)};
   // A seal never throws: a failed write becomes a named outcome so the tokens still settle.
   const seal=async(rawOutput,nativeFailure)=>{
    const output_digest=routingDigest(rawOutput??''),none={output_digest,patch_digest:null,patch_ref:null,paths:[]};
@@ -1127,5 +1140,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,publishNativeWork,recoverNativePublication,abortNativePublication,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,reviseNativeWork,publishNativeWork,recoverNativePublication,abortNativePublication,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }
