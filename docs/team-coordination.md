@@ -485,8 +485,9 @@ remain pending; these trials do not grant roles.
 
 An owner opens an immutable cohort after collecting its members' native profile
 IDs and setting token allocations for each native counter schema. The bounded
-request contains only `id`, `seed`, `members`, `roles`, `unit_allocations` and
-`expires_at` (at most fifteen minutes ahead). Each member binds participant,
+request contains only `id`, `seed`, `members`, `roles`, `unit_allocations`,
+`expires_at` (at most fifteen minutes ahead) and optionally
+`calibration_expires_at` (see Calibration validity and leader resume). Each member binds participant,
 incarnation, model revision, descriptor digest and profile ID. Each allocation
 binds its existing unit digest, token limit and allocation revision. Different
 native counter schemas retain separate limits. The host derives installed suite
@@ -572,7 +573,8 @@ installation without one is refused. Installation does not acknowledge a leader,
 execute work or create an independent review context. Architecture and implementation
 coverage remain absent; legacy protected actions and policy downgrade are refused.
 New action admission, typed quota handover and full native execution remain separate
-work. Original capture expiry applies and recompilation does not renew observations.
+work. Original capture expiry applies unless the cohort set an owner calibration
+validity, and recompilation does not renew observations.
 
 ### Bounded native coordinator acknowledgement
 
@@ -885,6 +887,32 @@ Live on this Mac (2026-10-04, Codex 0.160.0, ChatGPT Plus, no inference): the
 transport reported known subscription billing and the observer returned an
 `available` proof. Live exhaustion and recovery are not demonstrated.
 Ordering across hosts relies on their clocks.
+
+### Calibration validity and leader resume (protocol 2)
+
+A calibration cohort opened with an owner `calibration_expires_at` (a strict
+ISO-8601 time after the 15-minute trial window, at most 7 days ahead; owner
+decision 2026-10-06) keeps
+its measured capability valid until that time: summaries, the installed policy
+and the participants' admissions expire then instead of 15 minutes after the
+trials. Identity is still proven on every action, because each action captures
+its own fresh profile and must equal the calibrated one; elections, a resume and
+the critic named in acknowledgement and handover requests rest on the
+calibrated identity and are not re-proven until that critic or leader acts. A
+harness update changes the profile and so ends the validity early (fails
+closed). A cohort without the
+field keeps the old rule, so existing ledgers replay unchanged. Pass it in the
+`calibration-cohort-open` request.
+
+A protocol 2 team leaves `active` when its only critic or its leader goes busy
+(paused, or handover to another coordinator); when it comes back, the election
+puts the team into `handover` with its own leader as candidate, which no
+acknowledgement can complete. The owner resumes it with `waypost team host
+<team> --operation native-leader-resume`
+(`native-leader-resume-v2`): allowed only while the team has a leader and is
+`paused` or in `handover`, with no quota freeze or handover pending, and only if
+the unchanged election again selects the incumbent with an independent critic.
+Epoch, leader, audits and slots stay as they were; nothing is granted.
 
 ### Concurrent Hosts
 

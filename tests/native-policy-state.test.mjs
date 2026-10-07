@@ -85,3 +85,48 @@ test('active native incumbent recomputes critic eligibility and cannot retain a 
   if(mode==='expiry'){assert.equal(next.status,'paused');assert.equal(next.review_candidate,null);}else if(next.review_candidate===null)assert.equal(next.status,'paused');
  }
 });
+
+const day=86400000;
+async function validFixture(validity=new Date(now+day).toISOString()){const f=await authorityFixture({calibration_expires_at:validity});const s=structuredClone(f.state);Object.assign(s,{protocol:1,owner_hash:'fixture',task_bindings:{task:'team'}});Object.assign(s.teams.team,{task:'task',policy:legacy,messages:[],work:{},status:'forming',leader:null,candidate:null,required_review_models:[],native_policy_bootstrap:true});return {...f,state:s,validity};}
+test('an owner calibration validity keeps admissions and ranks for up to 7 days while the old rule still expires with the cohort',async()=>{
+ const f=await validFixture(),t=install(f).state.teams.team,later=new Date(now+3600000).toISOString();
+ for(const p of Object.values(t.participants).filter(p=>p.native_admission)){assert.equal(p.native_admission.expires_at,f.validity);assert.ok(Date.parse(p.native_admission.observed_at)<=now);}
+ assert.equal(t.policy.expires_at,f.validity);
+ const b=t.participants['peer-b'];assert.notEqual(rankParticipant(b,t.policy,'review',{now:now+3600000,coverage:'waypost-protocol-review'}),null);assert.equal(rankParticipant(b,t.policy,'review',{now:Date.parse(f.validity),coverage:'waypost-protocol-review'}),null);
+ const state=install(f).state,checked=reduceTeamEvent(state,{type:'strength-check',team:'team',actor:'owner:fixture',at:later,request_key:'later',check:{ok:true}}).state.teams.team;assert.ok(checked.candidate,'still electable an hour later');assert.ok(checked.review_candidate);assert.equal(checked.review_blocker,null);
+ const stretched=structuredClone(b);stretched.native_admission.expires_at=new Date(Date.parse(stretched.native_admission.observed_at)+7*day+1).toISOString();assert.equal(rankParticipant(stretched,t.policy,'review',{now:now+3600000,coverage:'waypost-protocol-review'}),null,'an admission spanning more than 7 days never ranks');
+ const old=install(await fixture()).state,oldChecked=reduceTeamEvent(old,{type:'strength-check',team:'team',actor:'owner:fixture',at:later,request_key:'later',check:{ok:true}}).state.teams.team;assert.equal(oldChecked.candidate,null,'the old rule still expires with its cohort');
+});
+test('a cohort calibration validity must be a date after the trial window and at most 7 days ahead',async()=>{
+ for(const bad of [new Date(now+7*day+1).toISOString(),expiry,'tomorrow',42,'2026-10-04T12:00Z','Sun, 04 Oct 2026 12:00:00 GMT'])await assert.rejects(authorityFixture({calibration_expires_at:bad}),/cohort-validity-required/,String(bad));
+ await authorityFixture({calibration_expires_at:new Date(now+7*day).toISOString()});
+});
+function activeFlap(state){
+ const t=state.teams.team,leader=t.candidate;t.leader=leader;t.candidate=null;t.status='active';
+ const critics=['peer-b','peer-c'].filter(x=>x!==leader),flap=critics.at(-1);let s=state;const avail=(id,availability,key)=>{s=reduceTeamEvent(s,{type:'availability',team:'team',actor:id,incarnation:s.teams.team.participants[id].incarnation,availability,at,request_key:key}).state;};
+ critics.slice(0,-1).forEach((id,i)=>avail(id,'busy','busy-'+i));avail(flap,'busy','flap-busy');avail(flap,'ready','flap-ready');
+ return {state:s,leader,flap};
+}
+const resume=(state,fields={})=>reduceTeamEvent(state,{type:'native-leader-resume-v2',team:'team',actor:'owner:fixture',at,request_key:'resume',epoch:state.teams.team.epoch,...fields});
+test('a critic flap leaves the team stuck in handover to its own leader, and the owner resumes it at the same epoch',async()=>{
+ const {state,leader,flap}=activeFlap(install(await fixture()).state),t=state.teams.team;
+ assert.equal(t.status,'handover');assert.equal(t.candidate,leader,'the unchanged election selects the incumbent again');
+ const r=resume(state),next=r.state.teams.team;assert.equal(next.status,'active');assert.equal(next.leader,leader);assert.equal(next.epoch,t.epoch);assert.equal(next.candidate,null);assert.equal(next.review_candidate,flap);assert.equal(r.result.protected_actions_granted,false);
+});
+test('the owner resume refuses other actors, extra fields, a stale epoch, an active or leaderless team and a still-missing critic',async()=>{
+ const {state}=activeFlap(install(await fixture()).state);
+ assert.throws(()=>resume(state,{actor:'peer-a'}),/owner-required/);
+ assert.throws(()=>resume(state,{policy:{}}),/native-resume-selectors-only/);
+ assert.throws(()=>resume(state,{epoch:state.teams.team.epoch+1}),/native-resume-left-active-leader-required/);
+ const active=resume(state).state;assert.throws(()=>resume(active),/native-resume-left-active-leader-required/);
+ const fresh=install(await fixture()).state;assert.throws(()=>resume(fresh),/native-resume-left-active-leader-required/);
+ const busy=structuredClone(state),flap=['peer-b','peer-c'].filter(x=>x!==busy.teams.team.leader).at(-1);busy.teams.team.participants[flap].availability='busy';
+ assert.throws(()=>resume(busy),/native-resume-independent-critic-required/);
+ for(const change of ['revoked','left']){const gone=structuredClone(state),p=gone.teams.team.participants[gone.teams.team.leader];if(change==='revoked')p.revoked=true;else p.availability='left';assert.throws(()=>resume(gone),/native-resume-incumbent-not-selected/,change);}
+ assert.throws(()=>reduceTeamEvent(state,{type:'native-leader-resume-v2',team:'team',actor:'owner:fixture',at:expiry,request_key:'late',epoch:state.teams.team.epoch}),/native-resume-incumbent-not-selected/,'the old-rule policy expired');
+ const fenced=structuredClone(state);fenced.teams.team.native_protocol_handover={state:'prepared'};assert.throws(()=>resume(fenced),/quota-handover-pending/);
+ const frozen=structuredClone(state);frozen.teams.team.native_quota_freeze={old_leader:frozen.teams.team.leader};assert.throws(()=>resume(frozen),/quota-handover-pending/);
+});
+test('a publication fence defers the owner resume',async()=>{
+ const {state}=activeFlap(install(await fixture()).state);state.publication_fence={team:'team'};const r=resume(state);assert.equal(r.result.deferred,true);assert.equal(r.state.teams.team.status,'handover');
+});

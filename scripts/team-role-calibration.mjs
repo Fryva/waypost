@@ -63,13 +63,18 @@ export function applyProtocolCalibration(s,t,c,now,H){
  if(c.type==='native-calibration-cohort-open-v2'){
   H.owner(s,c);
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('inherited-native-mode-required');
-  const cohort=object(c.cohort,['id','seed','members','roles','unit_allocations','suite_digest','criteria_digest','expires_at']);id(cohort.id);id(cohort.seed);digest(cohort.suite_digest);digest(cohort.criteria_digest);
+  const cohort=object(c.cohort,['id','seed','members','roles','unit_allocations','suite_digest','criteria_digest','expires_at','calibration_expires_at']);id(cohort.id);id(cohort.seed);digest(cohort.suite_digest);digest(cohort.criteria_digest);
   if(!Array.isArray(cohort.members)||!cohort.members.length||cohort.members.length>128||!Array.isArray(cohort.roles)||!cohort.roles.length||new Set(cohort.roles).size!==cohort.roles.length||cohort.roles.some(r=>!['coordinate','review'].includes(r)))fail('fixed-membership-required');
   for(const m of cohort.members){object(m,['participant','incarnation','model_revision','descriptor_digest','profile_id']);id(m.participant);id(m.incarnation);id(m.profile_id);digest(m.descriptor_digest);if(!Number.isSafeInteger(m.model_revision)||m.model_revision<1)fail('member-revision-required');memberParticipant(t,m);}
   if(new Set(cohort.members.map(m=>m.profile_id)).size!==cohort.members.length)fail('unique-profiles-required');
   if(!Array.isArray(cohort.unit_allocations)||!cohort.unit_allocations.length||cohort.unit_allocations.length>128||new Set(cohort.unit_allocations.map(u=>u.unit_digest)).size!==cohort.unit_allocations.length)fail('unit-allocations-required');
   for(const u of cohort.unit_allocations){object(u,['unit_digest','max_tokens','allocation_revision']);digest(u.unit_digest);const allocation=s.subscription_allocations?.[u.unit_digest];if(allocation?.protocol!==2||allocation.unit_scope.team!==t.id||u.allocation_revision!==allocation.revision||integer(u.max_tokens)>integer(allocation.max_tokens))fail('existing-unit-allocation-required');}
-  if(!Number.isFinite(Date.parse(cohort.expires_at))||Date.parse(cohort.expires_at)<=now||Date.parse(cohort.expires_at)-now>900000)fail('cohort-expiry-required');bundleFor(cohort);
+  if(!Number.isFinite(Date.parse(cohort.expires_at))||Date.parse(cohort.expires_at)<=now||Date.parse(cohort.expires_at)-now>900000)fail('cohort-expiry-required');
+  // Owner-set calibration validity (owner decision 2026-10-06): measured capability
+  // stays valid until this time (at most 7 days); identity is proven per action.
+  // Strict ISO-8601 (the admission and rank clocks accept only that form).
+  if(cohort.calibration_expires_at!==undefined&&(typeof cohort.calibration_expires_at!=='string'||!Number.isFinite(Date.parse(cohort.calibration_expires_at))||new Date(Date.parse(cohort.calibration_expires_at)).toISOString()!==cohort.calibration_expires_at||Date.parse(cohort.calibration_expires_at)<=Date.parse(cohort.expires_at)||Date.parse(cohort.calibration_expires_at)-now>604800000))fail('cohort-validity-required');
+  bundleFor(cohort);
   const old=Object.hasOwn(t.native_calibration_cohorts||{},cohort.id)?t.native_calibration_cohorts[cohort.id]:null;if(old){if(!same(old.configuration,cohort))fail('cohort-immutable');return {handled:true,result:{cohort:cohort.id,unchanged:true}};}
   t.native_calibration_cohorts||={};t.native_calibration_cohorts[cohort.id]={...cohort,configuration:structuredClone(cohort),opened_at:c.at,slots:{},captures:{}};result={cohort:cohort.id,roles_granted:false};
  }else{
@@ -133,7 +138,8 @@ export function buildAuthenticatedCalibrationSummary({teamId,cohortId,loaded,now
   const roles=cohort.roles.map(role=>{
    const completed=rows.map(([,c])=>c).filter(c=>c.measurement.role===role),verdict=summarizeProtocolRole(bundle,role,completed.map(c=>({trial_id:c.measurement.case_id,raw_answer:c.original_output})));
    const observed=completed.length?Math.min(...completed.map(c=>Date.parse(c.observed_at))):Date.parse(cohort.opened_at);
-   const expiry=Math.min(Date.parse(cohort.expires_at),...completed.map(c=>Date.parse(c.expires_at)));
+   const validity=cohort.calibration_expires_at===undefined?null:Date.parse(cohort.calibration_expires_at);
+   const expiry=validity??Math.min(Date.parse(cohort.expires_at),...completed.map(c=>Date.parse(c.expires_at)));
    if(!Number.isFinite(observed)||!Number.isFinite(expiry)||observed>at||expiry<=observed)fail('original-calibration-clock-required');
    const fresh=current&&at<expiry;
    return {...verdict,current:fresh,qualification_candidate:fresh&&verdict.qualified,observed_at:new Date(observed).toISOString(),expires_at:new Date(expiry).toISOString()};
@@ -141,7 +147,7 @@ export function buildAuthenticatedCalibrationSummary({teamId,cohortId,loaded,now
   const profileDigest=member.profile_id.startsWith('native-profile-')?member.profile_id.slice('native-profile-'.length):null;digest(profileDigest);
   return {identity:{kind:'native-configuration',profile_id:member.profile_id,profile_digest:profileDigest,profile_revision:1},participant:member.participant,incarnation:member.incarnation,model_revision:member.model_revision,descriptor_digest:member.descriptor_digest,roles};
  });
- const expires=Math.min(Date.parse(cohort.expires_at),...profiles.flatMap(p=>p.roles.map(r=>Date.parse(r.expires_at))));
+ const expires=cohort.calibration_expires_at!==undefined?Date.parse(cohort.calibration_expires_at):Math.min(Date.parse(cohort.expires_at),...profiles.flatMap(p=>p.roles.map(r=>Date.parse(r.expires_at))));
  const summary=immutable({protocol:2,team:teamId,cohort:cohortId,authority_revision:loaded.revision,suite_digest:cohort.suite_digest,criteria_digest:cohort.criteria_digest,captures_digest:routingDigest(captures),generated_at:new Date(at).toISOString(),expires_at:new Date(expires).toISOString(),profiles,authority_granted:false});
  authenticatedSummaries.set(summary,{digest:routingDigest(summary),expires});return summary;
 }

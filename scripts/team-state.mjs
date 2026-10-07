@@ -9,7 +9,7 @@ import { compileCalibrationPolicyV2 } from './model-strength.mjs';
 import { quotaEligible, effectiveReviewFloor } from './team-quota.mjs';
 const clone = structuredClone;
 const KINDS = new Set(['question', 'answer', 'progress', 'result', 'assignment', 'ack', 'quiesce', 'handover', 'review-request', 'review-result', 'cancel']);
-const DEFERRED = new Set(['native-protocol-quota-enable-v2','native-protocol-quota-capture-v2','native-protocol-quota-renew-v2','native-protocol-handover-stop-capture-v2','native-protocol-handover-prepare-v2','native-protocol-handover-enable-v2','native-protocol-handover-ack-capture-v2','native-protocol-review-enable-v2','native-protocol-review-capture-v2','native-protocol-control-enable-v2','native-protocol-delivery-enable-v2','native-action-profile-capture-v2','native-leader-ack-capture-v2','native-model-inventory-capture-v1','native-model-inventory-attempt-v1','native-policy-install-v2','subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','participant-host-register-v1','quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
+const DEFERRED = new Set(['native-leader-resume-v2','native-protocol-quota-enable-v2','native-protocol-quota-capture-v2','native-protocol-quota-renew-v2','native-protocol-handover-stop-capture-v2','native-protocol-handover-prepare-v2','native-protocol-handover-enable-v2','native-protocol-handover-ack-capture-v2','native-protocol-review-enable-v2','native-protocol-review-capture-v2','native-protocol-control-enable-v2','native-protocol-delivery-enable-v2','native-action-profile-capture-v2','native-leader-ack-capture-v2','native-model-inventory-capture-v1','native-model-inventory-attempt-v1','native-policy-install-v2','subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','participant-host-register-v1','quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
 function fail(message) { throw new Error(message); }
 function text(v, name, max = 256) { if (typeof v !== 'string' || !v || v.length > max || /[\x00-\x1f]/.test(v)) fail('invalid-' + name); return v; }
 function id(v) { if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(v || '') || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(v)) fail('invalid-team-id'); return v; }
@@ -71,6 +71,20 @@ function nativeFloor(t,now){
   t.review_floor=missing?null:Math.max(strongest??-1,...rows.map(p=>p.priorities.review));
   t.review_blocker=missing?'previous-native-review-profile-unclassified':t.review_floor<0?'no-qualified-review-model':null;
 }
+// A protocol 2 team that left `active` (its only critic or its leader flapped
+// busy and back) has no way back through the election: the leader acknowledgement
+// needs a forming team, and install needs no leader. The owner resumes it at the
+// same epoch only when the unchanged election again selects the incumbent with an
+// independent critic. Leader, epoch, audits and slots stay as they are.
+function resumeNativeLeader(s,t,c){
+  owner(s,c);
+  if(Object.keys(c).some(k=>!['type','team','actor','at','request_key','incarnation','epoch'].includes(k)))fail('native-resume-selectors-only');
+  if(t.policy?.protocol!==2||!t.leader||!['paused','handover'].includes(t.status)||c.epoch!==t.epoch)fail('native-resume-left-active-leader-required');
+  if(t.handover||t.native_quota_freeze||t.native_protocol_handover&&t.native_protocol_handover.state!=='applied')fail('native-resume-quota-handover-pending');
+  const leader=t.leader;floor(t,c.at);t.status='active';t.candidate=null;propose(t,c.at);
+  if(t.status!=='active')fail(t.candidate===leader?'native-resume-independent-critic-required':'native-resume-incumbent-not-selected');
+  return {resumed:true,leader,epoch:t.epoch,review_candidate:t.review_candidate,protected_actions_granted:false};
+}
 function installNativePolicy(s,t,c,authority,now){
   owner(s,c);
   const allowed=['type','team','actor','at','request_key','cohort_id','expected_policy_revision','scope','incarnation','epoch'];
@@ -89,13 +103,15 @@ function installNativePolicy(s,t,c,authority,now){
   const history=t.required_review_identities_v2||[];
   if(history.some(identity=>!policy.profiles.some(p=>JSON.stringify(p.identity)===JSON.stringify(identity)&&p.priorities.review!==null)))fail('native-policy-historical-frontier-uncovered');
   const captures=Object.values(t.native_calibration_cohorts[c.cohort_id].captures);
+  // A cohort opened with an owner calibration validity admits until that time; else until its capture expires.
+  const validity=t.native_calibration_cohorts[c.cohort_id].calibration_expires_at;
   const admissions={};
   for(const row of policy.profiles){
     const p=t.participants[row.participant];
     if(!p||p.revoked||p.availability==='left'||p.incarnation!==row.incarnation||p.model.model_revision!==row.model_revision||p.native_binding?.descriptor_digest!==row.descriptor_digest)continue;
     const capture=captures.filter(x=>x.measurement.profile_id===row.identity.profile_id&&s.subscription_invocations[x.invocation_id]?.participant===p.id&&x.incarnation===p.incarnation&&x.descriptor_digest===row.descriptor_digest&&x.collector==='collector:'+p.native_binding.collector_id).sort((a,b)=>Date.parse(b.observed_at)-Date.parse(a.observed_at)||a.invocation_id.localeCompare(b.invocation_id))[0];
-    if(!capture||now>=Date.parse(capture.expires_at))continue;
-    admissions[p.id]={protocol:2,identity:clone(row.identity),observation_id:capture.observation_id,participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:row.descriptor_digest,collector:p.native_binding.collector_id,source_invocation:capture.invocation_id,observed_at:capture.observed_at,expires_at:capture.expires_at};
+    if(!capture||now>=Date.parse(validity??capture.expires_at))continue;
+    admissions[p.id]={protocol:2,identity:clone(row.identity),observation_id:capture.observation_id,participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:row.descriptor_digest,collector:p.native_binding.collector_id,source_invocation:capture.invocation_id,observed_at:capture.observed_at,expires_at:validity??capture.expires_at};
   }
   t.policy=policy;
   for(const p of Object.values(t.participants)){delete p.native_admission;if(admissions[p.id])p.native_admission=admissions[p.id];}
@@ -157,6 +173,7 @@ export function reduceTeamEvent(previous, command, authority = {}) {
     if(t.native_quota_freeze&&['runtime-request-v1','runtime-consume-v1','delivery-consume-v1','review-request-v1','review-consume-v1','invocation-reserve-v1','invocation-consume-v1','control-invocation-reserve-v1'].includes(c.type))fail('native-quota-transition-frozen');
     if(t.policy?.protocol===2 && (['policy','leader-ack','assign','assign-routed-v1','work-ack','submit','supervise','cancel','routing-enable','quota-policy-enable-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1'].includes(c.type)||/^(review-|integration-|revise-work|assign-routed|work-dispatch|routing-enable-v2)/.test(c.type)||c.type==='strength-check'&&c.policy))fail('native-policy-protected-action-admission-required');
     if(c.type==='native-policy-install-v2'){result=installNativePolicy(s,t,c,authority,now);}
+    else if(c.type==='native-leader-resume-v2'){result=resumeNativeLeader(s,t,c);}
     else if (c.type === 'join') {
       owner(s, c); const p = clone(c.participant);
       if((t.native_policy_bootstrap||t.policy?.protocol===2)&&p.native_admission!==undefined)fail('native-admission-reducer-only');

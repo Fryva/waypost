@@ -25,7 +25,7 @@ export async function authorityFixture(overrides={}){
  }
  const suite=createProtocolRoleSuite({seed:'policy-fixture-seed',cohort:'cohort',profiles:peers.map(p=>p.profile_id)});
  const members=peers.map(({p,profile_id})=>({participant:p.id,incarnation:p.incarnation,model_revision:1,descriptor_digest:p.native_binding.descriptor_digest,profile_id}));
- send('native-calibration-cohort-open-v2',{cohort:{id:'cohort',seed:'policy-fixture-seed',members,roles:['coordinate','review'],unit_allocations:[{unit_digest:routingDigest(unit),max_tokens:'100000',allocation_revision:1}],suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,expires_at:expiry}});
+ send('native-calibration-cohort-open-v2',{cohort:{id:'cohort',seed:'policy-fixture-seed',members,roles:['coordinate','review'],unit_allocations:[{unit_digest:routingDigest(unit),max_tokens:'100000',allocation_revision:1}],suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,expires_at:expiry,...(overrides.calibration_expires_at!==undefined?{calibration_expires_at:overrides.calibration_expires_at}:{})}});
  for(const peer of peers){
   const billing=billingFor(peer.name);
   const roleList=peer.name==='a'?['coordinate']:peer.name==='b'?['coordinate','review']:peer.name==='c'?['review']:['coordinate'];

@@ -122,3 +122,10 @@ test('a consume retried after a lost race leaves exactly one consumption in the 
  const runtime=join(f.hostDir,'runtime'),closed=readdirSync(runtime).filter(n=>n.endsWith('.closed.json')).map(n=>JSON.parse(readFileSync(join(runtime,n),'utf8')));
  assert.equal(closed.flatMap(c=>c.consumptions).filter(x=>x.nonce==='consume-race').length,1);
 });
+test('with an owner calibration validity a leader acknowledgement 20 minutes after calibration applies, its own action profile still fresh',async t=>{
+ const f=await fixture(t,{backdateMs:20*60000,calibrationValidityMs:86400000}),result=await f.host.acknowledgeProtocolLeadership({actionId:'late-ack',nonce:'late-ack',estimateTokens:'40'});
+ assert.equal(result.leader_acknowledged,true,result.action_blocker);
+ const x=f.load().state.subscription_invocations['subscription-late-ack'],observation=x.action_observation;
+ assert.ok(observation,'the action profile was captured');assert.ok(Date.now()-Date.parse(x.action_seal.observed_at)<60000,'the per-action identity is observed now, not at calibration');
+ const cohortObserved=Math.min(...Object.values(f.load().state.teams.team.native_calibration_cohorts.cohort.captures).map(c=>Date.parse(c.observed_at)));assert.ok(Date.now()-cohortObserved>=19*60000,'calibration is older than 15 minutes');
+});

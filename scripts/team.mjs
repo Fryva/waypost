@@ -297,7 +297,8 @@ function rankNativeParticipant(participant, policy, role, { action, coverage, no
     string(admission.observation_id, "admission.observation_id"); string(admission.source_invocation, "admission.source_invocation");
     string(admission.participant, "admission.participant"); string(admission.incarnation, "admission.incarnation");
     positive(admission.model_revision, "admission.model_revision"); digest(admission.descriptor_digest, "admission.descriptor_digest"); string(admission.collector, "admission.collector");
-    if (Date.parse(admission.expires_at) - Date.parse(admission.observed_at) > 900000) return null;
+    // Calibration validity is owner-bounded (at most 7 days); identity is proven per action.
+    if (Date.parse(admission.expires_at) - Date.parse(admission.observed_at) > 604800000) return null;
     if (admission.participant !== participant.id || admission.incarnation !== participant.incarnation || admission.model_revision !== participant.model?.model_revision || admission.descriptor_digest !== participant.native_binding?.descriptor_digest || admission.collector !== participant.native_binding?.collector_id || typeof admission.collector !== "string" || !admission.collector || now < Date.parse(admission.observed_at) || now >= Date.parse(admission.expires_at)) return null;
     const profile = policy.profiles.find(p => p.identity.profile_id === admission.identity.profile_id && p.identity.profile_digest === admission.identity.profile_digest && p.identity.profile_revision === admission.identity.profile_revision);
     const calibration = profile?.calibration[role];

@@ -550,3 +550,19 @@ supervision (spec 6.4 amendment for this mode), publication only to a private
 ref that the owner merges, no project tests run (explicit not-run digest), and
 on any loss of `active` a pause plus owner cancel. Implementation order: slice
 0, then slice 1, each with a plan, a critic pass and a diff review.
+
+Slice 0 implementation (2026-10-06, Claude Code): optional cohort field
+`calibration_expires_at` (validated after the trial window and at most 7 days
+ahead) selects the new validity rule in the summary, policy install admissions
+and the summary used by the Host; `rankParticipant` accepts admissions spanning
+up to 7 days; cohorts without the field keep the 15-minute rule, so stored
+events replay unchanged. Owner event `native-leader-resume-v2` (deferred under a
+publication fence) resumes a protocol 2 team that left `active` at the same
+epoch when the unchanged election selects the incumbent with an independent
+critic. Tests: admissions and ranks valid an hour later under the new rule and
+not under the old; validity bounds; a critic flap reaching `handover` to its own
+leader, then resume to `active` at the same epoch; resume refusals (actor, extra
+fields, stale epoch, active or leaderless team, missing critic, quota freeze);
+deferral; a Host leader acknowledgement 20 minutes after calibration applying
+with a fresh per-action profile. Owner cancel of in-flight work belongs with
+slice 1, since protocol 2 has no work yet.
