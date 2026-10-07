@@ -673,3 +673,11 @@ fence held before a reservation, a prepared reservation resumes or is aborted
 on recovery, the Host renews its lease and names a lapsed critic lease, and the
 coordination spec 7.2 (foreign leases block) and 7.3 (Harness, Session,
 Provider, Story and contributor trailers) are kept.
+
+Slice 1 status (2026-10-07): increments 1-5 implemented on branch
+`claude/wp20-lease-renewal` (59ac2ac, 23ff1d7, 4953c23, ba3348d, ec32f82,
+bda1fe7), each with a fresh-context review and a delta review; the whole loop
+from manifest to `close-v1` runs hermetically. Contracts 26-33 stay `proposed`
+until the owner accepts them; contract 33 (implementation calibration) and the
+contract-28 assignment call are not implemented, and no live run exists because
+the live cohort qualified no coordinator.

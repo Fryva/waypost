@@ -914,7 +914,34 @@ acknowledgement can complete. The owner resumes it with `waypost team host
 the unchanged election again selects the incumbent with an independent critic.
 Epoch, leader, audits and slots stay as they were; nothing is granted.
 
-### Protocol 2 work: owner manifest, ceiling and cancel (slice 1, increment 1)
+### Protocol 2 work, review and publication (slice 1)
+
+One owner-written work runs end to end on a protocol 2 team, in this order (each
+step is a `waypost team host <team> --operation <op>` on the named Host):
+
+1. `native-work-enable` (owner) installs the work ceiling.
+2. `native-work-manifest` (owner) writes the work.
+3. `native-work-execute --work <id>` on the leader's Host: one owned no-tools
+   call; the patch is sealed as a private ref.
+4. `native-work-capture --work <id>` on the leader's Host: the candidate is built
+   on the dedicated checkout.
+5. `native-work-review --work <id>` on the selected critic's Host: the
+   strongest independent critic of another native configuration reviews the
+   exact diff.
+6. `native-work-publish --work <id> --request-file <json>` on the leader's
+   Host: approved work becomes one commit on the checkout's private ref.
+7. The owner merges that ref into their branch; `close-v1` closes the team.
+
+`native-work-cancel` stops unfinished work at any point; recovery operations
+exist for each interruption (`native-control-reconcile`,
+`native-work-review-recover`, `native-work-publish-recover`). Not in this slice:
+a model writing the manifest, an executor other than the leader, a revision
+loop after findings, project tests, and adoption of in-flight work by a new
+leader. Everything is proven hermetically
+(`tests/native-protocol-publication-host.test.mjs` runs steps 1-7); no live
+cohort has yet qualified a coordinator.
+
+#### Owner manifest, ceiling and cancel (increment 1)
 
 The owner enables a work ceiling with `waypost team host <team> --operation
 native-work-enable --request-file <json>` (`native-work-enable-v2`: kind
@@ -932,8 +959,7 @@ slice). The acknowledged leader is recorded as the worker with the label
 `unqualified-strongest-baseline`. `native-work-cancel` cancels unfinished work in
 any team status unless a call for it is consumed or uncertain (reconcile it
 first). Protocol 1 rewrites (revoke, attest) leave protocol 2 work alone, and the
-owner events are deferred under a publication fence. Execution, review and
-publication follow in later increments.
+owner events are deferred under a publication fence.
 
 Execution (increment 2): `waypost team host <team> --operation
 native-work-execute --work <id>` on the leader's Host reads the manifest's
