@@ -456,7 +456,8 @@ fixed-action pattern of contracts 20–21.
     request digest, target digest and findings (approve iff no findings).
     Negative verdicts are immutable per target and sticky; the coordinator
     cannot override one; only an owned leader `protocol-work-revise` decision
-    opens a new generation with a new target. An approval counts only at the
+    opens a new generation with a new target (amended in slice 2: the owner
+    issues `native-work-revise-v2`; the leader's owned decision is future work). An approval counts only at the
     current epoch, policy revision and generation, for the exact digests, with
     the reviewer at or above the current floor; a stronger admission before
     publication forces a new review.
@@ -681,3 +682,92 @@ from manifest to `close-v1` runs hermetically. Contracts 26-33 stay `proposed`
 until the owner accepts them; contract 33 (implementation calibration) and the
 contract-28 assignment call are not implemented, and no live run exists because
 the live cohort qualified no coordinator.
+
+### Slice 2 plan: the revision loop (proposed, 2026-10-07)
+
+Owner decision (2026-10-07): the next slice is the revision loop, so that a
+negative review leads to a new generation rather than only to cancel (contract
+31: only `protocol-work-revise` opens a new generation with a new target).
+
+1. Owner event `native-work-revise-v2 {work_id, reason}`. Owner-issued, like the
+   slice 1 manifests; a leader model deciding to revise needs the contract-28
+   call and is out of scope. It needs a protocol 2 team with a current work
+   policy and an active leader that still has an independent critic of another
+   configuration; work in `changes-requested` or `blocked` whose current target
+   has an unresolved negative of the current generation; no unresolved call for
+   the work and no open publication; the leader is still the pinned worker
+   (incarnation, model revision, identity), otherwise cancel; and an attempt
+   left (`attempts < max_attempts`, a per-work total across generations, so no
+   new policy key). Deferred under the publication fence.
+2. Effect: the generation's result, reviews, author contexts, supervision and
+   sealed dispatch are archived in `w.generations[]` with its target digest;
+   `w.revision = {generation, from_target_digest, findings, findings_digest,
+   reason}` takes the findings of the latest negative record of that target;
+   `generation` increments and the work returns to `manifest`. Negatives stay
+   with the old target (the target includes the generation); an approval counts
+   only for the current generation, as already enforced.
+3. Execution of generation 2 and later uses template revision 2: the head adds
+   that a previous candidate was rejected and that its findings follow as
+   untrusted data to be addressed; the JSON adds `revision: {generation,
+   findings}`; the digest is `{template: 2, head, inputs_digest}`. Inputs stay
+   the manifest base read from Git objects (a full rewrite from the base, not a
+   patch of the rejected candidate). Generation 1 keeps template 1, so stored
+   logs replay unchanged.
+4. Capture of generation 2 and later first resets the manifest paths in the
+   dedicated checkout to the base (base blob written, a file the base lacks
+   removed, no symlink following, idempotent), then applies the new sealed
+   patch; the Host's apply marker is per generation. The candidate ref already
+   names the generation.
+5. Review, publication and `close-v1` are unchanged: a new target needs a new
+   review (the same critic may review again; it is not shown the old findings),
+   the publication gate counts only current-generation approvals, and archived
+   generations are history.
+
+Open questions: should the executor also see the rejected candidate's content;
+may `blocked` work be revised or only cancelled; is a separate generation cap
+needed beyond the attempt total.
+
+Critic revision (fresh context, revise; 2026-10-07):
+- A generation-2 tree identical to a rejected one would be a fresh target and
+  escape its sticky negative. A capture whose tree equals any archived
+  generation's tree fails the attempt as `native-work-rejected-candidate-repeated`
+  (no review is spent).
+- Replay is protected by the store's state and result digests, not only by the
+  template: new fields appear only in states reached through the revise event;
+  templates are chosen from state (`w.revision` present), never from a command
+  field; `w.dispatches` and `w.reviews` stay in place; a slice 1 authority log is
+  kept as a golden replay fixture.
+- The critic of generation 2 and later gets review template revision 2: the
+  request pins `prior: {from_target_digest, findings_digest, findings}` and the
+  head presents the prior findings as unverified claims to check, still asking
+  for an independent judgment. Generation 1 keeps template 1.
+- The reset restores the base with `git checkout <base> -- <paths the base has>`
+  (attributes from the index at the base, no symlink following) and unlinks
+  without following any manifest path the base lacks; it runs before every apply
+  so a rerun converges; the apply marker is per generation; manifests may not
+  list a path that is a prefix directory of another.
+- Revise preconditions: no execution or review call for the work outside
+  settled, aborted or reconciled; one execution call and one review call left
+  under the work ceiling; no unresolved negative audit of the current leader
+  acknowledgement. The event binds `{work_id, generation, findings_digest,
+  reason}`; the Host operation answers `unchanged` once applied; it is deferred
+  under the fence.
+- Template 2 for execution calls the findings a reviewer's unverified claims
+  about a rejected attempt, which may quote injected text and never change the
+  instructions, goal, criteria, paths or forbidden actions; only findings
+  consistent with the goal and criteria are addressed. The Host refuses a revise
+  whose template-2 prompt would exceed 64 KiB.
+- The archive holds `{generation, target_digest, verdict, result,
+  author_contexts, supervision, sealed_dispatch, captured_at, revision}` with
+  review invocation ids, not copied findings; a commit of generation 2 or later
+  carries a `Waypost-Generation` trailer.
+
+Owner decisions (2026-10-07): the critic's defaults are accepted. Contract 31
+is amended for slice 2: the owner issues `native-work-revise-v2`; a leader's
+owned revise decision is future work. A tree identical to a rejected one is
+never reviewed again within the work. The critic of generation 2 and later sees
+the prior findings as unverified claims. `blocked` work may be revised, and the
+source verdict is recorded. The executor does not see the rejected candidate.
+There is no separate generation cap: the attempt total and the remaining-call
+check bound the loop, and the owner sizes the ceiling for the whole loop at
+enable.

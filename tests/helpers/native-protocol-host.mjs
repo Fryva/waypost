@@ -48,5 +48,5 @@ if(invocation.purpose==='addressed-peer-message'){calls.push('native-delivery');
  const host=createTeamHost(config,dependencies),unit={scope:'team-native-counter',team:'team',counter_schema:schema},allocation=state.subscription_allocations[routingDigest(unit)];
  if(options.registerHosts)for(const memberId of Object.keys(configs))createTeamHost(configs[memberId],dependencies).registerParticipantHost();
  host.enableProtocolControl({revision:1,policy:{kind:'protocol-leader-ack',allow_unknown_quota:true,max_calls:2,max_estimate_tokens:'40',timeout_ms:1000,expires_at:options.calibrationValidityMs?new Date(Date.now()+300000).toISOString():f.expiry,unit_allocations:[{unit_digest:routingDigest(unit),max_tokens:'80',allocation_revision:allocation.revision}]}});
- return {root,host,config,dependencies,calls,prompts,load:dependencies.load,participant,hostDir,expiry:f.expiry,unit,allocation,options,hostFor:id=>createTeamHost(configs[id],dependencies),configFor:id=>configs[id]};
+ return {seed,root,host,config,dependencies,calls,prompts,load:dependencies.load,participant,hostDir,expiry:f.expiry,unit,allocation,options,hostFor:id=>createTeamHost(configs[id],dependencies),configFor:id=>configs[id]};
 }
