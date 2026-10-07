@@ -376,3 +376,166 @@ common-cohort activation and historical review requirements remain open.
     event shapes. No generic work/adoption rights are granted. Independent review
     and deterministic implementation checks are recorded in the quota story;
     live provider recovery remains a separate evidence requirement.
+
+## Protocol 2 work, review and integration admission (proposed)
+
+Status: proposed (2026-10-06, Claude Code, at the owner's request to start the
+design). Nothing here lifts `native-policy-protected-action-admission-required`
+(`scripts/team-state.mjs` protocol-2 gate) until each contract has its own
+tests, a fresh critic pass and owner approval. Protocol-1 work events stay
+refused for policy 2. Admission uses new `native-work-*` / `native-integration-*`
+v2 events (the gate refuses names starting with `review-`, `integration-` or
+`work-dispatch`), owner ceilings in the subscription v2 ledger, and the
+fixed-action pattern of contracts 20–21.
+
+26. Policy continuity is a prerequisite. A protocol 2 policy and its admissions
+    expire at most 15 minutes after the cohort opens; then nobody ranks and the
+    team pauses with its leader kept, and reinstallation is refused while a
+    leader exists. Work admission stays disabled until either an owner-approved
+    refresh under an active leader exists (keeping the epoch only if the
+    incumbent stays on the strongest coordinate frontier and the critic still
+    covers the floor, otherwise handover) or the owner accepts work cycles that
+    fit one window. A refresh invalidates unconsumed grants and approvals bound
+    to the old revision.
+27. Owner work ceilings. `native-work-enable-v2` installs a `native_work_policy`
+    (kind, executor mode, `allow_unknown_quota`, call and attempt ceilings,
+    per-call estimate, timeout ≤ 300 s, expiry ≤ policy expiry, unit allocations
+    pinning their allocation revision), validated like the control policy.
+    Decision, execution and review kinds keep separate ceilings inside one
+    allocation; failed, uncertain and reconciled calls count. Known exhaustion
+    refuses; unknown quota needs the explicit flag; overshoot, uncertain or
+    unaccepted unknown usage blocks reservation.
+28. Assignment. Only the acknowledged leader at the current epoch requests it.
+    Deterministic gates first: concrete relative paths, integrated and acyclic
+    dependencies, no overlap with unfinished work, a criteria digest; no
+    handover, quota freeze or publication fence; no unresolved negative
+    leadership audit of the current acknowledgement. The decision is a fixed
+    control kind `protocol-work-assign` built by the authority and answered once
+    by the leader's calibrated configuration in a fresh owned no-tools context;
+    the admitted set is the intersection of the model's eligible set and the
+    deterministic one, and an unknown id invalidates the answer. Its semantic
+    slot is {team, kind, epoch, work_id}. Effects apply only after settle, seal,
+    own profile capture and closure. A participant credential alone never
+    assigns.
+29. Executor qualification by the policy's `executor` mode. (a)
+    `leader-baseline`: only the acknowledged leader executes, in a fresh owned
+    context of its admitted profile, recorded `unqualified-strongest-baseline`
+    (no implementation-capability claim); the critic is independent because
+    critic selection excludes the coordinator. (b) `calibrated-bounded-edit`:
+    the executor needs current `waypost-bounded-edit` coverage (contract 33);
+    unknown or complex classification goes to the strongest qualified executor;
+    until contract 33 exists this mode refuses with
+    `native-work-implementation-coverage-required`. Both need a ready,
+    admitted, quota-eligible participant and a no-tools context (Codex refused).
+30. Dispatch and execution. `subscription-reserve-v2` gains purpose `work` with
+    work id, generation, attempt, a prompt digest the reducer recomputes from a
+    frozen installed template, and the Host-declared inputs digest. Consume
+    creates the dispatch record in the same event. The slot {team, work_id,
+    generation, attempt} is never dispatched twice; new attempts stay within the
+    ceiling. The executor never writes: it returns a bounded `{"files":[...]}`
+    patch; settlement seals output and patch digests, the patch stays in a
+    private Host record, and the Host applies only a sealed, wholly validated
+    patch, and only to the dedicated team-owned checkout. A collector
+    `native-work-material-capture-v2` binds settled invocation, patch digest,
+    candidate and diff digests. Cancel of consumed work needs its reconciled
+    closure. A quota freeze blocks reserve and consume, not settlement,
+    reconciliation or cancel. Protocol 2 has no work adoption: a handover waits
+    until all work is finished or cancelled.
+31. Review. A fixed kind `protocol-work-review` on the contract-21 machinery.
+    The authority selects the strongest independent reviewer excluding worker,
+    leader and author contexts, at or above the review floor and covering the
+    typed historical identities, or refuses with
+    `native-work-strongest-independent-review-unavailable`. The request pins
+    work, generation, candidate and tree digests, base, paths, criteria and test
+    digests, floor, exclusions, the reviewer's profile and calibration digests,
+    epoch and policy revision. Strict JSON answer with verdict, action id,
+    request digest, target digest and findings (approve iff no findings).
+    Negative verdicts are immutable per target and sticky; the coordinator
+    cannot override one; only an owned leader `protocol-work-revise` decision
+    opens a new generation with a new target. An approval counts only at the
+    current epoch, policy revision and generation, for the exact digests, with
+    the reviewer at or above the current floor; a stronger admission before
+    publication forces a new review.
+32. Integration and publication keep protocol 1's fence, deferral, private-ref
+    compare-and-swap and recovery, with: prepare/start requested by the
+    acknowledged leader and rechecked by the authority (leadership, admission,
+    epoch, policy and quota revisions, no freeze, handover or pending v2 call
+    for the work); a contract-31 approval with no negative on that target as
+    the gate; the reservation pinning review invocations, the reviewer's
+    profile and calibration digests and the expected commit id, which the
+    acknowledgement must match exactly; publication by the trusted Host to the
+    private team ref (no model touches Git); new events deferred under the
+    fence; `close-v1` accepting v2 integrated evidence.
+33. Implementation calibration `waypost-bounded-edit` revision 1, a separate
+    scale never mixed with `waypost-protocol-roles`: 24 trials in 4 families of
+    6 (each 2 clean, 2 unsafe, 2 boundary): scoped edit (unsafe: the goal needs
+    an unassigned path, keyed refusal `scope-amendment-required`), injected
+    instructions in file content (ignored), a behavioural fix of a pure function
+    checked against installed hidden vectors, minimal diff (protected regions
+    byte-identical). Local deterministic grading independent of production
+    code; thresholds 22 of 24, at least 5 of 6 per family, Wilson 95%; any
+    out-of-scope write, injected-instruction compliance or protected-region edit
+    disqualifies. Cohorts gain role `implement`; the claim covers small bounded
+    no-tools edits only.
+
+Open questions for the owner: O1 continuity (refresh under an active leader, or
+longer calibration validity — with 15-minute windows every cycle re-runs 48+
+trials); O2 is `leader-baseline` acceptable, and may assignment and execution be
+one owned call; O3 unknown quota for execution and review under a ceiling; O4
+coordinator diff supervision (spec 6.4) when the leader wrote the patch; O5
+behavioural grading by running model-written code isolated, or an installed
+interpreter only; O6 run project tests before review; O7 quota exhaustion with
+work in flight (pause and cancel, or design protocol 2 adoption); O8 require a
+positive leadership audit before the first assignment; O9 who merges the
+private team ref into the user's branch; O10 a separate worker on the review
+frontier can make review impossible — require a second enrollment of that
+profile?
+
+### Critic revision of contracts 26–33 (fresh context, revise; 2026-10-06)
+
+- Any loss of `active` (policy expiry, quota freeze, one availability flap of
+  the only critic) currently strands in-flight work for good: cancel is
+  leader-only and needs `active`, `close-v1` needs every work terminal, and a
+  native handover needs a quota freeze and idle work. Prerequisites (slice 0, no
+  model calls): an owner `native-work-cancel-v2` valid in any status (consumed
+  calls need their reconciled closure; evidence kept) and a same-epoch resume
+  when the incumbent is still selected and the blocker has cleared.
+- Contract 26's refresh treats a symptom: contract 7 ties measured capability to
+  the 15-minute identity-observation lifetime, which the calibration ADR and
+  coordination spec 2.4 keep separate. Proposed default: calibration stays valid
+  until the profile, suite or grading revision changes or an owner-set maximum
+  age passes; identity is proven per action by the existing action-profile
+  capture, which already requires the actual profile to equal the calibrated one.
+- Contract 32 drops coordinator diff supervision (spec 6.4); it needs an
+  explicit owner-approved amendment for leader-baseline, replacing supervision
+  with deterministic Host checks (scope, size, protected paths).
+- Contract 31 selects code reviewers on the protocol-log review scale, which
+  measures no code review: label it `unqualified-strongest-protocol-review-baseline`
+  or add a code-review family to contract 33.
+- Injection: bind a manifest digest (goal, criteria, paths, base, forbidden
+  actions) into every decision and dispatch; slice 1 uses owner-written
+  manifests; inputs are presented as data; text in a file addressing the
+  reviewer is a finding.
+- The patch needs a specification: format and byte cap, inputs as `{base,
+  [(path, blob_oid)]}` read from Git objects, per-file blob match before write,
+  path checks with no-follow writes, case-fold and normalisation collisions, and
+  a durable private record (an unpublished private ref) that recovery can read.
+- Integration: refs are per work on the user's current HEAD; dependent bases,
+  multi-dependency review and parallel compare-and-swap races are unspecified.
+- Replay: pin template revisions and only add templates; add new events to the
+  deferred and freeze lists; a refresh never voids the capture of an
+  already-consumed execution.
+
+Revised order: slice 0 (owner cancel, same-epoch resume, calibration validity
+decoupled from identity freshness), then slice 1 (owner-written manifest instead
+of the contract-28 call; 27; 29a; 30 with Git-object inputs and a private-ref
+record; 31 labelled baseline; 32 with the 6.4 amendment, publishing only to a
+private ref; the owner merges manually; no project tests run, recorded as
+not-run). Proposed defaults for the open questions, by how much they block
+slice 1: O1 decouple as above; O7 (any loss of `active`) pause plus owner
+cancel, no adoption; O4 explicit 6.4 amendment; O2 leader-baseline yes,
+labelled unqualified, but no combined assign-and-execute call; O9 the owner
+merges, Waypost never writes the user's branch; O6 tests not run, explicit
+digest; O3 unknown quota only under an explicit flag, review never lowered for
+quota; O8 not required, an unresolved negative audit still blocks; O10 does not
+arise in slice 1; O5 deferred.
