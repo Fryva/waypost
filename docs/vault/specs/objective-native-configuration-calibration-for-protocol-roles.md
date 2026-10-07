@@ -608,3 +608,24 @@ Unicode; the worker's model revision and admitted identity must match the
 manifest's pins. Deferred: a per-call identity profile for the execution call
 itself — identity is re-proven by the review and publication captures of the
 next increments.
+
+Slice 1 increment 3 (2026-10-07, Claude Code): material capture —
+`native-work-material-capture-v2` (bound collector, the execution's owned
+closure via the shared `closedCompletion`, evidence equal to the sealed
+dispatch, tests `not-run` digest, deterministic supervision record) in
+`scripts/team-native-work.mjs`; `applySealedPatch` and `candidateDiff` in
+`scripts/team-integration.mjs`; Host `captureNativeWork`, CLI
+`native-work-capture`. Tests: capture only after sealing, candidate tree holds
+the patch, project tree and HEAD untouched, rerun unchanged; a changed checkout
+target and a symlinked parent are refused.
+Increment 3 review (fresh context, revise, three blockers) and fixes: capture
+reruns after a lost capture write (records written only when absent and checked
+when present) and after an apply interrupted before its marker (the apply is
+idempotent per file and writes through a sibling then a rename); files echoed
+back unchanged are dropped at sealing, so the sealed paths equal the collected
+ones and an all-unchanged patch fails as `native-work-empty-patch`; blobs are
+compared with the repository's conversions (`eol=crlf` tested); the diff pins
+full ids, context, inter-hunk context, order file and path quoting; the
+candidate tree is pinned behind a private ref against gc; an existing checkout
+directory is adopted when its ownership matches; the marker is keyed by a
+digest of the work id; the comparison of tree with base commit was removed.

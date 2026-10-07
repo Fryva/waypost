@@ -5,6 +5,7 @@
 // work at a time, and nothing here calls a model or grants a protected role.
 import { routingDigest } from './model-routing.mjs';
 import { selectNativeQuotaFrontier, nativeParticipantQuotaEligible } from './team-native-quota.mjs';
+import { closedCompletion } from './team-native-action.mjs';
 
 const clone = structuredClone;
 function fail(message) { throw new Error(message); }
@@ -50,6 +51,7 @@ function negativeAuditOfCurrentAck(s, t) {
 }
 
 export function applyNativeWork(s, t, c, now, H) {
+  if (c.type === 'native-work-material-capture-v2') return captureWorkMaterial(s, t, c, now);
   if (!['native-work-enable-v2', 'native-work-manifest-v2', 'native-work-cancel-v2'].includes(c.type)) return null;
   H.owner(s, c);
   keys(c, c.type === 'native-work-enable-v2' ? ['revision', 'policy'] : c.type === 'native-work-manifest-v2' ? ['work_id', 'manifest'] : ['work_id', 'reason']);
@@ -67,7 +69,8 @@ export function applyNativeWork(s, t, c, now, H) {
     t.native_work_policy = { ...clone(policy), protocol: 2, revision: c.revision, enabled_at: c.at };
     result = { enabled: true, revision: c.revision, protected_actions_granted: false };
   } else if (c.type === 'native-work-manifest-v2') {
-    const workId = c.work_id; if (typeof workId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,100}$/.test(workId)) fail('native-work-invalid-id');
+    // At most 80 characters, so every Host record and private ref name derived from it stays valid.
+    const workId = c.work_id; if (typeof workId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(workId)) fail('native-work-invalid-id');
     if (t.work?.[workId]) fail('native-work-already-exists');
     const manifest = exact(c.manifest, ['protocol', 'goal', 'criteria', 'criteria_digest', 'paths', 'base', 'forbidden_actions']);
     if (Buffer.byteLength(JSON.stringify(manifest)) > 32768) fail('native-work-manifest-too-large');
@@ -174,4 +177,29 @@ export function settleProtocolWork(t, x, receipt, { complete, changed }, at) {
   if (reason) { dispatch.state = 'failed'; dispatch.failure = reason; w.status = 'attempt-failed'; return; }
   Object.assign(dispatch, { state: 'sealed', sealed_at: at, output_digest: seal.output_digest, patch_digest: seal.patch_digest, patch_ref: seal.patch_ref, paths: [...seal.paths].sort() });
   w.status = 'sealed'; w.sealed_dispatch = x.nonce;
+}
+
+// ---- Material capture (slice 1, increment 3). The bound collector records the
+// candidate built from the sealed patch on the dedicated checkout, after the
+// execution operation's owned closure proves the executor process stopped. The
+// leader-baseline supervision is deterministic (manifest scope); the independent
+// review follows. Allowed while paused or frozen: it grants nothing.
+export const WORK_TESTS_NOT_RUN_DIGEST = routingDigest({ tests: 'not-run', revision: 1 });
+function captureWorkMaterial(s, t, c, now) {
+  keys(c, ['work_id', 'generation', 'attempt', 'invocation_id', 'nonce', 'completion', 'evidence']);
+  const w = t.work?.[c.work_id], x = s.subscription_invocations?.[c.invocation_id];
+  if (!w || w.protocol !== 2 || !x || x.team !== t.id || x.purpose !== 'work' || x.nonce !== c.nonce || x.work?.work_id !== w.id || c.generation !== w.generation || c.attempt !== x.work.attempt) fail('native-work-sealed-call-required');
+  const registered = s.collectors?.[x.collector?.replace(/^collector:/, '')];
+  if (c.actor !== x.collector || !registered || registered.revoked || registered.team !== t.id) fail('native-work-bound-collector-required');
+  const dispatch = w.dispatches?.[x.nonce];
+  const evidence = exact(c.evidence, ['base', 'tree', 'paths', 'candidate_digest', 'diff_digest', 'patch_digest', 'patch_ref', 'tests_digest', 'tests_status']);
+  if (w.status === 'candidate') { if (routingDigest(w.result) !== routingDigest(evidence)) fail('native-work-material-conflict'); return { handled: true, result: { unchanged: true, work: w.id } }; }
+  if (w.status !== 'sealed' || w.sealed_dispatch !== x.nonce || dispatch?.state !== 'sealed' || x.state !== 'settled' || !x.operation_id) fail('native-work-sealed-call-required');
+  const completion = closedCompletion(t, x, c.completion, { operation: x.operation_id, kind: 'protocol-work-execute', epoch: x.epoch });
+  if (Date.parse(completion.closed_at) > now) fail('native-work-exact-owned-operation-completion-required');
+  if (evidence.base !== w.manifest.base || !/^[a-f0-9]{40,64}$/.test(evidence.tree || '') || !Array.isArray(evidence.paths) || JSON.stringify([...evidence.paths].sort()) !== JSON.stringify(dispatch.paths) || evidence.patch_digest !== dispatch.patch_digest || evidence.patch_ref !== dispatch.patch_ref || !/^[a-f0-9]{64}$/.test(evidence.candidate_digest || '') || !/^[a-f0-9]{64}$/.test(evidence.diff_digest || '') || evidence.tests_digest !== WORK_TESTS_NOT_RUN_DIGEST || evidence.tests_status !== 'not-run') fail('native-work-material-evidence-mismatch');
+  w.result = clone(evidence); w.author_contexts = [{ native_id: x.context.native_id, context_id: x.context.id, invocation_id: x.id }];
+  w.supervision = { mode: 'leader-baseline-deterministic', scope: 'manifest-paths-only', paths: [...dispatch.paths], completion_digest: completion.evidence_digest };
+  w.status = 'candidate'; w.captured_at = c.at;
+  return { handled: true, result: { captured: w.id, tree: evidence.tree, diff_digest: evidence.diff_digest, protected_actions_granted: false } };
 }

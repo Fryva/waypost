@@ -1,5 +1,5 @@
 // Dedicated integration Git plumbing. Called only after the authority persists its fence.
-import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync, realpathSync, openSync, writeSync, closeSync, renameSync, unlinkSync, constants } from 'node:fs';
 import { resolve, join, parse } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
@@ -203,4 +203,51 @@ export function readSealedPatch({ projectRoot, ref }) {
   const root = safe(projectRoot);
   if (!WORK_PATCH_REF.test(ref) || git(root, ['cat-file', '-t', ref]) !== 'blob') fail('work-patch-ref-invalid');
   return JSON.parse(git(root, ['cat-file', 'blob', ref]));
+}
+// Applies a sealed patch to the dedicated checkout of its base, idempotently per
+// file: a target must hold its base blob (or be absent) or already hold the
+// patched content (a rerun after an interruption); blobs are compared with the
+// repository's own conversions. Each file is written to a fresh sibling and
+// renamed over the target, so a crash never leaves a half-written file and a
+// link in the target's place is replaced rather than followed.
+export function applySealedPatch({ checkout, patch, paths: scope }) {
+  checkout = check(checkout); scope = paths(scope);
+  if (git(checkout.path, ['rev-parse', 'HEAD']) !== checkout.base) fail('integration-base-changed');
+  const applied = [];
+  for (const f of patch.files) {
+    if (!scope.includes(f.path)) fail('integration-outside-scope');
+    const target = safe(join(checkout.path, f.path));
+    let baseBlob = null; try { baseBlob = git(checkout.path, ['rev-parse', '--verify', '--quiet', checkout.base + ':' + f.path]); } catch { baseBlob = null; }
+    const wanted = git(checkout.path, ['hash-object', '--stdin', '--path=' + f.path], {}, f.content);
+    const current = existsSync(target) ? git(checkout.path, ['hash-object', '--', f.path]) : null;
+    if (current === wanted) continue;
+    if ((baseBlob || null) !== current) fail('integration-target-changed');
+    mkdirSync(safe(resolve(target, '..')), { recursive: true, mode: 0o755 });
+    // The sibling lives in the integration directory (same file system, outside
+    // the checkout), so a leftover never appears in the candidate's status.
+    const temp = safe(join(resolve(checkout.index, '..'), 'apply-' + randomBytes(8).toString('hex')));
+    let renamed = false;
+    try {
+      const fd = openSync(temp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW || 0), 0o644);
+      try { writeSync(fd, f.content); } finally { closeSync(fd); }
+      renameSync(temp, safe(target)); renamed = true;
+    } finally { if (!renamed) try { unlinkSync(temp); } catch {} }
+    applied.push(f.path);
+  }
+  return { applied };
+}
+// Keeps the candidate tree reachable (an index file does not protect it from gc).
+export function pinCandidateTree({ checkout, tree, ref }) {
+  checkout = check(checkout); oid(tree);
+  if (!/^refs\/waypost\/candidates\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\/[0-9]+-[0-9]+$/.test(ref)) fail('integration-candidate-ref-invalid');
+  let existing = null; try { existing = git(checkout.path, ['rev-parse', '--verify', '--quiet', ref]); } catch { existing = null; }
+  if (existing && existing !== tree) fail('integration-candidate-ref-conflict');
+  if (!existing) git(checkout.path, ['update-ref', ref, tree, '0'.repeat(tree.length)]);
+  return { ref, tree };
+}
+// The diff a reviewer reads, with pinned flags so its digest is reproducible.
+export function candidateDiff({ checkout, candidate }) {
+  checkout = check(checkout);
+  // Every presentation setting is pinned: full object ids, context, ordering, quoting.
+  return git(checkout.path, ['-c', 'core.quotePath=true', '-c', 'diff.suppressBlankEmpty=false', 'diff', '-O/dev/null', '--no-ext-diff', '--no-textconv', '--no-color', '--no-renames', '--full-index', '-U3', '--inter-hunk-context=0', '--indent-heuristic', '--diff-algorithm=myers', '--src-prefix=a/', '--dst-prefix=b/', candidate.base, candidate.tree]);
 }

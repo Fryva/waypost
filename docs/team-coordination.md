@@ -961,6 +961,31 @@ the attempt with that reason (retryable within the ceiling); partial usage
 leaves it `uncertain` until reconciled. Nothing writes the project tree, HEAD or
 branches.
 
+Material capture (increment 3): `waypost team host <team> --operation
+native-work-capture --work <id>` reads the sealed patch from its private ref
+(digest checked) and applies it to the dedicated team checkout of the manifest's
+base (a separate worktree on a private ref, never the project tree). Files the
+executor echoed back unchanged were already dropped at sealing. Each target must
+hold its base blob (compared with the repository's own conversions, such as
+`eol` attributes) or be absent, or already hold the patched content after an
+interruption; parents are checked for links before they are created (on POSIX
+the new file is also opened without following links), and each file is written
+to a fresh sibling and renamed into place. The candidate tree is pinned behind
+`refs/waypost/candidates/<team>/<work>/<generation>-<attempt>` so garbage
+collection keeps it, and its diff is produced with every presentation setting
+pinned (full object ids, three lines of context, no order file, quoted paths).
+`native-work-material-capture-v2` is recorded through the bound collector with
+the execution operation's owned closure; the work becomes a `candidate` with its
+tree, paths, candidate and diff digests, the patch binding, tests marked
+`not-run` and a deterministic supervision record (the manifest scope). Every
+step can be rerun after an interruption without a model call: the checkout is
+adopted if it already exists (a directory left without its ownership record is
+reported as `host-native-work-checkout-incomplete`), the apply is idempotent per
+file with its temporary files outside the checkout, and records must match when
+present. A new path that the base ignores through `.gitignore` is not
+collected and fails the capture by name (`host-native-work-candidate-paths-differ`);
+the owner cancels such work.
+
 ### Concurrent Hosts
 
 Each participant's Host writes the same authority. The store serializes writes

@@ -170,7 +170,7 @@ export function reconcileProtocolControl(s,t,c,now){
  return {reconciled:x.id,charged_tokens:x.charged_tokens,usage:'unknown',slot_released:x.slot_released,protected_actions_granted:false};
 }
 // An identity or calibration call binds its own operation id and the Host wrapper's kind.
-function closedCompletion(t,x,completion,{operation=x.action?.operation_id,kind=x.action?.kind,epoch=x.action?.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch}={}){
+export function closedCompletion(t,x,completion,{operation=x.action?.operation_id,kind=x.action?.kind,epoch=x.action?.kind==='protocol-handover-ack'?x.action.request.runtime_epoch:x.epoch}={}){
  const c=object(completion,['protocol','scope','operation','kind','invocation_id','nonce','native_id','consume_type','created_at','closed_at','stopped','callback_drained','evidence_digest'],8192),scope={team:t.id,participant:x.participant,incarnation:x.incarnation,epoch,descriptor_digest:x.descriptor_digest};
  if(c.protocol!==1||!same(c.scope,scope)||!operation||c.operation!==operation||c.kind!==kind||c.invocation_id!==x.id||c.nonce!==x.nonce||c.native_id!==x.context.native_id||c.consume_type!=='subscription-consume-v2'||c.stopped!==true||c.callback_drained!==true||!/^[a-f0-9]{64}$/.test(c.evidence_digest||'')||!Number.isFinite(Date.parse(c.created_at))||Date.parse(c.created_at)>Date.parse(x.consumed_at)||!Number.isFinite(Date.parse(c.closed_at))||Date.parse(c.closed_at)<Date.parse(x.settled_at))fail('exact-owned-operation-completion-required');return c;
 }
