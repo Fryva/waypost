@@ -6,6 +6,7 @@
 import { routingDigest } from './model-routing.mjs';
 import { selectNativeQuotaFrontier, nativeParticipantQuotaEligible } from './team-native-quota.mjs';
 import { closedCompletion } from './team-native-action.mjs';
+import { selectWorkReviewer } from './team-native-work-review.mjs';
 
 const clone = structuredClone;
 function fail(message) { throw new Error(message); }
@@ -37,6 +38,8 @@ export function activeNativeLeader(t, now) {
   if (t.native_quota_freeze || t.handover || t.native_protocol_handover && t.native_protocol_handover.state !== 'applied') fail('native-work-quota-handover-pending');
   const frontier = selectNativeQuotaFrontier(t, now);
   if (t.review_blocker || frontier.blocker || frontier.candidate !== t.leader || !frontier.reviewer) fail('native-work-active-leader-required');
+  // Leader work is reviewable only by a critic of another native configuration.
+  if (!selectWorkReviewer(t, { worker: t.leader }, now)) fail('native-work-strongest-independent-review-unavailable');
   return t.participants[t.leader];
 }
 export function currentWorkPolicy(t, now) {

@@ -14,7 +14,7 @@ async function fixture(t,options={}){
  const base=git(f.root,'rev-parse','HEAD');
  const ack=await f.host.acknowledgeProtocolLeadership({actionId:'leader',nonce:'leader',estimateTokens:'40'});assert.equal(ack.leader_acknowledged,true,ack.action_blocker);
  const allocation=f.load().state.subscription_allocations[routingDigest(f.unit)];
- f.host.enableNativeWork({revision:1,policy:{kind:'protocol-work',executor:'leader-baseline',allow_unknown_quota:true,max_attempts:2,timeout_ms:1000,expires_at:f.expiry,ceilings:{execution:{max_calls:3,max_estimate_tokens:'40'},review:{max_calls:2,max_estimate_tokens:'40'}},unit_allocations:[{unit_digest:routingDigest(f.unit),max_tokens:'80',allocation_revision:allocation.revision}]}});
+ f.host.enableNativeWork({revision:1,policy:{kind:'protocol-work',executor:'leader-baseline',allow_unknown_quota:true,max_attempts:2,timeout_ms:1000,expires_at:f.expiry,ceilings:{execution:{max_calls:3,max_estimate_tokens:'40'},review:{max_calls:2,max_estimate_tokens:'40'}},unit_allocations:[{unit_digest:routingDigest(f.unit),max_tokens:options.workMaxTokens||'80',allocation_revision:allocation.revision}]}});
  const criteria=['sum returns a+b'];
  f.host.installWorkManifest({workId:'fix-sum',manifest:{protocol:2,goal:'Fix sum',criteria,criteria_digest:routingDigest(criteria),paths:['src/sum.js'],base,forbidden_actions:['network']}});
  return {...f,base};
@@ -283,4 +283,65 @@ test('a critic finding with a control character in its text is refused by the pa
  const action={action_id:'a',request_digest:'r',request:{target_digest:'g',target:{paths:['src/sum.js']}}},reply=text=>JSON.stringify({verdict:'blocked',action_id:'a',request_digest:'r',target_digest:'g',findings:[{path:'src/sum.js',severity:'major',text}]});
  assert.equal(readWorkReview(reply('plain text'),action).findings[0].text,'plain text');
  for(const text of ['line\nbreak','nul\u0000byte','tab\there','esc\u001b[31m','del\u007f','c1\u0085','x'.repeat(241),'   '])assert.throws(()=>readWorkReview(reply(text),action),{message:'exact-work-review-finding-required'},JSON.stringify(text));
+});
+
+test('work review tokens share the per-unit work cap with the execution tokens already charged',async t=>{
+ // Execution settles 25 tokens; the cap is 60, so the review may reserve at most 35.
+ const f=await captured(t,{workMaxTokens:'60'}),critic=f.load().state.teams.team.review_candidate,host=f.hostFor(critic);
+ assert.equal(Object.values(f.load().state.subscription_invocations).find(x=>x.purpose==='work').charged_tokens,'25');
+ await rejectsCode(host.reviewNativeWork({workId:'fix-sum',estimateTokens:'36'}),'native-action-control-ceiling-exceeded');
+ assert.equal(reviewInvocations(f).length,0);assert.equal(work(f).status,'candidate');
+ const r=await host.reviewNativeWork({workId:'fix-sum',estimateTokens:'35'});assert.equal(r.work_review_captured,true,JSON.stringify(r));assert.equal(work(f).status,'approved');
+});
+test('review tokens count against the work cap of the next execution attempt',async t=>{
+ const {validateProtocolWork,workSuiteDigest,workPromptDigest}=await import('../scripts/team-native-work.mjs');
+ const f=await captured(t),critic=f.load().state.teams.team.review_candidate;
+ const r=await f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'});assert.equal(r.work_review_captured,true,JSON.stringify(r));
+ const review=reviewInvocations(f)[0];assert.equal(review.charged_tokens,'30');
+ // A work that was reviewed is never executed again, so the next attempt is built from a clone whose work is dispatchable.
+ const attempt=mutate=>{const s=structuredClone(f.load().state),team=s.teams.team,w=team.work['fix-sum'];w.status='attempt-failed';mutate?.(s);
+  const inputs='a'.repeat(64),reservation={purpose:'work',max_calls:1,estimate_tokens:'40',timeout_ms:1000,suite_digest:workSuiteDigest(),work:{work_id:'fix-sum',generation:w.generation,attempt:w.attempts+1,inputs_digest:inputs,prompt_digest:workPromptDigest(w.manifest,inputs)}};
+  return validateProtocolWork(s,team,reservation,team.participants[team.leader],{unit_digest:routingDigest(f.unit)},Date.now());};
+ // 25 (execution) + 30 (review) + 40 (estimate) exceeds 80; without the review it is 65.
+ assert.throws(()=>attempt(),error=>{assert.equal(error.code??error.message,'native-work-owner-ceiling-exceeded');return true;});
+ assert.equal(attempt(s=>{delete s.subscription_invocations[review.id];}).work.attempt,2);
+ // An aborted review reserved nothing.
+ assert.equal(attempt(s=>{s.subscription_invocations[review.id].state='aborted';}).work.attempt,2);
+});
+test('a critic admitted under the leader native configuration is not selected and the work gates refuse',async t=>{
+ const {reduceTeamEvent}=await import('../scripts/team-state.mjs'),{selectNativeQuotaFrontier}=await import('../scripts/team-native-quota.mjs'),{selectWorkReviewer,createProtocolWorkReviewRequest}=await import('../scripts/team-native-work-review.mjs'),{activeNativeLeader}=await import('../scripts/team-native-work.mjs');
+ const f=await captured(t),v=f.load(),team=v.state.teams.team,critic=team.review_candidate,now=Date.now();
+ const criteria=['c'],manifest={protocol:2,goal:'g',criteria,criteria_digest:routingDigest(criteria),paths:['src/sum.js'],base:f.base,forbidden_actions:[]};
+ const gate=state=>reduceTeamEvent(structuredClone(state),{type:'native-work-manifest-v2',team:'team',actor:'owner:'+state.owner_hash,at:new Date().toISOString(),request_key:'k'+Math.random(),work_id:'other',manifest},{revision:v.revision});
+ // Unmodified, the leader and the critic gates pass and only the one-at-a-time rule stops the second manifest.
+ assert.ok(selectWorkReviewer(team,{worker:team.leader},now));assert.equal(activeNativeLeader(team,now).id,team.leader);assert.ok(createProtocolWorkReviewRequest(v.state,team,{actionId:'ok',workId:'fix-sum'}));
+ assert.throws(()=>gate(v.state),{message:'native-work-one-at-a-time'});
+ // Only the critic profile qualifies as both coordinator and reviewer, so the whole team takes its native configuration:
+ // the leader stays the coordinator and the frontier still names a reviewer, yet none is independent of the leader.
+ const state=structuredClone(v.state),t2=state.teams.team,shared=t2.participants[critic].native_admission.identity;
+ assert.notEqual(t2.participants[t2.leader].native_admission.identity.profile_id,shared.profile_id);
+ for(const p of Object.values(t2.participants))p.native_admission.identity=structuredClone(shared);
+ assert.equal(selectNativeQuotaFrontier(t2,now).blocker,null);
+ assert.ok(!selectWorkReviewer(t2,{worker:t2.leader},now));
+ assert.throws(()=>createProtocolWorkReviewRequest(state,t2,{actionId:'o1',workId:'fix-sum'}),{message:'native-work-strongest-independent-review-unavailable'});
+ assert.throws(()=>activeNativeLeader(t2,now),{message:'native-work-strongest-independent-review-unavailable'});
+ assert.throws(()=>gate(state),{message:'native-work-strongest-independent-review-unavailable'});
+});
+test('cancel is refused while a review call is uncertain or consumed, and allowed once it is reconciled',async t=>{
+ const {reduceTeamEvent}=await import('../scripts/team-state.mjs');
+ let lose=false;const f=await captured(t,{failSend:()=>lose}),critic=f.load().state.teams.team.review_candidate;
+ lose=true;await f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}).catch(()=>{});lose=false;
+ const [x]=reviewInvocations(f);assert.equal(x.state,'uncertain');
+ assert.throws(()=>f.host.cancelNativeWork({workId:'fix-sum',reason:'give up'}),{message:'native-work-cancel-reconciled-closure-required'});assert.equal(work(f).status,'candidate');
+ const v=f.load(),cancel=state=>reduceTeamEvent(structuredClone(state),{type:'native-work-cancel-v2',team:'team',actor:'owner:'+state.owner_hash,at:new Date().toISOString(),request_key:'k'+Math.random(),work_id:'fix-sum',reason:'give up'},{revision:v.revision});
+ for(const state of ['consumed','uncertain']){const s=structuredClone(v.state);s.subscription_invocations[x.id].state=state;assert.throws(()=>cancel(s),{message:'native-work-cancel-reconciled-closure-required'},state);}
+ const s=structuredClone(v.state);s.subscription_invocations[x.id].state='reconciled';assert.equal(cancel(s).state.teams.team.work['fix-sum'].status,'cancelled');
+});
+test('capturing a work again after its review answers unchanged for every verdict',async t=>{
+ for(const [verdict,status,findings] of [['approve','approved',[]],['changes-requested','changes-requested',[{path:'src/sum.js',severity:'major',text:'Still wrong.'}]],['blocked','blocked',[{path:'',severity:'blocker',text:'Unsafe.'}]]]){
+  const f=await captured(t,{workReviewVerdict:verdict,workReviewFindings:findings}),critic=f.load().state.teams.team.review_candidate;
+  await f.hostFor(critic).reviewNativeWork({workId:'fix-sum',estimateTokens:'40'});assert.equal(work(f).status,status);
+  const tree=work(f).result.tree,before=f.calls.length,r=f.host.captureNativeWork({workId:'fix-sum'});
+  assert.equal(r.unchanged,true,verdict);assert.equal(r.captured,'fix-sum');assert.equal(r.tree,tree);assert.equal(f.calls.length,before,'no authority write');assert.equal(work(f).status,status);
+ }
 });
