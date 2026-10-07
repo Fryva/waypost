@@ -48,7 +48,7 @@ export function currentWorkPolicy(t, now) {
   return p;
 }
 // An unresolved negative leadership audit of the current acknowledgement blocks new work.
-function negativeAuditOfCurrentAck(s, t) {
+export function negativeAuditOfCurrentAck(s, t) {
   const acks = new Set(Object.values(s.subscription_invocations || {}).filter(x => x.team === t.id && ((x.action_ack && x.action_ack.leader === t.leader && x.action_ack.epoch === t.epoch) || (x.protocol_handover_ack && x.protocol_handover_ack.leader === t.leader && x.protocol_handover_ack.epoch === t.epoch))).map(x => x.id));
   return Object.values(t.native_protocol_reviews || {}).some(a => a.unresolved_negative && a.records.some(r => acks.has(r.source_invocation_id)));
 }
@@ -99,6 +99,8 @@ export function applyNativeWork(s, t, c, now, H) {
     text(c.reason, 500);
     // A consumed or uncertain call for this work needs its reconciled closure first.
     if (Object.values(s.subscription_invocations || {}).some(x => x.team === t.id && (x.work?.work_id === w.id || x.action?.kind === 'protocol-work-review' && x.action.request.target.work_id === w.id) && ['consumed', 'uncertain'].includes(x.state))) fail('native-work-cancel-reconciled-closure-required');
+    // A prepared publication of this work is aborted by the owner first.
+    if (t.native_integration?.work_id === w.id && !['acknowledged', 'aborted'].includes(t.native_integration.state)) fail('native-work-cancel-integration-abort-required');
     w.status = 'cancelled'; w.cancelled_at = c.at; w.cancel_reason = c.reason;
     result = { cancelled: w.id, protected_actions_granted: false };
   }

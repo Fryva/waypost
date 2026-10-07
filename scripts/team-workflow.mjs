@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { rankParticipant, validateDescriptor } from './team.mjs';
 import { routingDigest, validateManifest, proposeModelRoute } from './model-routing.mjs';
 import { applySubscriptionAccounting } from './team-subscription.mjs';
+import { nativeIntegratedEvidenceValid, nativeIntegrationOpen } from './team-native-integration.mjs';
 const hash = v => typeof v==='string' ? createHash('sha256').update(v).digest('hex') : routingDigest(v);
 const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
 const terminal = w => ['integrated','cancelled'].includes(w.status);
@@ -302,8 +303,8 @@ export function applyWorkflow(s,t,c,now,H) {
   H.owner(s,c);
   if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted','reconciled'].includes(x.state)))fail('unresolved-subscription-invocations');
   if(Object.values(t.deliveries||{}).some(r=>['dispatching','uncertain'].includes(r.state)) || Object.values(t.runtime_requests||{}).some(r=>r.consumed&&!r.captured&&!r.reconciled_stopped) || Object.values(t.review_requests||{}).some(r=>r.consumed&&!r.output_digest&&!r.reconciled_stopped))fail('unresolved-native-operations');
-  if(t.handover || s.publication_fence?.team===t.id || s.deferred_commands?.some(x=>x.command.team===t.id) || Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('unresolved-team-operations');
-  if(Object.values(t.work).some(w=>!terminal(w) || w.status==='integrated'&&(!w.commit || !w.integrated_evidence || w.integrated_evidence.commit!==w.commit || w.integrated_evidence.tree!==w.result?.tree || w.integrated_evidence.target_digest!==w.result?.target_digest || w.integrated_evidence.criteria_digest!==w.criteria_digest || w.integrated_evidence.tests_digest!==w.result?.tests_digest || w.integrated_evidence.review_receipt?.nonce!==w.integrated_evidence.review || w.integrated_evidence.review_receipt?.verdict!=='approve')))fail('unfinished-reviewed-team-work');
+  if(t.handover || nativeIntegrationOpen(t) || s.publication_fence?.team===t.id || s.deferred_commands?.some(x=>x.command.team===t.id) || Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('unresolved-team-operations');
+  if(Object.values(t.work).some(w=>!terminal(w) || w.status==='integrated'&&t.policy?.protocol===2&&w.protocol===2&&!nativeIntegratedEvidenceValid(t,w) || w.status==='integrated'&&!(t.policy?.protocol===2&&w.protocol===2)&&(!w.commit || !w.integrated_evidence || w.integrated_evidence.commit!==w.commit || w.integrated_evidence.tree!==w.result?.tree || w.integrated_evidence.target_digest!==w.result?.target_digest || w.integrated_evidence.criteria_digest!==w.criteria_digest || w.integrated_evidence.tests_digest!==w.result?.tests_digest || w.integrated_evidence.review_receipt?.nonce!==w.integrated_evidence.review || w.integrated_evidence.review_receipt?.verdict!=='approve')))fail('unfinished-reviewed-team-work');
   t.status='closed';delete s.task_bindings[t.task];result={closed:t.id};
  }else return {handled:false};
  return {handled:true,result};

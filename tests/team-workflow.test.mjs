@@ -111,3 +111,17 @@ test('parallel approve cannot hide a negative verdict or prevent explicit revisi
  s=reduceTeamEvent(s,command(s,'revise-work-v1',{work_id:'w',findings_resolution:['Addressed acceptance']})).state;
  assert.equal(s.teams.fixture.work.w.generation,2);assert.equal(s.teams.fixture.work.w.status,'assigned');
 });
+// Regression: a protocol 1 team closes work marked protocol 2 under the protocol 1 evidence rules.
+test('close of a protocol 1 team judges integrated work marked protocol 2 by its protocol 1 evidence',()=>{
+ const s=fixture(),t=s.teams.fixture,w=reviewed(s);
+ const integrate=()=>{w.protocol=2;w.status='integrated';w.commit='f'.repeat(40);w.criteria_digest=d;w.result.target_digest=d;w.integrated_evidence={commit:w.commit,tree:w.result.tree,target_digest:d,criteria_digest:d,tests_digest:w.result.tests_digest,review:'receipt',review_receipt:{nonce:'receipt',verdict:'approve'}};};
+ integrate();assert.equal(t.policy.protocol,1);
+ assert.equal(reduceTeamEvent(structuredClone(s),command(s,'close-v1',{},'owner:owner')).state.teams.fixture.status,'closed');
+ // The protocol 2 evidence shape is not what protocol 1 asks for, and a forged protocol 1 receipt still fails.
+ for(const change of [e=>{e.commit='e'.repeat(40);},e=>{e.tree='e'.repeat(40);},e=>{e.review='other';},e=>{e.review_receipt.verdict='changes-requested';},e=>{e.tests_digest='e'.repeat(64);}]){
+  const forged=structuredClone(s);change(forged.teams.fixture.work.w.integrated_evidence);
+  assert.throws(()=>reduceTeamEvent(forged,command(forged,'close-v1',{},'owner:owner')),/unfinished-reviewed-team-work/);
+ }
+ const bare=structuredClone(s);bare.teams.fixture.work.w.integrated_evidence={protocol:2,commit:w.commit};
+ assert.throws(()=>reduceTeamEvent(bare,command(bare,'close-v1',{},'owner:owner')),/unfinished-reviewed-team-work/);
+});

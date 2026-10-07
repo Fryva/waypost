@@ -252,3 +252,47 @@ export function treeDiff({ projectRoot, base, tree }) {
   const root = safe(projectRoot); oid(base); oid(tree);
   return git(root, ['-c', 'core.quotePath=true', '-c', 'diff.suppressBlankEmpty=false', 'diff', '-O/dev/null', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '--no-renames', '--full-index', '-U3', '--inter-hunk-context=0', '--indent-heuristic', '--diff-algorithm=myers', '--src-prefix=a/', '--dst-prefix=b/', base, tree]);
 }
+
+// ---- Protocol 2 publication (contract 32, slice 1): one commit of the approved
+// tree on the base, with the owner's message and fixed Waypost trailers, written
+// without hooks or signing so its id is known before the compare-and-swap of the
+// checkout's private ref; the owner merges that ref.
+export function workCommitText({ message, teamId, workId, reservationId, reviews, label, harness, session, provider, story, contributors }) {
+  if (typeof message !== 'string' || !message.trim() || message.length > 16384 || message.includes('\0')) fail('integration-invalid-message');
+  const fields = { Contributors: contributors, Harness: harness, Label: label, Provider: provider, Reservation: reservationId, Review: reviews.join(','), Session: session, Story: story, Team: teamId, Tests: 'not-run', Work: workId };
+  if (Object.values(fields).some(v => typeof v !== 'string' || !v || /[\r\n\0]/.test(v) || v.length > 4096)) fail('integration-invalid-trailers');
+  return message.trim() + '\n\n' + Object.entries(fields).map(([k, v]) => `Waypost-${k}: ${v}`).join('\n') + '\n';
+}
+export function workCommitMessageDigest(text) { return hash(text); }
+export function workCommit({ checkout, base, tree, text, identity }) {
+  checkout = check(checkout); oid(base); oid(tree);
+  if (checkout.base !== base) fail('integration-base-changed');
+  if (git(checkout.path, ['cat-file', '-t', tree]) !== 'tree') fail('integration-tree-required');
+  if (!identity || [identity.name, identity.email, identity.date].some(v => typeof v !== 'string') || !/^[^\r\n<>]{1,200}$/.test(identity.name) || !/^[^\s<>]{1,200}@[^\s<>]{1,200}$/.test(identity.email) || !/^\d{10} \+0000$/.test(identity.date)) fail('integration-invalid-commit-identity');
+  return git(checkout.path, ['commit-tree', '--no-gpg-sign', tree, '-p', base], { GIT_AUTHOR_NAME: identity.name, GIT_AUTHOR_EMAIL: identity.email, GIT_AUTHOR_DATE: identity.date, GIT_COMMITTER_NAME: identity.name, GIT_COMMITTER_EMAIL: identity.email, GIT_COMMITTER_DATE: identity.date }, text);
+}
+// Rewrites the same commit (its id must not change) and moves the private ref
+// from the base to it; a ref already at the commit is the same publication.
+export function publishWorkCommit({ checkout, base, tree, commit, text, identity, fault }) {
+  if (workCommit({ checkout, base, tree, text, identity }) !== commit) fail('integration-commit-changed');
+  const current = git(checkout.path, ['rev-parse', checkout.ref]);
+  if (current !== commit) {
+    if (current !== base) fail('integration-head-changed');
+    fault?.('before-ref', commit);
+    git(checkout.path, ['update-ref', checkout.ref, commit, base]);
+    fault?.('after-ref', commit);
+  }
+  git(checkout.path, ['read-tree', tree]);
+  return { state: 'published', commit, ref: checkout.ref, unchanged: current === commit };
+}
+// Best effort after a recovered publication: the checkout index follows its HEAD.
+export function syncCheckoutIndex({ checkout, tree }) {
+  try { checkout = check(checkout); git(checkout.path, ['read-tree', oid(tree)]); return true; } catch { return false; }
+}
+export function workPublicationState({ checkout, base, commit }) {
+  checkout = check(checkout);
+  const current = git(checkout.path, ['rev-parse', checkout.ref]);
+  if (current === commit) return { state: 'published', ref: checkout.ref, value: current };
+  if (current === base) return { state: 'not-published', ref: checkout.ref, value: current };
+  fail('integration-publication-conflict');
+}

@@ -413,6 +413,12 @@ earlier approval no longer satisfies final acceptance.
 independent top-strength approval for the exact candidate. Resolve findings and
 re-review revised target. Artifact critics and code reviewers share protocol,
 not acceptance targets. Component changes invalidate composite final approval.
+Amendment (owner decision 2026-10-06, protocol 2 slice 1 only): when the
+acknowledged leader itself wrote the patch (`leader-baseline`), coordinator
+diff supervision is replaced by deterministic Host checks of the manifest scope
+and an approval by the strongest independent critic of another native
+configuration; the work is labelled unqualified, tests are recorded as not run,
+and it is published only to a private ref that the owner merges.
 
 ### 7. Git, stories and compatibility
 

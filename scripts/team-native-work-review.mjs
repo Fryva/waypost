@@ -18,22 +18,29 @@ export function workReviewPolicy(t) {
   const p = t.native_work_policy; if (!p) return null;
   return { protocol: 2, kind: WORK_REVIEW_KIND, max_calls: p.ceilings.review.max_calls, max_estimate_tokens: p.ceilings.review.max_estimate_tokens, timeout_ms: p.timeout_ms, expires_at: p.expires_at, unit_allocations: p.unit_allocations, revision: p.revision, enabled_at: p.enabled_at, allow_unknown_reviewer_quota: p.allow_unknown_quota };
 }
+// The reviewed target of a work's current result.
+export function workReviewTarget(w) {
+  return { work_id: w.id, generation: w.generation, manifest_digest: w.manifest_digest, criteria_digest: w.manifest.criteria_digest, base: w.result.base, tree: w.result.tree, paths: [...w.result.paths], candidate_digest: w.result.candidate_digest, diff_digest: w.result.diff_digest, patch_digest: w.result.patch_digest, patch_ref: w.result.patch_ref, tests_digest: w.result.tests_digest, tests_status: w.result.tests_status };
+}
+// The critic excludes the worker and the leader, and any participant admitted
+// under their native configuration; it is never weakened to fit.
+export function selectWorkReviewer(t, w, now) {
+  const authors = [w.worker, t.leader], authorProfiles = authors.map(id => t.participants[id]?.native_admission?.identity?.profile_id).filter(Boolean);
+  return selectProtocolReviewerCandidate(Object.values(t.participants).filter(p => !authors.includes(p.id) && !authorProfiles.includes(p.native_admission?.identity?.profile_id)), t.policy, t.review_floor, { coordinator: t.leader, now });
+}
 export function createProtocolWorkReviewRequest(s, t, { actionId, workId, now = Date.now() } = {}) {
   if (t?.policy?.protocol !== 2 || t.status !== 'active' || !t.leader || t.handover || t.review_blocker || !Number.isSafeInteger(now) || !(Date.parse(t.policy.expires_at) > now)) fail('native-work-review-active-team-required');
   if (t.native_quota_freeze || t.native_protocol_handover && t.native_protocol_handover.state !== 'applied') fail('native-work-review-quota-handover-pending');
   const frontier = selectNativeQuotaFrontier(t, now); if (frontier.blocker || frontier.candidate !== t.leader) fail('native-work-review-active-team-required');
   const w = t.work?.[workId]; if (!w || w.protocol !== 2 || w.status !== 'candidate' || !w.result) fail('native-work-review-candidate-required');
   if (typeof actionId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(actionId)) fail('native-work-review-action-id-required');
-  // The critic excludes the worker and the leader, and any participant admitted
-  // under their native configuration; it is never weakened to fit.
-  const authors = [w.worker, t.leader], authorProfiles = authors.map(id => t.participants[id]?.native_admission?.identity?.profile_id).filter(Boolean);
-  const reviewer = selectProtocolReviewerCandidate(Object.values(t.participants).filter(p => !authors.includes(p.id) && !authorProfiles.includes(p.native_admission?.identity?.profile_id)), t.policy, t.review_floor, { coordinator: t.leader, now });
+  const authors = [w.worker, t.leader], reviewer = selectWorkReviewer(t, w, now);
   if (!reviewer || reviewer.harness === 'codex') fail('native-work-strongest-independent-review-unavailable');
   const policy = workReviewPolicy(t);
   if (!policy || !(Date.parse(policy.expires_at) > now)) fail('native-work-owner-ceiling-required');
   if (!nativeParticipantQuotaEligible(reviewer, now) || !policy.allow_unknown_reviewer_quota && reviewer.native_protocol_quota?.proof?.status !== 'available') fail('native-work-review-known-quota-required');
   const profile = t.policy.profiles.find(p => p.identity.profile_id === reviewer.native_admission.identity.profile_id);
-  const target = { work_id: w.id, generation: w.generation, manifest_digest: w.manifest_digest, criteria_digest: w.manifest.criteria_digest, base: w.result.base, tree: w.result.tree, paths: [...w.result.paths], candidate_digest: w.result.candidate_digest, diff_digest: w.result.diff_digest, patch_digest: w.result.patch_digest, patch_ref: w.result.patch_ref, tests_digest: w.result.tests_digest, tests_status: w.result.tests_status };
+  const target = workReviewTarget(w);
   const request = { protocol: 2, kind: WORK_REVIEW_KIND, team: t.id, action_id: actionId, participant: reviewer.id, incarnation: reviewer.incarnation, descriptor_digest: reviewer.native_binding.descriptor_digest, current_epoch: t.epoch, policy_revision: t.policy.revision, policy_digest: routingDigest(t.policy), work_policy_revision: policy.revision, profile: structuredClone(profile.identity), calibration_digest: routingDigest(profile.calibration.review), review_floor: t.review_floor, excluded_participants: [...new Set(authors)].sort(), author_contexts: structuredClone(w.author_contexts || []), label: WORK_REVIEW_LABEL, goal: w.manifest.goal, criteria: [...w.manifest.criteria], target, target_digest: routingDigest(target) };
   return { kind: request.kind, action_id: request.action_id, request_digest: routingDigest(request), request };
 }

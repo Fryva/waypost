@@ -3,6 +3,7 @@ import {assertNativeBillingQuotaEligible} from './team-native-quota.mjs';
 import { applyNativeProtocolControl,validateProtocolAction,consumeProtocolAction,sealProtocolAction,reconcileProtocolControl } from './team-native-action.mjs';
 import { routingDigest } from './model-routing.mjs';
 import { applyNativeWork,validateProtocolWork,consumeProtocolWork,settleProtocolWork } from './team-native-work.mjs';
+import { applyNativeIntegration } from './team-native-integration.mjs';
 import { applyNativeDelivery,validateProtocolDelivery,consumeProtocolDelivery,settleProtocolDelivery } from './team-native-delivery.mjs';
 import { applyProtocolCalibration,validateProtocolMeasurement,consumeProtocolMeasurement,sealProtocolMeasurement } from './team-role-calibration.mjs';
 const fail = code => { throw new Error(code); };
@@ -70,6 +71,7 @@ export function applySubscriptionAccounting(s,t,c,now,H) {
  const calibration=applyProtocolCalibration(s,t,c,now,H);if(calibration)return calibration;
  const delivery=applyNativeDelivery(s,t,c,now,H);if(delivery)return delivery;
  const work=applyNativeWork(s,t,c,now,H);if(work)return work;
+ const integration=applyNativeIntegration(s,t,c,now,H);if(integration)return integration;
  if (typeof c.type==='string' && c.type.endsWith('-v2')) {const advanced=applyInheritedNativeAccounting(s,t,c,now,H);if(advanced)return advanced;}
  if(!['subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','subscription-usage-v1','subscription-uncertain-v1','subscription-abort-v1'].includes(c.type))return null;
  bounded(c);let result;

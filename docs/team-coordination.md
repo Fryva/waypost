@@ -1020,10 +1020,61 @@ than the revision pinned at enable. A negative verdict stays with its target:
 the work becomes `changes-requested` or `blocked` and only the owner's cancel
 ends it in this slice (cancel waits while a review call is consumed or
 uncertain); an approval makes the work `approved` only while no negative exists
-for that target. A malformed, oversized or partial answer is not applied and
-uses up that critic's slot for the target. Approved work is not reviewed again
+for that target. A malformed, oversized or partial answer is not applied: it
+uses up that critic's slot, and while it is neither recorded nor released by a
+reconcile it blocks every review of the target, so the owner cancels. The manifest and execution gates require such a critic of another native
+configuration to exist, so leader work is not executed when it could not be
+reviewed. Approved work is not reviewed again
 in this slice: a stronger admission before publication means cancelling and a
 new manifest.
+
+Publication (increment 5): `waypost team host <team> --operation
+native-work-publish --work <id> --request-file <json>` runs on the acknowledged
+leader's Host, with `{"message": "...", "story": "<story id>",
+"commit_identity": {"name", "email", "date": "<unix seconds> +0000"}}`. The Host
+renews its own quota lease first; the approving critic's lease must also be live
+(run `team watch`), otherwise (also for an exhausted or excluded account) the
+publication is refused as
+`native-integration-approving-critic-quota-ineligible`. It needs `approved` work
+whose current target has approvals at this epoch, policy revision and generation
+and no negative; the approving critic must still be bound, at or above the
+floor, under the profile and review calibration it reviewed with, and not
+outranked by a now stronger independent critic (otherwise the owner cancels and
+writes a new manifest). Before anything is reserved, the Host refuses while any
+publication fence is held, unless the work's private ref is still at the base,
+and while a live foreign session leases a work path. It writes one commit of the
+approved tree on the base, with the owner's message and trailers
+`Waypost-Contributors` (leader and critic), `-Harness`, `-Label`, `-Provider`,
+`-Reservation`, `-Review`, `-Session`, `-Story`, `-Team`, `-Tests: not-run` and
+`-Work`, without hooks or signing, so its id is known before anything moves. The
+reservation (`native-integration-prepare-v2`) pins the gate fields, the reviews,
+the critic's profile and calibration digest, the leader's bound collector, the
+checkout's private ref `refs/waypost/teams/<team>/<work>/<nonce>`, the commit
+id, the message digest and the identity; `native-integration-start-v2` rechecks
+them and raises the publication fence, under which other owner and collector
+events of the team wait as in protocol 1 (quota lease renewals and the
+publication events themselves are not deferred). The Host then moves only that
+private ref from the base to the pinned commit by compare-and-swap, and the
+leader's bound collector acknowledges it (`native-integration-ack-v2`); the work
+becomes `integrated` with its evidence. The user's branch and working tree are
+never written: the owner merges the ref. A retry after an interrupted start
+resumes the prepared reservation with the authority's pinned values and the
+commit text from the Host's record, after the same fence, ref and lease checks.
+The story is resolved against the vault when the Host has one, as for
+`waypost commit --story`. While the team's fence is held, `team watch` skips
+its owner check rather than queue it. After an interruption
+past start, `--operation native-work-publish-recover
+--git-child-confirmed-stopped` acknowledges a ref already at the pinned commit
+(rewriting the same commit and the checkout index) or releases the fence for a
+ref still at the base (`native-integration-reconcile-v2`), and aborts a
+reservation left prepared. Any other ref value fails as
+`integration-publication-conflict` and keeps the fence: the owner puts the ref
+back to the base or the pinned commit with `git update-ref` and recovers again.
+`--operation native-work-publish-abort --reservation <id>` aborts a prepared
+reservation, and cancel waits for that. `close-v1` accepts integrated work of a
+protocol 2 team only with its own evidence: the commit, tree, digests, tests
+recorded as not run and approvals that still stand. Resolving a merge conflict
+in the owner's branch is outside the approval.
 
 ### Concurrent Hosts
 

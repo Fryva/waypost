@@ -404,7 +404,11 @@ fixed-action pattern of contracts 20–21.
     Decision, execution and review kinds keep separate ceilings inside one
     allocation; failed, uncertain and reconciled calls count. Known exhaustion
     refuses; unknown quota needs the explicit flag; overshoot, uncertain or
-    unaccepted unknown usage blocks reservation.
+    unaccepted unknown usage blocks reservation. Amended in slice 1: execution
+    and review calls keep separate call ceilings but share the unit's work token
+    cap, and are checked against the current unit allocation (the pinned
+    revision is recorded at enable), so an owner allocation bump after an
+    overshoot does not strand a candidate.
 28. Assignment. Only the acknowledged leader at the current epoch requests it.
     Deterministic gates first: concrete relative paths, integrated and acyclic
     dependencies, no overlap with unfinished work, a criteria digest; no
@@ -465,7 +469,11 @@ fixed-action pattern of contracts 20–21.
     profile and calibration digests and the expected commit id, which the
     acknowledgement must match exactly; publication by the trusted Host to the
     private team ref (no model touches Git); new events deferred under the
-    fence; `close-v1` accepting v2 integrated evidence.
+    fence; `close-v1` accepting v2 integrated evidence. Amended in slice 1:
+    prepare and start are owner events issued from the acknowledged leader's
+    Host after the authority rechecks that leader; ack and reconcile come only
+    from the leader's bound collector pinned in the reservation; publication
+    events and quota lease renewals are not deferred under the fence.
 33. Implementation calibration `waypost-bounded-edit` revision 1, a separate
     scale never mixed with `waypost-protocol-roles`: 24 trials in 4 families of
     6 (each 2 clean, 2 unsafe, 2 boundary): scoped edit (unsafe: the goal needs
@@ -646,3 +654,22 @@ quota lease, `--text` diffs, findings bounded to fit 8 KiB, review and execution
 share one per-unit work cap and the current allocation, and the critic excludes
 the authors' native configurations (the owner's "another model" is enforced as
 another native configuration, not another model id).
+
+Slice 1 increment 5 (2026-10-07, Claude Code): publication —
+`scripts/team-native-integration.mjs` (publication gate recomputed at prepare and
+start, `native-integration-prepare/start/ack/reconcile/abort-v2`, close-v1
+evidence check for protocol 2), Git helpers in `scripts/team-integration.mjs`
+(`workCommitText`, `workCommit` with `--no-gpg-sign`, `publishWorkCommit`
+compare-and-swap of the checkout's private ref, `workPublicationState`), Host
+`publishNativeWork`, `recoverNativePublication`, `abortNativePublication`, CLI
+`native-work-publish[-recover|-abort]`; the spec 6.4 amendment is recorded in
+the coordination spec. Tests: an approved work is published as one pinned
+commit and the team closes; negatives are refused; recovery after and before
+the ref moved; the reducer pins every gate field, the receipt and the cancel
+order. After fresh-context review: close-v1 keys the v2 evidence check on the
+team's protocol (a protocol 1 work tagged `protocol: 2` keeps the v1 rule), the
+leader's collector is pinned for receipts, the ref must be at the base and no
+fence held before a reservation, a prepared reservation resumes or is aborted
+on recovery, the Host renews its lease and names a lapsed critic lease, and the
+coordination spec 7.2 (foreign leases block) and 7.3 (Harness, Session,
+Provider, Story and contributor trailers) are kept.

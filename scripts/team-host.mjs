@@ -18,13 +18,14 @@ import { harness as harnessDefinition } from './agents.mjs';
 import { collectModelInventory, metadataDescriptor } from './team-model-inventory.mjs';
 import { createProtocolLeaderAckRequest, createProtocolLeadershipAuditRequest, createProtocolHandoverAckRequest, formatProtocolLeaderAck, formatProtocolAction, readProtocolActionResponse, actionPromptDigest } from './team-native-action.mjs';
 import { createProtocolWorkReviewRequest, formatWorkReviewSuffix, WORK_REVIEW_KIND } from './team-native-work-review.mjs';
+import { nativePublicationGate, nativeIntegrationOpen } from './team-native-integration.mjs';
 import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
 import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion, serializeOwnedRuntimeStopProof } from './team-owned-runtime.mjs';
-import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest, readWorkInputs, workInputsDigest, validateWorkPatch, writeSealedPatch, readSealedPatch, applySealedPatch, pinCandidateTree, treeDiff } from './team-integration.mjs';
+import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest, readWorkInputs, workInputsDigest, validateWorkPatch, writeSealedPatch, readSealedPatch, applySealedPatch, pinCandidateTree, treeDiff, syncCheckoutIndex, workCommitText, workCommitMessageDigest, workCommit, publishWorkCommit, workPublicationState } from './team-integration.mjs';
 import { formatWorkPromptHead, workPromptDigest, workSuiteDigest, workPatchRef, WORK_MAX_OUTPUT_BYTES, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 import { leasesOverStaged } from './commit.mjs';
-import { sessionId } from './lib.mjs';
+import { sessionId, storyRefOf } from './lib.mjs';
 const sha = x => createHash('sha256').update(typeof x === 'string' ? x : JSON.stringify(x)).digest('hex');
 function fail(code) { throw Object.assign(new Error(code),{code}); }
 // A lost write race is retried within a short total budget: the wait blocks this
@@ -58,7 +59,7 @@ export function createTeamHost(config, dependencies={}) {
  const now=dependencies.now||(()=>new Date().toISOString());
  let activeOperation=null,operationBusy=false;
  const native=descriptor=>activeOperation?activeOperation.native(()=>(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor)):(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor);
- const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,readWorkInputs,workInputsDigest,validateWorkPatch,writeSealedPatch,readSealedPatch,applySealedPatch,pinCandidateTree,treeDiff,...dependencies.integration};
+ const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,readWorkInputs,workInputsDigest,validateWorkPatch,writeSealedPatch,readSealedPatch,applySealedPatch,pinCandidateTree,treeDiff,syncCheckoutIndex,workCommitText,workCommitMessageDigest,workCommit,publishWorkCommit,workPublicationState,...dependencies.integration};
  async function closeNative(transport){if(transport?.stopAndWait&&transport.owns_process!==false)await transport.stopAndWait();else transport?.close();}
  function getTeam(){const v=load();const t=v.state?.teams[team];if(!t)fail('team-not-found');return {v,t};}
  // Other Hosts (participants of other harnesses) write the same authority. A
@@ -311,6 +312,68 @@ export function createTeamHost(config, dependencies={}) {
   return {...result,work_review_captured:true,work_review:captured,protected_actions_granted:false};
  }
  const recoverWorkReview=options=>recoverProtocolAction(options,'protocol-work-review',captureWorkReview);
+ // Contract 32, slice 1 (spec 6.4 amendment): on the acknowledged leader's
+ // endpoint, the Host publishes approved work as one pinned commit on the private
+ // ref of its dedicated checkout. The owner merges that ref; no model touches Git.
+ // A reservation left prepared by an interrupted start resumes from its record.
+ async function publishNativeWork({workId,message,story,commitIdentity}={}){
+  owner();const d=endpoint(),o=owner(),c=collector();let {v,t}=getTeam();const w=t.work?.[workId];
+  if(w?.protocol!==2)fail('host-protocol-2-work-required');
+  if(w.status==='integrated')return {integrated:w.id,commit:w.commit,ref:w.integrated_evidence?.ref,unchanged:true,protected_actions_granted:false};
+  if(d.participant!==t.leader)fail('host-native-publication-leader-endpoint-required');
+  // Like `waypost commit --story`, a story is resolved against the vault when one is bound.
+  const storyRef=config.vaultPath?storyRefOf(story,config.vaultPath):story;if(config.vaultPath&&!storyRef)fail('host-native-publication-unknown-story');
+  await ensureNativeQuotaLease();({v,t}=getTeam());
+  const checkout=read(workRecord(workId),true).checkout,open=t.native_integration;let reservation,text;
+  const reserved=()=>{throw Object.assign(new Error('host-native-publication-reserved-recover-required: reservation '+open.id+' is '+open.state),{code:'host-native-publication-reserved-recover-required',reservation_id:open.id});};
+  if(nativeIntegrationOpen(t)&&open.state!=='prepared')reserved();
+  if(v.state.publication_fence)fail('host-native-publication-fence-held');
+  // Before any fence is raised, on a first attempt and on a resume alike: the
+  // private ref is still at the base (a conflicting value throws) and no live
+  // foreign session leases a work path.
+  integration.workPublicationState({checkout,base:w.result.base,commit:w.result.base});
+  const leased=dependencies.checkLeases?dependencies.checkLeases(w.result.paths):config.vaultPath?leasesOverStaged(w.result.paths,{vault_path:config.vaultPath},sessionId()):fail('host-vault-binding-required');
+  if(leased.length)fail('host-publication-foreign-live-lease');
+  if(nativeIntegrationOpen(t)){
+   // Only the commit text comes from the record; every pinned value is the authority's.
+   const pinned=open.state==='prepared'&&open.work_id===w.id&&open.checkout_ref===checkout.ref&&existsSync(record(open.id))?read(record(open.id),true):null;
+   if(!pinned||pinned.reservation?.id!==open.id||integration.workCommitMessageDigest(pinned.text)!==open.commit_message_digest)reserved();
+   reservation=open;text=pinned.text;
+  }else{
+   const gate=nativePublicationGate(v.state,t,w,Date.parse(now())),leader=t.participants[t.leader];
+   reservation={id:'native-integration-'+randomUUID(),work_id:w.id,...gate,checkout_ref:checkout.ref,commit_identity:commitIdentity};
+   text=integration.workCommitText({message,teamId:team,workId:w.id,reservationId:reservation.id,reviews:reservation.reviews,label:reservation.label,harness:leader.harness||'unrecorded',session:leader.session||'unrecorded',provider:leader.model.provider||'unrecorded',story:storyRef,contributors:[t.leader,gate.reviewer.participant].join(', ')});
+   reservation.commit_message_digest=integration.workCommitMessageDigest(text);
+   reservation.commit=integration.workCommit({checkout,base:reservation.base,tree:reservation.tree,text,identity:commitIdentity});
+   // Pin the original message before the reservation; recovery never rebuilds it.
+   write(record(reservation.id),{protocol:2,team,work:w.id,reservation,text});
+   mutate('native-integration-prepare-v2',{reservation},o);
+  }
+  mutate('native-integration-start-v2',{reservation_id:reservation.id},o);
+  const result=integration.publishWorkCommit({checkout,base:reservation.base,tree:reservation.tree,commit:reservation.commit,text,identity:reservation.commit_identity});
+  return mutate('native-integration-ack-v2',{reservation_id:reservation.id,commit:result.commit,ref:result.ref},c).result;
+ }
+ // After an interruption, with the Git child proven stopped: a ref at the pinned
+ // commit is acknowledged (the checkout index follows, best effort), a
+ // ref still at the base releases the fence, and a prepared reservation is
+ // aborted. Any other ref value is a conflict the owner repairs by hand.
+ function recoverNativePublication({gitChildStopped=false}={}){
+  const o=owner(),c=collector(),{t}=getTeam(),x=t.native_integration;
+  if(x&&['acknowledged','aborted'].includes(x.state))return {reservation:x.id,state:x.state,unchanged:true,protected_actions_granted:false};
+  if(x?.state==='prepared')return mutate('native-integration-abort-v2',{reservation_id:x.id},o).result;
+  if(x?.state!=='publishing')fail('host-native-publishing-reservation-required');
+  if(gitChildStopped!==true)fail('integration-child-stop-proof-required');
+  const checkout=read(workRecord(x.work_id),true).checkout;
+  if(checkout.ref!==x.checkout_ref)fail('host-native-publication-checkout-mismatch');
+  const state=integration.workPublicationState({checkout,base:x.base,commit:x.commit});
+  // Commit ids are content-addressed: a ref at the pinned id is the publication.
+  if(state.state==='published'){integration.syncCheckoutIndex?.({checkout,tree:x.tree});return mutate('native-integration-ack-v2',{reservation_id:x.id,commit:x.commit,ref:state.ref},c).result;}
+  return mutate('native-integration-reconcile-v2',{reservation_id:x.id,git_child_stopped:true,ref_at_base:true,evidence_digest:sha(state)},c).result;
+ }
+ function abortNativePublication({reservationId}={}){
+  const x=getTeam().t.native_integration;if(x?.id===reservationId&&x.state==='aborted')return {aborted:x.id,unchanged:true};
+  return mutate('native-integration-abort-v2',{reservation_id:reservationId},owner()).result;
+ }
  function resumeProtocolLeadership(){
   // A retried call after a lost response finds the team already resumed.
   const {t}=getTeam();if(t.status==='active'&&t.leader)return {resumed:false,already_active:true,leader:t.leader,epoch:t.epoch,protected_actions_granted:false};
@@ -1064,5 +1127,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,publishNativeWork,recoverNativePublication,abortNativePublication,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }
