@@ -24,6 +24,9 @@ import { leasesOverStaged } from './commit.mjs';
 import { sessionId } from './lib.mjs';
 const sha = x => createHash('sha256').update(typeof x === 'string' ? x : JSON.stringify(x)).digest('hex');
 function fail(code) { throw Object.assign(new Error(code),{code}); }
+// A lost write race is retried within a short total budget: the wait blocks this
+// process's event loop (owned-runtime /stop answers within 5 s, signals must run).
+const MUTATE_RETRY_BUDGET_MS=2500,MUTATE_STOPPING_BUDGET_MS=500;
 function safe(path) { path=resolve(path);let at=parse(path).root;for(const part of path.slice(at.length).split(/[\\/]/).filter(Boolean)){at=join(at,part);try{if(lstatSync(at).isSymbolicLink())fail('host-symlink');}catch(e){if(e.code!=='ENOENT')throw e;}}return path; }
 function read(path,secret=false) { safe(path);const st=lstatSync(path);if(!st.isFile()||st.size>262144)fail('host-bounded-file-required');if(secret&&process.platform!=='win32'&&(st.mode&0o077))fail('host-private-file-required');return JSON.parse(readFileSync(path,'utf8')); }
 function write(path,value) { safe(path);mkdirSync(dirname(path),{recursive:true,mode:0o700});writeFileSync(path,JSON.stringify(value)+'\n',{flag:'wx',mode:0o600}); }
@@ -55,14 +58,28 @@ export function createTeamHost(config, dependencies={}) {
  const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,...dependencies.integration};
  async function closeNative(transport){if(transport?.stopAndWait&&transport.owns_process!==false)await transport.stopAndWait();else transport?.close();}
  function getTeam(){const v=load();const t=v.state?.teams[team];if(!t)fail('team-not-found');return {v,t};}
+ // Other Hosts (participants of other harnesses) write the same authority. A
+ // locked or stale write recorded nothing, so its actor, epoch, time and expected
+ // revision are taken again from the current state and it is resent unchanged
+ // otherwise under the same request key; the reducer revalidates it. A lock held
+ // by a dead process still needs the owner's recovery; the budget then runs out.
  function mutate(type,fields,c,key=randomUUID()) {
-  const {v,t}=getTeam();const actor=authorizeActor(v.state,team,c);
-  const command={...fields,type,team,actor,incarnation:c.incarnation||null,epoch:fields.epoch??t.epoch,at:fields.at||now(),request_key:key};
-  // Stopping native work must not prevent recording its usage or withdrawing admission.
-  if(!['subscription-usage-v2','subscription-uncertain-v2','subscription-abort-v2','subscription-context-retire-v2'].includes(type))activeOperation?.annotate(command);
-  const result=(dependencies.mutate||mutateAuthority)(authorityRoot,{actor,key,expected_revision:v.revision,command},reduceTeamEvent,{authorize:s=>{if(authorizeActor(s,team,c)!==actor)fail('host-actor-changed');}});
-  if(result.result?.deferred)fail('host-command-deferred-no-external-dispatch');
-  return result;
+  const started=Date.now();
+  for(let attempt=0;;attempt++){
+   const {v,t}=getTeam();const actor=authorizeActor(v.state,team,c);
+   const command={...fields,type,team,actor,incarnation:c.incarnation||null,epoch:fields.epoch??t.epoch,at:fields.at||now(),request_key:key};
+   // Stopping native work must not prevent recording its usage or withdrawing admission.
+   if(!['subscription-usage-v2','subscription-uncertain-v2','subscription-abort-v2','subscription-context-retire-v2'].includes(type)){if(attempt===0)activeOperation?.annotate(command);else activeOperation?.assertActive();}
+   let result;
+   try{result=(dependencies.mutate||mutateAuthority)(authorityRoot,{actor,key,expected_revision:v.revision,command},reduceTeamEvent,{authorize:s=>{if(authorizeActor(s,team,c)!==actor)fail('host-actor-changed');}});}
+   catch(error){
+    const budget=activeOperation?.stopRequested?MUTATE_STOPPING_BUDGET_MS:MUTATE_RETRY_BUDGET_MS,pause=Math.min(200,10*(attempt+1))+Math.floor(Math.random()*25);
+    if(!['authority-locked','authority-stale-revision'].includes(error.code)||Date.now()-started+pause>budget)throw error;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,pause);continue;
+   }
+   if(result.result?.deferred)fail('host-command-deferred-no-external-dispatch');
+   return result;
+  }
  }
  function owner(){const c=credential(ownerCredential);const {v}=getTeam();if(!authorizeActor(v.state,team,c).startsWith('owner:'))fail('owner-required');return c;}
  function collector(){return credential(collectorPath);}

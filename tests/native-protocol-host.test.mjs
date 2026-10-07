@@ -95,3 +95,30 @@ test('a control call whose answer reached the authority in a partial receipt kee
  await assert.rejects(f.host.acknowledgeProtocolLeadership({actionId:'retry-action',nonce:'retry-action',estimateTokens:'40'}),/action-slot-already/);
  assert.equal(f.calls.filter(y=>y==='native-send').length,sends);assert.equal(f.load().state.teams.team.leader,null);
 });
+test('a Host write that loses a real race in the store is resent on the new revision under the same key; other refusals are not retried',async t=>{
+ const {authorizeActor}=await import('../scripts/team-state.mjs'),{createHash}=await import('node:crypto');
+ const f=await fixture(t,{registerHosts:true}),original=f.dependencies.mutate,ids=Object.keys(f.load().state.teams.team.participants),other=ids.find(id=>id!==f.participant);
+ let raced=false,captureKey=null;
+ f.dependencies.mutate=(path,request,...rest)=>{
+  if(!raced&&request.command.type==='subscription-context-capture-v2'){
+   raced=true;captureKey=request.key;
+   // Another participant's Host lands a write first, so the store itself refuses this request as stale.
+   const cred=JSON.parse(readFileSync(join(f.root,'participant-'+other.slice(-1)+'.json'),'utf8')),v=f.load(),actor=authorizeActor(v.state,'team',{...cred,token_hash:createHash('sha256').update(cred.token).digest('hex')});
+   original(path,{actor,key:'competitor',expected_revision:v.revision,command:{type:'send',team:'team',actor,incarnation:cred.incarnation,epoch:v.state.teams.team.epoch,at:new Date().toISOString(),request_key:'competitor',message_id:'competitor',to:f.participant,kind:'question',payload:{text:'meanwhile'}}},null,{authorize:()=>{}});
+  }
+  return original(path,request,...rest);
+ };
+ const result=await f.host.acknowledgeProtocolLeadership({actionId:'raced',nonce:'raced',estimateTokens:'40'});
+ assert.equal(result.leader_acknowledged,true,result.action_blocker);
+ const requests=f.load().requests,competitor=requests.findIndex(r=>r.key==='competitor'),mine=requests.filter(r=>r.key===captureKey);
+ assert.equal(mine.length,1,'the retried request landed exactly once');assert.ok(requests.indexOf(mine[0])>competitor,'after the competing write');
+ const g=await fixture(t),base=g.dependencies.mutate;let refused=0;g.dependencies.mutate=(path,request,...rest)=>{if(request.command.type==='subscription-context-capture-v2'){refused++;throw Object.assign(Error('subscription-current-context-required'),{code:'subscription-current-context-required'});}return base(path,request,...rest);};
+ await assert.rejects(g.host.acknowledgeProtocolLeadership({actionId:'refused',nonce:'refused',estimateTokens:'40'}),/subscription-current-context-required/);assert.equal(refused,1,'a real refusal is not retried');
+});
+test('a consume retried after a lost race leaves exactly one consumption in the owned closure',async t=>{
+ const f=await fixture(t),original=f.dependencies.mutate;let lost=false;
+ f.dependencies.mutate=(path,request,...rest)=>{if(!lost&&request.command.type==='subscription-consume-v2'){lost=true;throw Object.assign(Error('authority-stale-revision'),{code:'authority-stale-revision'});}return original(path,request,...rest);};
+ const result=await f.host.acknowledgeProtocolLeadership({actionId:'consume-race',nonce:'consume-race',estimateTokens:'40'});assert.equal(result.leader_acknowledged,true,result.action_blocker);
+ const runtime=join(f.hostDir,'runtime'),closed=readdirSync(runtime).filter(n=>n.endsWith('.closed.json')).map(n=>JSON.parse(readFileSync(join(runtime,n),'utf8')));
+ assert.equal(closed.flatMap(c=>c.consumptions).filter(x=>x.nonce==='consume-race').length,1);
+});

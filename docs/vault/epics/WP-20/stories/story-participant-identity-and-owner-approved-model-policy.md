@@ -294,3 +294,22 @@ the identity profile, no roles granted; the summary shows one coordinate sample
 operations other than bootstrap need `--participant` in the CLI; without it the
 Host now fails with `host-endpoint-file-missing-pass-participant` instead of a
 raw ENOENT. Not run live: a Claude control action, a full 24+24 cohort.
+
+### Host retry on authority contention (2026-10-06, Claude Code)
+
+A live two-member cohort (Claude + OpenCode qwen3.8-max low) ran six clean
+trials (Claude ≈2.2K, OpenCode ≈7.6K tokens each, 4–12 s) and was stopped by its
+timing guard: 96 sequential trials do not fit the 15-minute cohort window, and a
+second Host process would have lost writes because Host `mutate` never retried a
+lost race. It now resends a write refused with `authority-locked` or
+`authority-stale-revision` (nothing recorded) under the same request key, with
+actor, epoch, time and expected revision taken from the current state and the
+payload unchanged, within a 2.5 s total budget (0.5 s once a stop is requested),
+with jittered pauses, and rechecks the owned operation's stop latch on each
+retry; reducer refusals return at once. Review found the first version could
+freeze the event loop for 13.5 s per write; the budget fixes that. Tests: a
+competing participant write lands first through the real store, the Host's
+request is refused as stale by the store and lands exactly once after it; a
+real refusal is not retried; a consume retried after a lost race leaves one
+consumption in the owned closure; the 3c quota test now shows the retried
+exhaustion refused by the reducer as older than the winner's positive.

@@ -168,7 +168,9 @@ test('an exhaustion whose capture loses to a concurrent positive renewal is neve
  const {f}=await leasedFixture(t),other=f.hostFor(f.old),original=f.dependencies.mutate;let first=true;
  f.dependencies.observeNativeProtocolProviderQuota=async args=>{const mine=await positiveObserver(f,{status:'exhausted',id:'exhaustion-seen'})(args);if(first){first=false;await new Promise(resolve=>setTimeout(resolve,5));f.dependencies.observeNativeProtocolProviderQuota=positiveObserver(f,{id:'positive-winner'});await other.observeNativeProtocolQuota({sourceInvocationId:f.source});}return mine;};
  f.dependencies.mutate=(path,request,...rest)=>{if(request.command.type==='native-protocol-quota-capture-v2'){f.dependencies.mutate=original;throw Object.assign(Error('authority-stale-revision'),{code:'authority-stale-revision'});}return original(path,request,...rest);};
- await assert.rejects(f.ownerHost.maintainNativeQuotaLease(),{code:'authority-stale-revision'});
+ // The lost write is retried on the current state (Host contention retry); the reducer then refuses the
+ // exhaustion as older than the winner's positive, and that refusal surfaces instead of a silent success.
+ await assert.rejects(f.ownerHost.maintainNativeQuotaLease(),/account-observation-order-conflict/);
  assert.equal(leaseOf(f).proof.observation_id,'positive-winner');
 });
 test('a handover acknowledgement lost mid-call is reconciled from its owned closure, and the next drive applies the handover with a new attempt',async t=>{

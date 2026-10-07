@@ -886,6 +886,20 @@ transport reported known subscription billing and the observer returned an
 `available` proof. Live exhaustion and recovery are not demonstrated.
 Ordering across hosts relies on their clocks.
 
+### Concurrent Hosts
+
+Each participant's Host writes the same authority. The store serializes writes
+with a non-blocking lock and an expected revision, so a Host that loses a race
+gets `authority-locked` or `authority-stale-revision`, and nothing is recorded.
+The Host then resends it under the same request key, taking actor, epoch, time
+and expected revision from the current state and the payload unchanged, within
+a 2.5-second total budget (0.5 s once its operation was asked to stop), because
+the wait blocks the Host's event loop. The reducer revalidates each attempt, so
+a command that is no longer valid is refused by the reducer, not retried; any
+other refusal returns at once. A lock held by a dead process is not stolen: the
+budget runs out and the owner's lock recovery is needed. This is what lets
+participants of different harnesses run their Hosts at the same time.
+
 ### Addressed delivery for subscription v2 teams
 
 Under spec 2.13 as amended by the owner (2026-10-06), a protocol 2 team with

@@ -217,7 +217,7 @@ export function mutateAuthority(root, request, reducer, { host = hostname(), con
       if (completed.digest !== requestDigest) fail('authority-request-key-reused', { revision: current.revision });
       return { revision: completed.revision, result: structuredClone(completed.result), replayed: true };
     }
-    if (expected_revision !== current.revision) fail('authority-stale-revision', { revision: current.revision, refresh: 'read authority state and retry with a new request key' });
+    if (expected_revision !== current.revision) fail('authority-stale-revision', { revision: current.revision, refresh: 'read authority state and resend under the same request key' });
     if(command.type?.startsWith('native-model-inventory-')&&command.request_key!==key)fail('inventory-store-request-key-mismatch');
     if (validateNew) validateNew(structuredClone(current.state), structuredClone(command));
     // New timed transitions use the host clock; replay remains anchored to the
