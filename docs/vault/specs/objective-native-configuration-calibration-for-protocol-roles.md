@@ -566,3 +566,18 @@ fields, stale epoch, active or leaderless team, missing critic, quota freeze);
 deferral; a Host leader acknowledgement 20 minutes after calibration applying
 with a fresh per-action profile. Owner cancel of in-flight work belongs with
 slice 1, since protocol 2 has no work yet.
+
+Slice 1 increment 1 (2026-10-06, Claude Code): `scripts/team-native-work.mjs`
+with `native-work-enable-v2`, `native-work-manifest-v2` and
+`native-work-cancel-v2` (owner, deferred under a fence), one unfinished
+protocol 2 work at a time (a slice 1 restriction that sidesteps overlapping
+paths, dependent bases and parallel publication), protocol 1 rewrites guarded.
+Increment 1 review (fresh context, revise) and fixes: the manifest gate now
+re-selects coordinator and critic read-only at the command time (leases and
+admissions lapse without a new election) instead of trusting cached status; the
+protocol 1 rewrite guards apply only on protocol 2 teams, so a `protocol: 2` tag
+forged into legacy work changes nothing; Host manifest and cancel use random
+request keys with a state check for lost responses; Host checkout and
+candidate refuse protocol 2 work; commands have exact fields; manifests are
+bounded to 32 KiB; the work record pins policy revision, model revision and
+admitted identity of the worker; canonical token counts.

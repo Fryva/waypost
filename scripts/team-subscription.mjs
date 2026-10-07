@@ -2,6 +2,7 @@ import {assertNativeBillingQuotaEligible} from './team-native-quota.mjs';
 // Versioned local subscription token accounting. No native adapter or privilege is minted here.
 import { applyNativeProtocolControl,validateProtocolAction,consumeProtocolAction,sealProtocolAction,reconcileProtocolControl } from './team-native-action.mjs';
 import { routingDigest } from './model-routing.mjs';
+import { applyNativeWork } from './team-native-work.mjs';
 import { applyNativeDelivery,validateProtocolDelivery,consumeProtocolDelivery,settleProtocolDelivery } from './team-native-delivery.mjs';
 import { applyProtocolCalibration,validateProtocolMeasurement,consumeProtocolMeasurement,sealProtocolMeasurement } from './team-role-calibration.mjs';
 const fail = code => { throw new Error(code); };
@@ -68,6 +69,7 @@ export function applySubscriptionAccounting(s,t,c,now,H) {
  const control=applyNativeProtocolControl(s,t,c,now,H);if(control)return control;
  const calibration=applyProtocolCalibration(s,t,c,now,H);if(calibration)return calibration;
  const delivery=applyNativeDelivery(s,t,c,now,H);if(delivery)return delivery;
+ const work=applyNativeWork(s,t,c,now,H);if(work)return work;
  if (typeof c.type==='string' && c.type.endsWith('-v2')) {const advanced=applyInheritedNativeAccounting(s,t,c,now,H);if(advanced)return advanced;}
  if(!['subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','subscription-usage-v1','subscription-uncertain-v1','subscription-abort-v1'].includes(c.type))return null;
  bounded(c);let result;

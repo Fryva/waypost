@@ -914,6 +914,27 @@ acknowledgement can complete. The owner resumes it with `waypost team host
 the unchanged election again selects the incumbent with an independent critic.
 Epoch, leader, audits and slots stay as they were; nothing is granted.
 
+### Protocol 2 work: owner manifest, ceiling and cancel (slice 1, increment 1)
+
+The owner enables a work ceiling with `waypost team host <team> --operation
+native-work-enable --request-file <json>` (`native-work-enable-v2`: kind
+`protocol-work`, executor `leader-baseline` only — `calibrated-bounded-edit`
+refuses until an implementation calibration exists — `allow_unknown_quota`,
+attempt ceiling, timeout, expiry within the team policy, execution and review
+call and estimate ceilings, unit allocations pinned to their revision) and
+writes each work as a manifest (`native-work-manifest`, `native-work-manifest-v2`:
+goal, criteria with their digest, relative normalised paths without
+case-insensitive duplicates, base commit, forbidden actions). A manifest needs
+an active team under a current policy with an independent critic, no quota
+freeze or handover, no unresolved negative audit of the current leader
+acknowledgement, and no other unfinished protocol 2 work (one at a time in this
+slice). The acknowledged leader is recorded as the worker with the label
+`unqualified-strongest-baseline`. `native-work-cancel` cancels unfinished work in
+any team status unless a call for it is consumed or uncertain (reconcile it
+first). Protocol 1 rewrites (revoke, attest) leave protocol 2 work alone, and the
+owner events are deferred under a publication fence. Execution, review and
+publication follow in later increments.
+
 ### Concurrent Hosts
 
 Each participant's Host writes the same authority. The store serializes writes

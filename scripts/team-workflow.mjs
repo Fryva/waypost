@@ -108,7 +108,7 @@ export function applyWorkflow(s,t,c,now,H) {
   digest(c.output_digest);const changed=['provider','model_id','reasoning'].some(k=>model[k]!==p.model[k]);
   if(model.model_revision<p.model.model_revision || changed&&model.model_revision<=p.model.model_revision)fail('runtime-model-revision-required');
   p.model=model;p.native_id=c.native_id;p.identity_checked_at=c.at;r.captured=true;r.output_digest=c.output_digest;
-  if(changed){if(t.leader===p.id)t.status='handover';for(const w of Object.values(t.work)){w.reviews=[];if(w.worker===p.id&&!terminal(w))w.status='uncertain';}}
+  if(changed){if(t.leader===p.id)t.status='handover';for(const w of Object.values(t.work)){if(t.policy?.protocol===2&&w.protocol===2)continue;w.reviews=[];if(w.worker===p.id&&!terminal(w))w.status='uncertain';}}
   H.floor(t,c.at);H.propose(t,c.at);result={participant:p.id,model_revision:model.model_revision};
  }else if(c.type==='begin-handover-v1') {
   H.owner(s,c);if(t.status!=='handover' || !t.candidate)fail('no-handover-candidate');
@@ -145,6 +145,7 @@ export function applyWorkflow(s,t,c,now,H) {
   if(!w || w.status!=='assigned' || w.worker!==p.id || w.epoch!==t.epoch || c.epoch!==t.epoch || !w.routing || !x || x.team!==t.id || x.state!=='dispatching' || x.work_id!==w.id || x.grant_digest!==w.routing.grant_digest || x.epoch!==t.epoch || x.policy_revision!==t.policy.revision || w.model_revision!==p.model.model_revision)fail('bound-consumed-work-invocation-required');
   w.status='running';w.invocation_id=x.id;result={running:w.id,invocation:x.id};
  }else if(c.type==='material-capture-v1') {
+  if(t.policy?.protocol===2&&t.work?.[c.work_id]?.protocol===2)fail('protocol-2-work-requires-native-events');
   collector(s,t,c,'material');const w=work();if(w.epoch!==t.epoch || w.generation!==c.generation || c.epoch!==t.epoch || !['running','submitted'].includes(w.status))fail('invalid-material-capture');
   const e=bounded(c.evidence);if(e.base!==w.base || !Array.isArray(e.paths) || e.paths.some(p=>!w.paths.includes(p)) || !e.tree || !e.tests_digest)fail('candidate-scope-mismatch');
   digest(e.target_digest);digest(e.tests_digest);w.result=e;w.supervision=null;w.author_contexts=[...new Set([...(w.author_contexts||[]),...(Array.isArray(e.author_contexts)?e.author_contexts:[]),t.participants[w.worker].native_id].filter(Boolean))];w.reviews=[];w.status='submitted';result={work:w.id,target_digest:e.target_digest};

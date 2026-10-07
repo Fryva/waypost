@@ -197,6 +197,16 @@ export function createTeamHost(config, dependencies={}) {
     return mutate('native-model-inventory-attempt-v1',{participant_id:p.id,participant_incarnation:p.incarnation,descriptor_digest:routingDigest(d.descriptor),nonce,started_at:new Date(startedAt).toISOString(),blocker},c,'inventory-failure-'+nonce).result;
   }finally{if(transport)await closeNative(transport);}
  }
+ function enableNativeWork({revision,policy}={}){return mutate('native-work-enable-v2',{revision,policy},owner()).result;}
+ function installWorkManifest({workId,manifest}={}){
+  // A retried call after a lost response finds the manifest already recorded.
+  const w=getTeam().t.work?.[workId];if(w?.protocol===2&&w.manifest_digest)return {work:workId,manifest_digest:w.manifest_digest,unchanged:true,protected_actions_granted:false};
+  return mutate('native-work-manifest-v2',{work_id:workId,manifest},owner()).result;
+ }
+ function cancelNativeWork({workId,reason}={}){
+  const w=getTeam().t.work?.[workId];if(w?.protocol===2&&w.status==='cancelled')return {cancelled:workId,unchanged:true,protected_actions_granted:false};
+  return mutate('native-work-cancel-v2',{work_id:workId,reason},owner()).result;
+ }
  function resumeProtocolLeadership(){
   // A retried call after a lost response finds the team already resumed.
   const {t}=getTeam();if(t.status==='active'&&t.leader)return {resumed:false,already_active:true,leader:t.leader,epoch:t.epoch,protected_actions_granted:false};
@@ -635,11 +645,11 @@ export function createTeamHost(config, dependencies={}) {
  }
  function workRecord(workId){return record('work-'+portable(workId));}
  function checkout({workId}) {
-  owner();const {t}=getTeam(),w=t.work[workId];if(!w)fail('work-not-found');const file=workRecord(workId);if(existsSync(file))return read(file,true).checkout;
+  owner();const {t}=getTeam(),w=t.work[workId];if(!w)fail('work-not-found');if(w.protocol===2)fail('host-protocol-2-work-requires-native-operations');const file=workRecord(workId);if(existsSync(file))return read(file,true).checkout;
   const value=integration.createIntegrationCheckout({projectRoot,authorityDir:authorityRoot,teamId:team,workId,base:w.base});write(file,{protocol:1,team,work:workId,checkout:value});return value;
  }
  function candidate({workId}) {
-  owner();const c=collector(),{t}=getTeam(),w=t.work[workId];if(!w)fail('work-not-found');const x=read(workRecord(workId),true);
+  owner();const c=collector(),{t}=getTeam(),w=t.work[workId];if(!w)fail('work-not-found');if(w.protocol===2)fail('host-protocol-2-work-requires-native-operations');const x=read(workRecord(workId),true);
   const reconcile=cwd=>{
    if(!dispatcher)fail('host-dispatcher-required');
    const r=spawnSync(process.execPath,[resolve(dispatcher),'reconcile','--write'],{cwd,env:{...process.env,WAYPOST_PROJECT_DIR:cwd,WAYPOST_NO_BEAT:'1'},encoding:'utf8',timeout:30000,maxBuffer:1048576});
@@ -947,5 +957,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }
