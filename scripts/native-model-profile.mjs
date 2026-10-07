@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { verifyProtocolRoleSuite,formatProtocolTrial } from './team-role-suite.mjs';
+import { verifyImplementSuite,formatImplementTrial } from './team-implement-suite.mjs';
 import { readProtocolActionResponse,nativeProfileVersion } from './team-native-action.mjs';
 
 const minted = new WeakMap();
@@ -72,10 +73,12 @@ async function collectProfile({participant,observe,adapter_revision,requested_co
     sealedReceiptDigest=digest({invocation_id:result.invocation_id,native_id:result.native_id,usage_span:span,actualModel:result.actualModel,context_manifest:ctx,output});
     if(admission.output_digest!==digest(output)||admission.native_receipt_digest!==sealedReceiptDigest||admission.observed_at!==result.observed_at)fail('sealed-action-receipt-mismatch');
   }else{
-    verifyProtocolRoleSuite(suite);
+    // The bounded-edit suite measures role `implement`; its trials carry no role.
+    const implement=suite?.benchmark==='waypost-bounded-edit';
+    (implement?verifyImplementSuite:verifyProtocolRoleSuite)(suite);
     const trial=suite.trials.find(t=>t.id===trial_id);if(!trial)fail('measurement-trial-required');
     admission=boundedObject(result.admission,8192);measurement=boundedObject(admission.measurement,4096);
-    const expectedMeasurement={kind:'objective-role-trial',cohort_id:suite.cohort,role:trial.role,case_id:trial.id,profile_id:measurement.profile_id,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,prompt_digest:digest(formatProtocolTrial(suite,trial.id))};
+    const expectedMeasurement={kind:'objective-role-trial',cohort_id:suite.cohort,role:implement?'implement':trial.role,case_id:trial.id,profile_id:measurement.profile_id,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,prompt_digest:digest((implement?formatImplementTrial:formatProtocolTrial)(suite,trial.id))};
     if(digest(measurement)!==digest(expectedMeasurement)||!suite.profiles.includes(measurement.profile_id))fail('measurement-binding-mismatch');
     if(admission.purpose!=='calibration'||admission.state!=='settled'||admission.context_quarantined!==false||admission.billing_policy!=='inherited-native'||admission.nonce!==correlation.invocation_id||correlation.nonce!==correlation.invocation_id||admission.invocation_id!=='subscription-'+admission.nonce||admission.native_id!==result.native_id||Object.entries(binding).some(([key,value])=>admission[key]!==value))fail('settled-measurement-admission-required');
     const span=result.usage_span;

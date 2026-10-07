@@ -6,6 +6,8 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {replayAuthorityUncached} from '../scripts/team-store.mjs';
 import {reduceTeamEvent} from '../scripts/team-state.mjs';
+import {buildAuthenticatedCalibrationSummary} from '../scripts/team-role-calibration.mjs';
+import {compileCalibrationPolicyV2} from '../scripts/model-strength.mjs';
 
 // Authority logs recorded with the slice 1 reducer (6299a18) and with the slice 2
 // revision loop (7c263f7): every later reducer must replay them to the same state
@@ -21,4 +23,16 @@ for(const [slice,name,status,generation] of [['slice1','published','integrated',
  const v=replayAuthorityUncached(root,reducer);
  assert.equal(v.revision,readdirSync(join(root,'events')).length);
  assert.equal(v.state.teams.team.work['fix-sum'].status,status);assert.equal(v.state.teams.team.work['fix-sum'].generation,generation);
+});
+
+// The seeds hold the installed policy and the cohort with its captures, so the
+// replays above never open a cohort, capture, summarise or compile. Recompiling
+// the summary and policy from each seed pins those paths (and the protocol suite
+// digests) byte for byte.
+for(const [slice,name] of [['slice1','published'],['slice1','rejected-cancelled'],['slice2','revised-published']])test(`the ${slice} ${name} seed recompiles its installed policy unchanged`,()=>{
+ const seed=JSON.parse(gunzipSync(readFileSync(join(import.meta.dirname,'fixtures','native-'+slice+'-authority',name,'seed.json.gz'))).toString('utf8'));
+ const p=seed.teams.team.policy,now=Date.parse(p.generated_at);
+ const summary=buildAuthenticatedCalibrationSummary({teamId:'team',cohortId:p.provenance.cohort,loaded:{state:seed,revision:p.provenance.authority_revision},now});
+ const installed={...compileCalibrationPolicyV2(summary,{revision:p.revision,now}),mode:p.mode,activation:p.activation,activation_scope:p.activation_scope,installation:p.installation};
+ assert.ok(JSON.stringify(installed)===JSON.stringify(p),'recompiled policy differs from the installed one');
 });

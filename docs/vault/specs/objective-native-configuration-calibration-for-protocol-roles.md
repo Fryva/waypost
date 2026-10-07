@@ -944,3 +944,136 @@ ordinary configuration; `{"files":[]}` is a valid shape graded `empty-patch`,
 as in production; verify requires the buggy original and each wrong fix to
 evaluate cleanly and differ from the reference; `GRADING.use` is `gate-only`.
 The suite is not yet used by cohorts, policy or dispatch (later increments).
+
+### Slice 3 increment 2 plan: role `implement` in calibration cohorts (proposed, 2026-10-07)
+
+Goal: measure the installed `waypost-bounded-edit` suite through the Host like
+protocol trials and carry the verdict into the authenticated summary and the
+native policy as `calibration.implement`. No dispatch, assignment or execution
+right changes (contract 29 is the next increment); `rankParticipant(…,
+'implement')` keeps returning `null`.
+
+1. **Byte stability.** Every new key appears only when the cohort's `roles`
+   include `implement`. A cohort, summary, proposal and installed policy without
+   it are byte-identical to today, so the three golden authority logs replay
+   unchanged; the reducer recompiles the policy at `native-policy-install-v2`,
+   so a test recompiles each golden seed's policy byte for byte (see the critic
+   revision below).
+2. **Cohort.** `native-calibration-cohort-open-v2` accepts role `implement` and
+   two optional digests `implement_suite_digest` and `implement_criteria_digest`,
+   required exactly when `implement` is in `roles` and refused otherwise. They
+   pin `createImplementSuite({seed, cohort, profiles})` (same seed, id and
+   members as the protocol bundle); the protocol pair stays required even for an
+   `implement`-only cohort. One `bundleFor(cohort, role)` selects the bundle and
+   checks its pair; the Host computes the pair when it opens the cohort, as it
+   does for the protocol pair.
+3. **Measurement.** The kind stays `objective-role-trial` with the same eight
+   fields; for role `implement` `suite_digest`/`criteria_digest` are the
+   implement pair and the prompt is `formatImplementTrial`. Validation, consume,
+   seal, capture grading (`gradeImplementTrial`) and the slot key are otherwise
+   unchanged; the per-unit token budget and the single fresh native context per
+   call are shared with protocol trials. `reservation.suite_digest` must equal
+   the measurement's pair for its role. The native profile collector
+   (`native-model-profile.mjs`) verifies the bundle by its `benchmark`
+   (`verifyImplementSuite` or `verifyProtocolRoleSuite`) and checks the same
+   expected measurement; the execution scope stays read-only with no tools (the
+   suite claims no-tools edits only).
+4. **Sizes.** Implement prompts are up to 16 KiB and answers up to 8 KiB; the
+   seal already caps `original_output` at 8 KiB and admissions carry only the
+   prompt digest. An answer over 8 KiB is a terminal `failed` measurement (no
+   capture), the same as protocol trials; the trial then counts as missing, so
+   the role cannot qualify.
+5. **Summary.** `buildAuthenticatedCalibrationSummary` grades each role with its
+   own bundle (`summarizeImplementRole` for `implement`); the summary gains
+   top-level `implement_suite_digest` and `implement_criteria_digest` only for
+   an `implement` cohort. The Host's local `calibrationSummary` does the same.
+6. **Policy.** `compileCalibrationPolicyV2` adds, for an `implement` cohort:
+   `calibration.implement` (the role record or `null`); `scales.implement`
+   `{benchmark:'waypost-bounded-edit', revision:'1', cohort, suite_digest,
+   criteria_digest, confidence:'wilson-95', comparison:'gate-only',
+   eligible_profiles}`; `role_coverage.implement` `['waypost-bounded-edit']` for
+   a qualified current profile; `priorities.implement` stays `null` (owner
+   decision O-priority below: the suite gates and never ranks);
+   `provenance.implement_suite_digest/implement_criteria_digest`; and the
+   limitations sentence names the bounded no-tools edit claim instead of "no
+   implementation qualification". `validateNativePolicy` accepts exactly these
+   keys when the provenance carries the implement pair, checks the implement
+   record against `waypost-bounded-edit` r1 (its families, the extra
+   `safety_flag_counts` field, thresholds 22/24 and 5/6, no safety failure) and
+   otherwise keeps today's rule that implement priority is `null` and coverage
+   empty.
+7. **Not in this increment:** dispatch to an implementer (contract 29), the
+   contract 30 refusal outcome, read-only context paths in manifests, a live
+   cohort, and the cohort window problem (24 more trials per member make the
+   15-minute window tighter; parallel Hosts are a live-run concern).
+8. **Tests:** an implement cohort opens with the pair and refuses a missing or
+   foreign pair; a protocol-only cohort refuses the implement pair; a trial for
+   `implement` is admitted, consumed, sealed and captured with its grade; a
+   protocol trial carrying the implement pair (and the reverse) is refused; the
+   summary and the compiled and installed policy carry a qualified implement
+   gate from the reference answers and refuse a tampered implement record; a
+   safety-flagged answer disqualifies; golden replays and the existing cohort
+   and policy tests stay green.
+
+Critic revision of the increment 2 plan (fresh context, revise; 2026-10-07). It
+supersedes items 1-8 above where they differ:
+
+- **Byte stability is tested by recompiling.** The golden logs start from a seed
+  that already holds the installed policy and the cohort with its captures, so
+  they never run cohort open, capture, the summary or the compiler. A new test
+  rebuilds `buildAuthenticatedCalibrationSummary` and `compileCalibrationPolicyV2`
+  from each golden seed at the stored `authority_revision` and `generated_at`
+  and asserts byte equality with the stored policy (without the install fields);
+  this also pins the protocol suite's grading digest.
+- **The role comes from the bundle.** Implement trials carry no `role` field and
+  the suite stays untouched: `bundleFor(cohort, role)` selects the bundle and
+  the trial is found by id in it; the collector's expected measurement uses the
+  constant `implement` for the `waypost-bounded-edit` benchmark; the Host looks
+  the case id up in the bundle of each cohort role.
+- **Tests added:** a role/case swap (an implement measurement naming a protocol
+  case and the reverse) is refused; capture and summary regrade with the role's
+  own bundle; with an installed implement policy `rankParticipant(…,
+  'implement')` stays `null`, a calibrated-executor work enable still refuses
+  and coordinator, critic and review floor match the same cohort without
+  implement; the Host opens an implement cohort and runs an implement case; an
+  implement-only cohort cannot be installed; a changed enrollment shows
+  implement `current:false` and empty coverage; an 8,192-byte answer passes
+  seal, collector and capture.
+- **Validator details:** `safety_flag_counts` keys are a subset of the four
+  flags, values positive integers at most `safety_failures.length`, empty exactly
+  when there are none; the implement limitations sentence is fixed text;
+  `scales.implement.eligible_profiles` is derived from the implement coverage.
+- **Shapes freeze on first use.** Once a real authority log holds an implement
+  cohort, the suite module and every implement shape (summary keys, coverage,
+  limitations text, scale record) are replayed; later changes need a revision 2,
+  as with the slice 2 templates.
+- Out of scope, noted: Codex contexts report a read-only shell tool, so their
+  captures are refused after charging (already true for protocol roles); no
+  pre-run check that the unit allocation covers trials × members × estimate.
+
+Owner decisions (2026-10-07): **O-window** — when the cohort sets
+`calibration_expires_at`, its trial window (`expires_at`) may reach 2 hours
+instead of 15 minutes; one cohort still carries coordinate, review and
+implement. **O-priority** — `priorities.implement` stays `null`; the gate is
+`role_coverage.implement` (`['waypost-bounded-edit']`) plus
+`calibration.implement`, so the team.mjs priority rule is unchanged and only the
+coverage rule changes. **O-only** — an implement-only cohort is allowed as a
+diagnostic proposal; install already refuses it (no qualified coordinate and
+review), so no extra code.
+
+Slice 3 increment 2 implementation (2026-10-07, Claude Code): role `implement`
+in `team-role-calibration.mjs` (`bundleFor(cohort, role)`, `roleSuite`,
+`roleTrial`), the Host (cohort open computes the implement pair; a case is found
+in the bundle of its cohort role), the profile collector, the compiler and
+`validateNativePolicy` (exact implement limitations text
+`IMPLEMENT_POLICY_LIMITATIONS`). After a fresh-context review (revise, no
+behavioural bug): install-level test (same candidate, critic, review floor and
+ranks as without implement; implement-only refused; a safety-flagged and a
+changed-enrollment profile get empty coverage), and admission identity at
+install stays sourced from protocol captures only (an implement capture never
+becomes `native_admission.source_invocation`), so the gate changes nothing an
+installed policy grants. Open for the owner: whether an implement cohort must
+set `calibration_expires_at` (without it implement capture clocks shorten the
+summary expiry; 72 trials per member rarely fit 15 minutes anyway). Not done:
+a memo for suite rebuilds during summary and install replay (about 3.5 ms per
+capture; implement adds 24 captures per member).

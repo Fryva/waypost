@@ -9,7 +9,8 @@ import { reduceTeamEvent } from '../scripts/team-state.mjs';
 import { rankParticipant } from '../scripts/team.mjs';
 const legacy={protocol:1,revision:1,domain:'coding',mode:'automatic',generated_at:at,expires_at:expiry,sources:[{id:'fixture',url:'https://example.org/fixture',retrieved_at:at}],evidence_floor:['adapter-observed'],profiles:[]};
 let shared;
-async function fixture(){shared??=authorityFixture();const f=await shared;const s=structuredClone(f.state);Object.assign(s,{protocol:1,owner_hash:'fixture',task_bindings:{task:'team'}});Object.assign(s.teams.team,{task:'task',policy:legacy,messages:[],work:{},status:'forming',leader:null,candidate:null,required_review_models:[],native_policy_bootstrap:true});return {...f,state:s};}
+async function fixture(){shared??=authorityFixture();return prepare(await shared);}
+function prepare(f){const s=structuredClone(f.state);Object.assign(s,{protocol:1,owner_hash:'fixture',task_bindings:{task:'team'}});Object.assign(s.teams.team,{task:'task',policy:legacy,messages:[],work:{},status:'forming',leader:null,candidate:null,required_review_models:[],native_policy_bootstrap:true});return {...f,state:s};}
 const command=(fields={})=>({type:'native-policy-install-v2',team:'team',actor:'owner:fixture',at,request_key:'install',cohort_id:'cohort',expected_policy_revision:1,scope:'waypost-protocol',...fields});
 const install=f=>reduceTeamEvent(f.state,command(),{revision:f.revision});
 test('native install atomically compiles authenticated captures, admits identities and elects only a candidate',async()=>{
@@ -129,4 +130,22 @@ test('the owner resume refuses other actors, extra fields, a stale epoch, an act
 });
 test('a publication fence defers the owner resume',async()=>{
  const {state}=activeFlap(install(await fixture()).state);state.publication_fence={team:'team'};const r=resume(state);assert.equal(r.result.deferred,true);assert.equal(r.state.teams.team.status,'handover');
+});
+
+test('an implement gate measured in the same cohort leaves the election unchanged and cannot install alone',async()=>{
+ const base=install(await fixture()).state.teams.team;
+ // peer-c edits on a refusal-keyed trial (a safety failure); peer-d's enrollment changes before install.
+ const editOnRefusal=(name,trial)=>name==='c'&&trial.key_kind==='refusal'?JSON.stringify({files:[{path:trial.input.assigned[0].path,content:'changed\n'}]}):undefined;
+ const f=prepare(await authorityFixture({roles:['coordinate','review','implement'],implementAnswer:editOnRefusal}));f.state.teams.team.participants['peer-d'].model.model_revision=2;
+ const t=install(f).state.teams.team,rows=Object.fromEntries(t.policy.profiles.map(p=>[p.participant,p]));
+ assert.equal(t.candidate,base.candidate);assert.equal(t.review_candidate,base.review_candidate);assert.equal(t.review_floor,base.review_floor);
+ for(const id of ['peer-a','peer-b','peer-c'])for(const role of ['coordinate','review'])assert.equal(rankParticipant(t.participants[id],t.policy,role,{now,coverage:'waypost-protocol-'+role}),rankParticipant(base.participants[id],base.policy,role,{now,coverage:'waypost-protocol-'+role}),id+' '+role);
+ assert.deepEqual(rows['peer-a'].role_coverage.implement,['waypost-bounded-edit']);assert.deepEqual(rows['peer-b'].role_coverage.implement,['waypost-bounded-edit']);
+ assert.deepEqual(rows['peer-c'].role_coverage.implement,[]);assert.ok(rows['peer-c'].calibration.implement.safety_failures.length>0);assert.ok(rows['peer-c'].calibration.implement.safety_flag_counts['edit-on-refusal']>0);
+ assert.deepEqual(rows['peer-d'].role_coverage.implement,[]);assert.equal(rows['peer-d'].calibration.implement.current,false);
+ assert.deepEqual(t.policy.scales.implement.eligible_profiles,[rows['peer-a'].identity.profile_id,rows['peer-b'].identity.profile_id].sort());
+ assert.ok(Object.values(rows).every(p=>p.priorities.implement===null));
+ assert.ok(Object.values(t.participants).every(p=>!p.native_admission||!p.native_admission.source_invocation.includes('-implement-')));
+ assert.equal(rankParticipant(t.participants['peer-a'],t.policy,'implement',{now,coverage:'waypost-bounded-edit'}),null);
+ const only=prepare(await authorityFixture({roles:['implement']}));assert.throws(()=>install(only),/qualified-coordinate-and-review-required/);
 });

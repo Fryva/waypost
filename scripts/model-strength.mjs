@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { routingDigest } from "./model-routing.mjs";
 import { verifyAuthenticatedCalibrationSummary } from "./team-role-calibration.mjs";
+import { IMPLEMENT_POLICY_LIMITATIONS } from "./team.mjs";
 
 const DAY = 86400000;
 const DEFAULT_CONFIG = new URL("../models/strength-sources.json", import.meta.url);
@@ -308,12 +309,25 @@ export function compileCalibrationPolicyV2(authenticatedSummary, { revision = 1,
     }
     scales[role] = { benchmark:"waypost-protocol-roles",revision:"1",cohort:summary.cohort,suite_digest:summary.suite_digest,criteria_digest:summary.criteria_digest,confidence:"wilson-95",comparison:"strict-disjoint-interval-partial-order",eligible_profiles:rows.map(r=>r.profile_id).sort() };
   }
+  // A cohort with role `implement` adds a gate (never a rank) from the separate
+  // waypost-bounded-edit suite: coverage and the record, priority stays null.
+  const implement = summary.implement_suite_digest !== undefined, gated = new Set();
+  if (implement) {
+    for (const p of summary.profiles) {
+      const record = p.roles.find(r => r.role === "implement");
+      if (!record?.current || !record.qualification_candidate || !record.qualified) continue;
+      const interval = record.confidence;
+      if (record.cohort !== summary.cohort || record.suite_digest !== summary.implement_suite_digest || record.grading_digest !== summary.implement_criteria_digest || record.benchmark !== "waypost-bounded-edit" || record.revision !== "1" || record.coverage !== "waypost-bounded-edit" || interval?.method !== "wilson-95" || Date.parse(record.observed_at) > ms || Date.parse(record.expires_at) <= ms) throw new Error("calibration-policy-role-scale-or-clock-mismatch");
+      gated.add(p.identity.profile_id);
+    }
+    scales.implement = { benchmark:"waypost-bounded-edit",revision:"1",cohort:summary.cohort,suite_digest:summary.implement_suite_digest,criteria_digest:summary.implement_criteria_digest,confidence:"wilson-95",comparison:"gate-only",eligible_profiles:[...gated].sort() };
+  }
   const profiles = summary.profiles.map(p => {
-    const calibration = Object.fromEntries(roles.map(role=>[role,structuredClone(p.roles.find(r=>r.role===role) || null)]));
+    const calibration = Object.fromEntries((implement ? [...roles,"implement"] : roles).map(role=>[role,structuredClone(p.roles.find(r=>r.role===role) || null)]));
     const rank = Object.fromEntries([...roles,"implement"].map(role=>[role,priorities.get(p.identity.profile_id)?.[role] ?? null]));
-    return { identity:structuredClone(p.identity),participant:p.participant,incarnation:p.incarnation,model_revision:p.model_revision,descriptor_digest:p.descriptor_digest,priorities:rank,role_coverage:{coordinate:rank.coordinate===null?[]:["waypost-protocol-coordinate"],review:rank.review===null?[]:["waypost-protocol-review"],implement:[]},calibration };
+    return { identity:structuredClone(p.identity),participant:p.participant,incarnation:p.incarnation,model_revision:p.model_revision,descriptor_digest:p.descriptor_digest,priorities:rank,role_coverage:{coordinate:rank.coordinate===null?[]:["waypost-protocol-coordinate"],review:rank.review===null?[]:["waypost-protocol-review"],implement:gated.has(p.identity.profile_id)?["waypost-bounded-edit"]:[]},calibration };
   });
-  const proposal = { protocol:2,mode:"automatic-calibration-proposal",revision,generated_at:summary.generated_at,expires_at:summary.expires_at,provenance:{kind:"authenticated-calibration-summary",team:summary.team,cohort:summary.cohort,authority_revision:summary.authority_revision,suite_digest:summary.suite_digest,criteria_digest:summary.criteria_digest,captures_digest:summary.captures_digest,summary_digest:routingDigest(summary)},scales,profiles,activation:false,authority_granted:false,limitations:"Finite correlated protocol calibration only. Overlapping intervals are an uncertainty frontier, not proof of equal ability. No architecture, implementation, workspace-write or publication qualification; no stable hidden backend or invoice attestation." };
+  const proposal = { protocol:2,mode:"automatic-calibration-proposal",revision,generated_at:summary.generated_at,expires_at:summary.expires_at,provenance:{kind:"authenticated-calibration-summary",team:summary.team,cohort:summary.cohort,authority_revision:summary.authority_revision,suite_digest:summary.suite_digest,criteria_digest:summary.criteria_digest,...(implement?{implement_suite_digest:summary.implement_suite_digest,implement_criteria_digest:summary.implement_criteria_digest}:{}),captures_digest:summary.captures_digest,summary_digest:routingDigest(summary)},scales,profiles,activation:false,authority_granted:false,limitations:implement?IMPLEMENT_POLICY_LIMITATIONS:"Finite correlated protocol calibration only. Overlapping intervals are an uncertainty frontier, not proof of equal ability. No architecture, implementation, workspace-write or publication qualification; no stable hidden backend or invoice attestation." };
   function freeze(value) { if (value && typeof value === "object") { for (const child of Object.values(value)) freeze(child); Object.freeze(value); } return value; }
   return freeze(proposal);
 }

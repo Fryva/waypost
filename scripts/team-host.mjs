@@ -7,7 +7,9 @@ import { readAuthority, mutateAuthority } from './team-store.mjs';
 import { reduceTeamEvent, authorizeActor } from './team-state.mjs';
 import { validateBillingObservation } from './team-subscription.mjs';
 import { routingDigest } from './model-routing.mjs';
-import { createProtocolRoleSuite, formatProtocolTrial, summarizeProtocolRole } from './team-role-suite.mjs';
+import { createProtocolRoleSuite } from './team-role-suite.mjs';
+import { createImplementSuite } from './team-implement-suite.mjs';
+import { roleSuite, roleTrial, bundleFor } from './team-role-calibration.mjs';
 import { createRoutingGrant, serializeRoutingGrant } from './team-evidence.mjs';
 import { collectQuotaObservation, serializeQuotaObservation, quotaEligible } from './team-quota.mjs';
 import { collectNativeProtocolQuota, serializeNativeProtocolQuota, renewNativeQuotaLease } from './team-native-quota.mjs';
@@ -126,11 +128,6 @@ export function createTeamHost(config, dependencies={}) {
  async function subscriptionBootstrap({nonce,estimateTokens='16000',maxTokens='20000',operationId=null}={}) {
   return subscriptionSingleCall({nonce,estimateTokens,maxTokens,operationId});
  }
- function calibrationBundle(cohort) {
-  const suite=createProtocolRoleSuite({seed:cohort.seed,cohort:cohort.id,profiles:cohort.members.map(m=>m.profile_id)});
-  if(suite.suite_digest!==cohort.suite_digest||suite.grading_digest!==cohort.criteria_digest)fail('host-calibration-installed-suite-changed');
-  return suite;
- }
  function calibrationCohort(cohortId) {
   const {t}=getTeam();
   if(typeof cohortId!=='string'||!Object.hasOwn(t.native_calibration_cohorts||{},cohortId))fail('host-calibration-opened-cohort-required');
@@ -138,28 +135,29 @@ export function createTeamHost(config, dependencies={}) {
  }
  function openCalibrationCohort(request) {
   if(!request||typeof request!=='object'||Array.isArray(request)||Buffer.byteLength(JSON.stringify(request))>32768||Object.keys(request).some(k=>!['id','seed','members','roles','unit_allocations','expires_at','calibration_expires_at'].includes(k)))fail('host-calibration-bounded-cohort-required');
-  const suite=createProtocolRoleSuite({seed:request.seed,cohort:request.id,profiles:request.members?.map(m=>m.profile_id)});
-  return mutate('native-calibration-cohort-open-v2',{cohort:{...request,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest}},owner()).result;
+  const profiles=request.members?.map(m=>m.profile_id),suite=createProtocolRoleSuite({seed:request.seed,cohort:request.id,profiles});
+  const implement=Array.isArray(request.roles)&&request.roles.includes('implement')?createImplementSuite({seed:request.seed,cohort:request.id,profiles}):null;
+  return mutate('native-calibration-cohort-open-v2',{cohort:{...request,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,...(implement?{implement_suite_digest:implement.suite_digest,implement_criteria_digest:implement.grading_digest}:{})}},owner()).result;
  }
  async function subscriptionCalibrationTrial({cohortId,caseId,nonce,estimateTokens='16000',operationId=null}={}) {
-  const cohort=calibrationCohort(cohortId),suite=calibrationBundle(cohort),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
+  const cohort=calibrationCohort(cohortId),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   const member=cohort.members.find(m=>m.participant===p.id&&m.incarnation===p.incarnation&&m.model_revision===p.model.model_revision&&m.descriptor_digest===routingDigest(d.descriptor));
   if(!member)fail('host-calibration-current-member-required');
-  const trial=suite.trials.find(x=>x.id===caseId&&cohort.roles.includes(x.role));if(!trial)fail('host-calibration-installed-case-required');
+  const role=cohort.roles.find(r=>roleTrial(bundleFor(cohort,r),r,caseId)),suite=role&&bundleFor(cohort,role),trial=role&&roleTrial(suite,role,caseId);if(!trial)fail('host-calibration-installed-case-required');
   if(Date.parse(cohort.expires_at)<=Date.parse(now()))fail('host-calibration-cohort-expired');
-  const prompt=formatProtocolTrial(suite,trial.id);
-  const measurement={kind:'objective-role-trial',cohort_id:cohort.id,role:trial.role,case_id:trial.id,profile_id:member.profile_id,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,prompt_digest:routingDigest(prompt)};
-  const slot=routingDigest({profile:member.profile_id,role:trial.role,case:trial.id});
+  const prompt=roleSuite(role).format(suite,trial.id);
+  const measurement={kind:'objective-role-trial',cohort_id:cohort.id,role,case_id:trial.id,profile_id:member.profile_id,suite_digest:suite.suite_digest,criteria_digest:suite.grading_digest,prompt_digest:routingDigest(prompt)};
+  const slot=routingDigest({profile:member.profile_id,role,case:trial.id});
   if(cohort.slots?.[slot]||Object.values(load().state.subscription_invocations||{}).some(x=>x.team===team&&x.state!=='aborted'&&x.measurement?.cohort_id===cohort.id&&x.measurement.profile_id===member.profile_id&&x.measurement.case_id===trial.id))fail('host-calibration-trial-slot-already-recorded-no-replay');
   return subscriptionSingleCall({nonce,estimateTokens,operationId,trialBinding:{cohort,suite,trial,member,measurement,prompt}});
  }
  function calibrationSummary({cohortId}={}) {
-  const cohort=calibrationCohort(cohortId),suite=calibrationBundle(cohort),{t}=getTeam(),at=Date.parse(now());
+  const cohort=calibrationCohort(cohortId),{t}=getTeam(),at=Date.parse(now());
   const profiles=cohort.members.map(member=>{
    const p=t.participants[member.participant],current=p&&!p.revoked&&p.availability!=='left'&&p.incarnation===member.incarnation&&p.model?.model_revision===member.model_revision&&p.native_binding?.descriptor_digest===member.descriptor_digest;
    return {profile_id:member.profile_id,participant:member.participant,roles:cohort.roles.map(role=>{
     const captures=Object.values(cohort.captures||{}).filter(c=>c.measurement.profile_id===member.profile_id&&c.measurement.role===role);
-    const summary=summarizeProtocolRole(suite,role,captures.map(c=>({trial_id:c.measurement.case_id,raw_answer:c.original_output})));
+    const summary=roleSuite(role).summarize(bundleFor(cohort,role),role,captures.map(c=>({trial_id:c.measurement.case_id,raw_answer:c.original_output})));
     const fresh=current&&(cohort.calibration_expires_at!==undefined?at<Date.parse(cohort.calibration_expires_at):at<Date.parse(cohort.expires_at)&&captures.every(c=>at<Date.parse(c.expires_at)));
     return {...summary,current:fresh,qualification_candidate:fresh&&summary.qualified,authority_granted:false};
    })};

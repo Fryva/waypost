@@ -2,6 +2,7 @@
 // importer, policy activation or execution/review privilege is installed here.
 import { routingDigest } from './model-routing.mjs';
 import { createProtocolRoleSuite,formatProtocolTrial,gradeProtocolTrial,summarizeProtocolRole } from './team-role-suite.mjs';
+import { createImplementSuite,formatImplementTrial,gradeImplementTrial,summarizeImplementRole } from './team-implement-suite.mjs';
 const fail=code=>{throw new Error('calibration-'+code);};
 const same=(a,b)=>a===undefined||b===undefined?a===b:routingDigest(a)===routingDigest(b);
 const id=v=>{if(typeof v!=='string'||! /^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/.test(v))fail('id-required');return v;};
@@ -10,8 +11,14 @@ const integer=v=>{if(typeof v!=='string'||! /^(0|[1-9][0-9]{0,17})$/.test(v))fai
 function object(v,allowed,max=32768){if(!v||typeof v!=='object'||Array.isArray(v)||Buffer.byteLength(JSON.stringify(v))>max||Object.keys(v).some(k=>!allowed.includes(k)))fail('bounded-fields-required');return structuredClone(v);}
 function memberParticipant(t,m){const p=t.participants?.[m.participant];if(!p||p.revoked||p.availability==='left'||p.incarnation!==m.incarnation||p.model?.model_revision!==m.model_revision||p.native_binding?.descriptor_digest!==m.descriptor_digest)fail('member-binding-required');return p;}
 const measurementFields=['kind','cohort_id','role','case_id','profile_id','suite_digest','criteria_digest','prompt_digest'];
-function bundleFor(cohort){const bundle=createProtocolRoleSuite({seed:cohort.seed,cohort:cohort.id,profiles:cohort.members.map(m=>m.profile_id)});if(bundle.suite_digest!==cohort.suite_digest||bundle.grading_digest!==cohort.criteria_digest)fail('installed-suite-binding');return bundle;}
-function locate(t,measurement){const cohort=Object.hasOwn(t.native_calibration_cohorts||{},measurement.cohort_id)?t.native_calibration_cohorts[measurement.cohort_id]:null;if(!cohort)fail('opened-cohort-required');const member=cohort.members.find(m=>m.profile_id===measurement.profile_id);if(!member)fail('cohort-profile-required');return {cohort,member,bundle:bundleFor(cohort)};}
+// Role `implement` is measured by the separate waypost-bounded-edit suite, pinned
+// by its own digest pair; its trials carry no role field (slice 3 increment 2).
+const IMPLEMENT='implement';
+const pairOf=(cohort,role)=>role===IMPLEMENT?[cohort.implement_suite_digest,cohort.implement_criteria_digest]:[cohort.suite_digest,cohort.criteria_digest];
+export const roleSuite=role=>role===IMPLEMENT?{create:createImplementSuite,format:formatImplementTrial,grade:gradeImplementTrial,summarize:summarizeImplementRole}:{create:createProtocolRoleSuite,format:formatProtocolTrial,grade:gradeProtocolTrial,summarize:summarizeProtocolRole};
+export const roleTrial=(bundle,role,caseId)=>bundle.trials.find(x=>x.id===caseId&&(x.role??IMPLEMENT)===role)||null;
+export function bundleFor(cohort,role='coordinate'){if(role===IMPLEMENT&&!cohort.roles.includes(IMPLEMENT))fail('installed-suite-binding');const bundle=roleSuite(role).create({seed:cohort.seed,cohort:cohort.id,profiles:cohort.members.map(m=>m.profile_id)}),[suite,criteria]=pairOf(cohort,role);if(bundle.suite_digest!==suite||bundle.grading_digest!==criteria)fail('installed-suite-binding');return bundle;}
+function locate(t,measurement){const cohort=Object.hasOwn(t.native_calibration_cohorts||{},measurement.cohort_id)?t.native_calibration_cohorts[measurement.cohort_id]:null;if(!cohort)fail('opened-cohort-required');const member=cohort.members.find(m=>m.profile_id===measurement.profile_id);if(!member)fail('cohort-profile-required');if(!cohort.roles.includes(measurement.role))fail('trial-member-or-suite-binding');return {cohort,member,bundle:bundleFor(cohort,measurement.role)};}
 const slotKey=m=>routingDigest({profile:m.profile_id,role:m.role,case:m.case_id});
 function freshNativeContext(s,context,excluding=null){
  if(Object.values(s.subscription_invocations||{}).some(x=>x.id!==excluding&&['consumed','uncertain','settled','reconciled'].includes(x.state)&&x.collector===context.collector&&x.context?.native_id===context.native_id))fail('single-call-fresh-native-context-required');
@@ -23,8 +30,8 @@ export function validateProtocolMeasurement(s,t,reservation,participant,context,
  const m=object(reservation.measurement,measurementFields,8192);if(m.kind!=='objective-role-trial'||reservation.purpose!=='calibration')fail('typed-trial-required');
  for(const key of ['cohort_id','case_id','profile_id'])id(m[key]);for(const key of ['suite_digest','criteria_digest','prompt_digest'])digest(m[key]);
  const {cohort,member,bundle}=locate(t,m);memberParticipant(t,member);
- if(member.participant!==participant.id||member.incarnation!==reservation.incarnation||member.descriptor_digest!==context.descriptor_digest||!cohort.roles.includes(m.role)||m.suite_digest!==cohort.suite_digest||reservation.suite_digest!==cohort.suite_digest||m.criteria_digest!==cohort.criteria_digest)fail('trial-member-or-suite-binding');
- const trial=bundle.trials.find(x=>x.id===m.case_id&&x.role===m.role);if(!trial||m.prompt_digest!==routingDigest(formatProtocolTrial(bundle,trial.id)))fail('installed-prompt-binding');
+ if(member.participant!==participant.id||member.incarnation!==reservation.incarnation||member.descriptor_digest!==context.descriptor_digest||m.suite_digest!==bundle.suite_digest||reservation.suite_digest!==bundle.suite_digest||m.criteria_digest!==bundle.grading_digest)fail('trial-member-or-suite-binding');
+ const trial=roleTrial(bundle,m.role,m.case_id);if(!trial||m.prompt_digest!==routingDigest(roleSuite(m.role).format(bundle,trial.id)))fail('installed-prompt-binding');
  if(Date.parse(cohort.expires_at)<=now)fail('current-cohort-required');
  if(cohort.slots?.[slotKey(m)]||Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&x.state!=='aborted'&&x.measurement&&x.measurement.cohort_id===m.cohort_id&&slotKey(x.measurement)===slotKey(m)))fail('trial-slot-already-reserved-or-consumed');
  freshNativeContext(s,context);
@@ -63,18 +70,20 @@ export function applyProtocolCalibration(s,t,c,now,H){
  if(c.type==='native-calibration-cohort-open-v2'){
   H.owner(s,c);
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('inherited-native-mode-required');
-  const cohort=object(c.cohort,['id','seed','members','roles','unit_allocations','suite_digest','criteria_digest','expires_at','calibration_expires_at']);id(cohort.id);id(cohort.seed);digest(cohort.suite_digest);digest(cohort.criteria_digest);
-  if(!Array.isArray(cohort.members)||!cohort.members.length||cohort.members.length>128||!Array.isArray(cohort.roles)||!cohort.roles.length||new Set(cohort.roles).size!==cohort.roles.length||cohort.roles.some(r=>!['coordinate','review'].includes(r)))fail('fixed-membership-required');
+  const cohort=object(c.cohort,['id','seed','members','roles','unit_allocations','suite_digest','criteria_digest','implement_suite_digest','implement_criteria_digest','expires_at','calibration_expires_at']);id(cohort.id);id(cohort.seed);digest(cohort.suite_digest);digest(cohort.criteria_digest);
+  if(!Array.isArray(cohort.members)||!cohort.members.length||cohort.members.length>128||!Array.isArray(cohort.roles)||!cohort.roles.length||new Set(cohort.roles).size!==cohort.roles.length||cohort.roles.some(r=>!['coordinate','review',IMPLEMENT].includes(r)))fail('fixed-membership-required');
+  if(cohort.roles.includes(IMPLEMENT)){digest(cohort.implement_suite_digest);digest(cohort.implement_criteria_digest);}else if(cohort.implement_suite_digest!==undefined||cohort.implement_criteria_digest!==undefined)fail('implement-suite-binding-unexpected');
   for(const m of cohort.members){object(m,['participant','incarnation','model_revision','descriptor_digest','profile_id']);id(m.participant);id(m.incarnation);id(m.profile_id);digest(m.descriptor_digest);if(!Number.isSafeInteger(m.model_revision)||m.model_revision<1)fail('member-revision-required');memberParticipant(t,m);}
   if(new Set(cohort.members.map(m=>m.profile_id)).size!==cohort.members.length)fail('unique-profiles-required');
   if(!Array.isArray(cohort.unit_allocations)||!cohort.unit_allocations.length||cohort.unit_allocations.length>128||new Set(cohort.unit_allocations.map(u=>u.unit_digest)).size!==cohort.unit_allocations.length)fail('unit-allocations-required');
   for(const u of cohort.unit_allocations){object(u,['unit_digest','max_tokens','allocation_revision']);digest(u.unit_digest);const allocation=s.subscription_allocations?.[u.unit_digest];if(allocation?.protocol!==2||allocation.unit_scope.team!==t.id||u.allocation_revision!==allocation.revision||integer(u.max_tokens)>integer(allocation.max_tokens))fail('existing-unit-allocation-required');}
-  if(!Number.isFinite(Date.parse(cohort.expires_at))||Date.parse(cohort.expires_at)<=now||Date.parse(cohort.expires_at)-now>900000)fail('cohort-expiry-required');
+  if(!Number.isFinite(Date.parse(cohort.expires_at))||Date.parse(cohort.expires_at)<=now||Date.parse(cohort.expires_at)-now>(cohort.calibration_expires_at===undefined?900000:7200000))fail('cohort-expiry-required');
   // Owner-set calibration validity (owner decision 2026-10-06): measured capability
   // stays valid until this time (at most 7 days); identity is proven per action.
-  // Strict ISO-8601 (the admission and rank clocks accept only that form).
+  // Strict ISO-8601 (the admission and rank clocks accept only that form). With it
+  // set, the trial window may reach 2 hours instead of 15 minutes (owner, 2026-10-07).
   if(cohort.calibration_expires_at!==undefined&&(typeof cohort.calibration_expires_at!=='string'||!Number.isFinite(Date.parse(cohort.calibration_expires_at))||new Date(Date.parse(cohort.calibration_expires_at)).toISOString()!==cohort.calibration_expires_at||Date.parse(cohort.calibration_expires_at)<=Date.parse(cohort.expires_at)||Date.parse(cohort.calibration_expires_at)-now>604800000))fail('cohort-validity-required');
-  bundleFor(cohort);
+  bundleFor(cohort);if(cohort.roles.includes(IMPLEMENT))bundleFor(cohort,IMPLEMENT);
   const old=Object.hasOwn(t.native_calibration_cohorts||{},cohort.id)?t.native_calibration_cohorts[cohort.id]:null;if(old){if(!same(old.configuration,cohort))fail('cohort-immutable');return {handled:true,result:{cohort:cohort.id,unchanged:true}};}
   t.native_calibration_cohorts||={};t.native_calibration_cohorts[cohort.id]={...cohort,configuration:structuredClone(cohort),opened_at:c.at,slots:{},captures:{}};result={cohort:cohort.id,roles_granted:false};
  }else{
@@ -93,7 +102,7 @@ export function applyProtocolCalibration(s,t,c,now,H){
   id(profile.observation_id);const measured=Date.parse(profile.observed_at),expiry=Date.parse(profile.expires_at);
   if(!Number.isFinite(expiry)||expiry<=measured||expiry-measured>900000||Date.parse(capture.expires_at)!==Math.min(expiry,Date.parse(cohort.expires_at)))fail('original-profile-clock-required');
   const slot=cohort.slots[slotKey(x.measurement)];if(slot?.invocation_id!==x.id)fail('consumed-trial-slot-required');
-  const stored={...capture,invocation_id:x.id,nonce:x.nonce,collector:x.collector,settled_at:x.settled_at,grade:gradeProtocolTrial(bundle,x.measurement.case_id,capture.original_output)};
+  const stored={...capture,invocation_id:x.id,nonce:x.nonce,collector:x.collector,settled_at:x.settled_at,grade:roleSuite(x.measurement.role).grade(bundle,x.measurement.case_id,capture.original_output)};
   const old=cohort.captures[slotKey(x.measurement)];if(old){if(!same(old,stored))fail('capture-immutable');return {handled:true,result:{captured:x.id,unchanged:true}};}
   cohort.captures[slotKey(x.measurement)]=stored;result={captured:x.id,pass:stored.grade.pass,roles_granted:false};
  }
@@ -115,7 +124,7 @@ export function buildAuthenticatedCalibrationSummary({teamId,cohortId,loaded,now
  if(!Number.isSafeInteger(loaded?.revision)||loaded.revision<0||!loaded.state||Buffer.byteLength(JSON.stringify(loaded.state))>33554432)fail('bounded-authority-snapshot-required');
  const s=structuredClone(loaded.state),t=s.teams?.[teamId],cohort=t&&Object.hasOwn(t.native_calibration_cohorts||{},cohortId)?t.native_calibration_cohorts[cohortId]:null;
  if(!cohort||t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('opened-native-cohort-required');
- const bundle=bundleFor(cohort),captures=Object.entries(cohort.captures||{}).sort(([a],[b])=>a.localeCompare(b));
+ const bundles={},bundle=role=>bundles[role===IMPLEMENT?role:"protocol"]??=bundleFor(cohort,role),captures=Object.entries(cohort.captures||{}).sort(([a],[b])=>a.localeCompare(b));
  const captureFields=['measurement','original_output','output_digest','native_receipt_digest','native_id','context_id','turn_id','incarnation','descriptor_digest','observed_at','expires_at','observation_id','profile_digest','profile_snapshot_digest','context_snapshot_digest','native_profile'];
  const profiles=cohort.members.map(member=>{
   const p=t.participants[member.participant],registered=s.collectors?.[p?.native_binding?.collector_id];
@@ -123,7 +132,7 @@ export function buildAuthenticatedCalibrationSummary({teamId,cohortId,loaded,now
   const rows=captures.filter(([,c])=>c.measurement?.profile_id===member.profile_id);
   for(const [slot,c] of rows){
    const x=s.subscription_invocations?.[c.invocation_id];
-   if(slot!==slotKey(c.measurement)||x?.team!==teamId||x.state!=='settled'||x.measurement_seal?.outcome!=='completed'||x.charged_tokens==='0'||!same(x.measurement,c.measurement)||x.measurement_seal.original_output!==c.original_output||routingDigest(c.original_output)!==c.output_digest||x.measurement_seal.native_receipt_digest!==c.native_receipt_digest||!same(gradeProtocolTrial(bundle,c.measurement.case_id,c.original_output),c.grade))fail('authenticated-capture-snapshot-required');
+   if(slot!==slotKey(c.measurement)||x?.team!==teamId||x.state!=='settled'||x.measurement_seal?.outcome!=='completed'||x.charged_tokens==='0'||!same(x.measurement,c.measurement)||x.measurement_seal.original_output!==c.original_output||routingDigest(c.original_output)!==c.output_digest||x.measurement_seal.native_receipt_digest!==c.native_receipt_digest||!same(roleSuite(c.measurement.role).grade(bundle(c.measurement.role),c.measurement.case_id,c.original_output),c.grade))fail('authenticated-capture-snapshot-required');
    const sealedAt=Date.parse(x.measurement_seal.sealed_at),receipt=x.receipt;
    if(!Number.isFinite(sealedAt)||sealedAt>at||Date.parse(x.settled_at)!==sealedAt||c.settled_at!==x.settled_at||receipt?.coverage!=='complete'||x.charged_tokens!==receipt.actual_tokens||integer(receipt.after)-integer(receipt.before)!==integer(x.charged_tokens)||integer(x.charged_tokens)<=0n)fail('original-settled-accounting-required');
    // Replay at the recorded settlement clock, never at a fabricated fresh one.
@@ -136,7 +145,7 @@ export function buildAuthenticatedCalibrationSummary({teamId,cohortId,loaded,now
    }
   }
   const roles=cohort.roles.map(role=>{
-   const completed=rows.map(([,c])=>c).filter(c=>c.measurement.role===role),verdict=summarizeProtocolRole(bundle,role,completed.map(c=>({trial_id:c.measurement.case_id,raw_answer:c.original_output})));
+   const completed=rows.map(([,c])=>c).filter(c=>c.measurement.role===role),verdict=roleSuite(role).summarize(bundle(role),role,completed.map(c=>({trial_id:c.measurement.case_id,raw_answer:c.original_output})));
    const observed=completed.length?Math.min(...completed.map(c=>Date.parse(c.observed_at))):Date.parse(cohort.opened_at);
    const validity=cohort.calibration_expires_at===undefined?null:Date.parse(cohort.calibration_expires_at);
    const expiry=validity??Math.min(Date.parse(cohort.expires_at),...completed.map(c=>Date.parse(c.expires_at)));
@@ -148,7 +157,7 @@ export function buildAuthenticatedCalibrationSummary({teamId,cohortId,loaded,now
   return {identity:{kind:'native-configuration',profile_id:member.profile_id,profile_digest:profileDigest,profile_revision:1},participant:member.participant,incarnation:member.incarnation,model_revision:member.model_revision,descriptor_digest:member.descriptor_digest,roles};
  });
  const expires=cohort.calibration_expires_at!==undefined?Date.parse(cohort.calibration_expires_at):Math.min(Date.parse(cohort.expires_at),...profiles.flatMap(p=>p.roles.map(r=>Date.parse(r.expires_at))));
- const summary=immutable({protocol:2,team:teamId,cohort:cohortId,authority_revision:loaded.revision,suite_digest:cohort.suite_digest,criteria_digest:cohort.criteria_digest,captures_digest:routingDigest(captures),generated_at:new Date(at).toISOString(),expires_at:new Date(expires).toISOString(),profiles,authority_granted:false});
+ const summary=immutable({protocol:2,team:teamId,cohort:cohortId,authority_revision:loaded.revision,suite_digest:cohort.suite_digest,criteria_digest:cohort.criteria_digest,...(cohort.roles.includes(IMPLEMENT)?{implement_suite_digest:cohort.implement_suite_digest,implement_criteria_digest:cohort.implement_criteria_digest}:{}),captures_digest:routingDigest(captures),generated_at:new Date(at).toISOString(),expires_at:new Date(expires).toISOString(),profiles,authority_granted:false});
  authenticatedSummaries.set(summary,{digest:routingDigest(summary),expires});return summary;
 }
 export function verifyAuthenticatedCalibrationSummary(summary,{now=Date.now}={}){

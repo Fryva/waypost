@@ -111,7 +111,8 @@ function installNativePolicy(s,t,c,authority,now){
   for(const row of policy.profiles){
     const p=t.participants[row.participant];
     if(!p||p.revoked||p.availability==='left'||p.incarnation!==row.incarnation||p.model.model_revision!==row.model_revision||p.native_binding?.descriptor_digest!==row.descriptor_digest)continue;
-    const capture=captures.filter(x=>x.measurement.profile_id===row.identity.profile_id&&s.subscription_invocations[x.invocation_id]?.participant===p.id&&x.incarnation===p.incarnation&&x.descriptor_digest===row.descriptor_digest&&x.collector==='collector:'+p.native_binding.collector_id).sort((a,b)=>Date.parse(b.observed_at)-Date.parse(a.observed_at)||a.invocation_id.localeCompare(b.invocation_id))[0];
+    // Admission identity stays sourced from protocol trials; the implement gate grants nothing here.
+    const capture=captures.filter(x=>x.measurement.role!=='implement'&&x.measurement.profile_id===row.identity.profile_id&&s.subscription_invocations[x.invocation_id]?.participant===p.id&&x.incarnation===p.incarnation&&x.descriptor_digest===row.descriptor_digest&&x.collector==='collector:'+p.native_binding.collector_id).sort((a,b)=>Date.parse(b.observed_at)-Date.parse(a.observed_at)||a.invocation_id.localeCompare(b.invocation_id))[0];
     if(!capture||now>=Date.parse(validity??capture.expires_at))continue;
     admissions[p.id]={protocol:2,identity:clone(row.identity),observation_id:capture.observation_id,participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:row.descriptor_digest,collector:p.native_binding.collector_id,source_invocation:capture.invocation_id,observed_at:capture.observed_at,expires_at:validity??capture.expires_at};
   }

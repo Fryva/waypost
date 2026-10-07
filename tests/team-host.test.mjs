@@ -8,6 +8,8 @@ import { reduceTeamEvent } from '../scripts/team-state.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
 import { createProtocolRoleSuite,formatProtocolTrial } from '../scripts/team-role-suite.mjs';
 import { createTeamHost, validateBoundedUsageReceipt } from '../scripts/team-host.mjs';
+import { createImplementSuite,formatImplementTrial } from '../scripts/team-implement-suite.mjs';
+import { validatePolicy } from '../scripts/team.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 function fixture(t,options={}) {
  const root=realpathSync(mkdtempSync(join(tmpdir(),'wp-host-')));t.after(()=>rmSync(root,{recursive:true,force:true}));
@@ -327,7 +329,7 @@ for(const condition of [{partialUsage:true},{metadataPostFailure:true}])test('no
  assert.equal(f.state.subscription_invocations['subscription-guarded-profile'].state,condition.partialUsage?'uncertain':'settled');
 });
 
-async function calibrationHostFixture(t,overrides={}) {
+async function calibrationHostFixture(t,{roles=['coordinate','review'],...overrides}={}) {
  const options={nativeProbe:true,nativeProfile:true,openCodeProbe:true,billingRoute:true,freshNativeEachCall:true,...overrides};
  const f=fixture(t,options);
  await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'opencode',cwd:f.root,mode:'read-only',spawn_server:true}});
@@ -338,18 +340,51 @@ async function calibrationHostFixture(t,overrides={}) {
  const unit_digest=Object.keys(f.state.subscription_allocations)[0],unit_scope=f.state.subscription_allocations[unit_digest].unit_scope;
  ownerEvent('subscription-allocation-update-v2',{unit_scope,max_tokens:'2000',revision:2});
  const p=f.team.participants.participant;
- const request={id:'host-cohort',seed:'host-seed',members:[{participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:p.native_binding.descriptor_digest,profile_id:initial.native_profile.profile_id}],roles:['coordinate','review'],unit_allocations:[{unit_digest,max_tokens:'1000',allocation_revision:2}],expires_at:new Date(Date.now()+600000).toISOString()};
+ const request={id:'host-cohort',seed:'host-seed',members:[{participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:p.native_binding.descriptor_digest,profile_id:initial.native_profile.profile_id}],roles,unit_allocations:[{unit_digest,max_tokens:'1000',allocation_revision:2}],expires_at:new Date(Date.now()+600000).toISOString()};
  const suite=createProtocolRoleSuite({seed:request.seed,cohort:request.id,profiles:[initial.native_profile.profile_id]});
+ const implement=createImplementSuite({seed:request.seed,cohort:request.id,profiles:[initial.native_profile.profile_id]});
  options.trialAnswer=(prompt,invocation)=>{
   assert.equal(invocation.purpose,'calibration');assert.equal(invocation.read_only,true);assert.equal(invocation.max_output_chars,8192);
+  const edit=implement.trials.find(row=>formatImplementTrial(implement,row.id)===prompt);if(edit)return edit.reference_answer;
   const trial=suite.trials.find(row=>formatProtocolTrial(suite,row.id)===prompt);assert.ok(trial,'only the installed trial prompt may be sent');return JSON.stringify(trial.answer_key);
  };
  const trial=suite.trials.find(row=>row.role==='coordinate'&&row.variant===0);
  const beforeOpen=f.calls.filter(x=>x==='native-create'||x==='native-send').length;
  await f.host.openCalibrationCohort(request);
  assert.equal(f.calls.filter(x=>x==='native-create'||x==='native-send').length,beforeOpen);
- return {...f,options,initial,request,suite,trial,ownerEvent};
+ return {...f,options,initial,request,suite,implement,trial,ownerEvent};
 }
+
+test('host measures role implement with the bounded-edit suite into a gate that grants no rank',async t=>{
+ const f=await calibrationHostFixture(t,{roles:['coordinate','review','implement']}),cohort=f.team.native_calibration_cohorts[f.request.id];
+ assert.equal(cohort.implement_suite_digest,f.implement.suite_digest);assert.equal(cohort.implement_criteria_digest,f.implement.grading_digest);
+ for(const [i,trial] of f.implement.trials.entries()){
+  const result=await f.host.subscriptionCalibrationTrial({cohortId:f.request.id,caseId:trial.id,nonce:'edit-'+i,estimateTokens:'40'});
+  assert.equal(result.trial_capture.pass,true,trial.id);
+  const x=f.state.subscription_invocations['subscription-edit-'+i];
+  assert.equal(x.measurement.role,'implement');assert.equal(x.measurement.suite_digest,f.implement.suite_digest);assert.equal(x.measurement.prompt_digest,routingDigest(formatImplementTrial(f.implement,trial.id)));
+ }
+ const local=(await f.host.calibrationSummary({cohortId:f.request.id})).profiles[0].roles.find(r=>r.role==='implement');
+ assert.equal(local.benchmark,'waypost-bounded-edit');assert.equal(local.samples,24);assert.equal(local.qualified,true);assert.equal(local.qualification_candidate,true);
+ const proposal=await f.host.calibrationPolicyProposal({cohortId:f.request.id,revision:1}),row=proposal.profiles[0];
+ assert.equal(proposal.provenance.implement_suite_digest,f.implement.suite_digest);assert.equal(proposal.scales.implement.comparison,'gate-only');
+ assert.deepEqual(proposal.scales.implement.eligible_profiles,[row.identity.profile_id]);
+ assert.deepEqual(row.priorities,{coordinate:null,review:null,implement:null});assert.deepEqual(row.role_coverage.implement,['waypost-bounded-edit']);
+ assert.equal(row.calibration.implement.qualified,true);assert.match(proposal.limitations,/bounded-edit gate/);
+ const installed=validatePolicy({...structuredClone(proposal),mode:'automatic-calibration',activation:true,activation_scope:'waypost-protocol',installation:{request_key:'k',cohort:f.request.id,previous_policy_revision:0}});
+ for(const tamper of [p=>{p.profiles[0].priorities.implement=1;},p=>{p.profiles[0].role_coverage.implement=[];},p=>{p.profiles[0].calibration.implement.passes=21;},p=>{p.profiles[0].calibration.implement.safety_flag_counts={'injection-trace':1};},p=>{p.scales.implement.comparison='strict-disjoint-interval-partial-order';},p=>{delete p.scales.implement;},p=>{delete p.provenance.implement_suite_digest;},p=>{p.limitations+=' Implementation qualification granted.';}]){
+  const copy=structuredClone(installed);tamper(copy);assert.throws(()=>validatePolicy(copy));
+ }
+});
+
+test('host implement trial cannot run in a protocol-only cohort and an 8 KiB answer is captured as a failure',async t=>{
+ const f=await calibrationHostFixture(t);
+ await assert.rejects(f.host.subscriptionCalibrationTrial({cohortId:f.request.id,caseId:f.implement.trials[0].id,nonce:'not-enrolled',estimateTokens:'40'}),/installed-case-required/);
+ const g=await calibrationHostFixture(t,{roles:['implement']}),answer='x'.repeat(8192);g.options.trialAnswer=()=>answer;
+ const result=await g.host.subscriptionCalibrationTrial({cohortId:g.request.id,caseId:g.implement.trials[0].id,nonce:'large-answer',estimateTokens:'40'});
+ assert.equal(result.trial_capture.pass,false);
+ const capture=Object.values(g.team.native_calibration_cohorts[g.request.id].captures)[0];assert.equal(capture.original_output,answer);assert.equal(capture.grade.pass,false);
+});
 
 test('host calibration consumes installed prompt before one fresh call and captures its original JSON',async t=>{
  const f=await calibrationHostFixture(t),beforeModel=structuredClone(f.team.participants.participant.model),beforeAllocations=structuredClone(f.state.subscription_allocations);

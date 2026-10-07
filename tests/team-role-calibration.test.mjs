@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { applySubscriptionAccounting } from '../scripts/team-subscription.mjs';
 import { applyProtocolCalibration } from '../scripts/team-role-calibration.mjs';
 import { createProtocolRoleSuite,formatProtocolTrial } from '../scripts/team-role-suite.mjs';
+import { createImplementSuite,formatImplementTrial } from '../scripts/team-implement-suite.mjs';
 import { collectNativeModelProfile,collectNativeMeasurementProfile,serializeNativeModelProfile } from '../scripts/native-model-profile.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
 const at='2026-10-03T12:00:00.000Z',initialNow=Date.parse(at),hash='a'.repeat(64);
@@ -112,4 +113,20 @@ test('whole cohort budget is independent of larger native allocation and schemas
  const bad=await fixture();const other={scope:'team-native-counter',team:'team',counter_schema:'other-counter'};bad.send('subscription-allocation-update-v2',{unit_scope:other,max_tokens:'1000',revision:1});
  bad.open({unit_allocations:[{unit_digest:routingDigest(other),max_tokens:'1000',allocation_revision:1}]});
  assert.throws(()=>bad.reserve(),/cohort-unit-allocation-required/); // Another schema cannot pay this native counter's reservation.
+});
+
+test('role implement pins its own bundle pair and a case is measured only by its own role',async()=>{
+ const roles=['coordinate','review','implement'],iso=ms=>new Date(ms).toISOString();
+ const pairFor=(f,seed='seed')=>{const b=createImplementSuite({seed,cohort:'cohort',profiles:[f.measurement.profile_id]});return {implement_suite_digest:b.suite_digest,implement_criteria_digest:b.grading_digest};};
+ for(const [change,error] of [[f=>({roles}),/digest-required/],[f=>({roles,...pairFor(f,'other')}),/installed-suite-binding/],[f=>pairFor(f),/implement-suite-binding-unexpected/],[f=>({roles,...pairFor(f),expires_at:iso(initialNow+7200000)}),/cohort-expiry-required/],[f=>({roles,...pairFor(f),expires_at:iso(initialNow+7201000),calibration_expires_at:iso(initialNow+86400000)}),/cohort-expiry-required/]]){
+  const f=await fixture();assert.throws(()=>f.open(change(f)),error);assert.equal(f.t.native_calibration_cohorts,undefined);
+ }
+ const f=await fixture(),pair=pairFor(f);f.open({roles,...pair,expires_at:iso(initialNow+7200000),calibration_expires_at:iso(initialNow+86400000)});
+ const edits=createImplementSuite({seed:'seed',cohort:'cohort',profiles:[f.measurement.profile_id]}),edit=edits.trials[0];
+ const implement={...f.measurement,role:'implement',case_id:edit.id,suite_digest:pair.implement_suite_digest,criteria_digest:pair.implement_criteria_digest,prompt_digest:routingDigest(formatImplementTrial(edits,edit.id))};
+ for(const measurement of [{...implement,case_id:f.trial.id,prompt_digest:f.measurement.prompt_digest},{...f.measurement,case_id:edit.id,prompt_digest:implement.prompt_digest},{...implement,suite_digest:f.suite.suite_digest,criteria_digest:f.suite.grading_digest},{...f.measurement,suite_digest:pair.implement_suite_digest,criteria_digest:pair.implement_criteria_digest}])
+  assert.throws(()=>f.reserve('swap',{measurement,suite_digest:measurement.suite_digest}),/binding/);
+ assert.throws(()=>f.reserve('foreign',{measurement:implement}),/binding/);
+ f.reserve('edit',{measurement:implement,suite_digest:implement.suite_digest});
+ assert.equal(f.s.subscription_invocations['subscription-edit'].measurement.role,'implement');
 });

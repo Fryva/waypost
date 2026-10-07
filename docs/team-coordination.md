@@ -486,8 +486,14 @@ remain pending; these trials do not grant roles.
 An owner opens an immutable cohort after collecting its members' native profile
 IDs and setting token allocations for each native counter schema. The bounded
 request contains only `id`, `seed`, `members`, `roles`, `unit_allocations`,
-`expires_at` (at most fifteen minutes ahead) and optionally
-`calibration_expires_at` (see Calibration validity and leader resume). Each member binds participant,
+`expires_at` (at most fifteen minutes ahead, or two hours when
+`calibration_expires_at` is set) and optionally
+`calibration_expires_at` (see Calibration validity and leader resume). Roles
+are `coordinate`, `review` and `implement`; role `implement` is measured by the
+separate `waypost-bounded-edit` suite, and the Host pins its digest pair in the
+cohort. An installed policy then carries `calibration.implement` and the
+coverage `waypost-bounded-edit` as a gate only: implement priority stays null and
+the gate grants no dispatch or write right yet. Each member binds participant,
 incarnation, model revision, descriptor digest and profile ID. Each allocation
 binds its existing unit digest, token limit and allocation revision. Different
 native counter schemas retain separate limits. The host derives installed suite
@@ -891,8 +897,9 @@ Ordering across hosts relies on their clocks.
 ### Calibration validity and leader resume (protocol 2)
 
 A calibration cohort opened with an owner `calibration_expires_at` (a strict
-ISO-8601 time after the 15-minute trial window, at most 7 days ahead; owner
-decision 2026-10-06) keeps
+ISO-8601 time after the trial window, at most 7 days ahead; owner
+decision 2026-10-06; with it the trial window may reach 2 hours, owner decision
+2026-10-07) keeps
 its measured capability valid until that time: summaries, the installed policy
 and the participants' admissions expire then instead of 15 minutes after the
 trials. Identity is still proven on every action, because each action captures
