@@ -236,6 +236,27 @@ export function applySealedPatch({ checkout, patch, paths: scope }) {
   }
   return { applied };
 }
+// Before a later generation's patch is applied, every manifest path in the
+// dedicated checkout returns to the base: paths the base lacks are unlinked
+// first, then `git checkout <base> --` restores `.gitattributes` files and then
+// the rest (it reads attributes from the working tree, so the rejected
+// generation's attribute files go first; no symlink is followed). Idempotent,
+// so a rerun after a crash converges.
+export function resetWorkPaths({ checkout, paths: scope }) {
+  checkout = check(checkout); scope = paths(scope);
+  if (git(checkout.path, ['rev-parse', 'HEAD']) !== checkout.base) fail('integration-base-changed');
+  const present = [], absent = [];
+  for (const p of scope) { let blob = null; try { blob = git(checkout.path, ['rev-parse', '--verify', '--quiet', checkout.base + ':' + p]); } catch { blob = null; } (blob ? present : absent).push(p); }
+  for (const p of absent) {
+    const target = safe(join(checkout.path, p));
+    let stat = null; try { stat = lstatSync(target); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    if (stat?.isDirectory()) fail('integration-reset-directory');
+    if (stat) unlinkSync(target);
+  }
+  const attributes = present.filter(p => p.split('/').at(-1) === '.gitattributes'), rest = present.filter(p => !attributes.includes(p));
+  for (const group of [attributes, rest]) if (group.length) git(checkout.path, ['checkout', checkout.base, '--', ...group]);
+  return { restored: present, removed: absent };
+}
 // Keeps the candidate tree reachable (an index file does not protect it from gc).
 export function pinCandidateTree({ checkout, tree, ref }) {
   checkout = check(checkout); oid(tree);
@@ -257,11 +278,11 @@ export function treeDiff({ projectRoot, base, tree }) {
 // tree on the base, with the owner's message and fixed Waypost trailers, written
 // without hooks or signing so its id is known before the compare-and-swap of the
 // checkout's private ref; the owner merges that ref.
-export function workCommitText({ message, teamId, workId, reservationId, reviews, label, harness, session, provider, story, contributors }) {
+export function workCommitText({ message, teamId, workId, reservationId, reviews, label, harness, session, provider, story, contributors, generation = 1 }) {
   if (typeof message !== 'string' || !message.trim() || message.length > 16384 || message.includes('\0')) fail('integration-invalid-message');
-  const fields = { Contributors: contributors, Harness: harness, Label: label, Provider: provider, Reservation: reservationId, Review: reviews.join(','), Session: session, Story: story, Team: teamId, Tests: 'not-run', Work: workId };
+  const fields = { Contributors: contributors, Harness: harness, Label: label, Provider: provider, Reservation: reservationId, Review: reviews.join(','), Session: session, Story: story, Team: teamId, Tests: 'not-run', Work: workId, ...(generation > 1 ? { Generation: String(generation) } : {}) };
   if (Object.values(fields).some(v => typeof v !== 'string' || !v || /[\r\n\0]/.test(v) || v.length > 4096)) fail('integration-invalid-trailers');
-  return message.trim() + '\n\n' + Object.entries(fields).map(([k, v]) => `Waypost-${k}: ${v}`).join('\n') + '\n';
+  return message.trim() + '\n\n' + Object.entries(fields).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `Waypost-${k}: ${v}`).join('\n') + '\n';
 }
 export function workCommitMessageDigest(text) { return hash(text); }
 export function workCommit({ checkout, base, tree, text, identity }) {

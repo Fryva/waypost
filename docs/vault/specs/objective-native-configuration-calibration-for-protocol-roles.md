@@ -741,11 +741,12 @@ Critic revision (fresh context, revise; 2026-10-07):
   request pins `prior: {from_target_digest, findings_digest, findings}` and the
   head presents the prior findings as unverified claims to check, still asking
   for an independent judgment. Generation 1 keeps template 1.
-- The reset restores the base with `git checkout <base> -- <paths the base has>`
-  (attributes from the index at the base, no symlink following) and unlinks
-  without following any manifest path the base lacks; it runs before every apply
-  so a rerun converges; the apply marker is per generation; manifests may not
-  list a path that is a prefix directory of another.
+- The reset unlinks without following any manifest path the base lacks, then
+  restores the base with `git checkout <base> --`, `.gitattributes` files
+  first (path checkout reads attributes from the working tree); it runs before
+  every apply so a rerun converges; the apply marker is per generation and
+  attempt; a revise is refused when a manifest path is a prefix directory of
+  another (kept out of the slice 1 manifest event, so stored manifests replay).
 - Revise preconditions: no execution or review call for the work outside
   settled, aborted or reconciled; one execution call and one review call left
   under the work ceiling; no unresolved negative audit of the current leader
@@ -771,3 +772,12 @@ source verdict is recorded. The executor does not see the rejected candidate.
 There is no separate generation cap: the attempt total and the remaining-call
 check bound the loop, and the owner sizes the ceiling for the whole loop at
 enable.
+
+Slice 2 implementation (2026-10-07, Claude Code): increment 1 (d6efeb3) —
+`native-work-revise-v2` with the archive in `generations[]`, `w.revision`,
+execution template 2 chosen from `w.revision`, Host `reviseNativeWork` with the
+template-2 size check, CLI `native-work-revise`. Increment 2 — checkout reset
+before a later generation's apply (`resetWorkPaths`), per-generation apply
+marker, `native-work-rejected-candidate-repeated`, review template 2 with
+`request.prior`, `native-work-path-prefix`, `Waypost-Generation` trailer.
+Golden replay of two slice 1 logs (`tests/native-slice1-replay.test.mjs`).

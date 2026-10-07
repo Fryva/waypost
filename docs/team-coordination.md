@@ -959,8 +959,25 @@ invocations are archived in `generations`; its negatives stay with its target.
 The next generation is executed from the base again with execution template
 revision 2, which carries the latest negative's findings as a reviewer's
 unverified claims that never change the instructions; the Host refuses a revise
-whose template-2 prompt would exceed 64 KiB, and a retry finds a revise already
-applied. It waits behind a publication fence.
+whose template-2 prompt would exceed 64 KiB or whose next review request could
+exceed the 24 KiB action limit, and a retry finds a revise already applied.
+Revise checks the remaining call counts, not tokens: size the work token cap for
+the whole loop at enable. It waits behind a publication fence.
+
+Capturing a later generation first returns every manifest path in the dedicated
+checkout to the base (an unlink for paths the base lacks, then `git checkout
+<base> --` for `.gitattributes` files and then the other paths, since path
+checkout reads attributes from the working tree), so a file only the rejected
+generation wrote never leaks into the new candidate; a revise is refused when a
+manifest path lies inside another (`native-work-path-prefix`). A
+candidate whose tree equals any archived generation's tree is not reviewable:
+the attempt fails as `native-work-rejected-candidate-repeated` and another
+attempt may follow. The critic of a later generation gets review template
+revision 2: the request carries `prior` (the source target digest, findings
+digest and findings), and the prompt asks it to check whether each prior
+finding still applies, as unverified claims, while judging the whole change
+independently. A publication of a later generation carries a
+`Waypost-Generation` trailer.
 
 #### Owner manifest, ceiling and cancel (increment 1)
 

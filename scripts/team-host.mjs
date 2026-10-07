@@ -21,7 +21,7 @@ import { createProtocolWorkReviewRequest, formatWorkReviewSuffix, WORK_REVIEW_KI
 import { nativePublicationGate, nativeIntegrationOpen } from './team-native-integration.mjs';
 import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
 import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion, serializeOwnedRuntimeStopProof } from './team-owned-runtime.mjs';
-import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest, readWorkInputs, workInputsDigest, validateWorkPatch, writeSealedPatch, readSealedPatch, applySealedPatch, pinCandidateTree, treeDiff, syncCheckoutIndex, workCommitText, workCommitMessageDigest, workCommit, publishWorkCommit, workPublicationState } from './team-integration.mjs';
+import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest, readWorkInputs, workInputsDigest, validateWorkPatch, writeSealedPatch, readSealedPatch, applySealedPatch, pinCandidateTree, resetWorkPaths, treeDiff, syncCheckoutIndex, workCommitText, workCommitMessageDigest, workCommit, publishWorkCommit, workPublicationState } from './team-integration.mjs';
 import { formatWorkPromptHead, workPromptDigest, workRevisionSource, workSuiteDigest, workPatchRef, WORK_MAX_OUTPUT_BYTES, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 import { leasesOverStaged } from './commit.mjs';
@@ -59,7 +59,7 @@ export function createTeamHost(config, dependencies={}) {
  const now=dependencies.now||(()=>new Date().toISOString());
  let activeOperation=null,operationBusy=false;
  const native=descriptor=>activeOperation?activeOperation.native(()=>(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor)):(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor);
- const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,readWorkInputs,workInputsDigest,validateWorkPatch,writeSealedPatch,readSealedPatch,applySealedPatch,pinCandidateTree,treeDiff,syncCheckoutIndex,workCommitText,workCommitMessageDigest,workCommit,publishWorkCommit,workPublicationState,...dependencies.integration};
+ const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,readWorkInputs,workInputsDigest,validateWorkPatch,writeSealedPatch,readSealedPatch,applySealedPatch,pinCandidateTree,resetWorkPaths,treeDiff,syncCheckoutIndex,workCommitText,workCommitMessageDigest,workCommit,publishWorkCommit,workPublicationState,...dependencies.integration};
  async function closeNative(transport){if(transport?.stopAndWait&&transport.owns_process!==false)await transport.stopAndWait();else transport?.close();}
  function getTeam(){const v=load();const t=v.state?.teams[team];if(!t)fail('team-not-found');return {v,t};}
  // Other Hosts (participants of other harnesses) write the same authority. A
@@ -212,6 +212,8 @@ export function createTeamHost(config, dependencies={}) {
   const found=workRevisionSource(t,w);if(!found)fail('native-work-negative-review-required');
   const inputs=integration.readWorkInputs({projectRoot,base:w.manifest.base,paths:w.paths});
   if(Buffer.byteLength(workPrompt(w,inputs,{generation:w.generation+1,findings:found.source.findings}))>65536)fail('host-native-work-revise-prompt-too-large');
+  // The next generation's review request carries the prior findings; 8 KiB covers its fixed fields.
+  if(Buffer.byteLength(JSON.stringify({goal:w.manifest.goal,criteria:w.manifest.criteria,paths:w.paths,findings:found.source.findings}))+8192>24576)fail('host-native-work-revise-review-too-large');
   return mutate('native-work-revise-v2',{work_id:w.id,generation:w.generation,findings_digest:found.findings_digest,reason},o).result;
  }
  function enableNativeWork({revision,policy}={}){return mutate('native-work-enable-v2',{revision,policy},owner()).result;}
@@ -288,8 +290,10 @@ export function createTeamHost(config, dependencies={}) {
    }
    write(file,{protocol:1,team,work:workId,checkout:checkoutValue});
   }
+  // A later generation starts from the base again: the rejected patch is undone first.
+  if(w.generation>1)integration.resetWorkPaths({checkout:checkoutValue,paths:w.paths});
   integration.applySealedPatch({checkout:checkoutValue,patch,paths:w.paths});
-  const appliedFile=record('work-applied-'+key);if(!existsSync(appliedFile))write(appliedFile,{protocol:1,team,work:workId,patch_digest:dispatch.patch_digest});
+  const appliedFile=record('work-applied-'+(w.generation>1?sha(workId+':'+w.generation+':'+x.work.attempt).slice(0,40):key));if(!existsSync(appliedFile))write(appliedFile,{protocol:1,team,work:workId,patch_digest:dispatch.patch_digest});
   else if(read(appliedFile,true).patch_digest!==dispatch.patch_digest)fail('host-native-work-applied-patch-mismatch');
   const reconcile=dependencies.reconcile||(dispatcher?cwd=>{const r=spawnSync(process.execPath,[resolve(dispatcher),'reconcile','--write'],{cwd,env:{...process.env,WAYPOST_PROJECT_DIR:cwd,WAYPOST_NO_BEAT:'1'},encoding:'utf8',timeout:30000,maxBuffer:1048576});if(r.error||r.status!==0)fail('host-reconcile-failed');return {ok:true,output_digest:sha(r.stdout)};}:undefined);
   const value=integration.collectCandidate({checkout:checkoutValue,scope:w.paths,testDigests:[],reconcile});
@@ -314,6 +318,8 @@ export function createTeamHost(config, dependencies={}) {
   const action={...core,prompt_digest:actionPromptDigest(core),operation_id:randomUUID()},promptSuffix=formatWorkReviewSuffix(diff);
   // The transport refuses a prompt over 64 KiB only at send, after the reservation.
   if(Buffer.byteLength(formatProtocolAction(action)+promptSuffix)>65536)fail('host-native-work-review-prompt-too-large');
+  // The authority stores a control action of at most 24 KiB.
+  if(Buffer.byteLength(JSON.stringify(action))>24576)fail('host-native-work-review-action-too-large');
   return managedOperation('protocol-work-review',()=>subscriptionSingleCall({nonce:nonce||'review_'+randomUUID().replace(/-/g,''),estimateTokens:estimateTokens||t.native_work_policy?.ceilings?.review?.max_estimate_tokens||'16000',controlAction:action,promptSuffix}),{forceOwned:true,operation:action.operation_id,afterCompletion:captureWorkReview});
  }
  function captureWorkReview(result,completionSelectors){
@@ -355,7 +361,7 @@ export function createTeamHost(config, dependencies={}) {
   }else{
    const gate=nativePublicationGate(v.state,t,w,Date.parse(now())),leader=t.participants[t.leader];
    reservation={id:'native-integration-'+randomUUID(),work_id:w.id,...gate,checkout_ref:checkout.ref,commit_identity:commitIdentity};
-   text=integration.workCommitText({message,teamId:team,workId:w.id,reservationId:reservation.id,reviews:reservation.reviews,label:reservation.label,harness:leader.harness||'unrecorded',session:leader.session||'unrecorded',provider:leader.model.provider||'unrecorded',story:storyRef,contributors:[t.leader,gate.reviewer.participant].join(', ')});
+   text=integration.workCommitText({message,teamId:team,workId:w.id,reservationId:reservation.id,reviews:reservation.reviews,label:reservation.label,harness:leader.harness||'unrecorded',session:leader.session||'unrecorded',provider:leader.model.provider||'unrecorded',generation:w.generation,story:storyRef,contributors:[t.leader,gate.reviewer.participant].join(', ')});
    reservation.commit_message_digest=integration.workCommitMessageDigest(text);
    reservation.commit=integration.workCommit({checkout,base:reservation.base,tree:reservation.tree,text,identity:commitIdentity});
    // Pin the original message before the reservation; recovery never rebuilds it.
