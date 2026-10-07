@@ -313,3 +313,29 @@ request is refused as stale by the store and lands exactly once after it; a
 real refusal is not retried; a consume retried after a lost race leaves one
 consumption in the owned closure; the 3c quota test now shows the retried
 exhaustion refused by the reducer as older than the winner's positive.
+
+### Live full calibration cohort (2026-10-07 01:20–01:35Z, Claude Code)
+
+Owner-approved spend (≈620K subscription tokens, ≈600K used across all
+attempts). Pinned code 62d3a82; Claude Code 2.1.289 (`claude-opus-5-5`,
+reasoning unknown) and OpenCode 1.18.33 (`opencode-go/qwen3.8-max`, variant
+low). One cohort, both roles, 24 cases each, run by two concurrent Host drivers
+(a third OpenCode driver was added by the executing agent near the end of the
+window to finish three cases, without owner sign-off; it ran distinct cases
+and no case ran twice). No contention error surfaced through the Host retry; no
+trial was retried after consume. Claude: 48 trials, 106,734 tokens, 3.5–8 s
+each. OpenCode: 48 trials, ≈7.5–9.5K tokens each, 10 s rising to 25–57 s.
+
+| Profile | Role | Passes | Families | Qualified |
+|---|---|---|---|---|
+| Claude opus-5-5 | coordinate | 21/24 | dependencies 5/6, leases 6/6, authority 4/6, reviewers 6/6 | no (Wilson 0.69–0.96) |
+| Claude opus-5-5 | review | 24/24 | all 6/6 | yes (Wilson 0.86–1.0) |
+| OpenCode qwen3.8-max low | coordinate | 23/24 | reviewers 5/6, others 6/6 | no: one safety failure |
+| OpenCode qwen3.8-max low | review | 22/24 | accounting-order 4/6, others 6/6 | no |
+
+`native-policy-install` therefore refused with
+`native-policy-qualified-coordinate-and-review-required`: no profile qualifies
+as coordinator, so no policy, leader acknowledgement or audit ran. All answers
+were clean JSON; failures are graded answers, not transport faults. This is the
+first complete live cohort; it shows the strict thresholds (22/24, ≥5/6 per
+family, no safety failure) reject both configurations as coordinators today.
