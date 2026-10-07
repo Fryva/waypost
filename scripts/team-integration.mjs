@@ -138,3 +138,69 @@ export function reconcilePublication({ checkout, candidate, reservation, gitChil
   git(checkout.path, ['read-tree', candidate.tree]);
   return { state: 'published', commit, tree, parents, ref: checkout.ref, recovered: true };
 }
+
+// ---- Protocol 2 leader-baseline work (slice 1): inputs come from Git objects of
+// the manifest's base commit only, never the working tree; the executor's patch
+// is checked as a whole and kept as an unpublished private ref to a blob, so
+// recovery reads it from Git rather than from Host files.
+export const WORK_PATCH_REF = /^refs\/waypost\/patches\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\/[0-9]+-[0-9]+-[A-Za-z0-9_]+$/;
+const WORK_FILE_LIMIT = 32768, WORK_PATCH_LIMIT = 65536, WORK_INPUT_LIMIT = 49152;
+const foldKey = name => name.normalize('NFC').toLowerCase();
+function utf8Text(buffer) { const text = buffer.toString('utf8'); if (text.includes('\0') || !Buffer.from(text, 'utf8').equals(buffer)) fail('work-input-not-utf8-text'); return text; }
+// Every listed path is resolved from the top of the base tree, one directory at a
+// time: each existing parent must be a directory (not a symlink, file or
+// submodule), no sibling may differ only by case or Unicode normalisation, and
+// an existing path must be a plain file. Only the parent directories are listed.
+export function readWorkInputs({ projectRoot, base, paths }) {
+  const root = safe(projectRoot); oid(base);
+  if (git(root, ['rev-parse', '--verify', '--quiet', base + '^{commit}']) !== base) fail('work-input-base-commit-required');
+  const listings = new Map();
+  const list = dir => { if (!listings.has(dir)) listings.set(dir, git(root, ['ls-tree', '-z', '--full-tree', base, ...(dir ? ['--', dir + '/'] : [])]).split('\0').filter(Boolean).map(entry => { const tab = entry.indexOf('\t'), meta = entry.slice(0, tab), name = entry.slice(tab + 1), [mode, type, blob] = meta.split(' '); return { mode, type, blob, name }; })); return listings.get(dir); };
+  const files = []; let total = 0;
+  for (const path of paths) {
+    const parts = path.split('/'); let found = null;
+    for (let i = 1; i <= parts.length; i++) {
+      const prefix = parts.slice(0, i).join('/'), entries = list(parts.slice(0, i - 1).join('/'));
+      if (entries.some(e => e.name !== prefix && foldKey(e.name) === foldKey(prefix))) fail('work-input-case-collision');
+      const entry = entries.find(e => e.name === prefix);
+      if (!entry) break;
+      if (i < parts.length) { if (entry.mode !== '040000' || entry.type !== 'tree') fail('work-input-parent-not-directory'); continue; }
+      if (entry.mode !== '100644' || entry.type !== 'blob') fail('work-input-plain-file-required');
+      found = entry;
+    }
+    if (!found) { files.push({ path, blob_oid: null, content: null }); continue; }
+    const r = spawnSync('git', ['-C', root, 'cat-file', 'blob', found.blob], { env: env(), timeout: 30000, maxBuffer: WORK_FILE_LIMIT + 1 });
+    if (r.error || r.status !== 0 || r.stdout.length > WORK_FILE_LIMIT) fail('work-input-too-large');
+    total += r.stdout.length; if (total > WORK_INPUT_LIMIT) fail('work-input-too-large');
+    files.push({ path, blob_oid: found.blob, content: utf8Text(r.stdout) });
+  }
+  return { base, files };
+}
+export function workInputsDigest(inputs) { return createHash('sha256').update(JSON.stringify({ base: inputs.base, files: inputs.files.map(f => ({ path: f.path, blob_oid: f.blob_oid })) })).digest('hex'); }
+// Strict whole-patch validation: {"files":[{"path","content"}]}, listed paths
+// only, unique, bounded UTF-8 text without NUL. Returns files sorted by path.
+export function validateWorkPatch(raw, paths, parseStrict) {
+  if (typeof raw !== 'string' || Buffer.byteLength(raw) > WORK_PATCH_LIMIT) fail('work-patch-too-large');
+  let value; try { value = parseStrict(raw.trim(), WORK_PATCH_LIMIT); } catch { fail('work-patch-json-required'); }
+  if (!value || typeof value !== 'object' || Array.isArray(value) || JSON.stringify(Object.keys(value)) !== '["files"]' || !Array.isArray(value.files) || value.files.length > paths.length) fail('work-patch-shape-required');
+  if (!value.files.length) fail('work-patch-empty');
+  const seen = new Set();
+  for (const f of value.files) {
+    if (!f || typeof f !== 'object' || JSON.stringify(Object.keys(f).sort()) !== '["content","path"]' || !paths.includes(f.path) || seen.has(f.path) || typeof f.content !== 'string' || f.content.includes('\0') || (typeof f.content.isWellFormed === 'function' && !f.content.isWellFormed()) || Buffer.byteLength(f.content) > WORK_FILE_LIMIT) fail('work-patch-file-invalid');
+    seen.add(f.path);
+  }
+  return { files: [...value.files].sort((a, b) => a.path < b.path ? -1 : 1) };
+}
+export function writeSealedPatch({ projectRoot, ref, patch }) {
+  const root = safe(projectRoot);
+  if (!WORK_PATCH_REF.test(ref)) fail('work-patch-ref-invalid');
+  const blob = git(root, ['hash-object', '-w', '--stdin'], {}, JSON.stringify(patch));
+  git(root, ['update-ref', ref, blob, '0'.repeat(blob.length)]);
+  return { ref, blob };
+}
+// The caller checks the sealed patch digest recorded by the authority.
+export function readSealedPatch({ projectRoot, ref }) {
+  const root = safe(projectRoot);
+  if (!WORK_PATCH_REF.test(ref) || git(root, ['cat-file', '-t', ref]) !== 'blob') fail('work-patch-ref-invalid');
+  return JSON.parse(git(root, ['cat-file', 'blob', ref]));
+}

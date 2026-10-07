@@ -581,3 +581,30 @@ request keys with a state check for lost responses; Host checkout and
 candidate refuse protocol 2 work; commands have exact fields; manifests are
 bounded to 32 KiB; the work record pins policy revision, model revision and
 admitted identity of the worker; canonical token counts.
+
+Slice 1 increment 2 (2026-10-06, Claude Code): leader-baseline execution —
+purpose `work` hooks in `scripts/team-native-work.mjs` (reserve, consume with
+dispatch record and slot, settle with seal or named failure), reconcile marks a
+lost attempt `stopped`; Git helpers `readWorkInputs`, `workInputsDigest`,
+`validateWorkPatch`, `writeSealedPatch`, `readSealedPatch` in
+`scripts/team-integration.mjs`; Host `executeNativeWork`, CLI
+`native-work-execute`. Tests: one owned leader call sealing a private-ref patch
+with HEAD and tree untouched; invalid and out-of-scope patches fail with tokens
+settled and attempts bounded; a lost execution reconciled then cancelled; a
+case-colliding base path refused before any call.
+Increment 2 review (fresh context, revise, two blockers) and fixes: the patch
+parser now allows the patch budget (strict JSON with a byte limit argument; the
+8 KiB default stays for control answers); the prompt is bounded before any
+reservation (inputs ≤ 48 KiB in total, prompt ≤ 64 KiB) so an oversized call is
+never consumed; a failed seal write is a named outcome and the tokens settle;
+the sealed ref name includes the call nonce and the reducer requires exactly
+`refs/waypost/patches/<team>/<work>/<generation>-<attempt>-<nonce>` with null
+patch fields for any other outcome; inputs resolve from the top of the base
+tree one directory at a time (each existing parent a directory, not a symlink,
+file or submodule; no sibling differing only by case or Unicode normalisation;
+only parent directories are listed); the base must be a commit; an empty patch
+fails the attempt (`native-work-empty-patch`); patch text must be well-formed
+Unicode; the worker's model revision and admitted identity must match the
+manifest's pins. Deferred: a per-call identity profile for the execution call
+itself — identity is re-proven by the review and publication captures of the
+next increments.

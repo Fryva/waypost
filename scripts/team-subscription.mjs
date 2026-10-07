@@ -2,7 +2,7 @@ import {assertNativeBillingQuotaEligible} from './team-native-quota.mjs';
 // Versioned local subscription token accounting. No native adapter or privilege is minted here.
 import { applyNativeProtocolControl,validateProtocolAction,consumeProtocolAction,sealProtocolAction,reconcileProtocolControl } from './team-native-action.mjs';
 import { routingDigest } from './model-routing.mjs';
-import { applyNativeWork } from './team-native-work.mjs';
+import { applyNativeWork,validateProtocolWork,consumeProtocolWork,settleProtocolWork } from './team-native-work.mjs';
 import { applyNativeDelivery,validateProtocolDelivery,consumeProtocolDelivery,settleProtocolDelivery } from './team-native-delivery.mjs';
 import { applyProtocolCalibration,validateProtocolMeasurement,consumeProtocolMeasurement,sealProtocolMeasurement } from './team-role-calibration.mjs';
 const fail = code => { throw new Error(code); };
@@ -235,11 +235,11 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    t.subscription_contexts||={};t.subscription_contexts[context.id]=value;result={context:context.id,billing_policy:'inherited-native'};
   } else if(c.type==='subscription-reserve-v2') {
    H.owner(s,c);const r=bounded(c.reservation);
-   fields(r,['id','participant','incarnation','context_id','purpose','requested_model','nonce','suite_digest','max_calls','timeout_ms','estimate_tokens','epoch','quota_revision','mode_revision','allocation_revision','measurement','action','operation_id','delivery']);
+   fields(r,['id','participant','incarnation','context_id','purpose','requested_model','nonce','suite_digest','max_calls','timeout_ms','estimate_tokens','epoch','quota_revision','mode_revision','allocation_revision','measurement','action','operation_id','delivery','work']);
    id(r.id);id(r.nonce);digest(r.suite_digest);tuple(r.requested_model);decimal(r.estimate_tokens);
    // An owned identity or calibration call binds its runtime operation, so a lost one can be reconciled.
-   if(r.operation_id!==undefined&&(!['identity','calibration','delivery'].includes(r.purpose)||typeof r.operation_id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(r.operation_id)))fail('subscription-operation-binding-invalid');
-   if(!['identity','calibration','protocol-control','delivery'].includes(r.purpose)||r.max_calls!==1||!Number.isInteger(r.timeout_ms)||r.timeout_ms<100||r.timeout_ms>300000)fail('subscription-bounded-bootstrap-required');
+   if(r.operation_id!==undefined&&(!['identity','calibration','delivery','work'].includes(r.purpose)||typeof r.operation_id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(r.operation_id)))fail('subscription-operation-binding-invalid');
+   if(!['identity','calibration','protocol-control','delivery','work'].includes(r.purpose)||r.max_calls!==1||!Number.isInteger(r.timeout_ms)||r.timeout_ms<100||r.timeout_ms>300000)fail('subscription-bounded-bootstrap-required');
    const p=participant(t,r.participant),context=t.subscription_contexts?.[r.context_id],allocation=context&&s.subscription_allocations?.[context.unit_digest];
    nativeContextUsable(t,context,p,now);if(allocation?.protocol!==2)fail('subscription-team-counter-allocation-required');
    const stored={...r,protocol:2,context:clone(context),team:t.id,collector:context.collector,descriptor_digest:context.descriptor_digest,unit_digest:context.unit_digest,state:'prepared'};
@@ -249,6 +249,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    const used=totals(s,context.unit_digest);if(used.overshoot)fail('subscription-unreconciled-token-overshoot');if(used.uncertain)fail('subscription-uncertain-usage-blocks-admission');
    if(used.actual+used.reserved+decimal(r.estimate_tokens)>decimal(allocation.max_tokens))fail('subscription-token-allocation-exceeded');
    const measurement=validateProtocolMeasurement(s,t,r,p,context,now);if(measurement)stored.measurement=measurement;
+   const work=validateProtocolWork(s,t,r,p,context,now);if(work){stored.work=work.work;stored.work_policy_revision=work.policy_revision;}
    const delivery=validateProtocolDelivery(s,t,r,p,context,now);if(delivery){stored.delivery=delivery.delivery;stored.delivery_policy_revision=delivery.policy_revision;}
    const action=validateProtocolAction(s,t,r,p,context,now);if(action){stored.action=action;if(action.kind!=='protocol-leader-ack')stored.control_policy_kind=action.kind;stored.control_policy_revision=(action.kind==='protocol-leader-ack'?t.native_control_policy:action.kind==='protocol-leadership-audit'?t.native_review_policy:t.native_handover_policy).revision;stored.model_revision=p.model.model_revision;}
    s.subscription_invocations||={};s.subscription_invocations[r.id]=stored;result={reserved:r.id,bootstrap_only:true};
@@ -276,13 +277,15 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
     consumeProtocolMeasurement(s,t,x,now,c);
     consumeProtocolAction(s,t,x,now,c);
     consumeProtocolDelivery(s,t,x,now,c);
+    consumeProtocolWork(s,t,x,now,c);
     x.state='consumed';x.consumed_at=c.at;result={consumed:x.id,bootstrap_only:true};
    } else if(c.type==='subscription-uncertain-v2') {
-    if(!['consumed','uncertain'].includes(x.state))fail('subscription-consumed-invocation-required');x.state='uncertain';settleProtocolDelivery(t,x,{},{complete:false},c.at);result={uncertain:x.id,reservation_retained:true};
+    if(!['consumed','uncertain'].includes(x.state))fail('subscription-consumed-invocation-required');x.state='uncertain';settleProtocolDelivery(t,x,{},{complete:false},c.at);settleProtocolWork(t,x,{},{complete:false},c.at);result={uncertain:x.id,reservation_retained:true};
    } else {
     if(!['consumed','uncertain','settled'].includes(x.state))fail('subscription-consumed-invocation-required');
     const receipt=bounded(c.receipt,65536);
-    fields(receipt,['nonce','context_id','native_id','incarnation','unit_scope','counter_schema','turn_id','billing_before','billing_after','observed_model','coverage','before','after','actual_tokens','isolation_verified','measurement','action_seal','delivery']);
+    fields(receipt,['nonce','context_id','native_id','incarnation','unit_scope','counter_schema','turn_id','billing_before','billing_after','observed_model','coverage','before','after','actual_tokens','isolation_verified','measurement','action_seal','delivery','work_seal']);
+    if(receipt.work_seal!==undefined&&x.purpose!=='work')fail('native-work-purpose-required');
     if((receipt.delivery!==undefined||c.delivery_output!==undefined)&&x.purpose!=='delivery')fail('delivery-purpose-required');
     if(receipt.nonce!==x.nonce||receipt.context_id!==x.context.id||receipt.native_id!==x.context.native_id||receipt.incarnation!==x.incarnation||!same(validateNativeCounterUnit(receipt.unit_scope,t.id),x.context.unit_scope)||receipt.counter_schema!==x.context.unit_scope.counter_schema)fail('subscription-terminal-native-binding-mismatch');
     if(receipt.turn_id!==null)id(receipt.turn_id);const beforeBilling=validateBillingObservation(receipt.billing_before),afterBilling=validateBillingObservation(receipt.billing_after);
@@ -323,6 +326,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
     if(actionBlocker)x.action_blocker=actionBlocker;
     if(changed)for(const context of Object.values(t.subscription_contexts||{}))if(context.protocol===2&&context.native_id===x.context.native_id&&context.collector===x.collector)context.quarantined=true;
     settleProtocolDelivery(t,x,receipt,{complete:receipt.coverage==='complete',changed},c.at,c.delivery_output);
+    settleProtocolWork(t,x,receipt,{complete:receipt.coverage==='complete',changed},c.at);
     if(receipt.coverage!=='complete') {x.state='uncertain';x.partial_receipt=receipt;result={uncertain:x.id,reservation_retained:true,binding_changes,context_quarantined:changed};}
     else {
      if(measurementSeal)x.measurement_seal=measurementSeal;

@@ -935,6 +935,32 @@ first). Protocol 1 rewrites (revoke, attest) leave protocol 2 work alone, and th
 owner events are deferred under a publication fence. Execution, review and
 publication follow in later increments.
 
+Execution (increment 2): `waypost team host <team> --operation
+native-work-execute --work <id>` on the leader's Host reads the manifest's
+paths from Git objects of its base, which must be a commit (never the working
+tree). Paths resolve from the top of the base tree one directory at a time:
+each existing parent must be a directory (not a symlink, file or submodule), no
+sibling may differ only by case or Unicode normalisation, and an existing path
+must be a plain file of bounded UTF-8 text; inputs are capped at 48 KiB in total
+and the prompt at 64 KiB, refused before any reservation or native process. One
+prompt goes to a fresh owned no-tools context (purpose `work`; Codex refused):
+a frozen instruction head with the manifest, then the inputs as data. The
+reducer recomputes the prompt digest from the manifest and the declared inputs
+digest, checks the attempt (next one, within `max_attempts`, its slot unused),
+the worker's pinned model revision and identity, the execution ceilings and
+quota, and records the dispatch in the same event as the consume. The answer
+must be strict JSON `{"files":[{"path","content"}]}` with at least one listed
+path (no deletions); the Host validates it as a whole and writes it as a blob
+behind the unpublished ref
+`refs/waypost/patches/<team>/<work>/<generation>-<attempt>-<nonce>` before
+settlement, and the reducer requires exactly that ref. A complete, isolated
+receipt seals the patch digest and paths (`sealed`); an invalid or empty patch
+(`native-work-invalid-patch`, `native-work-empty-patch`), a failed turn or a
+failed seal write (`native-work-seal-write-failed`) settles the tokens and fails
+the attempt with that reason (retryable within the ceiling); partial usage
+leaves it `uncertain` until reconciled. Nothing writes the project tree, HEAD or
+branches.
+
 ### Concurrent Hosts
 
 Each participant's Host writes the same authority. The store serializes writes

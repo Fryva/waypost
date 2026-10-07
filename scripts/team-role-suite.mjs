@@ -138,8 +138,8 @@ export function formatProtocolTrial(bundle,trialId){return trialFor(bundle,trial
 
 // Recursive JSON parser rejects decoded duplicate object names, including nested
 // and escaped equivalents, before JSON.parse could silently erase an earlier key.
-function strictJSON(raw){
-  if(typeof raw!=='string'||Buffer.byteLength(raw)>8192)throw Error('answer-byte-budget');
+function strictJSON(raw,maxBytes=8192){
+  if(typeof raw!=='string'||Buffer.byteLength(raw)>maxBytes)throw Error('answer-byte-budget');
   let i=0,nodes=0;const ws=()=>{while(/[ \t\r\n]/.test(raw[i]||'')&&i<raw.length)i++;};
   function string(){const start=i++;while(i<raw.length){if(raw[i]==='\\'){i+=2;continue;}if(raw[i++]==='"')return JSON.parse(raw.slice(start,i));}throw Error('invalid-json');}
   function value(depth){ws();if(depth>12||++nodes>512)throw Error('answer-depth-budget');const c=raw[i];
