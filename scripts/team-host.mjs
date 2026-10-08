@@ -24,7 +24,8 @@ import { nativePublicationGate, nativeIntegrationOpen } from './team-native-inte
 import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
 import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion, serializeOwnedRuntimeStopProof } from './team-owned-runtime.mjs';
 import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest, readWorkInputs, workInputsDigest, validateWorkPatch, writeSealedPatch, readSealedPatch, applySealedPatch, pinCandidateTree, resetWorkPaths, treeDiff, syncCheckoutIndex, workCommitText, workCommitMessageDigest, workCommit, publishWorkCommit, workPublicationState } from './team-integration.mjs';
-import { formatWorkPromptHead, workPromptDigest, workRevisionSource, workSuiteDigest, workPatchRef, WORK_MAX_OUTPUT_BYTES, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
+import { formatWorkPromptHead, workPromptDigest, calibratedWorkPromptDigest, CALIBRATED_EXECUTOR, workRevisionSource, workSuiteDigest, workPatchRef, WORK_MAX_OUTPUT_BYTES, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
+import { promptFor as boundedEditPrompt } from './team-implement-suite.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 import { leasesOverStaged } from './commit.mjs';
 import { sessionId, storyRefOf } from './lib.mjs';
@@ -200,12 +201,38 @@ export function createTeamHost(config, dependencies={}) {
   }finally{if(transport)await closeNative(transport);}
  }
  const workPrompt=(w,inputs,revision)=>formatWorkPromptHead(w.manifest,revision)+'\n'+JSON.stringify({base:inputs.base,files:inputs.files.map(f=>({path:f.path,content:f.content}))});
+ // Contract 29(b): the calibration wire format itself, without read-only context.
+ // Bytes, lines and charset of the measured class are checked here, before any
+ // reservation; the authority sees only the inputs digest.
+ const SIZE_CLASS={file_bytes:1536,file_lines:40,prompt_bytes:16384,answer_bytes:8192};
+ // The suite's own input rule (`clean` in verifyImplementSuite) and its one output
+ // normaliser (a missing final LF is added), copied: moving them would change the
+ // installed evaluators digest.
+ const measuredContent=c=>typeof c==='string'&&/^[\x20-\x7e\n]+$/.test(c)&&c.endsWith('\n')&&!c.endsWith('\n\n')&&!/ \n/.test(c)&&c.split('\n').length<=SIZE_CLASS.file_lines+1&&Buffer.byteLength(c)<=SIZE_CLASS.file_bytes;
+ const finalNewline=c=>c.endsWith('\n')?c:c+'\n';
+ const COUNTER_SCHEMA={codex:'codex-thread-cumulative-total-v1',opencode:'opencode-native-normalized-step-total-v1',claude:'claude-native-first-turn-total-v1'};
+ function calibratedWorkPrompt(w,inputs){
+  if(inputs.files.some(f=>f.content!==null&&!measuredContent(f.content)))fail('native-work-size-class-exceeded');
+  const prompt=boundedEditPrompt({goal:w.manifest.goal,criteria:w.manifest.criteria,assigned:inputs.files.map(f=>({path:f.path,content:f.content})),context:[]});
+  if(Buffer.byteLength(prompt)>SIZE_CLASS.prompt_bytes)fail('native-work-size-class-exceeded');
+  return prompt;
+ }
+ // The private-ref checkout of a work: this Host's record, else the authority's
+ // ownership record (a calibrated executor's Host may have captured it).
+ function workCheckout(workId){
+  if(existsSync(workRecord(workId)))return read(workRecord(workId),true).checkout;
+  const ownership=join(authorityRoot,'integrations',team,workId,'ownership.json');
+  if(!existsSync(ownership))fail('host-native-work-checkout-record-required');
+  const owned=read(ownership,true);if(owned.team_id!==team||owned.work_id!==workId)fail('host-native-work-checkout-conflict');
+  return owned;
+ }
  // Opens the next generation of rejected work (owner). The template-2 prompt of
  // that generation is size-checked first, and a retry after a lost response
  // finds the revise already applied.
  function reviseNativeWork({workId,reason}={}){
   const o=owner(),{t}=getTeam(),w=t.work?.[workId];
   if(w?.protocol!==2)fail('host-protocol-2-work-required');
+  if(w.executor===CALIBRATED_EXECUTOR)fail('native-work-calibrated-revision-unsupported');
   if(w.revision?.generation===w.generation&&w.revision.reason===reason&&!['changes-requested','blocked'].includes(w.status))return {revised:w.id,generation:w.generation,unchanged:true,protected_actions_granted:false};
   const found=workRevisionSource(t,w);if(!found)fail('native-work-negative-review-required');
   const inputs=integration.readWorkInputs({projectRoot,base:w.manifest.base,paths:w.paths});
@@ -231,28 +258,39 @@ export function createTeamHost(config, dependencies={}) {
  async function executeNativeWork({workId,estimateTokens}={}){
   owner();const d=endpoint(),{t}=getTeam(),w=t.work?.[workId],policy=t.native_work_policy;
   if(w?.protocol!==2)fail('host-protocol-2-work-required');
-  if(d.participant!==t.leader||d.participant!==w.worker)fail('host-native-work-leader-endpoint-required');
+  const calibrated=w.executor===CALIBRATED_EXECUTOR;
+  if(calibrated?d.participant!==w.worker:d.participant!==t.leader||d.participant!==w.worker)fail(calibrated?'host-native-work-executor-endpoint-required':'host-native-work-leader-endpoint-required');
+  // The executor's counter unit must be allocated before any native process starts.
+  if(calibrated&&!policy?.unit_allocations?.some(u=>u.unit_digest===routingDigest({scope:'team-native-counter',team,counter_schema:COUNTER_SCHEMA[d.descriptor.harness]})))fail('host-native-work-allocation-required');
   if(d.descriptor.harness==='codex')fail('host-native-work-no-tools-context-required');
   // Everything checkable without a native process runs before one is spawned.
   if(!['manifest','attempt-failed'].includes(w.status)||!policy||w.attempts+1>policy.max_attempts)fail('host-native-work-not-dispatchable');
   const inputs=integration.readWorkInputs({projectRoot,base:w.manifest.base,paths:w.paths}),inputsDigest=integration.workInputsDigest(inputs);
-  const prompt=workPrompt(w,inputs,w.revision);
+  const prompt=calibrated?calibratedWorkPrompt(w,inputs):workPrompt(w,inputs,w.revision);
   if(Buffer.byteLength(prompt)>65536)fail('host-native-work-prompt-too-large');
   await ensureNativeQuotaLease();
   const attempt=w.attempts+1,nonce='work_'+randomUUID().replace(/-/g,''),operationId=randomUUID(),ref=workPatchRef(team,w,attempt,nonce);
-  const binding={work_id:w.id,generation:w.generation,attempt,inputs_digest:inputsDigest,prompt_digest:workPromptDigest(w.manifest,inputsDigest,w.revision)};
+  const binding={work_id:w.id,generation:w.generation,attempt,inputs_digest:inputsDigest,prompt_digest:calibrated?calibratedWorkPromptDigest(w.manifest,inputsDigest):workPromptDigest(w.manifest,inputsDigest,w.revision)};
   // A seal never throws: a failed write becomes a named outcome so the tokens still settle.
   const seal=async(rawOutput,nativeFailure)=>{
    const output_digest=routingDigest(rawOutput??''),none={output_digest,patch_digest:null,patch_ref:null,paths:[]};
    if(nativeFailure!==null||rawOutput===null)return {...none,outcome:nativeFailure==='native-answer-budget'?'native-work-answer-too-large':'native-work-turn-failed'};
+   if(calibrated){
+    // Refusal-class outcomes of the measured format (S4-retry: no retry after them).
+    let parsed=null;try{parsed=parseProtocolJSON(rawOutput.trim(),SIZE_CLASS.answer_bytes);}catch{}
+    if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)&&JSON.stringify(parsed)==='{"refusal":"scope-amendment-required"}')return {...none,outcome:'native-work-scope-amendment-required'};
+    if(Buffer.byteLength(rawOutput)>SIZE_CLASS.answer_bytes)return {...none,outcome:'native-work-answer-too-large'};
+    if(Array.isArray(parsed?.files)&&parsed.files.some(f=>typeof f?.path==='string'&&!w.paths.includes(f.path)))return {...none,outcome:'native-work-unassigned-path'};
+   }
    let patch;try{patch=integration.validateWorkPatch(rawOutput,w.paths,parseProtocolJSON);}catch(error){return {...none,outcome:error.code==='work-patch-empty'?'native-work-empty-patch':'native-work-invalid-patch'};}
    // Files echoed back unchanged are dropped; a patch that changes nothing is empty.
+   if(calibrated)patch={files:patch.files.map(f=>({path:f.path,content:finalNewline(f.content)}))};
    const base=new Map(inputs.files.map(f=>[f.path,f.content]));patch={files:patch.files.filter(f=>base.get(f.path)!==f.content)};
    if(!patch.files.length)return {...none,outcome:'native-work-empty-patch'};
    try{integration.writeSealedPatch({projectRoot,ref,patch});}catch{return {...none,outcome:'native-work-seal-write-failed'};}
    return {outcome:'completed',output_digest,patch_digest:routingDigest(patch),patch_ref:ref,paths:patch.files.map(f=>f.path)};
   };
-  const result=await managedOperation('protocol-work-execute',()=>subscriptionSingleCall({nonce,estimateTokens:estimateTokens||policy.ceilings?.execution?.max_estimate_tokens||'16000',workCall:{prompt,binding,seal},operationId}),{operation:operationId,forceOwned:true});
+  const result=await managedOperation('protocol-work-execute',()=>subscriptionSingleCall({nonce,estimateTokens:estimateTokens||policy.ceilings?.execution?.max_estimate_tokens||'16000',workCall:{prompt,binding,seal,...(calibrated?{maxOutput:SIZE_CLASS.answer_bytes}:{})},operationId}),{operation:operationId,forceOwned:true});
   const after=getTeam().t.work[w.id],dispatch=after.dispatches?.[nonce];
   return {work:w.id,attempt,status:after.status,dispatch:dispatch?{state:dispatch.state,patch_ref:dispatch.patch_ref??null,paths:dispatch.paths??[],...(dispatch.failure?{failure:dispatch.failure}:{})}:null,actual_tokens:result.actual_tokens??null,protected_actions_granted:false};
  }
@@ -341,7 +379,7 @@ export function createTeamHost(config, dependencies={}) {
   // Like `waypost commit --story`, a story is resolved against the vault when one is bound.
   const storyRef=config.vaultPath?storyRefOf(story,config.vaultPath):story;if(config.vaultPath&&!storyRef)fail('host-native-publication-unknown-story');
   await ensureNativeQuotaLease();({v,t}=getTeam());
-  const checkout=read(workRecord(workId),true).checkout,open=t.native_integration;let reservation,text;
+  const checkout=workCheckout(workId),open=t.native_integration;let reservation,text;
   const reserved=()=>{throw Object.assign(new Error('host-native-publication-reserved-recover-required: reservation '+open.id+' is '+open.state),{code:'host-native-publication-reserved-recover-required',reservation_id:open.id});};
   if(nativeIntegrationOpen(t)&&open.state!=='prepared')reserved();
   if(v.state.publication_fence)fail('host-native-publication-fence-held');
@@ -357,9 +395,10 @@ export function createTeamHost(config, dependencies={}) {
    if(!pinned||pinned.reservation?.id!==open.id||integration.workCommitMessageDigest(pinned.text)!==open.commit_message_digest)reserved();
    reservation=open;text=pinned.text;
   }else{
-   const gate=nativePublicationGate(v.state,t,w,Date.parse(now())),leader=t.participants[t.leader];
+   // The author's Harness, Session and Provider (coordination spec 7.3): the worker's.
+   const gate=nativePublicationGate(v.state,t,w,Date.parse(now())),author=t.participants[w.worker];
    reservation={id:'native-integration-'+randomUUID(),work_id:w.id,...gate,checkout_ref:checkout.ref,commit_identity:commitIdentity};
-   text=integration.workCommitText({message,teamId:team,workId:w.id,reservationId:reservation.id,reviews:reservation.reviews,label:reservation.label,harness:leader.harness||'unrecorded',session:leader.session||'unrecorded',provider:leader.model.provider||'unrecorded',generation:w.generation,story:storyRef,contributors:[t.leader,gate.reviewer.participant].join(', ')});
+   text=integration.workCommitText({message,teamId:team,workId:w.id,reservationId:reservation.id,reviews:reservation.reviews,label:reservation.label,harness:author.harness||'unrecorded',session:author.session||'unrecorded',provider:author.model.provider||'unrecorded',generation:w.generation,story:storyRef,contributors:[...new Set([w.worker,t.leader]),gate.reviewer.participant].join(', ')});
    reservation.commit_message_digest=integration.workCommitMessageDigest(text);
    reservation.commit=integration.workCommit({checkout,base:reservation.base,tree:reservation.tree,text,identity:commitIdentity});
    // Pin the original message before the reservation; recovery never rebuilds it.
@@ -380,7 +419,7 @@ export function createTeamHost(config, dependencies={}) {
   if(x?.state==='prepared')return mutate('native-integration-abort-v2',{reservation_id:x.id},o).result;
   if(x?.state!=='publishing')fail('host-native-publishing-reservation-required');
   if(gitChildStopped!==true)fail('integration-child-stop-proof-required');
-  const checkout=read(workRecord(x.work_id),true).checkout;
+  const checkout=workCheckout(x.work_id);
   if(checkout.ref!==x.checkout_ref)fail('host-native-publication-checkout-mismatch');
   const state=integration.workPublicationState({checkout,base:x.base,commit:x.commit});
   // Commit ids are content-addressed: a ref at the pinned id is the publication.
@@ -661,8 +700,7 @@ export function createTeamHost(config, dependencies={}) {
    if(before.consistent===false)before=await transport.captureAccountingMetadata();
    const contextId='subscription-context-'+randomUUID();
    const schema=transport.usage_counter_schema;
-   const allowedSchema={codex:'codex-thread-cumulative-total-v1',opencode:'opencode-native-normalized-step-total-v1',claude:'claude-native-first-turn-total-v1'};
-   if(schema!==allowedSchema[d.descriptor.harness])fail('host-subscription-bootstrap-counter-adapter-unsupported');
+   if(schema!==COUNTER_SCHEMA[d.descriptor.harness])fail('host-subscription-bootstrap-counter-adapter-unsupported');
    const unit={scope:'team-native-counter',team:t.id,counter_schema:schema},unitDigest=routingDigest(unit);
    binding={before,contextId,unit};
    const observedAt=now();
@@ -680,7 +718,7 @@ export function createTeamHost(config, dependencies={}) {
    // inspected again here, where a refusal still aborts the reservation.
    if(transport.preflight_before_consume){const again=await transport.inspectContext();if(again.verified!==true||typeof again.evidence_digest!=='string')fail('host-subscription-owned-read-only-context-unverified');binding.preflight=again.evidence_digest;}
    mutate('subscription-consume-v2',{invocation_id:invocationId,nonce,native_id:transport.native_id,...(controlAction?{prompt_digest:controlAction.prompt_digest}:trialBinding?{prompt_digest:trialBinding.measurement.prompt_digest}:deliveryBinding?{prompt_digest:deliveryBinding.prompt_digest}:workCall?{prompt_digest:workCall.binding.prompt_digest}:{})},collector());consumed=true;
-   const receipt=await transport.send(prompt,{id:nonce,purpose:controlAction?'protocol-control':trialBinding?'calibration':deliveryMessage?'addressed-peer-message':workCall?'protocol-work':'identity',read_only:true,max_output_chars:workCall?WORK_MAX_OUTPUT_BYTES:deliveryMessage?DELIVERY_MAX_ANSWER_BYTES:trialBinding||controlAction?8192:256});
+   const receipt=await transport.send(prompt,{id:nonce,purpose:controlAction?'protocol-control':trialBinding?'calibration':deliveryMessage?'addressed-peer-message':workCall?'protocol-work':'identity',read_only:true,max_output_chars:workCall?workCall.maxOutput??WORK_MAX_OUTPUT_BYTES:deliveryMessage?DELIVERY_MAX_ANSWER_BYTES:trialBinding||controlAction?8192:256});
    return await accountReceipt(receipt);
   }catch(error){
    if(consumed&&binding&&error.native_receipt&&['consumed','uncertain'].includes(load().state.subscription_invocations?.[invocationId]?.state)){

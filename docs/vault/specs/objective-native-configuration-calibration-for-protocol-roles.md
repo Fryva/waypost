@@ -429,7 +429,10 @@ fixed-action pattern of contracts 20–21.
     the executor needs current `waypost-bounded-edit` coverage (contract 33);
     unknown or complex classification goes to the strongest qualified executor;
     until contract 33 exists this mode refuses with
-    `native-work-implementation-coverage-required`. Both need a ready,
+    `native-work-implementation-coverage-required`. Amended in slice 4 (owner
+    decision 2026-10-07): work outside the measured class is refused
+    (`native-work-size-class-exceeded`), not routed to a strongest executor;
+    the owner names the executor in the manifest. Both need a ready,
     admitted, quota-eligible participant and a no-tools context (Codex refused).
 30. Dispatch and execution. `subscription-reserve-v2` gains purpose `work` with
     work id, generation, attempt, a prompt digest the reducer recomputes from a
@@ -1072,8 +1075,154 @@ ranks as without implement; implement-only refused; a safety-flagged and a
 changed-enrollment profile get empty coverage), and admission identity at
 install stays sourced from protocol captures only (an implement capture never
 becomes `native_admission.source_invocation`), so the gate changes nothing an
-installed policy grants. Open for the owner: whether an implement cohort must
-set `calibration_expires_at` (without it implement capture clocks shorten the
-summary expiry; 72 trials per member rarely fit 15 minutes anyway). Not done:
+installed policy grants. Owner decision (2026-10-07): an implement cohort does not
+have to set `calibration_expires_at` (without it implement capture clocks
+shorten the summary expiry, as for protocol roles). Not done:
 a memo for suite rebuilds during summary and install replay (about 3.5 ms per
 capture; implement adds 24 captures per member).
+
+### Slice 4 plan: contract 29(b), a calibrated bounded-edit executor (proposed, 2026-10-07)
+
+Goal: an owner can run protocol 2 work through a participant whose installed
+policy carries the `waypost-bounded-edit` gate, in the exact wire format that
+gate was measured on, instead of the leader. Leader-baseline stays as it is and
+every existing event replays byte for byte (new fields only in the new mode).
+
+1. **Mode.** `native-work-enable-v2` accepts `executor:
+   'calibrated-bounded-edit'` (the refusal at `team-native-work.mjs:65` goes).
+   One unfinished work at a time and the ceilings are unchanged.
+2. **Executor choice (contract 28 stays future work).** In this mode the owner
+   manifest names `executor` (a participant id); absent in leader-baseline. The
+   authority accepts it only if the executor is admitted, ready, not revoked,
+   quota-eligible (known quota unless `allow_unknown_quota`), not Codex, and its
+   installed policy profile has `role_coverage.implement` =
+   `['waypost-bounded-edit']` with `calibration.implement` current and qualified
+   at `now` (a new `implementGate(participant, policy, now)` in `team.mjs` that
+   reuses the native admission check of `rankNativeParticipant`; implement rank
+   stays `null`). The executor may be the leader. The work pins `worker`,
+   incarnation, model revision and admitted identity as today; dispatch and
+   consume recheck the gate.
+3. **Size class enforced, not only labelled.** The claim covers what was
+   measured, so a calibrated manifest has at most 2 assigned `paths`, an
+   optional `context_paths` (read-only, at most 2, disjoint from `paths`,
+   validated like paths) and `forbidden_actions: []` (the frozen head already
+   states the forbidden actions; the calibrated format has no free-text
+   forbidden list). The Host refuses dispatch with
+   `native-work-size-class-exceeded` when an assigned or context file exceeds
+   1.5 KiB or the prompt exceeds 16 KiB, before any reservation; the answer
+   cap is 8 KiB.
+4. **Prompt.** Template `bounded-edit` revision 1: `formatBoundedEditHead()`
+   plus the two JSON lines of the calibration wire format (`goal`, `criteria`,
+   `assigned_paths`, `read_only_paths`; then `assigned` and `read_only` file
+   objects, content `null` for a missing file). The reducer binds
+   `workPromptDigest` for this mode as `routingDigest({template:
+   'bounded-edit-1', head, goal, criteria, paths, context_paths,
+   inputs_digest})`, and the work suite digest is a separate constant so a
+   leader-baseline reservation can never satisfy a calibrated work or the
+   reverse.
+5. **Refusal outcome (contract 30 amendment).** An exact
+   `{"refusal":"scope-amendment-required"}` settles tokens with outcome
+   `native-work-scope-amendment-required` (attempt failed, no patch); the owner
+   cancels or writes a new manifest. Any other answer goes through the existing
+   strict patch validation; a write to a context path is
+   `native-work-unassigned-path` (no patch).
+6. **Revision.** `native-work-revise-v2` refuses a calibrated work with
+   `native-work-calibrated-revision-unsupported`: findings as data were never
+   measured for this executor. The owner cancels and writes a new manifest.
+7. **Host and capture.** `executeNativeWork` runs on the worker's endpoint
+   (`d.participant === w.worker`, no longer necessarily the leader); the
+   executor's bound collector captures material; supervision is recorded as
+   `calibrated-bounded-edit-deterministic` (manifest scope). Review is
+   unchanged: the critic already excludes worker, leader and both
+   configurations. Publication stays the leader's.
+8. **Not in this slice:** contract 28 (leader-requested assignment), automatic
+   executor selection, a live run, protocol 2 work adoption on handover.
+9. **Tests:** enable accepts the mode; a manifest refuses an uncovered,
+   expired, Codex, quota-ineligible or unknown executor, more than 2 paths or
+   context paths, overlap, and non-empty forbidden actions; a calibrated work
+   runs end to end through the Host to an approved review and publication with
+   the executor ≠ leader; the prompt equals the calibration format for the same
+   inputs; a refusal answer settles as the named outcome; a context-path write
+   fails; oversize inputs are refused before reservation; revise is refused;
+   leader-baseline tests and the three golden logs replay unchanged.
+
+Critic revision of the slice 4 plan (fresh context, revise; 2026-10-07). It
+supersedes items 1-9 above where they differ:
+
+- **O10 at manifest.** The reviewer-availability check uses the work's worker,
+  not the leader: manifest, reserve and consume refuse a calibrated work when no
+  independent critic remains once the executor, the leader and both
+  configurations are excluded (in leader-baseline worker = leader, so stored
+  logs replay unchanged).
+- **Label and trailers.** A calibrated work stores label
+  `calibrated-bounded-edit`; the publication gate pins `w.label`; the commit's
+  Harness, Session and Provider come from the worker, Contributors are the
+  worker, the leader and the reviewer (coordination spec 7.3).
+- **No read-only context in slice 4.** A calibrated prompt always carries
+  `read_only_paths: []` and `read_only: []` (7 of the 24 measured trials have no
+  context); context paths come later with a review template that shows them.
+- **Prompt by construction.** Production calls the suite's own `promptFor`
+  (exported; its source text, and so the grading digest, is unchanged) with
+  `{goal, criteria, assigned:[{path, content}], context:[]}`. The prompt digest
+  binds template `bounded-edit-1`; the work suite digest stays the same
+  constant (the template tag separates the modes).
+- **Manifest.** Exact key set per mode; the executor is
+  `executor_participant`; the mode comes from the work record, never a command;
+  the executor's counter unit must be in the work policy's `unit_allocations`.
+- **Refusal.** A strict parse that equals exactly
+  `{"refusal":"scope-amendment-required"}` settles with outcome
+  `native-work-scope-amendment-required`; a write outside the assigned paths
+  (an unchanged echo included) with `native-work-unassigned-path`; an answer over
+  8 KiB with `native-work-answer-too-large`. All settle tokens, consume the slot,
+  and leave the work non-dispatchable until the owner cancels.
+- **Cross-Host.** The worker's Host executes and captures; publish and recover on
+  the leader's Host read the work record from the authority-root ownership
+  record when their own directory lacks it; a lapsed leader lease is refused as
+  `native-work-leader-lease-required`. The runbook is updated.
+- **Trust boundary.** The authority checks counts, goal and criteria bounds and
+  the gate; bytes, lines and charset of file contents are checked by the Host
+  before any reservation (`native-work-size-class-exceeded`) and are auditable
+  afterwards from Git, not enforced at admission.
+- **Gate rechecks** run at manifest, reserve and consume only; after consume,
+  settle, capture, review and publication do not recheck the executor. Losing
+  coverage, quota or admission blocks the next attempt; the work waits for an
+  owner cancel. A cancel plus a new manifest gets a fresh review even of an
+  identical tree.
+
+Owner decisions (2026-10-07): **S4-supervision** — the 6.4 amendment extends to
+`calibrated-bounded-edit`: deterministic Host checks plus the strongest
+independent critic; contract 29(b) is amended so work outside the measured class
+is refused rather than routed to a strongest executor. **S4-context** — no
+read-only context paths in slice 4. **S4-retry** — after a scope refusal, an
+unassigned write or an oversize answer the work is not dispatchable again; only
+an owner cancel ends it. **S4-class** — the whole measured class is enforced: at
+most 2 assigned files, each at most 1.5 KiB and 40 lines, printable ASCII with
+LF, no tabs; goal and each criterion at most 600 characters; 1-2 criteria;
+`forbidden_actions: []`. Relaxing it needs a suite revision.
+
+Slice 4 implementation (2026-10-07, Claude Code): `implementGate` in `team.mjs`
+(shares the admission check with `rankNativeParticipant` through
+`admittedNativeProfile`); `team-native-work.mjs` accepts
+`calibrated-bounded-edit`, pins `executor_participant` as the worker with
+`executor` and label `calibrated-bounded-edit`, checks the measured class, the
+gate, Codex and quota at manifest and the gate at reserve and consume, binds
+`calibratedWorkPromptDigest` (template `bounded-edit-1`), names a lapsed leader
+lease, refuses revise, and leaves the work `execution-refused` after a
+refusal-class outcome; the publication gate pins `w.label` and checks the critic
+with the worker excluded; the Host renders the suite's own `promptFor`, checks
+bytes, lines and charset before any reservation, caps the answer at 8 KiB, runs
+on the worker's endpoint, takes the commit's Harness, Session and Provider from
+the worker, and reads the checkout from the authority's ownership record when
+its own record is missing. A golden log
+`tests/fixtures/native-slice4-authority/calibrated-published` replays a
+calibrated executor ≠ leader from manifest to publication. After a fresh-context
+review (revise, no authority hole): the Host applies the suite's own input rule
+(non-empty, final LF, no trailing blank line or spaces) and its one output
+normaliser (a missing final LF is added); the executor's counter unit is checked
+by its Host before any process starts rather than at manifest (the authority
+does not know the executor's harness reliably); manifest and dispatch refuse
+`native-work-installed-suite-changed` when the running suite's grading digest
+differs from the policy's `implement_criteria_digest`; the measured path rule
+(lower-case `[a-z0-9_./]`, at most 128 characters) is not enforced, as it is
+not in the owner's S4-class list. Open: the executor's `ready` availability is
+checked at manifest only; reserve and consume accept `busy`.

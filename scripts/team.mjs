@@ -304,9 +304,10 @@ export function rankParticipant(participant, policy, role, { action, coverage, n
   return profile ? profile.priorities[role] : null;
 }
 
-function rankNativeParticipant(participant, policy, role, { action, coverage, now }) {
+// The installed profile of a participant's current native admission, or null.
+function admittedNativeProfile(participant, policy, now) {
   if(!nativeParticipantQuotaEligible(participant,now))return null;
-  if (action !== undefined || role === "implement" || coverage !== "waypost-protocol-" + role || !Number.isFinite(now) || now < Date.parse(policy.generated_at) || now >= Date.parse(policy.expires_at) || participant.revoked !== false || participant.availability === "left") return null;
+  if (!Number.isFinite(now) || now < Date.parse(policy.generated_at) || now >= Date.parse(policy.expires_at) || participant.revoked !== false || participant.availability === "left") return null;
   try {
     const admission = exact(participant.native_admission, "native admission", ["protocol", "identity", "observation_id", "participant", "incarnation", "model_revision", "descriptor_digest", "collector", "source_invocation", "observed_at", "expires_at"]);
     if (admission.protocol !== 2) return null;
@@ -317,11 +318,22 @@ function rankNativeParticipant(participant, policy, role, { action, coverage, no
     // Calibration validity is owner-bounded (at most 7 days); identity is proven per action.
     if (Date.parse(admission.expires_at) - Date.parse(admission.observed_at) > 604800000) return null;
     if (admission.participant !== participant.id || admission.incarnation !== participant.incarnation || admission.model_revision !== participant.model?.model_revision || admission.descriptor_digest !== participant.native_binding?.descriptor_digest || admission.collector !== participant.native_binding?.collector_id || typeof admission.collector !== "string" || !admission.collector || now < Date.parse(admission.observed_at) || now >= Date.parse(admission.expires_at)) return null;
-    const profile = policy.profiles.find(p => p.identity.profile_id === admission.identity.profile_id && p.identity.profile_digest === admission.identity.profile_digest && p.identity.profile_revision === admission.identity.profile_revision);
-    const calibration = profile?.calibration[role];
-    if (!profile?.role_coverage[role].includes(coverage) || !calibration?.current || !calibration.qualified || now < Date.parse(calibration.observed_at) || now >= Date.parse(calibration.expires_at)) return null;
-    return profile.priorities[role];
+    return policy.profiles.find(p => p.identity.profile_id === admission.identity.profile_id && p.identity.profile_digest === admission.identity.profile_digest && p.identity.profile_revision === admission.identity.profile_revision) ?? null;
   } catch { return null; }
+}
+function calibratedRole(profile, role, coverage, now) {
+  const calibration = profile?.calibration[role];
+  return !!(profile?.role_coverage[role]?.includes(coverage) && calibration?.current && calibration.qualified && now >= Date.parse(calibration.observed_at) && now < Date.parse(calibration.expires_at));
+}
+function rankNativeParticipant(participant, policy, role, { action, coverage, now }) {
+  if (action !== undefined || role === "implement" || coverage !== "waypost-protocol-" + role) return null;
+  const profile = admittedNativeProfile(participant, policy, now);
+  return calibratedRole(profile, role, coverage, now) ? profile.priorities[role] : null;
+}
+// Contract 29(b): the waypost-bounded-edit gate of a currently admitted
+// participant. It is a gate, never a rank (implement priority stays null).
+export function implementGate(participant, policy, now) {
+  return policy?.protocol === 2 && !!participant && calibratedRole(admittedNativeProfile(participant, policy, now), "implement", "waypost-bounded-edit", now);
 }
 
 function available(participant) {

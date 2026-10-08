@@ -9,10 +9,10 @@ import {reduceTeamEvent} from '../scripts/team-state.mjs';
 import {buildAuthenticatedCalibrationSummary} from '../scripts/team-role-calibration.mjs';
 import {compileCalibrationPolicyV2} from '../scripts/model-strength.mjs';
 
-// Authority logs recorded with the slice 1 reducer (6299a18) and with the slice 2
-// revision loop (7c263f7): every later reducer must replay them to the same state
+// Authority logs recorded with the slice 1 reducer (6299a18), with the slice 2
+// revision loop (7c263f7) and with the slice 4 calibrated executor: every later reducer must replay them to the same state
 // and result digests, event by event.
-for(const [slice,name,status,generation] of [['slice1','published','integrated',1],['slice1','rejected-cancelled','cancelled',1],['slice2','revised-published','integrated',2]])test(`the ${slice} ${name} authority log replays unchanged`,t=>{
+for(const [slice,name,status,generation] of [['slice1','published','integrated',1],['slice1','rejected-cancelled','cancelled',1],['slice2','revised-published','integrated',2],['slice4','calibrated-published','integrated',1]])test(`the ${slice} ${name} authority log replays unchanged`,t=>{
  const fixtures=join(import.meta.dirname,'fixtures','native-'+slice+'-authority');
  const dir=realpathSync(mkdtempSync(join(tmpdir(),'waypost-golden-'))),root=join(dir,'authority');t.after(()=>rmSync(dir,{recursive:true,force:true}));
  cpSync(join(fixtures,name,'authority'),root,{recursive:true});
@@ -29,7 +29,7 @@ for(const [slice,name,status,generation] of [['slice1','published','integrated',
 // replays above never open a cohort, capture, summarise or compile. Recompiling
 // the summary and policy from each seed pins those paths (and the protocol suite
 // digests) byte for byte.
-for(const [slice,name] of [['slice1','published'],['slice1','rejected-cancelled'],['slice2','revised-published']])test(`the ${slice} ${name} seed recompiles its installed policy unchanged`,()=>{
+for(const [slice,name] of [['slice1','published'],['slice1','rejected-cancelled'],['slice2','revised-published'],['slice4','calibrated-published']])test(`the ${slice} ${name} seed recompiles its installed policy unchanged`,()=>{
  const seed=JSON.parse(gunzipSync(readFileSync(join(import.meta.dirname,'fixtures','native-'+slice+'-authority',name,'seed.json.gz'))).toString('utf8'));
  const p=seed.teams.team.policy,now=Date.parse(p.generated_at);
  const summary=buildAuthenticatedCalibrationSummary({teamId:'team',cohortId:p.provenance.cohort,loaded:{state:seed,revision:p.provenance.authority_revision},now});

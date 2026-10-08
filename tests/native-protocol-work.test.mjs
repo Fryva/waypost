@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { authorityFixture, at, now, expiry } from './helpers/native-calibration.mjs';
 import { reduceTeamEvent } from '../scripts/team-state.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
+import { implementGate, rankParticipant } from '../scripts/team.mjs';
 
 const legacy={protocol:1,revision:1,domain:'coding',mode:'automatic',generated_at:at,expires_at:expiry,sources:[{id:'fixture',url:'https://example.org/fixture',retrieved_at:at}],evidence_floor:['adapter-observed'],profiles:[]};
 let shared;
@@ -20,9 +21,11 @@ const criteria=['The function returns the sum'];
 const manifest=(patch={})=>({protocol:2,goal:'Fix the sum function',criteria,criteria_digest:routingDigest(criteria),paths:['src/sum.js'],base:'a'.repeat(40),forbidden_actions:['network'],...patch});
 async function enabled(){const {state,unit}=await activeTeam();return {state:send(state,'native-work-enable-v2',{revision:1,policy:workPolicy(unit,state)}).state,unit};}
 
-test('an owner work ceiling admits only leader-baseline with pinned allocations, and a manifest records unqualified leader work',async()=>{
+test('an owner work ceiling admits leader-baseline or a calibrated executor with pinned allocations, and a manifest records unqualified leader work',async()=>{
  const {state,unit}=await activeTeam();
- assert.throws(()=>send(state,'native-work-enable-v2',{revision:1,policy:workPolicy(unit,state,{executor:'calibrated-bounded-edit'})}),/native-work-implementation-coverage-required/);
+ // Without a waypost-bounded-edit gate the calibrated mode enables but no executor qualifies.
+ const calibratedOn=send(state,'native-work-enable-v2',{revision:1,policy:workPolicy(unit,state,{executor:'calibrated-bounded-edit'})}).state;
+ assert.throws(()=>send(calibratedOn,'native-work-manifest-v2',{work_id:'w1',manifest:manifest({forbidden_actions:[],executor_participant:'peer-b'})}),/native-work-implementation-coverage-required/);
  assert.throws(()=>send(state,'native-work-enable-v2',{revision:1,policy:workPolicy(unit,state,{unit_allocations:[{unit_digest:unit,max_tokens:'50000',allocation_revision:99}]})}),/existing-work-unit-allocation-required/);
  assert.throws(()=>send(state,'native-work-enable-v2',{revision:1,policy:workPolicy(unit,state,{expires_at:new Date(Date.parse(expiry)+1).toISOString()})}),/bounded-owner-work-ceiling-required/);
  assert.throws(()=>send(state,'native-work-enable-v2',{revision:1,policy:workPolicy(unit,state)},'peer-a'),/owner-required/);
@@ -78,4 +81,34 @@ test('cancel refuses while a call for the work is uncertain',async()=>{
  const {state}=await enabled(),one=send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}).state;
  one.subscription_invocations.call={id:'call',team:'team',state:'uncertain',work:{work_id:'w1'}};
  assert.throws(()=>send(one,'native-work-cancel-v2',{work_id:'w1',reason:'x'}),/reconciled-closure-required/);
+});
+
+// Contract 29(b), slice 4: a team whose policy carries the waypost-bounded-edit gate.
+let sharedImplement;
+async function implementTeam(){
+ sharedImplement??=authorityFixture({roles:['coordinate','review','implement']});const f=await sharedImplement,s=structuredClone(f.state);
+ Object.assign(s,{protocol:1,owner_hash:'fixture',task_bindings:{task:'team'}});Object.assign(s.teams.team,{task:'task',policy:legacy,messages:[],work:{},status:'forming',leader:null,candidate:null,required_review_models:[],native_policy_bootstrap:true});
+ const state=reduceTeamEvent(s,{type:'native-policy-install-v2',team:'team',actor:'owner:fixture',at,request_key:'install',cohort_id:'cohort',expected_policy_revision:1,scope:'waypost-protocol'},{revision:f.revision}).state,t=state.teams.team;
+ t.leader=t.candidate;t.candidate=null;t.status='active';
+ const unit=Object.keys(state.subscription_allocations)[0];
+ return {state:send(state,'native-work-enable-v2',{revision:1,policy:workPolicy(unit,state,{executor:'calibrated-bounded-edit'})}).state};
+}
+test('implementGate admits only a current admission with the bounded-edit coverage',async()=>{
+ const {state}=await implementTeam(),t=state.teams.team;
+ for(const p of Object.values(t.participants))assert.equal(implementGate(p,t.policy,now),true,p.id);
+ const changed=structuredClone(t.participants['peer-a']);changed.incarnation='other';assert.equal(implementGate(changed,t.policy,now),false);
+ assert.equal(implementGate(t.participants['peer-a'],t.policy,Date.parse(t.policy.expires_at)),false);
+ assert.equal(rankParticipant(t.participants['peer-a'],t.policy,'implement',{coverage:'waypost-bounded-edit',now}),null);
+});
+test('a calibrated manifest pins the executor and is refused when no independent critic remains without it (O10)',async()=>{
+ const {state}=await implementTeam(),t=state.teams.team,executor=t.review_candidate;
+ const calibratedManifest=manifest({forbidden_actions:[],executor_participant:executor});
+ const r=send(state,'native-work-manifest-v2',{work_id:'w1',manifest:calibratedManifest}),w=r.state.teams.team.work.w1;
+ assert.equal(w.worker,executor);assert.equal(w.executor,'calibrated-bounded-edit');assert.equal(w.label,'calibrated-bounded-edit');
+ const alone=structuredClone(state);for(const p of Object.values(alone.teams.team.participants))if(![t.leader,executor].includes(p.id))p.availability='busy';
+ assert.throws(()=>send(alone,'native-work-manifest-v2',{work_id:'w1',manifest:calibratedManifest}),/native-work-strongest-independent-review-unavailable/);
+ const codex=structuredClone(state);codex.teams.team.participants[executor].harness='codex';
+ assert.throws(()=>send(codex,'native-work-manifest-v2',{work_id:'w1',manifest:calibratedManifest}),/native-work-no-tools-context-required/);
+ const revisable=structuredClone(r.state);Object.assign(revisable.teams.team.work.w1,{status:'changes-requested',result:{}});
+ assert.throws(()=>send(revisable,'native-work-revise-v2',{work_id:'w1',generation:1,findings_digest:'0'.repeat(64),reason:'again'}),/native-work-calibrated-revision-unsupported/);
 });

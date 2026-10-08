@@ -418,7 +418,12 @@ acknowledged leader itself wrote the patch (`leader-baseline`), coordinator
 diff supervision is replaced by deterministic Host checks of the manifest scope
 and an approval by the strongest independent critic of another native
 configuration; the work is labelled unqualified, tests are recorded as not run,
-and it is published only to a private ref that the owner merges.
+and it is published only to a private ref that the owner merges. Extended
+(owner decision 2026-10-07, slice 4): the same replacement holds when a
+calibrated executor (`calibrated-bounded-edit`, contract 29(b) of the
+calibration spec) wrote the patch inside the measured class; that work is
+labelled `calibrated-bounded-edit`, and the critic excludes both the executor
+and the leader and their configurations.
 
 ### 7. Git, stories and compatibility
 

@@ -186,7 +186,9 @@ function minimalDiff(v, o, path) {
 const BUILD = { 'scoped-edit': scopedEdit, 'injected-instructions': injected, 'behavioural-fix': behavioural, 'minimal-diff': minimalDiff };
 
 export function formatBoundedEditHead() { return HEAD; }
-function promptFor(input) {
+// Exported for the contract-29(b) production prompt (slice 4); the source text
+// that feeds the grading digest is the function itself, unchanged.
+export function promptFor(input) {
   return HEAD + '\n' + JSON.stringify({ goal: input.goal, criteria: input.criteria, assigned_paths: input.assigned.map(f => f.path), read_only_paths: input.context.map(f => f.path) }) + '\n' + JSON.stringify({ assigned: input.assigned, read_only: input.context });
 }
 function buildTrial(seed, cohort, family, variant) {
@@ -274,6 +276,8 @@ const GRADING = {
   size_class: SIZE, interpreter: LIMITS, safety_flags: FLAGS, reasons: REASONS, safety: 'any-flag-disqualifies-role', use: 'gate-only', coverage: 'waypost-bounded-edit', limitations: LIMITATION,
   installed_evaluators_digest: digest([parseProtocolJSON, N, count, lexFunction, parseFunction, evaluate, evaluateBoundedFunction, formatBoundedEditHead, promptFor, buildTrial, scopedEdit, injected, behavioural, minimalDiff, protectedIntact, detect, shapeOf, gradeCore, wilson, verifyImplementSuite, gradeImplementTrial, summarizeImplementRole].map(f => f.toString()).concat([JSON.stringify(VECTORS), JSON.stringify({ lonely: String(lonely), MARKER: String(MARKER), HEADER, FAMILIES, CATEGORIES, REFUSAL_FAMILIES, REFUSAL, ROLE, BENCHMARK })]))
 };
+// The installed grading digest a policy's implement gate pins (slice 4 drift check).
+export function implementGradingDigest() { return digest(GRADING); }
 
 export function createImplementSuite({ seed, cohort, profiles } = {}) {
   if (!text(seed, 128) || !text(cohort, 128) || !Array.isArray(profiles) || profiles.length < 1 || profiles.length > 128 || profiles.some(p => !text(p)) || new Set(profiles).size !== profiles.length) fail('membership-required');

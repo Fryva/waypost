@@ -7,6 +7,8 @@ import { routingDigest } from './model-routing.mjs';
 import { selectNativeQuotaFrontier, nativeParticipantQuotaEligible } from './team-native-quota.mjs';
 import { closedCompletion } from './team-native-action.mjs';
 import { selectWorkReviewer, workReviewTarget } from './team-native-work-review.mjs';
+import { implementGate } from './team.mjs';
+import { formatBoundedEditHead, implementGradingDigest } from './team-implement-suite.mjs';
 
 const clone = structuredClone;
 function fail(message) { throw new Error(message); }
@@ -17,6 +19,19 @@ function text(value, max) { if (typeof value !== 'string' || !value.trim() || va
 const terminal = w => ['integrated', 'cancelled'].includes(w.status);
 
 export const WORK_LABEL = 'unqualified-strongest-baseline';
+// Contract 29(b), slice 4 (owner decisions 2026-10-07): a participant with the
+// waypost-bounded-edit gate executes, only inside the measured class, in the
+// calibration wire format; no read-only context, no revision, no retry after a
+// refusal-class outcome.
+export const CALIBRATED_EXECUTOR = 'calibrated-bounded-edit';
+const calibrated = w => w?.executor === CALIBRATED_EXECUTOR;
+// The gate, measured by the suite this code still runs (a changed suite needs a new cohort).
+function gated(p, t, now) {
+  const pinned = t.policy.provenance?.implement_criteria_digest;
+  if (pinned !== undefined && pinned !== implementGradingDigest()) fail('native-work-installed-suite-changed');
+  if (!implementGate(p, t.policy, now)) fail('native-work-implementation-coverage-required');
+}
+const measuredText = (value, max) => typeof value === 'string' && value.length >= 1 && value.length <= max && /^[\x20-\x7e]+$/.test(value);
 // Relative, normalised paths inside the project; no Git metadata, no case-insensitive duplicates.
 export function workPaths(values) {
   if (!Array.isArray(values) || !values.length || values.length > 64) fail('native-work-paths-required');
@@ -33,13 +48,15 @@ function unfinishedWork(t) { return Object.values(t.work || {}).filter(w => w.pr
 // The leader may act only while the team is active under a current policy and,
 // re-selected read-only at this time (leases and admissions lapse with the
 // clock), is still the coordinator with an independent critic available.
-export function activeNativeLeader(t, now) {
+export function activeNativeLeader(t, now, worker = t.leader) {
   if (t.policy?.protocol !== 2 || t.status !== 'active' || !t.leader || !(Date.parse(t.policy.expires_at) > now)) fail('native-work-active-leader-required');
   if (t.native_quota_freeze || t.handover || t.native_protocol_handover && t.native_protocol_handover.state !== 'applied') fail('native-work-quota-handover-pending');
+  // A calibrated executor's Host renews only its own lease; the leader's must be live too.
+  if (worker !== t.leader && !nativeParticipantQuotaEligible(t.participants[t.leader], now)) fail('native-work-leader-lease-required');
   const frontier = selectNativeQuotaFrontier(t, now);
   if (t.review_blocker || frontier.blocker || frontier.candidate !== t.leader || !frontier.reviewer) fail('native-work-active-leader-required');
   // Leader work is reviewable only by a critic of another native configuration.
-  if (!selectWorkReviewer(t, { worker: t.leader }, now)) fail('native-work-strongest-independent-review-unavailable');
+  if (!selectWorkReviewer(t, { worker }, now)) fail('native-work-strongest-independent-review-unavailable');
   return t.participants[t.leader];
 }
 export function currentWorkPolicy(t, now) {
@@ -62,8 +79,7 @@ export function applyNativeWork(s, t, c, now, H) {
   let result;
   if (c.type === 'native-work-enable-v2') {
     const policy = exact(c.policy, ['kind', 'executor', 'allow_unknown_quota', 'max_attempts', 'timeout_ms', 'expires_at', 'ceilings', 'unit_allocations']);
-    if (policy.executor === 'calibrated-bounded-edit') fail('native-work-implementation-coverage-required');
-    if (policy.kind !== 'protocol-work' || policy.executor !== 'leader-baseline' || typeof policy.allow_unknown_quota !== 'boolean' || !Number.isSafeInteger(policy.max_attempts) || policy.max_attempts < 1 || policy.max_attempts > 8 || !Number.isSafeInteger(policy.timeout_ms) || policy.timeout_ms < 100 || policy.timeout_ms > 300000 || typeof policy.expires_at !== 'string' || !Number.isFinite(Date.parse(policy.expires_at)) || Date.parse(policy.expires_at) <= now || Date.parse(policy.expires_at) > Date.parse(t.policy.expires_at) || !Number.isSafeInteger(c.revision) || c.revision < 1 || c.revision <= (t.native_work_policy?.revision || 0)) fail('bounded-owner-work-ceiling-required');
+    if (policy.kind !== 'protocol-work' || !['leader-baseline', CALIBRATED_EXECUTOR].includes(policy.executor) || typeof policy.allow_unknown_quota !== 'boolean' || !Number.isSafeInteger(policy.max_attempts) || policy.max_attempts < 1 || policy.max_attempts > 8 || !Number.isSafeInteger(policy.timeout_ms) || policy.timeout_ms < 100 || policy.timeout_ms > 300000 || typeof policy.expires_at !== 'string' || !Number.isFinite(Date.parse(policy.expires_at)) || Date.parse(policy.expires_at) <= now || Date.parse(policy.expires_at) > Date.parse(t.policy.expires_at) || !Number.isSafeInteger(c.revision) || c.revision < 1 || c.revision <= (t.native_work_policy?.revision || 0)) fail('bounded-owner-work-ceiling-required');
     exact(policy.ceilings, ['execution', 'review']);
     for (const kind of ['execution', 'review']) { const k = exact(policy.ceilings[kind], ['max_calls', 'max_estimate_tokens']); if (!Number.isSafeInteger(k.max_calls) || k.max_calls < 1 || k.max_calls > 64 || integer(k.max_estimate_tokens) <= 0n) fail('bounded-owner-work-ceiling-required'); }
     if (!Array.isArray(policy.unit_allocations) || !policy.unit_allocations.length || policy.unit_allocations.length > 128 || new Set(policy.unit_allocations.map(u => u.unit_digest)).size !== policy.unit_allocations.length) fail('bounded-owner-work-ceiling-required');
@@ -75,7 +91,8 @@ export function applyNativeWork(s, t, c, now, H) {
     // At most 80 characters, so every Host record and private ref name derived from it stays valid.
     const workId = c.work_id; if (typeof workId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(workId)) fail('native-work-invalid-id');
     if (t.work?.[workId]) fail('native-work-already-exists');
-    const manifest = exact(c.manifest, ['protocol', 'goal', 'criteria', 'criteria_digest', 'paths', 'base', 'forbidden_actions']);
+    const mode = currentWorkPolicy(t, now).executor;
+    const manifest = exact(c.manifest, ['protocol', 'goal', 'criteria', 'criteria_digest', 'paths', 'base', 'forbidden_actions', ...(mode === CALIBRATED_EXECUTOR ? ['executor_participant'] : [])]);
     if (Buffer.byteLength(JSON.stringify(manifest)) > 32768) fail('native-work-manifest-too-large');
     if (manifest.protocol !== 2) fail('native-work-manifest-protocol-required');
     text(manifest.goal, 4000);
@@ -86,13 +103,26 @@ export function applyNativeWork(s, t, c, now, H) {
     if (!Array.isArray(manifest.forbidden_actions) || manifest.forbidden_actions.length > 32) fail('native-work-forbidden-actions-required');
     manifest.forbidden_actions.forEach(x => text(x, 500));
     const paths = workPaths(manifest.paths);
-    const policy = currentWorkPolicy(t, now), leader = activeNativeLeader(t, now);
+    let worker = null;
+    if (mode === CALIBRATED_EXECUTOR) {
+      // The measured class (S4-class): 1-2 assigned paths, 1-2 criteria, printable ASCII goal and criteria of at most 600 characters, no free-text forbidden list.
+      if (paths.length > 2 || manifest.criteria.length > 2 || manifest.forbidden_actions.length || !measuredText(manifest.goal, 600) || manifest.criteria.some(x => !measuredText(x, 600))) fail('native-work-size-class-exceeded');
+      worker = t.participants[manifest.executor_participant];
+      if (!worker || worker.availability !== 'ready' || worker.revoked !== false) fail('native-work-ready-executor-required');
+      if (worker.harness === 'codex') fail('native-work-no-tools-context-required');
+      if (!nativeParticipantQuotaEligible(worker, now)) fail('native-work-known-quota-required');
+      gated(worker, t, now);
+    }
+    const policy = currentWorkPolicy(t, now), leader = activeNativeLeader(t, now, worker?.id);
     if (leader.harness === 'codex') fail('native-work-no-tools-context-required');
+    worker ||= leader;
+    if (worker !== leader && (!nativeParticipantQuotaEligible(worker, now) || !policy.allow_unknown_quota && worker.native_protocol_quota?.proof?.status !== 'available')) fail('native-work-known-quota-required');
     if (unfinishedWork(t).length) fail('native-work-one-at-a-time');
     if (negativeAuditOfCurrentAck(s, t)) fail('native-work-unresolved-negative-leadership-audit');
     t.work ||= {};
-    t.work[workId] = { protocol: 2, id: workId, manifest: clone(manifest), manifest_digest: workManifestDigest(manifest), paths, generation: 1, attempts: 0, epoch: t.epoch, worker: t.leader, worker_incarnation: leader.incarnation, worker_model_revision: leader.model?.model_revision ?? null, worker_identity: clone(leader.native_admission?.identity ?? null), policy_revision: t.policy.revision, status: 'manifest', label: WORK_LABEL, work_policy_revision: policy.revision, created_at: c.at };
-    result = { work: workId, manifest_digest: t.work[workId].manifest_digest, worker: t.leader, label: WORK_LABEL, protected_actions_granted: false };
+    const label = mode === CALIBRATED_EXECUTOR ? CALIBRATED_EXECUTOR : WORK_LABEL;
+    t.work[workId] = { protocol: 2, id: workId, manifest: clone(manifest), manifest_digest: workManifestDigest(manifest), paths, generation: 1, attempts: 0, epoch: t.epoch, worker: worker.id, worker_incarnation: worker.incarnation, worker_model_revision: worker.model?.model_revision ?? null, worker_identity: clone(worker.native_admission?.identity ?? null), policy_revision: t.policy.revision, status: 'manifest', label, ...(mode === CALIBRATED_EXECUTOR ? { executor: mode } : {}), work_policy_revision: policy.revision, created_at: c.at };
+    result = { work: workId, manifest_digest: t.work[workId].manifest_digest, worker: worker.id, label, protected_actions_granted: false };
   } else if (c.type === 'native-work-revise-v2') {
     result = reviseWork(s, t, c, now);
   } else {
@@ -123,6 +153,7 @@ export function workRevisionSource(t, w) {
 }
 function reviseWork(s, t, c, now) {
   const w = t.work?.[c.work_id];
+  if (calibrated(w)) fail('native-work-calibrated-revision-unsupported');
   if (!w || w.protocol !== 2 || !['changes-requested', 'blocked'].includes(w.status) || !w.result) fail('native-work-revisable-work-required');
   text(c.reason, 500);
   if (c.generation !== w.generation) fail('native-work-revise-generation-required');
@@ -161,6 +192,9 @@ export function formatWorkPromptHead(manifest, revision) {
 }
 // The private ref a sealed patch must live behind: team, work, generation, attempt and call.
 export function workPatchRef(teamId, w, attempt, nonce) { return 'refs/waypost/patches/' + teamId + '/' + w.id + '/' + w.generation + '-' + attempt + '-' + nonce; }
+// The calibrated template binds the frozen bounded-edit head (the calibration
+// wire format) with the manifest fields the Host renders after it.
+export function calibratedWorkPromptDigest(manifest, inputsDigest) { return routingDigest({ template: 'bounded-edit-1', head: formatBoundedEditHead(), goal: manifest.goal, criteria: manifest.criteria, paths: manifest.paths, inputs_digest: inputsDigest }); }
 export function workPromptDigest(manifest, inputsDigest, revision) { return revision ? routingDigest({ template: 2, head: formatWorkPromptHead(manifest, revision), inputs_digest: inputsDigest }) : routingDigest({ template: 1, head: formatWorkPromptHead(manifest), inputs_digest: inputsDigest }); }
 const slotKey = (w, attempt) => routingDigest({ work_id: w.id, generation: w.generation, attempt });
 function workBudget(s, t, policy, unitDigest, additional, excluding) {
@@ -176,16 +210,20 @@ function workBudget(s, t, policy, unitDigest, additional, excluding) {
   if (calls > policy.ceilings.execution.max_calls || tokens > integer(limit.max_tokens)) fail('native-work-owner-ceiling-exceeded');
 }
 function workAdmission(s, t, binding, participant, now) {
-  const policy = currentWorkPolicy(t, now), leader = activeNativeLeader(t, now), w = t.work?.[binding.work_id];
+  const policy = currentWorkPolicy(t, now), w = t.work?.[binding.work_id];
   if (!w || w.protocol !== 2 || !['manifest', 'attempt-failed'].includes(w.status)) fail('native-work-dispatchable-work-required');
-  if (participant.id !== t.leader || participant.id !== w.worker || participant.incarnation !== w.worker_incarnation || leader.id !== participant.id) fail('native-work-leader-executor-required');
+  const leader = activeNativeLeader(t, now, w.worker);
+  if (calibrated(w)) {
+    if (participant.id !== w.worker || participant.incarnation !== w.worker_incarnation) fail('native-work-pinned-executor-required');
+    gated(participant, t, now);
+  } else if (participant.id !== t.leader || participant.id !== w.worker || participant.incarnation !== w.worker_incarnation || leader.id !== participant.id) fail('native-work-leader-executor-required');
   if (participant.harness === 'codex') fail('native-work-no-tools-context-required');
   // The executor is still the configuration the manifest pinned (identity is re-proven by later per-action captures).
   if ((participant.model?.model_revision ?? null) !== (w.worker_model_revision ?? null) || routingDigest(participant.native_admission?.identity ?? null) !== routingDigest(w.worker_identity ?? null)) fail('native-work-worker-identity-changed');
   if (!nativeParticipantQuotaEligible(participant, now) || !policy.allow_unknown_quota && participant.native_protocol_quota?.proof?.status !== 'available') fail('native-work-known-quota-required');
   if (binding.generation !== w.generation || binding.attempt !== w.attempts + 1 || binding.attempt > policy.max_attempts) fail('native-work-attempt-required');
   if (t.native_work_slots?.[slotKey(w, binding.attempt)]) fail('native-work-slot-already-consumed');
-  if (binding.prompt_digest !== workPromptDigest(w.manifest, binding.inputs_digest, w.revision)) fail('native-work-prompt-binding-required');
+  if (binding.prompt_digest !== (calibrated(w) ? calibratedWorkPromptDigest(w.manifest, binding.inputs_digest) : workPromptDigest(w.manifest, binding.inputs_digest, w.revision))) fail('native-work-prompt-binding-required');
   return { policy, w };
 }
 export function validateProtocolWork(s, t, r, participant, context, now) {
@@ -213,6 +251,7 @@ export function consumeProtocolWork(s, t, x, now, command) {
 // Seals the executor's patch digest from a complete, isolated receipt. The patch
 // itself is a private Git object the Host wrote before settlement; tokens settle
 // in every case and a failed or invalid patch leaves a named reason.
+const REFUSAL_OUTCOMES = ['native-work-scope-amendment-required', 'native-work-unassigned-path', 'native-work-answer-too-large'];
 export function settleProtocolWork(t, x, receipt, { complete, changed }, at) {
   if (x.purpose !== 'work') { if (receipt.work_seal !== undefined) fail('native-work-purpose-required'); return; }
   const w = t.work?.[x.work.work_id], dispatch = w?.dispatches?.[x.nonce];
@@ -226,7 +265,8 @@ export function settleProtocolWork(t, x, receipt, { complete, changed }, at) {
   else if (seal.outcome !== 'completed') reason = seal.patch_digest === null && seal.patch_ref === null && Array.isArray(seal.paths) && !seal.paths.length && typeof seal.outcome === 'string' && /^native-work-[a-z0-9-]{1,80}$/.test(seal.outcome) ? seal.outcome : 'native-work-seal-invalid';
   else if (!/^[a-f0-9]{64}$/.test(seal.patch_digest || '') || seal.patch_ref !== workPatchRef(t.id, w, x.work.attempt, x.nonce) || !Array.isArray(seal.paths) || !seal.paths.length || seal.paths.some(p => !w.paths.includes(p)) || new Set(seal.paths).size !== seal.paths.length) reason = 'native-work-seal-invalid';
   else if (x.epoch !== t.epoch || t.participants[x.participant]?.incarnation !== x.incarnation) reason = 'native-work-stale-epoch-or-incarnation';
-  if (reason) { dispatch.state = 'failed'; dispatch.failure = reason; w.status = 'attempt-failed'; return; }
+  // S4-retry: after a refusal-class outcome a calibrated work waits for an owner cancel.
+  if (reason) { dispatch.state = 'failed'; dispatch.failure = reason; w.status = calibrated(w) && REFUSAL_OUTCOMES.includes(reason) ? 'execution-refused' : 'attempt-failed'; return; }
   Object.assign(dispatch, { state: 'sealed', sealed_at: at, output_digest: seal.output_digest, patch_digest: seal.patch_digest, patch_ref: seal.patch_ref, paths: [...seal.paths].sort() });
   w.status = 'sealed'; w.sealed_dispatch = x.nonce;
 }
@@ -256,7 +296,7 @@ function captureWorkMaterial(s, t, c, now) {
     return { handled: true, result: { captured: false, work: w.id, failure: dispatch.failure, tree: evidence.tree, protected_actions_granted: false } };
   }
   w.result = clone(evidence); w.author_contexts = [{ native_id: x.context.native_id, context_id: x.context.id, invocation_id: x.id }];
-  w.supervision = { mode: 'leader-baseline-deterministic', scope: 'manifest-paths-only', paths: [...dispatch.paths], completion_digest: completion.evidence_digest };
+  w.supervision = { mode: calibrated(w) ? 'calibrated-bounded-edit-deterministic' : 'leader-baseline-deterministic', scope: 'manifest-paths-only', paths: [...dispatch.paths], completion_digest: completion.evidence_digest };
   w.status = 'candidate'; w.captured_at = c.at;
   return { handled: true, result: { captured: w.id, tree: evidence.tree, diff_digest: evidence.diff_digest, protected_actions_granted: false } };
 }

@@ -928,9 +928,10 @@ step is a `waypost team host <team> --operation <op>` on the named Host):
 
 1. `native-work-enable` (owner) installs the work ceiling.
 2. `native-work-manifest` (owner) writes the work.
-3. `native-work-execute --work <id>` on the leader's Host: one owned no-tools
-   call; the patch is sealed as a private ref.
-4. `native-work-capture --work <id>` on the leader's Host: the candidate is built
+3. `native-work-execute --work <id>` on the worker's Host (the leader's under
+   `leader-baseline`): one owned no-tools call; the patch is sealed as a
+   private ref.
+4. `native-work-capture --work <id>` on the same Host: the candidate is built
    on the dedicated checkout.
 5. `native-work-review --work <id>` on the selected critic's Host: the
    strongest independent critic of another native configuration reviews the
@@ -942,6 +943,22 @@ step is a `waypost team host <team> --operation <op>` on the named Host):
 After a negative review, `native-work-revise --work <id> --reason <text>`
 (owner, slice 2) opens the next generation instead of cancelling: back to step
 3 with the findings, until the attempt total runs out.
+
+With executor `calibrated-bounded-edit` (slice 4) the manifest names
+`executor_participant`, a participant whose installed policy carries the
+`waypost-bounded-edit` gate; it may differ from the leader, whose quota lease
+must stay live meanwhile (`team watch`). The work must fit the measured class:
+1-2 assigned paths, each file at most 1.5 KiB and 40 lines of printable ASCII
+with LF, goal and 1-2 criteria of at most 600 printable ASCII characters, and
+no `forbidden_actions`; the files must also end with one LF and carry no
+trailing spaces, as in the calibration suite. The executor's quota lease must be
+live when the manifest is written, and its counter unit must be in the work
+policy's allocations (checked by its Host before any process starts). The
+executor answers in the calibration format; a missing final newline is added,
+as the gate graded it. A scope
+refusal, a write outside the assigned paths or an answer over 8 KiB ends the
+work's dispatching (`execution-refused`): the owner cancels. Revise is not
+available for calibrated work.
 
 `native-work-cancel` stops unfinished work at any point; recovery operations
 exist for each interruption (`native-control-reconcile`,
@@ -990,8 +1007,8 @@ independently. A publication of a later generation carries a
 
 The owner enables a work ceiling with `waypost team host <team> --operation
 native-work-enable --request-file <json>` (`native-work-enable-v2`: kind
-`protocol-work`, executor `leader-baseline` only — `calibrated-bounded-edit`
-refuses until an implementation calibration exists — `allow_unknown_quota`,
+`protocol-work`, executor `leader-baseline` or `calibrated-bounded-edit` (see the
+slice 4 note in the runbook above), `allow_unknown_quota`,
 attempt ceiling, timeout, expiry within the team policy, execution and review
 call and estimate ceilings, unit allocations pinned to their revision) and
 writes each work as a manifest (`native-work-manifest`, `native-work-manifest-v2`:
@@ -1001,13 +1018,13 @@ an active team under a current policy with an independent critic, no quota
 freeze or handover, no unresolved negative audit of the current leader
 acknowledgement, and no other unfinished protocol 2 work (one at a time in this
 slice). The acknowledged leader is recorded as the worker with the label
-`unqualified-strongest-baseline`. `native-work-cancel` cancels unfinished work in
+`unqualified-strongest-baseline` (under `leader-baseline`). `native-work-cancel` cancels unfinished work in
 any team status unless a call for it is consumed or uncertain (reconcile it
 first). Protocol 1 rewrites (revoke, attest) leave protocol 2 work alone, and the
 owner events are deferred under a publication fence.
 
 Execution (increment 2): `waypost team host <team> --operation
-native-work-execute --work <id>` on the leader's Host reads the manifest's
+native-work-execute --work <id>` on the worker's Host reads the manifest's
 paths from Git objects of its base, which must be a commit (never the working
 tree). Paths resolve from the top of the base tree one directory at a time:
 each existing parent must be a directory (not a symlink, file or submodule), no

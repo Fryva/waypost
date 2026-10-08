@@ -8,7 +8,7 @@
 import { routingDigest } from './model-routing.mjs';
 import { rankParticipant } from './team.mjs';
 import { nativeParticipantQuotaEligible } from './team-native-quota.mjs';
-import { activeNativeLeader, negativeAuditOfCurrentAck, WORK_TESTS_NOT_RUN_DIGEST, WORK_LABEL } from './team-native-work.mjs';
+import { activeNativeLeader, negativeAuditOfCurrentAck, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
 import { WORK_REVIEW_KIND, workReviewTarget, selectWorkReviewer } from './team-native-work-review.mjs';
 
 const clone = structuredClone;
@@ -27,7 +27,7 @@ export function nativeIntegrationOpen(t) { return open(t.native_integration); }
 // still bound, at or above the floor, under the calibrated profile it reviewed
 // with, and not outranked by a now stronger independent critic.
 export function nativePublicationGate(s, t, w, now) {
-  activeNativeLeader(t, now);
+  activeNativeLeader(t, now, w?.worker);
   if (negativeAuditOfCurrentAck(s, t)) fail('native-work-negative-leadership-audit');
   if (!w || w.protocol !== 2 || w.status !== 'approved' || !w.result) fail('native-integration-approved-work-required');
   if (Object.values(s.subscription_invocations || {}).some(x => x.team === t.id && (x.work?.work_id === w.id || x.action?.kind === WORK_REVIEW_KIND && x.action.request.target.work_id === w.id) && !settledStates.includes(x.state))) fail('native-integration-unresolved-call');
@@ -44,7 +44,7 @@ export function nativePublicationGate(s, t, w, now) {
   const strongest = selectWorkReviewer(t, w, now);
   if (!strongest) fail('native-work-strongest-independent-review-unavailable');
   if (rankParticipant(strongest, t.policy, 'review', { coverage: 'waypost-protocol-review', now }) > rank) fail('native-integration-stronger-review-required');
-  return { generation: w.generation, base: w.result.base, tree: w.result.tree, paths: [...w.result.paths], candidate_digest: w.result.candidate_digest, manifest_digest: w.manifest_digest, criteria_digest: w.manifest.criteria_digest, target_digest, tests_digest: w.result.tests_digest, tests_status: w.result.tests_status, reviews: approvals.map(a => a.invocation_id), reviewer: { participant: r.participant, incarnation: r.incarnation, profile: clone(r.profile), calibration_digest: r.calibration_digest }, label: WORK_LABEL, collector: 'collector:' + t.participants[t.leader].native_binding.collector_id };
+  return { generation: w.generation, base: w.result.base, tree: w.result.tree, paths: [...w.result.paths], candidate_digest: w.result.candidate_digest, manifest_digest: w.manifest_digest, criteria_digest: w.manifest.criteria_digest, target_digest, tests_digest: w.result.tests_digest, tests_status: w.result.tests_status, reviews: approvals.map(a => a.invocation_id), reviewer: { participant: r.participant, incarnation: r.incarnation, profile: clone(r.profile), calibration_digest: r.calibration_digest }, label: w.label, collector: 'collector:' + t.participants[t.leader].native_binding.collector_id };
 }
 function reservation(s, t, value, now) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([...RESERVATION_KEYS].sort()) || Buffer.byteLength(JSON.stringify(value)) > 32768) fail('native-integration-reservation-fields-required');
