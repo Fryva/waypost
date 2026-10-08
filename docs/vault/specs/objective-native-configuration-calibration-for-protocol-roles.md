@@ -4,7 +4,7 @@ id: "objective-native-configuration-calibration-for-protocol-roles"
 title: "Objective native configuration calibration for protocol roles"
 status: draft
 date: 2026-10-03
-updated: 2026-10-07
+updated: 2026-10-08
 authors: ["Ivan Morozov"]
 tags: []
 external_refs: {}
@@ -420,7 +420,11 @@ fixed-action pattern of contracts 20–21.
     deterministic one, and an unknown id invalidates the answer. Its semantic
     slot is {team, kind, epoch, work_id}. Effects apply only after settle, seal,
     own profile capture and closure. A participant credential alone never
-    assigns.
+    assigns. Amended in slice 5 (owner decision 2026-10-08): the model call is
+    deferred; leader calls are reserved for decisions the coordinate families
+    measured (dependencies and leases across several works). Until then a
+    calibrated manifest without an executor is assigned by the authority
+    deterministically (see the slice 5 decision).
 29. Executor qualification by the policy's `executor` mode. (a)
     `leader-baseline`: only the acknowledged leader executes, in a fresh owned
     context of its admitted profile, recorded `unqualified-strongest-baseline`
@@ -1226,3 +1230,85 @@ differs from the policy's `implement_criteria_digest`; the measured path rule
 (lower-case `[a-z0-9_./]`, at most 128 characters) is not enforced, as it is
 not in the owner's S4-class list. Open: the executor's `ready` availability is
 checked at manifest only; reserve and consume accept `busy`.
+
+### Slice 5 plan: contract 28, leader-requested assignment (superseded, 2026-10-08)
+
+Goal: in `calibrated-bounded-edit` mode the owner may leave the executor out of
+the manifest; the acknowledged leader's calibrated configuration then assigns it
+in one owned call, and the authority admits only what its own deterministic
+gates admit. Leader-baseline, owner-named executors and every stored log stay
+byte-identical.
+
+1. **Unassigned work.** A calibrated manifest without `executor_participant`
+   records status `unassigned` with `worker: null`; nothing executes until an
+   assignment applies. Owner-named manifests (slice 4) are unchanged.
+2. **Deterministic set first.** For an unassigned work the authority computes
+   the candidate executors exactly as slice 4 checks a named one: ready, not
+   revoked, not Codex, quota-eligible (known quota unless allowed), the
+   `waypost-bounded-edit` gate, and an independent critic left once that
+   candidate, the leader and both configurations are excluded. The team gates
+   of contract 28 hold too: acknowledged leader at the current epoch, no
+   handover, quota freeze or publication fence, no unresolved negative audit of
+   the current acknowledgement. One unfinished work at a time stays, so overlap
+   and dependencies are vacuous in this slice (no `depends_on` field yet).
+3. **The call.** A fixed control kind `protocol-work-assign` on the
+   control-action machinery (as `protocol-work-review`): the authority builds
+   the request (work id, manifest digest, goal, criteria, paths, epoch, policy
+   revision, the leader's profile and coordinate calibration digest, and one row
+   per non-revoked participant with the facts the gates read: ready, gate,
+   quota, harness class, critic-left), the leader's Host answers it once in a
+   fresh owned no-tools context with template revision 1: apply only the listed
+   rules, return exactly `{"eligible_ids":[sorted ids]}`,
+   `{"refusals":["no-eligible-executor"]}` or `{"abstain":"insufficient-context"}`
+   (the coordinate suite's answer grammar). An id that is not a row
+   invalidates the answer. The leader must hold a current coordinate rank.
+4. **Admission.** The admitted set is the intersection of the model's
+   `eligible_ids` and the deterministic set, recomputed at capture time. If it
+   is non-empty the executor is its first id in sorted order (the gate does not
+   rank); the work records worker, incarnation, model revision and identity as
+   a named executor would, plus `assignment` evidence (invocation, request and
+   answer digests, the two sets). Otherwise the work stays `unassigned` with the
+   named reason (`native-work-assign-refused`, `-abstained`, `-empty`,
+   `-invalid`). Effects apply only after settle, seal, the leader's own action
+   profile capture and the owned closure, like the leadership audit.
+5. **Slot and ceilings.** The semantic slot is {team, kind, epoch, work_id}: one
+   assignment call per work per epoch; after a refusal the owner cancels or
+   names the executor with a new manifest. The work policy gains an optional
+   `assignment` ceiling (`max_calls`, `max_estimate_tokens`) sharing the unit's
+   work token cap (contract 27's separate decision ceiling); without it an
+   unassigned manifest is refused.
+6. **Not in this slice:** dependencies between works, several unfinished works,
+   leader-baseline assignment, assignment by rank, a live run.
+7. **Tests:** an unassigned manifest; the leader's call assigns the first
+   admitted id; a model id outside the deterministic set is dropped, an unknown
+   id invalidates, refusal, abstain and empty leave the work unassigned; a
+   second call in the epoch is refused; a non-leader or Codex leader cannot
+   call; the assigned work then executes, is reviewed and published as in
+   slice 4; leader-baseline and golden logs replay unchanged.
+
+Critic verdict on the slice 5 plan (fresh context, defer; 2026-10-08): the
+call decides nothing. Each request row would carry the authority's own gate
+results, so a correct answer reproduces the deterministic set D and the first
+sorted id; a wrong one can only drop candidates and strand the work. The
+coordinate scale never measured executor choice, the planned template is no
+family's prompt, and an unlabelled use would overclaim. Volatile facts in an
+equality-checked control request would also make the capture fail on any
+availability or lease change.
+
+Owner decision (2026-10-08): **S5-deterministic** — defer the contract 28 call;
+`executor_participant` becomes optional in a calibrated manifest, and without
+it the authority picks at manifest time from D: every participant passing the
+slice 4 executor checks (ready, not revoked, not Codex, quota, the gate and the
+running suite, an independent critic left without it) whose admission's counter
+unit is in the work policy's `unit_allocations`; the strongest critic
+(`review_candidate`) is taken only when it is the sole candidate, otherwise the
+first other id in sorted order. The work records
+`assignment: {mode: 'authority-deterministic', candidates}`; an empty D refuses
+with `native-work-no-eligible-executor`. No control kind, capture event, slot,
+ceiling or Host command is added.
+
+Slice 5 implementation (2026-10-08, Claude Code): `executorRefusal` in
+`team-native-work.mjs` holds every executor check once, for a named executor
+and for each candidate; the admission unit check (from the admission's source
+invocation) now applies to named executors too, so a foreign-unit executor is
+refused at manifest instead of on its Host.

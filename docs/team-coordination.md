@@ -946,7 +946,12 @@ After a negative review, `native-work-revise --work <id> --reason <text>`
 
 With executor `calibrated-bounded-edit` (slice 4) the manifest names
 `executor_participant`, a participant whose installed policy carries the
-`waypost-bounded-edit` gate; it may differ from the leader, whose quota lease
+`waypost-bounded-edit` gate, or leaves it out: the authority then picks one
+deterministically from the participants passing every executor check (slice 5;
+the strongest critic only when it is the sole candidate, otherwise the first
+other id in sorted order)
+and records the candidates under `assignment`. The executor may differ from the
+leader, whose quota lease
 must stay live meanwhile (`team watch`). The work must fit the measured class:
 1-2 assigned paths, each file at most 1.5 KiB and 40 lines of printable ASCII
 with LF, goal and 1-2 criteria of at most 600 printable ASCII characters, and

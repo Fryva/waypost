@@ -112,3 +112,16 @@ test('a calibrated manifest pins the executor and is refused when no independent
  const revisable=structuredClone(r.state);Object.assign(revisable.teams.team.work.w1,{status:'changes-requested',result:{}});
  assert.throws(()=>send(revisable,'native-work-revise-v2',{work_id:'w1',generation:1,findings_digest:'0'.repeat(64),reason:'again'}),/native-work-calibrated-revision-unsupported/);
 });
+test('an unnamed calibrated manifest is refused when no executor passes every gate, and a foreign counter unit excludes one',async()=>{
+ const {state}=await implementTeam(),t=state.teams.team,unnamed=manifest({forbidden_actions:[]});
+ const alone=structuredClone(state);for(const p of Object.values(alone.teams.team.participants))p.harness='codex';
+ assert.throws(()=>send(alone,'native-work-manifest-v2',{work_id:'w1',manifest:unnamed}),/native-work-no-eligible-executor/);
+ const foreign=structuredClone(state),p=foreign.teams.team.participants[t.review_candidate];foreign.subscription_invocations[p.native_admission.source_invocation].unit_digest='f'.repeat(64);
+ assert.throws(()=>send(foreign,'native-work-manifest-v2',{work_id:'w1',manifest:manifest({forbidden_actions:[],executor_participant:p.id})}),/native-work-unit-allocation-required/);
+ assert.ok(!send(foreign,'native-work-manifest-v2',{work_id:'w1',manifest:unnamed}).state.teams.team.work.w1.assignment.candidates.includes(p.id));
+ // The strongest critic is picked only as the sole candidate.
+ const sole=structuredClone(state);for(const q of Object.values(sole.teams.team.participants))if(q.id!==t.review_candidate)sole.subscription_invocations[q.native_admission.source_invocation].unit_digest='f'.repeat(64);
+ const w=send(sole,'native-work-manifest-v2',{work_id:'w1',manifest:unnamed}).state.teams.team.work.w1;
+ assert.deepEqual(w.assignment.candidates,[t.review_candidate]);assert.equal(w.worker,t.review_candidate);
+ assert.throws(()=>send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest({forbidden_actions:[],executor_participant:[t.review_candidate]})}),/native-work-ready-executor-required/);
+});

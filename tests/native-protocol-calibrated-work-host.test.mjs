@@ -77,9 +77,16 @@ test('a calibrated manifest is refused outside the measured class or for an exec
  const f=await calibrated(t);
  for(const [patch,code] of [[{forbidden_actions:['network']},/size-class-exceeded/],[{paths:['a.js','b.js','c.js']},/size-class-exceeded/],[{goal:'x'.repeat(601)},/size-class-exceeded/],[{goal:'Fix sum — now'},/size-class-exceeded/],[{criteria:['a','b','c'],criteria_digest:routingDigest(['a','b','c'])},/size-class-exceeded/],[{executor_participant:'nobody'},/ready-executor-required/]])
   assert.throws(()=>f.host.installWorkManifest({workId:'fix-sum',manifest:manifestFor(f.base,f.executor,patch)}),code,JSON.stringify(patch));
- const {executor_participant,...leaderBaseline}=manifestFor(f.base,f.executor);
- assert.throws(()=>f.host.installWorkManifest({workId:'fix-sum',manifest:leaderBaseline}),/command-fields|exact/);
  const allocation=f.load().state.subscription_allocations[routingDigest(f.unit)];
  f.host.enableNativeWork({revision:2,policy:{kind:'protocol-work',executor:'leader-baseline',allow_unknown_quota:true,max_attempts:2,timeout_ms:1000,expires_at:f.expiry,ceilings:{execution:{max_calls:3,max_estimate_tokens:'40'},review:{max_calls:2,max_estimate_tokens:'40'}},unit_allocations:[{unit_digest:routingDigest(f.unit),max_tokens:'120',allocation_revision:allocation.revision}]}});
  assert.throws(()=>f.host.installWorkManifest({workId:'fix-sum',manifest:manifestFor(f.base,f.executor,{forbidden_actions:['network']})}),/command-fields|exact/);
+});
+
+test('without a named executor the authority picks one deterministically and keeps the strongest critic free',async t=>{
+ const f=await calibrated(t),{executor_participant,...unnamed}=manifestFor(f.base,f.executor);
+ const installed=f.host.installWorkManifest({workId:'fix-sum',manifest:unnamed}),w=work(f);
+ assert.equal(w.assignment.mode,'authority-deterministic');
+ assert.deepEqual(w.assignment.candidates,[...w.assignment.candidates].sort());assert.ok(w.assignment.candidates.includes(f.critic));
+ assert.equal(w.worker,w.assignment.candidates.find(id=>id!==f.critic));assert.equal(installed.worker,w.worker);
+ const run=await f.hostFor(w.worker).executeNativeWork({workId:'fix-sum',estimateTokens:'40'});assert.equal(run.status,'sealed');
 });
