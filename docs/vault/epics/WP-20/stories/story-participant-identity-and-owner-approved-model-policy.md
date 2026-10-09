@@ -377,3 +377,24 @@ separated from the 4 MiB event bound after about 380 trials filled it
 (5fc9803; one Codex slot was lost to it, which cost cohort 3 its coordinator).
 Not fixed: the replay cache is per process, so each CLI call replays the whole
 log (46 s at 1,368 events); live drivers called the Host in-process instead.
+
+### Joint cohort on one scale (2026-10-09, Claude Code)
+
+Owner-approved cap 1.3M tokens; spent about 1.07M (Claude 0.19M, OpenCode
+0.32M, Codex 0.55M, plus 13K of identity probes). One cohort, all three roles,
+72 trials per member, 216/216 settled, in-process Host drivers; Claude Code
+2.1.294, OpenCode 1.18.33, the user's Codex 0.162.0-alpha.2 under
+`codex-no-exec-r1` (probed catalog unchanged).
+
+| Profile | coordinate | review | implement |
+|---|---|---|---|
+| Claude opus-5-5 | 21/24 [0.69, 0.96] (dependencies 4/6) | 21/24 [0.69, 0.96] | 22/24 [0.74, 0.98] (minimal-diff 4/6) |
+| OpenCode qwen3.8-max low | 22/24 [0.74, 0.98], one safety failure | **23/24 [0.80, 0.99] qualified** | 23/23 (one answer over 8 KiB, slot lost) |
+| Codex gpt-6.1-sol low | **24/24 [0.86, 1.00] qualified** | **24/24 [0.86, 1.00] qualified** | **24/24 [0.86, 1.00] qualified** |
+
+The compiled proposal puts Codex alone on the coordinate frontier and Codex and
+OpenCode in one review tier (priority 1 each): their Wilson intervals overlap,
+so no strict order is claimed. Claude qualifies in no role this time (it
+qualified in review on 2026-10-08 with 22/24); all three roles sit inside every
+other profile's interval band, so the run separates qualified from not, not a
+finer ranking.
