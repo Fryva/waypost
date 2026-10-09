@@ -98,7 +98,7 @@ function manifest(d, nativeId, fresh, extra = {}) {
 }
 
 // Closure proof comes from this invocation's held ChildProcess, never a saved PID.
-function ownedChildLifecycle(child) {
+export function ownedChildLifecycle(child) {
   let exited=false,stopping=false,killTimer=null;
   const closure=new Promise(resolve=>child.once('close',()=>{exited=true;clearTimeout(killTimer);resolve();}));
   const terminate=signal=>{if(exited)return;try{if(child.pid&&process.platform!=='win32')process.kill(-child.pid,signal);else child.kill(signal);}catch{}};
@@ -114,8 +114,12 @@ function ownedChildLifecycle(child) {
     // After root death, only inspect the original group; never signal a saved PID.
     if(child.pid){
       if(process.platform==='win32')throw fail('native-process-tree-stop-unverified');
-      try{process.kill(-child.pid,0);throw fail('native-process-group-stop-unconfirmed');}
-      catch(error){if(error.code!=='ESRCH')throw fail('native-process-group-stop-unconfirmed');}
+      // Children can outlive a root that exited on SIGTERM (its group SIGKILL was
+      // then cancelled). Poll the group briefly, kill it while it still exists (a
+      // process group id cannot be reused while the group lives), poll again.
+      const alive=()=>{try{process.kill(-child.pid,0);return true;}catch(error){if(error.code==='ESRCH')return false;throw fail('native-process-group-stop-unconfirmed');}};
+      const settle=async ms=>{for(const end=Date.now()+ms;alive();){if(Date.now()>=end)return false;await new Promise(r=>setTimeout(r,25));}return true;};
+      if(!await settle(1000)){try{process.kill(-child.pid,'SIGKILL');}catch{} if(!await settle(1000))throw fail('native-process-group-stop-unconfirmed');}
     }
     return {stopped:true,owned_processes:1,process_group_closed:true};
   }

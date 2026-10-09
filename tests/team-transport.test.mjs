@@ -429,3 +429,14 @@ test('Codex billing is known only for the OpenAI thread provider over a personal
  await assert.rejects(read({rate:()=>codexRate({accountId:'another-account'})}),/native-accounting-account-changed/);
  await assert.rejects(read({rateError:true}),/native-/);
 });
+
+test('a child that ignores SIGTERM and outlives its root is killed with its group before stop returns', { skip: process.platform === 'win32' }, async () => {
+  const { spawn } = await import('node:child_process');
+  const { ownedChildLifecycle } = await import('../scripts/team-transport.mjs');
+  // The root exits on SIGTERM; its background child ignores SIGTERM and keeps the group alive.
+  const child = spawn('/bin/sh', ['-c', '(trap "" TERM; sleep 30) & exec sleep 30'], { detached: true, stdio: 'ignore' });
+  await new Promise(r => setTimeout(r, 200));
+  const result = await ownedChildLifecycle(child).stopAndWait();
+  assert.equal(result.process_group_closed, true);
+  assert.throws(() => process.kill(-child.pid, 0), { code: 'ESRCH' });
+});
