@@ -1,8 +1,10 @@
-// Host-local immutable authority. Snapshots are caches; replay is authoritative.
+// Host-local immutable authority. Snapshots are caches; replay is authoritative:
+// a keyed snapshot only lets a new process skip reducer steps of a verified prefix.
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, openSync, closeSync, writeSync, fsyncSync, renameSync, unlinkSync, rmdirSync, realpathSync } from 'node:fs';
 import { resolve, dirname, join, parse } from 'node:path';
 import { hostname } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { storageOf } from './presence.mjs';
 
 const PROTOCOL = 1;
@@ -83,6 +85,62 @@ function eventName(seq) { return String(seq).padStart(12, '0') + '.json'; }
 // re-running the reducer over it. Anything else falls back to full replay.
 const REPLAY_CACHE = new Map();
 const REPLAY_CACHE_LIMIT = 4;
+// The locked snapshot (state.json) also carries a key of the code that wrote it,
+// so a new process can start from it instead of replaying the whole log (46 s at
+// 1,368 events, live 2026-10-08). Every event of its prefix still passes the same
+// structural and chain checks as a full replay; only the reducer is skipped, and
+// the state must equal the recorded state digest of the verified last event. The
+// key covers every scripts/*.mjs as loaded, the runtime and collation the reducer
+// sorts with, and the reducer's source; a module-level pure reducer is assumed.
+// Any failure here only disables the start from a snapshot (null key), never a command.
+const CODE_KEY = (() => {
+  try {
+    const dir = dirname(fileURLToPath(import.meta.url)), h = createHash('sha256');
+    for (const d of readdirSync(dir, { withFileTypes: true }).filter(d => d.isFile() && d.name.endsWith('.mjs')).sort((a, b) => a.name < b.name ? -1 : 1)) { h.update(d.name + '\0'); h.update(readFileSync(join(dir, d.name))); }
+    const intl = globalThis.Intl;
+    return digest({ code: h.digest('hex'), runtime: [process.version, process.versions.icu ?? null, intl?.Collator ? new intl.Collator().resolvedOptions().locale : null, intl?.DateTimeFormat ? intl.DateTimeFormat().resolvedOptions().timeZone : null] });
+  } catch { return null; }
+})();
+const reducerKey = reducer => CODE_KEY === null ? null : digest({ code: CODE_KEY, reducer: String(reducer) });
+// The checks a full replay runs on one event before its reducer step.
+function checkEvent(e, revision, previous, host, seen) {
+  if (e?.protocol !== PROTOCOL) fail('authority-unknown-protocol', { revision });
+  const { hash, ...body } = e;
+  if (e.seq !== revision + 1 || e.previous !== previous || e.host !== host || hash !== digest(body)) fail('authority-log-integrity', { revision });
+  if (typeof e.actor !== 'string' || typeof e.key !== 'string' || e.request_digest !== digest({ actor: e.actor, command: e.command })) fail('authority-request-integrity', { revision });
+  const requestId = JSON.stringify([e.actor, e.key]);
+  if (seen.has(requestId)) fail('authority-duplicate-request', { revision });
+  if (!Number.isFinite(Date.parse(e.accepted_at))) fail('authority-invalid-event-time', { revision });
+  if(e.command.type?.startsWith('native-model-inventory-')&&e.command.request_key!==e.key)fail('inventory-store-request-key-mismatch');
+  return requestId;
+}
+const parseEvent = (bytes, path) => { try { return JSON.parse(bytes.toString('utf8')); } catch { fail('authority-corrupt-json', { path }); } };
+// A start from the locked snapshot, or undefined when it does not apply. A broken
+// event in the prefix fails exactly as a full replay would.
+// Read before the event list: a mutation publishes its event before its snapshot,
+// so the list then always reaches the snapshot's revision.
+function readSnapshot(root, reducer) {
+  const key = reducerKey(reducer); if (key === null) return undefined;
+  try {
+    const path = join(root, 'state.json'); safePath(path); if (!existsSync(path)) return undefined;
+    const stat = lstatSync(path); if (!stat.isFile() || stat.size > 2 * MAX_STATE) return undefined;
+    const c = JSON.parse(readFileSync(path, 'utf8'));
+    if (c?.protocol !== PROTOCOL || c.reducer !== key || !Number.isSafeInteger(c.revision) || c.revision < 1 || typeof c.event_hash !== 'string' || !c.state || typeof c.state !== 'object') return undefined;
+    return { ...c, state_digest: digest(c.state) };
+  } catch { return undefined; }
+}
+function snapshotEntry(c, reducer, host, files, events, names) {
+  if (!c || c.revision > files.length) return undefined;
+  let previous = ZERO, last = null; const requests = [], seen = new Set(), digests = [];
+  for (let i = 0; i < c.revision; i++) {
+    last = parseEvent(files[i], join(events, names[i]));
+    seen.add(checkEvent(last, i, previous, host, seen)); previous = last.hash;
+    digests.push(createHash('sha256').update(files[i]).digest('hex'));
+    requests.push(deepFreeze({ actor: last.actor, key: last.key, digest: last.request_digest, revision: last.seq, result: last.result }));
+  }
+  if (last.hash !== c.event_hash || c.state_digest !== last.state_digest) return undefined;
+  return { reducer, host, state: c.state, revision: c.revision, previous, requests, seen, digests, verified: true };
+}
 function deepFreeze(value) {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); for (const v of Object.values(value)) deepFreeze(v); }
   return value;
@@ -116,6 +174,7 @@ function replayAt(root, reducer, { cached = true } = {}) {
   directory(events);
   const id = identity(root);
   if (existsSync(join(root, 'state.json'))) safePath(join(root, 'state.json'));
+  const snapshot = cached && REPLAY_CACHE.get(root)?.reducer !== reducer ? readSnapshot(root, reducer) : undefined;
   const names = readdirSync(events).sort();
   let entry = cached ? REPLAY_CACHE.get(root) : undefined;
   if (entry && (entry.reducer !== reducer || entry.host !== id.host || entry.digests.length > names.length)) entry = undefined;
@@ -125,7 +184,8 @@ function replayAt(root, reducer, { cached = true } = {}) {
     if (!/^\d{12}\.json$/.test(name) || name !== eventName(i + 1)) fail('authority-log-gap', { name, revision: i });
     return eventBytes(join(events, name));
   });
-  if (entry) {
+  if (cached && !entry) entry = snapshotEntry(snapshot, reducer, id.host, files, events, names);
+  if (entry && !entry.verified) {
     for (let i = 0; i < entry.digests.length; i++) {
       if (createHash('sha256').update(files[i]).digest('hex') !== entry.digests[i]) { entry = undefined; break; }
     }
@@ -137,16 +197,8 @@ function replayAt(root, reducer, { cached = true } = {}) {
     requests = entry.requests.slice(); seen = new Set(entry.seen); digests = entry.digests.slice();
   }
   for (let i = revision; i < files.length; i++) {
-    let e;
-    try { e = JSON.parse(files[i].toString('utf8')); } catch { fail('authority-corrupt-json', { path: join(events, names[i]) }); }
-    if (e?.protocol !== PROTOCOL) fail('authority-unknown-protocol', { revision });
-    const { hash, ...body } = e;
-    if (e.seq !== revision + 1 || e.previous !== previous || e.host !== id.host || hash !== digest(body)) fail('authority-log-integrity', { revision });
-    if (typeof e.actor !== 'string' || typeof e.key !== 'string' || e.request_digest !== digest({ actor: e.actor, command: e.command })) fail('authority-request-integrity', { revision });
-    const requestId = JSON.stringify([e.actor, e.key]);
-    if (seen.has(requestId)) fail('authority-duplicate-request', { revision });
-    if (!Number.isFinite(Date.parse(e.accepted_at))) fail('authority-invalid-event-time', { revision });
-    if(e.command.type?.startsWith('native-model-inventory-')&&e.command.request_key!==e.key)fail('inventory-store-request-key-mismatch');
+    const e = parseEvent(files[i], join(events, names[i])), hash = e?.hash;
+    const requestId = checkEvent(e, revision, previous, id.host, seen);
     // The previous state came from the JSON round trip below and is referenced
     // nowhere else, so the reducer may consume it without a defensive clone.
     const next = bounded(reducer(state, structuredClone(e.command), { accepted_at: e.accepted_at, revision }), MAX_STATE, 'authority-state-too-large');
@@ -163,6 +215,8 @@ function replayAt(root, reducer, { cached = true } = {}) {
   return { revision, state: structuredClone(state), requests: requests.slice() };
 }
 
+// Forget this process's in-memory entry (a new process starts like this).
+export function evictReplayCache(root) { REPLAY_CACHE.delete(resolve(root)); }
 export function readAuthority(root, reducer) { return replay(root, reducer); }
 // Full replay from the first event that never reads or publishes a cache entry
 // (a failed read still evicts one).
@@ -242,7 +296,7 @@ export function mutateAuthority(root, request, reducer, { host = hostname(), con
     boundary('after-publication');
     const snapshot = join(root, 'state.json'); safePath(snapshot);
     const snapTemp = join(root, '.state-' + nonce);
-    writeNew(snapTemp, { protocol: PROTOCOL, revision, state: next.state, event_hash: event.hash });
+    writeNew(snapTemp, { protocol: PROTOCOL, revision, state: next.state, event_hash: event.hash, reducer: reducerKey(reducer) });
     renameSync(snapTemp, snapshot); flushDir(root);
     boundary('after-snapshot'); boundary('before-reply');
     return { revision, result: next.result, replayed: false };

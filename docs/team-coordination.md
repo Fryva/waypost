@@ -784,9 +784,32 @@ the event time still fails. Proof age, refresh and expiry rules are unchanged.
 The two same-leader recovery Host cases now run on real wall clocks and assert
 completion within 15 seconds of the positive observation (about 5 seconds per
 case locally). A synthetic ledger of 1,000 events with a 3 MB state replays
-cold in 4.8 s and reads warm in 26 ms; the first read of a new process still
-pays the cold cost. This is hermetic evidence with mocked provider transport,
-not live provider recovery.
+cold in 4.8 s and reads warm in 26 ms. This is hermetic evidence with mocked
+provider transport, not live provider recovery.
+
+A new process no longer pays the cold cost either (live 2026-10-08: 46 s per CLI
+call at 1,368 events). The locked snapshot `state.json`, written after every
+publication, also records a key of the code that wrote it: every
+`scripts/*.mjs` as loaded, the Node version, ICU and collation locale the
+reducer sorts with, and the reducer's source. A process whose key matches starts
+from it: every event of the snapshot's prefix still passes the same structural
+and chain checks as a full replay (protocol, sequence, previous hash, host, event
+hash, request digest, duplicate request, event time); only the reducer step is
+skipped, and the snapshot state must equal the recorded state digest of the
+verified last event, whose hash must equal the snapshot's. A damaged prefix fails
+with the same code as a full replay; any other mismatch replays from the first
+event. Requests are rebuilt from the event files. Readers never write. The
+assumption is a module-level pure reducer: two closures with the same source and
+different captured data on one root would share the key. The key reflects the
+files on disk when `team-store.mjs` is evaluated (loader hooks are not
+reflected); when it cannot be computed the snapshot is never used. After a code
+or runtime change every read is cold until a mutation under the new key
+completes and rewrites the snapshot; at live sizes run one CLI mutation outside
+the MCP server (whose 15-second child limit a cold read can exceed) to re-key it.
+A snapshot is a cache, not proof: someone who rewrites the last event with a
+recomputed hash and edits `state.json` to match is accepted where a full replay
+would report `authority-replay-mismatch`; the store makes no guarantee against a
+hostile user on the same host, and `replayAuthorityUncached` stays the check.
 
 ### Claude same-peer pre-inference preflight
 

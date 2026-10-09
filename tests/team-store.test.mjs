@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { readAuthority, replayAuthorityUncached, mutateAuthority, explainRecovery, recoverLock, withAuthorityGate } from '../scripts/team-store.mjs';
+import { readAuthority, replayAuthorityUncached, mutateAuthority, explainRecovery, recoverLock, withAuthorityGate, evictReplayCache } from '../scripts/team-store.mjs';
 
 const reducer = (state, cmd) => ({ state: { count: (state?.count || 0) + cmd.add }, result: { count: (state?.count || 0) + cmd.add } });
 const request = (key = 'one', expected_revision = 0, add = 1) => ({ key, actor: 'owner', expected_revision, command: { add } });
@@ -251,4 +251,52 @@ test('inventory canonical nonce keys stay immutable across intervening captures 
  assert.throws(()=>mutate(root,make('A',2,3)),{code:'authority-request-key-reused'});
  assert.throws(()=>mutate(root,{...make('A',2,3),key:'alternate'}),{code:'inventory-store-request-key-mismatch'});
  assert.equal(readAuthority(root,reducer).state.count,3);assert.equal(readAuthority(root,reducer).revision,2);
+});
+
+const counting = () => { const f = (state, cmd, meta) => { f.calls++; return reducer(state, cmd, meta); }; f.calls = 0; return f; };
+function grown(t, n, counted) { const root = fixture(t); for (let i = 0; i < n; i++) mutateAuthority(root, request('k' + i, i), counted, { confirmedLocal: true }); return root; }
+
+test('a new process starts from the locked snapshot and runs no reducer step for its prefix', t => {
+  const counted = counting(), root = grown(t, 40, counted);
+  evictReplayCache(root); counted.calls = 0;
+  const warm = readAuthority(root, counted);
+  assert.equal(counted.calls, 0);
+  assert.deepEqual(warm, replayAuthorityUncached(root, counted));
+  assert.equal(warm.requests.length, 40); assert.equal(warm.state.count, 40);
+});
+
+test('a snapshot whose state does not match the recorded digest, or of another reducer, is replayed from the start', t => {
+  const counted = counting(), root = grown(t, 20, counted), path = join(root, 'state.json'), snap = JSON.parse(readFileSync(path, 'utf8'));
+  writeFileSync(path, JSON.stringify({ ...snap, state: { count: 1e6 } }));
+  evictReplayCache(root); counted.calls = 0;
+  assert.equal(readAuthority(root, counted).state.count, 20); assert.equal(counted.calls, 20);
+  writeFileSync(path, JSON.stringify(snap)); evictReplayCache(root);
+  const other = counting(); other.calls = 0;
+  const different = (state, cmd, meta) => { other.calls++; return reducer(state, cmd, meta); };
+  assert.equal(readAuthority(root, different).state.count, 20); assert.equal(other.calls, 20);
+});
+
+test('a damaged event in the snapshot prefix fails exactly as a full replay does', t => {
+  const counted = counting();
+  // A: an edited event whose hash no longer matches.
+  const a = grown(t, 20, counted), file = join(a, 'events', readdirSync(join(a, 'events')).sort()[9]), e = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...e, command: { add: 5 } }));
+  evictReplayCache(a);
+  assert.throws(() => readAuthority(a, counted), { code: 'authority-log-integrity' });
+  assert.throws(() => replayAuthorityUncached(a, counted), { code: 'authority-log-integrity' });
+  // C: a forged state with the last event's state digest rewritten but its hash left stale.
+  const c = grown(t, 20, counted), names = readdirSync(join(c, 'events')).sort(), lastFile = join(c, 'events', names.at(-1)), last = JSON.parse(readFileSync(lastFile, 'utf8'));
+  const forged = { count: 1e6 }, sha = v => createHash('sha256').update(JSON.stringify(v)).digest('hex');
+  writeFileSync(lastFile, JSON.stringify({ ...last, state_digest: sha(forged) }));
+  const snap = JSON.parse(readFileSync(join(c, 'state.json'), 'utf8')); writeFileSync(join(c, 'state.json'), JSON.stringify({ ...snap, state: forged }));
+  evictReplayCache(c);
+  assert.throws(() => readAuthority(c, counted), { code: 'authority-log-integrity' });
+});
+
+test('a keyed snapshot with bad content, or edited key, falls back to a full replay', t => {
+  const counted = counting(), root = grown(t, 10, counted), path = join(root, 'state.json'), snap = JSON.parse(readFileSync(path, 'utf8'));
+  for (const bad of [(({ state, ...rest }) => rest)(snap), { ...snap, state: 'x' }, { ...snap, reducer: 'f'.repeat(64) }, { ...snap, revision: 99 }]) {
+    writeFileSync(path, JSON.stringify(bad)); evictReplayCache(root); counted.calls = 0;
+    assert.equal(readAuthority(root, counted).state.count, 10); assert.equal(counted.calls, 10);
+  }
 });
