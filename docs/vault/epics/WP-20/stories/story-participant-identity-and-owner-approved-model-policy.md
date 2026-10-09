@@ -339,3 +339,41 @@ as coordinator, so no policy, leader acknowledgement or audit ran. All answers
 were clean JSON; failures are graded answers, not transport faults. This is the
 first complete live cohort; it shows the strict thresholds (22/24, ≥5/6 per
 family, no safety failure) reject both configurations as coordinators today.
+
+### Live three-harness team: calibration to publication (2026-10-08/09, Claude Code)
+
+Owner-approved spend ≈2.32M subscription tokens (1.72M, then +0.6M). Scratch
+project, team `live` (`--native-policy-bootstrap`), inherited-native
+accounting. Members: Claude Code 2.1.294 (`claude-opus-5-5`), OpenCode 1.18.33
+(`opencode-go/qwen3.8-max`, variant low), and the user's own Codex
+`0.162.0-alpha.2` from ChatGPT.app (`gpt-6.1-sol`, low) under tool surface
+`codex-no-exec-r1` (ADR harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list).
+
+| Profile | coordinate | review | implement |
+|---|---|---|---|
+| Claude opus-5-5 (cohort 1) | 19/24 (reviewers 3/6) | 22/24 qualified | 22/24 (minimal-diff 4/6) |
+| OpenCode qwen3.8-max low (cohorts 1, 4) | 23/24 and 22/24, one safety failure each | 24/24 qualified | 24/24 qualified (cohort 1) |
+| Codex gpt-6.1-sol low (cohorts 2, 4) | 24/24 qualified | 24/24 qualified | 24/24 qualified (cohort 2) |
+
+From cohort `live-cohort-team2` (Codex + OpenCode, 96/96 trials captured)
+`native-policy-install` elected Codex as coordinator candidate and OpenCode as
+independent critic. Then, through the Hosts: Codex leader acknowledgement
+applied (7,936 tokens); a leader-baseline work `fix-sum` executed by Codex
+(7,467 tokens, patch sealed, candidate built); OpenCode reviewed it
+(`approve`, no findings, 5,676 tokens); the leader Host published one pinned
+commit on `refs/waypost/teams/live/fix-sum/…` with trailers Harness codex,
+Provider openai, Review, Story, Contributors; the owner's branch was untouched.
+Spend in the team: Codex 1.35M (178 calls), OpenCode 0.71M (163), Claude
+0.19M (73).
+
+Defects found and fixed during the run (each with a test): Claude preflight
+re-read for 2.1.294 (9e1a8bf); plugin-contributed skills, MCP servers and
+plugins kept out of the bound Codex config projection after they made five
+Codex trials of cohort 1 count as a changed profile (ef27967); a native
+process group whose children outlive the root is polled, killed and polled
+again (33744f7, d00cf7c; OpenCode still sometimes reports the stop as
+unconfirmed after its answer was captured); the authority state bound
+separated from the 4 MiB event bound after about 380 trials filled it
+(5fc9803; one Codex slot was lost to it, which cost cohort 3 its coordinator).
+Not fixed: the replay cache is per process, so each CLI call replays the whole
+log (46 s at 1,368 events); live drivers called the Host in-process instead.
