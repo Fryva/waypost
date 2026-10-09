@@ -41,6 +41,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets](./automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md) | Automatic task-aware model routing with capability floors and cost budgets | proposed | 2026-10-01 |
 | [subscription-cli-token-accounting-with-separate-strict-billing-enforcement](./subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md) | Subscription CLI token accounting with separate strict billing enforcement | proposed | 2026-10-02 |
 | [native-configuration-profiles-ranked-by-fresh-role-specific-calibration](./native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md) | Native configuration profiles ranked by fresh role-specific calibration | proposed | 2026-10-03 |
+| [the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass](./the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md) | The CLI as a thin entry with per-command modules, each readable in one pass | proposed | 2026-10-04 |
 
 ---
 

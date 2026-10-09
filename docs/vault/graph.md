@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-03T09:10:09.461Z
+generated_at: 2026-10-04T21:27:35.215Z
 
 ---
 
@@ -38,6 +38,7 @@ full typed neighborhood, both directions, in one call.
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | Native configuration profiles ranked by fresh role-specific calibration | adr | proposed |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | Subscription CLI token accounting with separate strict billing enforcement | adr | proposed |
+| adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md | The CLI as a thin entry with per-command modules, each readable in one pass | adr | proposed |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
 | epics/WP-14/epic.md | Skills as the portable layer, and the first verified harnesses | epic | planned |
 | epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills.md | Bundled skills and loop procedures rendered as Agent Skills | story | done |
@@ -88,6 +89,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely.md | Quota exhaustion redistributes leadership and independent review safely | story | in-progress |
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
+| epics/WP-21/epic.md | Source an agent can read in one pass | epic | planned |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
 | ops/run-waypost-from-a-checkout-another-operating-system-edits.md | Run waypost from a checkout another operating system edits | runbook | draft |
