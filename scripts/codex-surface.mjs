@@ -27,7 +27,10 @@ export const CODEX_SURFACE_R1 = Object.freeze({
   config_layers: ['sessionFlags', 'user', 'system'],
   // The user's config.toml also holds state the apps rewrite (notices, projects,
   // desktop); only these effective keys are bound into the configuration identity.
-  config_keys: ['model', 'model_provider', 'model_providers', 'openai_base_url', 'chatgpt_base_url', 'approval_policy', 'sandbox_mode', 'web_search', 'tools', 'features', 'apps', 'plugins', 'mcp_servers', 'skills', 'hooks', 'memories', 'agents', 'model_catalog_json', 'project_doc_max_bytes', 'instructions', 'developer_instructions', 'model_instructions_file', 'browser_use', 'computer_use', 'goals', 'experimental_use_unified_exec_tool'],
+  // Skills, MCP servers and plugins are not: the set the plugins contribute varies
+  // with load timing (live, 2026-10-08), and every one is verified off on each
+  // launch instead (skills/list, mcpServerStatus/list, app/installed).
+  config_keys: ['model', 'model_provider', 'model_providers', 'openai_base_url', 'chatgpt_base_url', 'approval_policy', 'sandbox_mode', 'web_search', 'tools', 'features', 'apps', 'hooks', 'memories', 'agents', 'model_catalog_json', 'project_doc_max_bytes', 'instructions', 'developer_instructions', 'model_instructions_file', 'browser_use', 'computer_use', 'goals', 'experimental_use_unified_exec_tool'],
   // Default deny during a turn: anything else withdraws isolation for the receipt.
   turn_methods: ['turn/started', 'turn/completed', 'item/started', 'item/completed', 'item/agentMessage/delta', 'item/reasoning/summaryTextDelta', 'item/reasoning/summaryPartAdded', 'item/reasoning/textDelta', 'thread/tokenUsage/updated', 'account/rateLimits/updated', 'account/updated', 'thread/status/changed', 'rawResponseItem/completed', 'rawResponse/completed', 'model/rerouted', 'warning', 'deprecationNotice', 'remoteControl/status/changed'],
   turn_items: ['userMessage', 'agentMessage', 'reasoning'],

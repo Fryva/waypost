@@ -134,3 +134,13 @@ test('the native profile binds the surface into the configuration identity and r
     await assert.rejects(collect({ ...base, tool_surface: CODEX_SURFACE_R1.id, surface_evidence: bad }), /verified-tool-surface-required/);
   await assert.rejects(collect({ ...base, tool_surface: CODEX_SURFACE_R1.id }), /verified-tool-surface-required/);
 });
+
+test('plugin-contributed skills, MCP servers and plugins do not change the bound config digest', async t => {
+  const digestWith = async extra => {
+    const f = fixture(t), s = server(f, { patch: { 'config/read': r => ({ ...r, config: { ...r.config, ...extra } }) } }), endpoint = await createNativeEndpoint(f.descriptor, { spawnProcess: s.spawnProcess });
+    const m = (await send(endpoint)).context_manifest; endpoint.close(); return m.surface_evidence.config_digest;
+  };
+  const base = await digestWith({ features: { shell_tool: false } });
+  assert.equal(await digestWith({ features: { shell_tool: false }, skills: { config: [{ name: 'x', enabled: false }] }, mcp_servers: { a: { enabled: false } }, plugins: { p: { enabled: false } } }), base);
+  assert.notEqual(await digestWith({ features: { shell_tool: true } }), base);
+});
