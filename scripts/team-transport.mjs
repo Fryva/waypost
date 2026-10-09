@@ -433,7 +433,9 @@ async function codexEndpoint(d, spawnProcess) {
 
 // Pre-inference evidence from the inference peer itself. Semantics were read
 // from these native binaries only; any other version stays unverified.
-const CLAUDE_PREFLIGHT_VERSIONS = ['2.1.289'];
+// 2.1.294 (2026-10-08): the same initialize, hooks and context-usage summary shapes
+// passed the strict checks below unchanged.
+const CLAUDE_PREFLIGHT_VERSIONS = ['2.1.289', '2.1.294'];
 const CLAUDE_CONTEXT_KEYS = ['categories','totalTokens','maxTokens','rawMaxTokens','autocompactSource','percentage','gridRows','model','memoryFiles','mcpTools','agents','autoCompactThreshold','isAutoCompactEnabled','messageBreakdown','apiUsage'];
 const CLAUDE_MESSAGE_COUNTERS = ['toolCallTokens','toolResultTokens','attachmentTokens','assistantMessageTokens','userMessageTokens','redirectedContextTokens','unattributedTokens'];
 const plainObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
