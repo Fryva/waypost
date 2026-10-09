@@ -18,7 +18,8 @@ function accountBinding(response) {
   const a=response?.account, routing=response?.workspaceRouting;
   if(a?.type!=='chatgpt')throw fail('account-type-unsupported');
   if(!text(a.email)||!plans.has(a.planType))throw fail('account-binding-unverified');
-  if(routing!==undefined&&routing!==null&&(!text(routing.chatgptAccountId)||routing.backendOrigin!=='https://chatgpt.com'))throw fail('account-routing-unverified');
+  // 0.162 adds accountRoutingOverride; only its no-override value keeps the login's own account.
+  if(routing!==undefined&&routing!==null&&(!text(routing.chatgptAccountId)||routing.backendOrigin!=='https://chatgpt.com'||![undefined,'NO_CONSTRAINT'].includes(routing.accountRoutingOverride)))throw fail('account-routing-unverified');
   return {accountId:routing?.chatgptAccountId||null,email:a.email,plan:a.planType};
 }
 function windows(bucket) {
@@ -91,7 +92,7 @@ export async function observeNativeProviderQuota({descriptor,participant,now=Dat
 // never starts a thread or turn; any server-initiated operation ends it.
 async function codexMetadataSession(d,spawnProcess,read){
   const timeout=Math.min(30000,Math.max(100,d.timeout_ms||15000)),deadline=Date.now()+timeout;
-  const child=spawnProcess(d.executable||'codex',['-c','features.apps=false','-c','apps._default.enabled=false','app-server','--listen','stdio://'],{cwd:d.cwd,env:{...process.env},shell:false,stdio:['pipe','pipe','pipe']});
+  const child=spawnProcess(d.executable||'codex',['-c','features.apps=false','-c','apps._default.enabled=false','app-server','--listen','stdio://'],{cwd:d.cwd,env:d.tool_surface?{PATH:'/usr/bin:/bin',HOME:d.codex_home,CODEX_HOME:d.codex_home}:{...process.env},shell:false,stdio:['pipe','pipe','pipe']});
   let seq=0,buffer='',bytes=0,frames=0,closed=false,fatal=null;
   const decoder=new StringDecoder('utf8');
   const pending=new Map();

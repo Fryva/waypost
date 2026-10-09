@@ -220,14 +220,13 @@ test('a second review is also refused while the first call is uncertain, until i
  await rejectsCode(host.reviewNativeWork({workId:'fix-sum',estimateTokens:'40'}),'subscription-uncertain-usage-blocks-admission');
  assert.equal(reviewInvocations(f).length,1);assert.equal(work(f).status,'candidate');
 });
-test('a target whose strongest independent critic is Codex is refused rather than weakened',async t=>{
+test('a target whose strongest independent critic is an admitted Codex participant is reviewed by it',async t=>{
  const {createProtocolWorkReviewRequest}=await import('../scripts/team-native-work-review.mjs');
  const f=await captured(t),v=f.load(),critic=v.state.teams.team.review_candidate;
  assert.ok(createProtocolWorkReviewRequest(v.state,v.state.teams.team,{actionId:'ok',workId:'fix-sum'}),'the unmodified team selects its critic');
+ // An admitted Codex critic now reviews: admission needs a verified tool surface.
  const state=structuredClone(v.state),team=state.teams.team;team.participants[critic].harness='codex';
- assert.throws(()=>createProtocolWorkReviewRequest(state,team,{actionId:'codex',workId:'fix-sum'}),{message:'native-work-strongest-independent-review-unavailable'});
- for(const p of Object.values(team.participants))if(p.id!==team.leader)p.harness='codex';
- assert.throws(()=>createProtocolWorkReviewRequest(state,team,{actionId:'codex',workId:'fix-sum'}),{message:'native-work-strongest-independent-review-unavailable'});
+ assert.equal(createProtocolWorkReviewRequest(state,team,{actionId:'codex',workId:'fix-sum'}).request.participant,critic);
 });
 test('a review prompt over 64 KiB is refused before any reservation',async t=>{
  const f=await fixture(t,{workAnswer:()=>JSON.stringify({files:['src/sum.js','src/b.js'].map(path=>({path,content:'// '+'x'.repeat(32000)+'\n'}))})});

@@ -894,6 +894,43 @@ transport reported known subscription billing and the observer returned an
 `available` proof. Live exhaustion and recovery are not demonstrated.
 Ordering across hosts relies on their clocks.
 
+### Codex under the tool surface `codex-no-exec-r1` (protocol 2)
+
+A Codex participant takes part in calibration, control actions, work, review
+and delivery only under the evidence-bound tool surface of the ADR "Harness
+tool surfaces bound by evidence instead of an empty tool list"; without it its
+contexts carry tools and nothing it answers is captured. It runs the Codex the
+user already has (owner decision 2026-10-08): the CLI inside ChatGPT.app, the
+user's `~/.codex` and its login. Nothing in them is edited; every change is a
+session flag or a file Waypost writes under `~/.waypost`.
+
+Bind the participant with an endpoint descriptor `{harness: "codex", managed:
+true, mode: "read-only", cwd: "~/.waypost/codex-cwd" (an empty directory),
+executable: "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+tool_surface: "codex-no-exec-r1", model_id, reasoning}`; `codex_home` is optional
+and defaults to `~/.codex`. On each launch the transport:
+
+- writes the pinned model catalog: the model's entry from
+  `~/.codex/models_cache.json` without `tool_mode`, `multi_agent_version`,
+  `apply_patch_tool_type` and `web_search_tool_type`, with `shell_type =
+  "disabled"` and the other tool fields off, content-addressed under
+  `~/.waypost/codex-catalog/`;
+- switches every tool-bearing feature, web search and the plan tool off, and
+  switches the user's MCP servers, plugins and skills off after discovering
+  them;
+- reads the setup back after thread start and fails closed
+  (`native-surface-*` blockers name what differs); the user's
+  `~/.codex/AGENTS.md` may load, and its content digest is bound;
+- guards the turn on raw events and withdraws isolation for a receipt with
+  any tool frame.
+
+The profile binds the Codex version, package, catalog, definition, a
+projection of the effective config and the instructions digest: editing
+`~/.codex/AGENTS.md`, the user's MCP or feature settings, a ChatGPT.app update
+or a catalog refresh makes a new configuration that needs recalibration, and
+a version other than the definition's (`0.162.0-alpha.2`) stays unverified until
+the definition is re-read.
+
 ### Calibration validity and leader resume (protocol 2)
 
 A calibration cohort opened with an owner `calibration_expires_at` (a strict

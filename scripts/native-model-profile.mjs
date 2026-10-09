@@ -41,6 +41,9 @@ function participantBinding(participant) {
 function receiptContext(result) {
   const ctx = boundedObject(result.context_manifest,8192);
   if (!text(result.native_id) || !text(ctx.id) || ctx.native_id !== result.native_id || !text(ctx.harness,128) || !text(ctx.cwd,4096) || !isAbsolute(ctx.cwd)) fail('native-context-binding-required');
+  // A tool surface other than `none` (an absent key) is proven by its evidence (ADR
+  // harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list).
+  if (ctx.tool_surface !== undefined && (ctx.tool_surface !== 'codex-no-exec-r1' || ctx.harness !== 'codex' || !ctx.surface_evidence || typeof ctx.surface_evidence !== 'object' || ctx.surface_evidence.surface !== ctx.tool_surface || !text(ctx.surface_evidence.version,64) || ['package_digest','catalog_digest','definition_digest','config_digest','instructions_digest'].some(k => !/^[a-f0-9]{64}$/.test(ctx.surface_evidence[k] || '')) || ctx.surface_evidence.guard?.window !== 'turn-plus-drain')) fail('verified-tool-surface-required');
   if (ctx.provenance !== 'adapter-isolated' || ctx.read_only !== true || ctx.fresh !== true || ctx.fresh_review_verified !== true || ctx.author_history_inherited !== false || !['read-only','worktree'].includes(ctx.isolation) || !Array.isArray(ctx.tools) || ctx.tools.length || !Array.isArray(ctx.author_contexts) || ctx.author_contexts.length) fail('isolated-empty-author-context-required');
   return ctx;
 }
@@ -102,7 +105,9 @@ async function collectProfile({participant,observe,adapter_revision,requested_co
     execution_scope:{cwd:ctx.cwd,isolation:ctx.isolation,read_only:true,tools:[],
       permissions:{rules_digest:typeof ctx.rules_digest === 'string' && /^[a-f0-9]{64}$/.test(ctx.rules_digest) ? ctx.rules_digest : null,read_only_evidence:text(ctx.read_only_evidence,256) ? ctx.read_only_evidence : 'unknown'},
       context:{fresh:true,author_history_inherited:false,initial_instructions_digest:typeof ctx.initial_instructions_digest === 'string' && /^[a-f0-9]{64}$/.test(ctx.initial_instructions_digest) ? ctx.initial_instructions_digest : null},
-      environment_digest:digest(environment)}
+      environment_digest:digest(environment),
+      // The surface and its pinned evidence are part of the configuration identity.
+      ...(ctx.tool_surface !== undefined ? {tool_surface:ctx.tool_surface,surface:{version:ctx.surface_evidence.version,package_digest:ctx.surface_evidence.package_digest,catalog_digest:ctx.surface_evidence.catalog_digest,definition_digest:ctx.surface_evidence.definition_digest,config_digest:ctx.surface_evidence.config_digest,instructions_digest:ctx.surface_evidence.instructions_digest}} : {})}
   };
   const profile_digest = digest(profile);
   if(measurement && measurement.profile_id!=='native-profile-'+profile_digest)fail('measurement-observed-profile-changed');

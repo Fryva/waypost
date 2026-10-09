@@ -123,6 +123,7 @@ test('protocol-2 Codex observer refuses percentages, model buckets, credits, cha
     'another account':[{accountRead:()=>({...plusAccount(),workspaceRouting:{chatgptAccountId:'someone-else',backendOrigin:'https://chatgpt.com'}})},/source-account-changed/],
     'plan changed':[{accountRead:()=>({...plusAccount(),account:{type:'chatgpt',email:'private@example.invalid',planType:'pro'}})},/source-account-changed/],
     'unpinned version':[{initRead:version('0.161.0')},/app-server-version-unverified/],
+    'a routing override':[{accountRead:()=>({...plusAccount(),workspaceRouting:{chatgptAccountId:'private-account',backendOrigin:'https://chatgpt.com',accountRoutingOverride:'another-route'}})},/account-routing-unverified/],
     'rate limits of another account':[{quotaRead:()=>plusQuota({accountId:'someone-else'})},/account-or-permission-unverified/],
     'bucket of another plan':[{quotaRead:()=>{const q=plusQuota();q.rateLimitsByLimitId.codex.planType='pro';return q;}},/bucket-binding-unverified/],
     'legacy view disagrees':[{quotaRead:()=>{const q=plusQuota();q.rateLimits.rateLimitReachedType='rate_limit_reached';return q;}},/legacy-view-unverified/],
