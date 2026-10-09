@@ -107,7 +107,10 @@ non-`none` surface for measurement only.
    (for example `node_repl_disabled`, `experimental_supported_tools: []`). Its
    digest is part of the evidence and the profile. A remote catalog is never
    used for this surface.
-6. **Frame guard to process close.** Every frame on any thread from
+6. **Frame guard to process close.** Raw Responses events
+   (`experimentalRawEvents`) are required, and only `message` and `reasoning`
+   raw items are allowed (the probe below shows tool calls appear nowhere
+   else). Every frame on any thread from
    `thread/start` until the process group is confirmed closed is checked
    against the definition's allowlist (methods and item types, default deny):
    one `userMessage` equal to the prompt, `reasoning`, `agentMessage` with
@@ -121,13 +124,14 @@ non-`none` surface for measurement only.
    the profile; any change is a new surface revision and needs recalibration.
    Codex account and rate-limit semantics are re-read for the pinned version
    before its quota is trusted.
-8. **Measurement only in revision 1 (owner decision 2026-10-08).** A
-   `codex-no-exec-r1` profile is calibrated and graded in the authenticated
-   summary, but it is not ranked for any role: it never counts toward the review
-   floor, the coordinator or critic selection, leader eligibility, work review,
-   execution, delivery or `implement`. Which roles a Codex surface may hold is
-   decided in a later revision from the probe and live results. So no work path
-   changes, and the frozen `IMPLEMENT_POLICY_LIMITATIONS` text stays true.
+8. **Full participation (owner decision 2026-10-08, superseding "measurement
+   only").** A `codex-no-exec-r1` profile is calibrated, ranked and admitted
+   on every path a `none` profile is (control actions, work execution and
+   review, delivery, `implement`), because the probe below showed the pinned
+   configuration offers the model no tool at all. If a receipt's guard ever
+   sees a tool frame, that receipt is quarantined as above; the surface
+   revision is withdrawn when a probe or a guard shows a tool the definition
+   did not expect.
 9. **Calibration contract amendment.** "No-tools" in the calibration spec
    (contract 4's fresh no-tools context, the leader-ACK turn) becomes "the
    bound surface, where `none` means no tools"; the Codex refusal note is
@@ -147,6 +151,38 @@ non-`none` surface for measurement only.
     pinned. It makes no claim that the model sees no tool, and it is macOS-only
     (the package layout is an `.app`; process-tree stop is unverified on
     Windows).
+
+## Probe evidence (2026-10-08, owner-approved, 37K of 150K tokens)
+
+Owned package `~/.waypost/codex/0.162.0-alpha.2`, owned `CODEX_HOME`
+(`~/.waypost/codex-home`, separate ChatGPT login), empty cwd, raw Responses
+events on, every server request refused.
+
+1. **Catalog as fetched** (`tool_mode: code_mode_only`,
+   `multi_agent_version: v2`), all features above off: the model still had
+   `functions.exec` (code-mode exec) and `collaboration.spawn_agent` and called
+   both. Exec failed only because the code-mode host was off, the sub-agent
+   only because the thread was ephemeral. **Neither call produced a thread
+   item**: both were visible only as raw `custom_tool_call` / `function_call`
+   items. An item-level guard would have missed them; raw events are required.
+   22.8K tokens.
+2. **Pinned catalog without `tool_mode`, `multi_agent_version`,
+   `apply_patch_tool_type`, `web_search_tool_type`, with
+   `shell_type: disabled`, `experimental_supported_tools: []`,
+   `supports_search_tool: false`, `node_repl_disabled: true`**, plan tool off
+   (`tools.update_plan.enabled = false`): the model reported
+   `{"available":[]}`; no raw tool item, no server request, no file. 4.8K
+   tokens.
+3. **Positive control**, plan tool deliberately on: the call appeared as raw
+   `function_call` and `turn/plan/updated`, so the guard sees it. 9.8K tokens.
+
+Readback facts on this binary: `features.multi_agent = false` does not remove
+`spawn_agent` (the catalog does); the thread feature list keeps reporting
+`unified_exec` enabled whatever the config says, so the allowlist accepts it
+only together with the pinned catalog's `shell_type: disabled` and the probe;
+bundled skills are disabled per name with `[[skills.config]] enabled = false`;
+`skills.enabled` is not a setting (Codex warns about unknown settings on
+stderr, which the readback treats as unverified).
 
 ## Rationale
 
