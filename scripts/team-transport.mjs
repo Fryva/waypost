@@ -3,7 +3,8 @@ import { spawn } from 'node:child_process';
 import { isDeepStrictEqual } from 'node:util';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { isAbsolute, join, dirname, relative } from 'node:path';
-import { realpathSync, readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { realpathSync, readFileSync, readdirSync, statSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { CODEX_SURFACE_R1, CODEX_SURFACE_R1_DIGEST } from './codex-surface.mjs';
 
 const LIMIT = 2 * 1024 * 1024;
@@ -67,7 +68,9 @@ export function validateNativeDescriptor(d) {
   if (d.executable !== undefined && (!isAbsolute(d.executable) || !bounded(d.executable, 4096))) throw fail('absolute-native-executable-required');
   if (d.socket) throw fail('desktop-socket-protocol-unverified');
   // An evidence-bound tool surface needs an owned executable and CODEX_HOME.
-  if (d.tool_surface !== undefined && (d.tool_surface !== CODEX_SURFACE_R1.id || d.harness !== 'codex' || !d.executable || !isAbsolute(d.codex_home || '') || !bounded(d.codex_home, 4096))) throw fail('invalid-native-tool-surface');
+  // An evidence-bound tool surface runs the user's own Codex: an absolute executable,
+  // the user's home unless codex_home names another, and a pinned model.
+  if (d.tool_surface !== undefined && (d.tool_surface !== CODEX_SURFACE_R1.id || d.harness !== 'codex' || !d.executable || !d.model_id || d.codex_home !== undefined && (!isAbsolute(d.codex_home) || !bounded(d.codex_home, 4096)))) throw fail('invalid-native-tool-surface');
   if (d.tool_surface === undefined && d.codex_home !== undefined) throw fail('invalid-native-tool-surface');
   if (d.harness !== 'opencode' && d.native_id) throw fail('existing-native-session-unsupported');
   if (d.harness === 'opencode') {
@@ -121,7 +124,7 @@ function ownedChildLifecycle(child) {
 
 function processPeer(d, argv, spawnProcess, metadataGuard = null) {
   // A tool surface runs with a sanitized environment: no inherited keys, URLs or home.
-  const env = d.tool_surface ? { PATH: '/usr/bin:/bin', HOME: d.codex_home, CODEX_HOME: d.codex_home } : { ...process.env };
+  const env = d.tool_surface ? { PATH: '/usr/bin:/bin', HOME: homedir(), ...(d.codex_home ? { CODEX_HOME: d.codex_home } : {}) } : { ...process.env };
   const child = spawnProcess(d.executable || d.harness, argv, { cwd: d.cwd, env, shell: false, detached:process.platform !== 'win32', stdio: ['pipe','pipe','pipe'] });
   const lifecycle=ownedChildLifecycle(child);
   const listeners = new Set(); let stopped = false, pending = Buffer.alloc(0), bytes = 0;
@@ -165,7 +168,8 @@ function waitFrame(peer, timeout, match, start) {
 
 // Codex account and rate-limit metadata semantics were read from these app-server
 // versions only (initialize userAgent); other versions keep billing unknown.
-export const CODEX_ACCOUNT_METADATA_VERSIONS = ['0.160.0'];
+// 0.162.0-alpha.2 (2026-10-08): same shapes plus workspaceRouting.accountRoutingOverride.
+export const CODEX_ACCOUNT_METADATA_VERSIONS = ['0.160.0', '0.162.0-alpha.2'];
 // Personal plans: the routed account is the login's own. Workspace plans share
 // one routing id between members whose limits differ, so they stay unknown.
 export const CODEX_PERSONAL_PLANS = {free:'free',go:'subscription',plus:'subscription',pro:'subscription',prolite:'subscription',promax:'subscription'};
@@ -195,20 +199,35 @@ function codexPackageDigest(executable) {
   const h = createHash('sha256'); for (const f of files) { h.update(relative(root, f) + '\0'); try { h.update(readFileSync(f)); } catch { h.update('unreadable'); } h.update('\0'); }
   const value = h.digest('hex'); packageDigests.set(root, { stamp, digest: value }); return value;
 }
+const codexHomeOf = d => d.codex_home || join(homedir(), '.codex');
+// The pinned catalog: the model's entry from the user's own models_cache.json with
+// the tool-bearing keys removed and the definition's values set, written
+// content-addressed under ~/.waypost so the same entry always has the same path.
+function writeSurfaceCatalog(d) {
+  const S = CODEX_SURFACE_R1; let entry;
+  try { entry = JSON.parse(readFileSync(join(codexHomeOf(d), S.catalog_cache), 'utf8')).models?.find(m => m.slug === d.model_id); } catch { throw fail('native-surface-catalog-unavailable'); }
+  if (!entry || typeof entry !== 'object') throw fail('native-surface-catalog-unavailable');
+  const pinned = { ...entry, ...S.catalog.values }; for (const k of S.catalog.absent) delete pinned[k];
+  const body = JSON.stringify({ models: [pinned] }), dir = join(homedir(), '.waypost', 'codex-catalog'), path = join(dir, createHash('sha256').update(body).digest('hex') + '.json');
+  if (!existsSync(path)) { mkdirSync(dir, { recursive: true, mode: 0o700 }); writeFileSync(path, body, { mode: 0o600 }); }
+  return path;
+}
 // Fail-closed readback of surface `codex-no-exec-r1` after thread start: the owned
 // home, no instruction sources, sandbox, config layers, pinned catalog, thread
 // features, skills and hooks. Anything unexpected leaves the context unverified.
 async function inspectCodexSurface(request, d, init, thread) {
   const S = CODEX_SURFACE_R1, no = blocker => ({ verified: false, blocker }), real = p => { try { return realpathSync(p); } catch { return null; } };
-  const version = codexAppServerVersion(init), home = real(d.codex_home);
+  const version = codexAppServerVersion(init), home = real(codexHomeOf(d));
   if (version !== S.version) return no('native-surface-version-unverified');
   if (!home || typeof init?.codexHome !== 'string' || real(init.codexHome) !== home) return no('native-surface-home-unverified');
-  if (!Array.isArray(thread.instructionSources) || thread.instructionSources.length) return no('native-surface-instructions-present');
+  // The user's own home instructions may load; their content is bound, nothing else may.
+  if (!Array.isArray(thread.instructionSources) || thread.instructionSources.length > S.instruction_files.length || thread.instructionSources.some(f => typeof f !== 'string' || !S.instruction_files.some(n => real(f) === real(join(home, n))))) return no('native-surface-instructions-present');
+  let instructions; try { instructions = thread.instructionSources.map(f => ({ file: f.slice(home.length + 1), sha256: createHash('sha256').update(readFileSync(f)).digest('hex') })); } catch { return no('native-surface-instructions-present'); }
   if (thread.approvalPolicy !== 'never' || thread.sandbox?.type !== 'readOnly' || thread.sandbox.networkAccess !== false) return no('native-surface-sandbox-unverified');
   const config = await request('config/read', { cwd: d.cwd, includeLayers: true });
   if (!Array.isArray(config?.layers) || config.layers.some(l => !S.config_layers.includes(l?.name?.type) || l.name.type === 'system' && existsSync(l.name.file) || l.name.type === 'user' && real(l.name.file) !== join(home, 'config.toml'))) return no('native-surface-config-layers-unverified');
-  const catalogPath = join(home, S.catalog_file);
-  if (typeof config.config?.model_catalog_json !== 'string' || real(config.config.model_catalog_json) !== real(catalogPath)) return no('native-surface-catalog-unpinned');
+  const catalogPath = d._surfaceCatalog;
+  if (!catalogPath || typeof config.config?.model_catalog_json !== 'string' || real(config.config.model_catalog_json) !== real(catalogPath)) return no('native-surface-catalog-unpinned');
   let catalog, entry; try { catalog = readFileSync(catalogPath); entry = JSON.parse(catalog).models?.find(m => m.slug === thread.model); } catch { return no('native-surface-catalog-unpinned'); }
   if (!entry || S.catalog.absent.some(k => Object.hasOwn(entry, k)) || Object.entries(S.catalog.values).some(([k, v]) => JSON.stringify(entry[k]) !== JSON.stringify(v))) return no('native-surface-catalog-tools-present');
   const features = await request('experimentalFeature/list', { threadId: thread.thread.id, limit: 500 });
@@ -217,7 +236,7 @@ async function inspectCodexSurface(request, d, init, thread) {
   if (!Array.isArray(skills?.data) || skills.data.some(c => !Array.isArray(c.skills) || c.skills.some(k => k.enabled !== false))) return no('native-surface-skills-enabled');
   const hooks = await request('hooks/list', {});
   if (!Array.isArray(hooks?.data) || hooks.data.some(c => !Array.isArray(c.hooks) || c.hooks.length)) return no('native-surface-hooks-present');
-  return { verified: true, evidence: { surface: S.id, definition_digest: CODEX_SURFACE_R1_DIGEST, version, package_digest: codexPackageDigest(d.executable), catalog_digest: createHash('sha256').update(catalog).digest('hex'), config_digest: digest(config.config) } };
+  return { verified: true, evidence: { surface: S.id, definition_digest: CODEX_SURFACE_R1_DIGEST, version, package_digest: codexPackageDigest(d.executable), catalog_digest: createHash('sha256').update(catalog).digest('hex'), config_digest: digest(Object.fromEntries(S.config_keys.map(k => [k, config.config[k] ?? null]))), instructions_digest: digest(instructions) } };
 }
 // Default-deny frame guard of a surface turn: the first frame outside the
 // definition withdraws isolation for the receipt.
@@ -241,7 +260,9 @@ async function codexEndpoint(d, spawnProcess) {
   const surface = d.tool_surface === CODEX_SURFACE_R1.id;
   const overrides=(d._disabledMcpNames||[]).flatMap(name=>['-c','mcp_servers.'+name+'.enabled=false']);
   if(d._disabledPluginNames?.length)overrides.push('-c','plugins={'+d._disabledPluginNames.map(name=>JSON.stringify(name)+'={enabled=false}').join(',')+'}');
-  const peer = processPeer(d, surface ? [...CODEX_SURFACE_R1.overrides.flatMap(o => ['-c', o]), 'app-server', '--listen', 'stdio://'] : ['-c','features.apps=false','-c','apps._default.enabled=false',...overrides,'app-server','--listen','stdio://'], spawnProcess);
+  if (surface && !d._surfaceCatalog) d = { ...d, _surfaceCatalog: writeSurfaceCatalog(d) };
+  const surfaceFlags = surface ? [...CODEX_SURFACE_R1.overrides, 'model_catalog_json=' + JSON.stringify(d._surfaceCatalog), ...(d._disabledSkillNames?.length ? ['skills.config=[' + d._disabledSkillNames.map(n => '{name=' + JSON.stringify(n) + ',enabled=false}').join(',') + ']'] : [])].flatMap(o => ['-c', o]).concat(overrides) : null;
+  const peer = processPeer(d, surface ? [...surfaceFlags, 'app-server', '--listen', 'stdio://'] : ['-c','features.apps=false','-c','apps._default.enabled=false',...overrides,'app-server','--listen','stdio://'], spawnProcess);
   let seq = 0, thread, appServerVersion = null, init = null, surfaceEvidence = null;
   const request = (method, params) => {
     const id = ++seq;
@@ -254,7 +275,7 @@ async function codexEndpoint(d, spawnProcess) {
     init = await request('initialize',{clientInfo:{name:'waypost',version:'1.0.0'},...(surface ? {capabilities:{experimentalApi:true}} : {})});
     appServerVersion = codexAppServerVersion(init);
     peer.write({method:'initialized',params:{}});
-    if(d.mode==='read-only' && !d._mcpConfigInspected && !surface) {
+    if(d.mode==='read-only' && !d._mcpConfigInspected) {
       // Discover only names in our own backend configuration. Do not write
       // user settings or expose credentials from the configuration response.
       let config;
@@ -264,6 +285,12 @@ async function codexEndpoint(d, spawnProcess) {
       if(names.length>128 || names.some(n=>!/^[A-Za-z0-9_-]{1,128}$/.test(n)))throw fail('native-mcp-config-budget');
       if(plugins.length>128 || plugins.some(n=>!bounded(n,256)||/[\x00-\x1f]/.test(n)))throw fail('native-plugin-config-budget');
       if(names.length||plugins.length){await peer.stopAndWait();return codexEndpoint({...d,_mcpConfigInspected:true,_disabledMcpNames:names,_disabledPluginNames:plugins},spawnProcess);}
+    }
+    // The user's own skills are switched off by session flag, never by editing their files.
+    if(surface && !d._skillsInspected) {
+      const listed=await request('skills/list',{cwds:[d.cwd],forceReload:true}),skillNames=[...new Set((listed?.data||[]).flatMap(c=>(c.skills||[]).filter(k=>k.enabled!==false).map(k=>k.name)))];
+      if(skillNames.length>256 || skillNames.some(n=>!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(n)))throw fail('native-skill-config-budget');
+      if(skillNames.length){await peer.stopAndWait();return codexEndpoint({...d,_skillsInspected:true,_disabledSkillNames:[...new Set([...(d._disabledSkillNames||[]),...skillNames])]},spawnProcess);}
     }
     thread = await request('thread/start',{ cwd:d.cwd, approvalPolicy:'never', sandbox:d.mode === 'read-only' ? 'read-only' : 'workspace-write', ephemeral:true,
       ...(d.model_id ? {model:d.model_id}:{}), ...(d.reasoning ? {config:{model_reasoning_effort:d.reasoning}}:{}),
@@ -294,7 +321,7 @@ async function codexEndpoint(d, spawnProcess) {
     // reporting no credits; usage percentages and reset times are never read.
     const provider = clean(thread.modelProvider||thread.thread.modelProvider), plan = clean(account?.account?.planType);
     let mode = 'unknown', paid_fallback = 'unknown', credit_availability = 'unknown';
-    if (provider === 'openai' && auth?.authMethod === 'chatgpt' && auth.requiresOpenaiAuth === true && account?.account?.type === 'chatgpt' && Object.hasOwn(CODEX_PERSONAL_PLANS,plan) && origin === 'https://chatgpt.com' && clean(routing?.chatgptAccountId) && CODEX_ACCOUNT_METADATA_VERSIONS.includes(appServerVersion)) {
+    if (provider === 'openai' && auth?.authMethod === 'chatgpt' && auth.requiresOpenaiAuth === true && account?.account?.type === 'chatgpt' && Object.hasOwn(CODEX_PERSONAL_PLANS,plan) && origin === 'https://chatgpt.com' && clean(routing?.chatgptAccountId) && [undefined,'NO_CONSTRAINT'].includes(routing?.accountRoutingOverride) && CODEX_ACCOUNT_METADATA_VERSIONS.includes(appServerVersion)) {
       // `openai_base_url` reroutes the built-in provider's inference without
       // changing its id or login; billing is known only with it unset.
       const config = await request('config/read',{includeLayers:false});

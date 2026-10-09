@@ -85,26 +85,30 @@ non-`none` surface for measurement only.
    residual tools, the probe's tool list) live in a versioned surface-definition
    file in the repository; its digest is part of the evidence. This ADR fixes
    the principles below, not the lists.
-3. **Owned Codex installation.** The whole Codex package directory (wrapper,
-   app bundle, helpers; layout per `codex-package.json`) is copied to a
-   Waypost-owned location and pinned by a digest over all its files; every
-   Codex spawn site (inference, quota, inventory) uses it with a Waypost-owned
-   `CODEX_HOME` and a sanitized environment (no inherited API keys, base URLs or
-   `HOME`-relative discovery), credentials provisioned into that home by the
-   owner. The working directory is one fixed empty directory outside any
-   project root. `initialize.codexHome` and the directory are compared by real
-   path.
+3. **The user's own Codex installation (owner decision 2026-10-08,
+   superseding an owned copy).** The surface runs the Codex the user has: the
+   CLI bundled in ChatGPT.app, the user's `CODEX_HOME` (`~/.codex`) and login,
+   with a sanitized environment (only `PATH` and `HOME`). Nothing in the
+   user's installation is edited: tool-bearing features, MCP servers, plugins
+   and the user's skills are switched off by session flags (MCP, plugins and
+   skills after a discovery launch), and the pinned catalog is a file Waypost
+   writes under `~/.waypost`. The user's home instruction files
+   (`AGENTS.md`, `AGENTS.override.md`) may load; their content digests are
+   bound into the evidence and the profile, project instruction files may not
+   (`project_doc_max_bytes = 0`). The working directory is one fixed empty
+   directory outside any project root. The package digest covers the bundled
+   CLI directory, so an app update is a new configuration.
 4. **Fail-closed readback.** Before the turn: `config/read {cwd,
-   includeLayers:true}` shows only the owned user and session-flag layers;
+   includeLayers:true}` shows only the user's `config.toml`, the session flags and an absent system file;
    `experimentalFeature/list {threadId}` shows every enabled, non-removed feature
    on the definition's allowlist; `skills/list {cwds:[cwd], forceReload:true}`
    and `hooks/list` are empty; `instructionSources` is empty; the sandbox is
    read-only with no network and approval `never`. The effective-config digest
    joins the evidence. Anything else leaves the context unverified.
-5. **Pinned model catalog.** The model catalog is pinned with
-   `model_catalog_json` to a Waypost-owned file, confirmed by `config/read`; in
-   it the switchless tool types the definition can turn off are turned off
-   (for example `node_repl_disabled`, `experimental_supported_tools: []`). Its
+5. **Pinned model catalog.** The model's entry from the user's cached catalog,
+   with the tool-bearing keys removed and the definition's values set, is
+   written content-addressed under `~/.waypost` and pinned with
+   `model_catalog_json`, confirmed by `config/read`. Its
    digest is part of the evidence and the profile. A remote catalog is never
    used for this surface.
 6. **Frame guard to process close.** Raw Responses events
@@ -136,7 +140,7 @@ non-`none` surface for measurement only.
    (contract 4's fresh no-tools context, the leader-ACK turn) becomes "the
    bound surface, where `none` means no tools"; the Codex refusal note is
    replaced by this ADR.
-10. **Negative-control probe.** Before a surface revision is used, one owned
+10. **Negative-control probe.** Before a surface revision is used, one
     probe per (version, catalog digest) runs with raw Responses events
     (`experimentalRawEvents`) as ground truth: it asks for each residual and
     turned-off tool type the definition derives from the catalog and the
@@ -144,8 +148,9 @@ non-`none` surface for measurement only.
     left on, showing the guard fires). The probe is interrupted from
     `thread/tokenUsage/updated` before the owner's cap (at most 150K tokens,
     approved 2026-10-08).
-11. **The claim.** Revision 1 claims: an owned, pinned installation with no
-    instruction-source files, no skills, hooks, plugins or MCP; the listed
+11. **The claim.** Revision 1 claims: the user's installation, version- and
+    package-pinned, with only its home instruction files (digest-bound), and no
+    enabled skills, hooks, plugins or MCP; the listed
     residual tools present but either disabled in the pinned catalog or unused
     in the receipt; the model's built-in and catalog instructions present and
     pinned. It makes no claim that the model sees no tool, and it is macOS-only
@@ -154,7 +159,7 @@ non-`none` surface for measurement only.
 
 ## Probe evidence (2026-10-08, owner-approved, 37K of 150K tokens)
 
-Owned package `~/.waypost/codex/0.162.0-alpha.2`, owned `CODEX_HOME`
+An owned copy of the package and `CODEX_HOME` (later removed, see Implementation)
 (`~/.waypost/codex-home`, separate ChatGPT login), empty cwd, raw Responses
 events on, every server request refused.
 
@@ -184,6 +189,30 @@ bundled skills are disabled per name with `[[skills.config]] enabled = false`;
 `skills.enabled` is not a setting (Codex warns about unknown settings on
 stderr, which the readback treats as unverified).
 
+## Implementation (2026-10-08, Claude Code)
+
+`scripts/codex-surface.mjs` holds the revision 1 definition and its digest;
+`team-transport.mjs` launches the user's Codex with the sanitized
+environment and the definition's switches, reads the setup back after thread
+start (`inspectCodexSurface`), guards every frame of the turn plus a 1 s drain
+(`codexSurfaceGuard`), takes the one `final_answer` message as output, and
+records `tool_surface` and `surface_evidence` in the manifest;
+`native-model-profile.mjs` refuses an unproven surface and binds the surface
+and its digests into `execution_scope`; the Host supervises the
+absolute executable and no longer refuses a surface Codex for work or delivery; the
+reducer drops its Codex refusals (admission already needs a calibrated profile
+captured with `tools: []`). Codex account semantics are pinned for
+`0.162.0-alpha.2` with `accountRoutingOverride` limited to `NO_CONSTRAINT`.
+Live check through the transport: one call, 4,641 tokens, `tools: []`,
+`adapter-isolated`. Deviation: the guard window is the turn plus a 1 s drain,
+not process close; the Host settles before it closes the process. Reworked the
+same day to the user's installation: on it the provocative prompt through the
+transport reported no tool and no tool frame (7,464 tokens), while a probe that
+left the user's MCP servers on did call one, so their discovery and switch-off
+is required; the config is bound as a projection of security-relevant keys
+because the apps rewrite other parts of `config.toml`. The owned copy and its
+separate login were removed.
+
 ## Rationale
 
 1. Calibration only means something if production runs in the context it
@@ -199,9 +228,10 @@ stderr, which the readback treats as unverified).
    results show which roles a Codex surface can hold safely.
 4. Claude and OpenCode keep the stricter `none`; because `none` is the
    absent field, their stored logs and profiles stay byte-identical.
-5. An owned installation and pinned catalog make the measured configuration
-   the one that runs: the server catalog, auto-updates and the owner's own
-   Codex setup cannot silently change it.
+5. Binding the package, catalog, config projection and instructions into the
+   profile makes the measured configuration the one that runs: an app update,
+   a catalog refresh or an edit of the user's Codex setup is a new
+   configuration, never a silent change.
 
 ## Alternatives Considered
 
@@ -234,7 +264,7 @@ not need (no tool use), only a stronger one it cannot prove.
 - Sees every function, custom, shell, search and image call directly.
 
 **Cons**:
-- Experimental API; still needs disabling and an owned installation.
+- Experimental API; still needs disabling and readback.
 
 **Rejected because**: a useful extra signal for a later revision, not a
 substitute for the allowlist guard.
@@ -263,8 +293,8 @@ substitute for the allowlist guard.
 - Each new app-server version needs a read before it is verified.
 
 **What changes in code / process**:
-- A versioned Codex surface-definition file and an owned package/home setup.
-- `team-transport.mjs`: owned package and home, sanitized environment, launch
+- A versioned Codex surface-definition file.
+- `team-transport.mjs`: the user's Codex, sanitized environment, launch
   overrides, fail-closed readback, catalog pin, prerelease version parser,
   default-deny frame guard to process close, `final_answer` output,
   `tool_surface` in the manifest; the quota and inventory spawn sites use the

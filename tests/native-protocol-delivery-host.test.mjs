@@ -99,12 +99,11 @@ test('a Claude stand-in runs the same-peer preflight before capture and again be
  const r=await f.recipientHost.relay({limit:5});assert.equal(r.delivered,1,JSON.stringify(r));
  const calls=f.calls.slice(begin),inspects=calls.flatMap((c,i)=>c==='native-inspect'?[i]:[]);assert.equal(inspects.length,2);assert.ok(inspects[1]<calls.indexOf('subscription-consume-v2'));
 });
-test('the reducer refuses a Codex recipient, a prompt bound to other text and a question that is not current',()=>{
+test('the reducer refuses a prompt bound to other text and a question that is not current',()=>{
  const message={id:'q',kind:'question',recipient:'p',incarnation:'i',epoch:1,ack:null,sender:'s',payload:{text:'hi'}};
  const t={id:'team',epoch:1,policy:{expires_at:new Date(Date.now()+600000).toISOString()},messages:[message],deliveries:{},participants:{p:{id:'p',incarnation:'i'}},native_delivery_policy:{revision:1,expires_at:new Date(Date.now()+60000).toISOString(),max_calls:2,max_estimate_tokens:'40',timeout_ms:1000,unit_allocations:[{unit_digest:'u',max_tokens:'100'}]}};
  const r=over=>({purpose:'delivery',max_calls:1,estimate_tokens:'40',timeout_ms:1000,suite_digest:deliverySuiteDigest(),delivery:{message_id:'q',prompt_digest:routingDigest(formatDeliveryPrompt(message))},...over});
  assert.equal(validateProtocolDelivery({},t,r({}),t.participants.p,{unit_digest:'u'},Date.now()).delivery.message_id,'q');
- assert.throws(()=>validateProtocolDelivery({},t,r({}),{...t.participants.p,harness:'codex'},{unit_digest:'u'},Date.now()),/delivery-no-tools-context-required/);
  assert.throws(()=>validateProtocolDelivery({},t,r({delivery:{message_id:'q',prompt_digest:routingDigest('other')}}),t.participants.p,{unit_digest:'u'},Date.now()),/delivery-prompt-binding-required/);
  assert.throws(()=>validateProtocolDelivery({},{...t,messages:[{...message,ack:{at:'x'}}]},r({}),t.participants.p,{unit_digest:'u'},Date.now()),/current-unacknowledged-question/);
  assert.throws(()=>validateProtocolDelivery({},{...t,native_delivery_policy:undefined},r({}),t.participants.p,{unit_digest:'u'},Date.now()),/owner-ceiling-required/);

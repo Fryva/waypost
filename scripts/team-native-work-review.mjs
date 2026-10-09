@@ -35,7 +35,7 @@ export function createProtocolWorkReviewRequest(s, t, { actionId, workId, now = 
   const w = t.work?.[workId]; if (!w || w.protocol !== 2 || w.status !== 'candidate' || !w.result) fail('native-work-review-candidate-required');
   if (typeof actionId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(actionId)) fail('native-work-review-action-id-required');
   const authors = [w.worker, t.leader], reviewer = selectWorkReviewer(t, w, now);
-  if (!reviewer || reviewer.harness === 'codex') fail('native-work-strongest-independent-review-unavailable');
+  if (!reviewer) fail('native-work-strongest-independent-review-unavailable');
   const policy = workReviewPolicy(t);
   if (!policy || !(Date.parse(policy.expires_at) > now)) fail('native-work-owner-ceiling-required');
   if (!nativeParticipantQuotaEligible(reviewer, now) || !policy.allow_unknown_reviewer_quota && reviewer.native_protocol_quota?.proof?.status !== 'available') fail('native-work-review-known-quota-required');

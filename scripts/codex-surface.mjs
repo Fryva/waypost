@@ -1,7 +1,8 @@
 // waypost — scripts/codex-surface.mjs
 // Tool surface `codex-no-exec-r1` (ADR harness-tool-surfaces-bound-by-evidence-
 // instead-of-an-empty-tool-list): the version-specific lists the ADR leaves to a
-// definition. Read from codex-cli 0.162.0-alpha.2 and its negative-control probe
+// definition. It runs the user's own Codex installation and home (owner decision
+// 2026-10-08); everything it changes is a session flag or a Waypost-written file. Read from codex-cli 0.162.0-alpha.2 and its negative-control probe
 // (2026-10-08); any other version stays unverified.
 import { createHash } from 'node:crypto';
 
@@ -10,7 +11,11 @@ const FEATURES_OFF = ['shell_tool', 'unified_exec', 'unified_exec_tty', 'sleep_t
 export const CODEX_SURFACE_R1 = Object.freeze({
   id: 'codex-no-exec-r1',
   version: '0.162.0-alpha.2',
-  catalog_file: 'waypost-model-catalog.json',
+  // The catalog Waypost pins is the model's entry from the user's own
+  // models_cache.json with the tool-bearing keys removed, written content-addressed.
+  catalog_cache: 'models_cache.json',
+  // Instruction files the user's home may contribute; their content digests are bound.
+  instruction_files: ['AGENTS.md', 'AGENTS.override.md'],
   // Session flags passed with -c on every launch; the owned config.toml may repeat them.
   overrides: [...FEATURES_OFF.map(f => `features.${f}=false`), 'web_search="disabled"', 'experimental_use_unified_exec_tool=false', 'tools.update_plan.enabled=false', 'tools.experimental_request_user_input.enabled=false', 'project_doc_max_bytes=0', 'check_for_update_on_startup=false'],
   // Enabled, non-removed features the thread may still report. `unified_exec` keeps
@@ -20,6 +25,9 @@ export const CODEX_SURFACE_R1 = Object.freeze({
   // Catalog keys that switch tools on; the pinned entry must lack them or hold these values.
   catalog: { absent: ['tool_mode', 'multi_agent_version', 'apply_patch_tool_type', 'web_search_tool_type'], values: { shell_type: 'disabled', experimental_supported_tools: [], supports_search_tool: false, node_repl_disabled: true } },
   config_layers: ['sessionFlags', 'user', 'system'],
+  // The user's config.toml also holds state the apps rewrite (notices, projects,
+  // desktop); only these effective keys are bound into the configuration identity.
+  config_keys: ['model', 'model_provider', 'model_providers', 'openai_base_url', 'chatgpt_base_url', 'approval_policy', 'sandbox_mode', 'web_search', 'tools', 'features', 'apps', 'plugins', 'mcp_servers', 'skills', 'hooks', 'memories', 'agents', 'model_catalog_json', 'project_doc_max_bytes', 'instructions', 'developer_instructions', 'model_instructions_file', 'browser_use', 'computer_use', 'goals', 'experimental_use_unified_exec_tool'],
   // Default deny during a turn: anything else withdraws isolation for the receipt.
   turn_methods: ['turn/started', 'turn/completed', 'item/started', 'item/completed', 'item/agentMessage/delta', 'item/reasoning/summaryTextDelta', 'item/reasoning/summaryPartAdded', 'item/reasoning/textDelta', 'thread/tokenUsage/updated', 'account/rateLimits/updated', 'account/updated', 'thread/status/changed', 'rawResponseItem/completed', 'rawResponse/completed', 'model/rerouted', 'warning', 'deprecationNotice', 'remoteControl/status/changed'],
   turn_items: ['userMessage', 'agentMessage', 'reasoning'],

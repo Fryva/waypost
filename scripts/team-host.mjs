@@ -15,6 +15,7 @@ import { collectQuotaObservation, serializeQuotaObservation, quotaEligible } fro
 import { collectNativeProtocolQuota, serializeNativeProtocolQuota, renewNativeQuotaLease } from './team-native-quota.mjs';
 import { formatDeliveryPrompt, deliverySuiteDigest, deliveryAnswerPayload, DELIVERY_MAX_ANSWER_BYTES } from './team-native-delivery.mjs';
 import { observeNativeProviderQuota, observeCodexProtocolAccountQuota } from './team-quota-native.mjs';
+import { CODEX_SURFACE_R1 } from './codex-surface.mjs';
 import { createNativeEndpoint, createNativeModelInventoryEndpoint, nativeInventoryFailureClosure, validateNativeDescriptor } from './team-transport.mjs';
 import { harness as harnessDefinition } from './agents.mjs';
 import { collectModelInventory, metadataDescriptor } from './team-model-inventory.mjs';
@@ -107,7 +108,7 @@ export function createTeamHost(config, dependencies={}) {
   // External OpenCode sessions have no owned process to supervise.
   if(dependencies.createNativeEndpoint&&!forceOwned)return await fn();
   const d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
-  if(d.descriptor.mode==='workspace-write'||(d.descriptor.executable&&!['codex','claude','opencode'].includes(d.descriptor.executable)))fail('host-owned-supervision-verified-read-only-adapter-required');
+  if(d.descriptor.mode==='workspace-write'||(d.descriptor.executable&&!['codex','claude','opencode'].includes(d.descriptor.executable)&&d.descriptor.tool_surface!==CODEX_SURFACE_R1.id))fail('host-owned-supervision-verified-read-only-adapter-required');
   if(d.descriptor.harness==='opencode'&&!d.descriptor.spawn_server){if(forceOwned)fail('host-owned-control-endpoint-required');return await fn();}
   let epoch=t.epoch;
   if(nativeHandoverControl){
@@ -262,7 +263,7 @@ export function createTeamHost(config, dependencies={}) {
   if(calibrated?d.participant!==w.worker:d.participant!==t.leader||d.participant!==w.worker)fail(calibrated?'host-native-work-executor-endpoint-required':'host-native-work-leader-endpoint-required');
   // The executor's counter unit must be allocated before any native process starts.
   if(calibrated&&!policy?.unit_allocations?.some(u=>u.unit_digest===routingDigest({scope:'team-native-counter',team,counter_schema:COUNTER_SCHEMA[d.descriptor.harness]})))fail('host-native-work-allocation-required');
-  if(d.descriptor.harness==='codex')fail('host-native-work-no-tools-context-required');
+  if(d.descriptor.harness==='codex'&&d.descriptor.tool_surface!==CODEX_SURFACE_R1.id)fail('host-native-work-no-tools-context-required');
   // Everything checkable without a native process runs before one is spawned.
   if(!['manifest','attempt-failed'].includes(w.status)||!policy||w.attempts+1>policy.max_attempts)fail('host-native-work-not-dispatchable');
   const inputs=integration.readWorkInputs({projectRoot,base:w.manifest.base,paths:w.paths}),inputsDigest=integration.workInputsDigest(inputs);
@@ -644,7 +645,7 @@ export function createTeamHost(config, dependencies={}) {
   if(load().state.subscription_invocations?.[invocationId])fail('host-subscription-attempt-already-recorded-no-replay');
   if(p.quota_observation?.status==='exhausted')fail('host-subscription-quota-exhausted');
   // A Codex context carries a read-only shell; peer payloads need a no-tools context.
-  if((deliveryMessage||workCall)&&d.descriptor.harness==='codex')fail(workCall?'host-native-work-no-tools-context-required':'host-delivery-no-tools-context-required');
+  if((deliveryMessage||workCall)&&d.descriptor.harness==='codex'&&d.descriptor.tool_surface!==CODEX_SURFACE_R1.id)fail(workCall?'host-native-work-no-tools-context-required':'host-delivery-no-tools-context-required');
   if(promptSuffix&&controlAction?.kind!==WORK_REVIEW_KIND)fail('host-prompt-suffix-work-review-only');
   const token='WAYPOST_PROBE_'+nonce;
   const prompt=controlAction?formatProtocolAction(controlAction)+promptSuffix:trialBinding?trialBinding.prompt:workCall?workCall.prompt:deliveryMessage?formatDeliveryPrompt(deliveryMessage):'Synthetic protocol check. Return exactly this token and nothing else: '+token;
@@ -817,7 +818,7 @@ export function createTeamHost(config, dependencies={}) {
   // descriptor. Historical consumes without whole-operation ledgers block stop.
   const {descriptor,binding}=readParticipantHost({state:v.state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)});
   if(descriptor.harness==='opencode'&&!descriptor.spawn_server)fail('native-process-stop-unverified-external-server');
-  if(descriptor.mode==='workspace-write'||(descriptor.executable&&!['codex','claude','opencode'].includes(descriptor.executable)))fail('host-owned-supervision-verified-read-only-adapter-required');
+  if(descriptor.mode==='workspace-write'||(descriptor.executable&&!['codex','claude','opencode'].includes(descriptor.executable)&&descriptor.tool_surface!==CODEX_SURFACE_R1.id))fail('host-owned-supervision-verified-read-only-adapter-required');
   const required=[...Object.values(t.runtime_requests||{}).filter(r=>r.participant===p.id&&r.incarnation===p.incarnation&&r.epoch===epoch&&r.consumed).map(r=>r.nonce),...Object.values(t.review_requests||{}).filter(r=>r.reviewer===p.id&&r.epoch===epoch&&r.consumed).map(r=>r.nonce),...Object.values(t.deliveries||{}).filter(r=>r.participant===p.id&&r.incarnation===p.incarnation&&r.epoch===epoch).map(r=>r.nonce)];
   for(const x of Object.values(v.state.invocations||{})){
    if(x.team!==team||x.epoch!==epoch||['prepared','aborted'].includes(x.state))continue;
@@ -955,7 +956,7 @@ export function createTeamHost(config, dependencies={}) {
   if(!Number.isSafeInteger(limit)||limit<1||limit>100)fail('host-invalid-relay-bounds');
   owner();const d=endpoint(),participant=credential(participantCredential);
   if(participant.participant!==d.participant)fail('host-relay-participant-binding-mismatch');
-  if(d.descriptor.harness==='codex')fail('host-delivery-no-tools-context-required');
+  if(d.descriptor.harness==='codex'&&d.descriptor.tool_surface!==CODEX_SURFACE_R1.id)fail('host-delivery-no-tools-context-required');
   const results=[];
   function forward(message,record,{t,actor}){
    if(record?.state!=='received'||record.participant!==participant.participant||record.incarnation!==participant.incarnation)return {message_id:message.id,forwarded:false,state:record?.state??null,...(record?.failure?{failure:record.failure}:{})};

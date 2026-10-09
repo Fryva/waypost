@@ -36,7 +36,6 @@ function gated(p, t, now) { const refused = gateRefusal(p, t, now); if (refused)
 // counter unit is the one its admission was measured under (slice 5).
 function executorRefusal(s, t, p, policy, now) {
   if (!p || p.availability !== 'ready' || p.revoked !== false) return 'native-work-ready-executor-required';
-  if (p.harness === 'codex') return 'native-work-no-tools-context-required';
   if (!nativeParticipantQuotaEligible(p, now) || p.id !== t.leader && !policy.allow_unknown_quota && p.native_protocol_quota?.proof?.status !== 'available') return 'native-work-known-quota-required';
   const refused = gateRefusal(p, t, now); if (refused) return refused;
   const unit = s.subscription_invocations?.[p.native_admission?.source_invocation]?.unit_digest;
@@ -138,7 +137,6 @@ export function applyNativeWork(s, t, c, now, H) {
       }
     }
     const policy = currentWorkPolicy(t, now), leader = activeNativeLeader(t, now, worker?.id);
-    if (leader.harness === 'codex') fail('native-work-no-tools-context-required');
     worker ||= leader;
     if (worker !== leader && (!nativeParticipantQuotaEligible(worker, now) || !policy.allow_unknown_quota && worker.native_protocol_quota?.proof?.status !== 'available')) fail('native-work-known-quota-required');
     if (unfinishedWork(t).length) fail('native-work-one-at-a-time');
@@ -241,7 +239,6 @@ function workAdmission(s, t, binding, participant, now) {
     if (participant.id !== w.worker || participant.incarnation !== w.worker_incarnation) fail('native-work-pinned-executor-required');
     gated(participant, t, now);
   } else if (participant.id !== t.leader || participant.id !== w.worker || participant.incarnation !== w.worker_incarnation || leader.id !== participant.id) fail('native-work-leader-executor-required');
-  if (participant.harness === 'codex') fail('native-work-no-tools-context-required');
   // The executor is still the configuration the manifest pinned (identity is re-proven by later per-action captures).
   if ((participant.model?.model_revision ?? null) !== (w.worker_model_revision ?? null) || routingDigest(participant.native_admission?.identity ?? null) !== routingDigest(w.worker_identity ?? null)) fail('native-work-worker-identity-changed');
   if (!nativeParticipantQuotaEligible(participant, now) || !policy.allow_unknown_quota && participant.native_protocol_quota?.proof?.status !== 'available') fail('native-work-known-quota-required');

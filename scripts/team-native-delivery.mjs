@@ -61,7 +61,6 @@ export function validateProtocolDelivery(s, t, r, participant, context, now) {
   const policy = currentPolicy(t, now), delivery = exact(r.delivery, ['message_id', 'prompt_digest']);
   if (r.measurement !== undefined || r.action !== undefined || r.max_calls !== 1 || integer(r.estimate_tokens) <= 0n || integer(r.estimate_tokens) > integer(policy.max_estimate_tokens) || r.timeout_ms > policy.timeout_ms || r.suite_digest !== deliverySuiteDigest()) fail('bounded-delivery-reservation-required');
   // Codex contexts carry a read-only shell; delivery needs a no-tools context.
-  if (participant.harness === 'codex') fail('delivery-no-tools-context-required');
   if (!nativeQuotaEligible(t, participant, now)) fail('delivery-quota-ineligible');
   const m = pending(s, t, delivery.message_id, participant);
   if (delivery.prompt_digest !== routingDigest(formatDeliveryPrompt(m))) fail('delivery-prompt-binding-required');

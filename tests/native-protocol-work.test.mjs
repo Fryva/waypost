@@ -61,13 +61,14 @@ test('pending v2 work blocks a new ceiling; protocol 1 rewrites leave it alone; 
  const leader=one.teams.team.leader,revoked=send(one,'revoke',{participant_id:leader});assert.equal(revoked.state.teams.team.work.w1.status,'manifest');
  const fenced=structuredClone(state);fenced.publication_fence={team:'team'};const d=send(fenced,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()});assert.equal(d.result.deferred,true);assert.equal(d.state.teams.team.work.w1,undefined);
 });
-test('the manifest gate re-selects at this time: a critic that lapsed since the cached election blocks it, and a Codex leader is refused',async()=>{
+test('the manifest gate re-selects at this time: a critic that lapsed since the cached election blocks it, and an admitted Codex leader is accepted',async()=>{
  const {state}=await enabled(),t=state.teams.team;
  const lapsed=structuredClone(state);for(const p of Object.values(lapsed.teams.team.participants))if(p.id!==t.leader)p.availability='busy';
  assert.equal(lapsed.teams.team.review_candidate!==null,true,'the cached election still names a critic');
  assert.throws(()=>send(lapsed,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}),/native-work-active-leader-required/);
+ // An admitted Codex leader is no longer refused: admission needs a verified tool surface.
  const codex=structuredClone(state);codex.teams.team.participants[t.leader].harness='codex';
- assert.throws(()=>send(codex,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}),/no-tools-context-required/);
+ assert.equal(send(codex,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}).state.teams.team.work.w1.worker,t.leader);
  assert.throws(()=>send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest(),extra:1}),/command-fields-required/);
 });
 test('only an unresolved negative audit of the current acknowledgement blocks; approvals and other acknowledgements do not',async()=>{
@@ -108,13 +109,13 @@ test('a calibrated manifest pins the executor and is refused when no independent
  const alone=structuredClone(state);for(const p of Object.values(alone.teams.team.participants))if(![t.leader,executor].includes(p.id))p.availability='busy';
  assert.throws(()=>send(alone,'native-work-manifest-v2',{work_id:'w1',manifest:calibratedManifest}),/native-work-strongest-independent-review-unavailable/);
  const codex=structuredClone(state);codex.teams.team.participants[executor].harness='codex';
- assert.throws(()=>send(codex,'native-work-manifest-v2',{work_id:'w1',manifest:calibratedManifest}),/native-work-no-tools-context-required/);
+ assert.equal(send(codex,'native-work-manifest-v2',{work_id:'w1',manifest:calibratedManifest}).state.teams.team.work.w1.worker,executor);
  const revisable=structuredClone(r.state);Object.assign(revisable.teams.team.work.w1,{status:'changes-requested',result:{}});
  assert.throws(()=>send(revisable,'native-work-revise-v2',{work_id:'w1',generation:1,findings_digest:'0'.repeat(64),reason:'again'}),/native-work-calibrated-revision-unsupported/);
 });
 test('an unnamed calibrated manifest is refused when no executor passes every gate, and a foreign counter unit excludes one',async()=>{
  const {state}=await implementTeam(),t=state.teams.team,unnamed=manifest({forbidden_actions:[]});
- const alone=structuredClone(state);for(const p of Object.values(alone.teams.team.participants))p.harness='codex';
+ const alone=structuredClone(state);for(const p of Object.values(alone.teams.team.participants))alone.subscription_invocations[p.native_admission.source_invocation].unit_digest='f'.repeat(64);
  assert.throws(()=>send(alone,'native-work-manifest-v2',{work_id:'w1',manifest:unnamed}),/native-work-no-eligible-executor/);
  const foreign=structuredClone(state),p=foreign.teams.team.participants[t.review_candidate];foreign.subscription_invocations[p.native_admission.source_invocation].unit_digest='f'.repeat(64);
  assert.throws(()=>send(foreign,'native-work-manifest-v2',{work_id:'w1',manifest:manifest({forbidden_actions:[],executor_participant:p.id})}),/native-work-unit-allocation-required/);
