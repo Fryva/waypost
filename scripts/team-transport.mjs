@@ -1,5 +1,5 @@
 // Managed native conversations. No shell, personal-session discovery or retries.
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { isDeepStrictEqual } from 'node:util';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { isAbsolute, join, dirname, relative } from 'node:path';
@@ -117,10 +117,14 @@ export function ownedChildLifecycle(child) {
       // Children can outlive a root that exited on SIGTERM (its group SIGKILL was
       // then cancelled). Poll the group briefly, kill it while it still exists (a
       // process group id cannot be reused while the group lives), poll again.
-      const alive=()=>{try{process.kill(-child.pid,0);return true;}catch(error){if(error.code==='ESRCH')return false;throw fail('native-process-group-stop-unconfirmed');}};
+      // EPERM (a member that cannot be signalled) is named apart; an unconfirmed stop
+      // carries the group's remaining members, so a live failure explains itself.
+      const members=()=>{try{return execFileSync('/bin/ps',['-o','pid=,ppid=,stat=,comm=','-g',String(child.pid)],{encoding:'utf8',timeout:1000}).trim().split('\n').slice(0,16).map(l=>l.trim().slice(0,160));}catch{return [];}};
+      const unconfirmed=code=>Object.assign(fail(code),{members:members()});
+      const alive=()=>{try{process.kill(-child.pid,0);return true;}catch(error){if(error.code==='ESRCH')return false;throw unconfirmed(error.code==='EPERM'?'native-process-group-stop-unpermitted':'native-process-group-stop-unconfirmed');}};
       const settle=async ms=>{for(const end=Date.now()+ms;alive();){if(Date.now()>=end)return false;await new Promise(r=>setTimeout(r,25));}return true;};
       // OpenCode's server takes over a second to reap its children (live, 2026-10-08).
-      if(!await settle(2500)){try{process.kill(-child.pid,'SIGKILL');}catch{} if(!await settle(2500))throw fail('native-process-group-stop-unconfirmed');}
+      if(!await settle(2500)){try{process.kill(-child.pid,'SIGKILL');}catch{} if(!await settle(2500))throw unconfirmed('native-process-group-stop-unconfirmed');}
     }
     return {stopped:true,owned_processes:1,process_group_closed:true};
   }
