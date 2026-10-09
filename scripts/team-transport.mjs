@@ -119,7 +119,8 @@ export function ownedChildLifecycle(child) {
       // process group id cannot be reused while the group lives), poll again.
       const alive=()=>{try{process.kill(-child.pid,0);return true;}catch(error){if(error.code==='ESRCH')return false;throw fail('native-process-group-stop-unconfirmed');}};
       const settle=async ms=>{for(const end=Date.now()+ms;alive();){if(Date.now()>=end)return false;await new Promise(r=>setTimeout(r,25));}return true;};
-      if(!await settle(1000)){try{process.kill(-child.pid,'SIGKILL');}catch{} if(!await settle(1000))throw fail('native-process-group-stop-unconfirmed');}
+      // OpenCode's server takes over a second to reap its children (live, 2026-10-08).
+      if(!await settle(2500)){try{process.kill(-child.pid,'SIGKILL');}catch{} if(!await settle(2500))throw fail('native-process-group-stop-unconfirmed');}
     }
     return {stopped:true,owned_processes:1,process_group_closed:true};
   }
