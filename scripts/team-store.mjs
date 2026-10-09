@@ -8,6 +8,9 @@ import { storageOf } from './presence.mjs';
 const PROTOCOL = 1;
 const MAX_COMMAND = 256 * 1024;
 const MAX_EVENT = 4 * 1024 * 1024;
+// The whole state may outgrow one event: a live three-member cohort (2026-10-08)
+// filled 4 MiB with calibration receipts. The summary reader bounds it at 32 MiB too.
+const MAX_STATE = 32 * 1024 * 1024;
 const ZERO = '0'.repeat(64);
 function fail(code, details = {}) { const e = new Error(code); e.code = code; Object.assign(e, details); throw e; }
 function stable(value) {
@@ -146,7 +149,7 @@ function replayAt(root, reducer, { cached = true } = {}) {
     if(e.command.type?.startsWith('native-model-inventory-')&&e.command.request_key!==e.key)fail('inventory-store-request-key-mismatch');
     // The previous state came from the JSON round trip below and is referenced
     // nowhere else, so the reducer may consume it without a defensive clone.
-    const next = bounded(reducer(state, structuredClone(e.command), { accepted_at: e.accepted_at, revision }), MAX_EVENT, 'authority-state-too-large');
+    const next = bounded(reducer(state, structuredClone(e.command), { accepted_at: e.accepted_at, revision }), MAX_STATE, 'authority-state-too-large');
     if (!next || !Object.hasOwn(next, 'state') || !Object.hasOwn(next, 'result') || digest(next.state) !== e.state_digest || digest(next.result) !== digest(e.result)) fail('authority-replay-mismatch', { revision });
     state = next.state; revision = e.seq; previous = hash; seen.add(requestId);
     digests.push(createHash('sha256').update(files[i]).digest('hex'));
@@ -224,7 +227,7 @@ export function mutateAuthority(root, request, reducer, { host = hostname(), con
     // accepted event time. A caller cannot backdate an action to bypass expiry.
     if (Object.hasOwn(command, 'at') && (!Number.isFinite(Date.parse(command.at)) || Math.abs(Date.now() - Date.parse(command.at)) > 30000)) fail('authority-invalid-action-time');
     const accepted_at = new Date().toISOString();
-    const next = bounded(reducer(structuredClone(current.state), structuredClone(command), { accepted_at, revision: current.revision }), MAX_EVENT, 'authority-state-too-large');
+    const next = bounded(reducer(structuredClone(current.state), structuredClone(command), { accepted_at, revision: current.revision }), MAX_STATE, 'authority-state-too-large');
     if (!next || !Object.hasOwn(next, 'state') || !Object.hasOwn(next, 'result')) fail('authority-invalid-reducer-output');
     const revision = current.revision + 1;
     const previous = revision === 1 ? ZERO : jsonFile(join(events, eventName(revision - 1))).hash;
