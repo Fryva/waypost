@@ -1,0 +1,29 @@
+// waypost — scripts/codex-surface.mjs
+// Tool surface `codex-no-exec-r1` (ADR harness-tool-surfaces-bound-by-evidence-
+// instead-of-an-empty-tool-list): the version-specific lists the ADR leaves to a
+// definition. Read from codex-cli 0.162.0-alpha.2 and its negative-control probe
+// (2026-10-08); any other version stays unverified.
+import { createHash } from 'node:crypto';
+
+const FEATURES_OFF = ['shell_tool', 'unified_exec', 'unified_exec_tty', 'sleep_tool', 'view_image', 'image_generation', 'multi_agent', 'multi_agent_v2', 'apps', 'plugins', 'remote_plugin', 'hooks', 'goals', 'memories', 'browser_use', 'browser_use_external', 'browser_use_full_cdp_access', 'computer_use', 'code_mode_host', 'tool_suggest', 'skill_mcp_dependency_install', 'skill_search', 'tool_call_mcp_elicitation', 'in_app_browser', 'in_app_local_automation', 'in_app_updates', 'daemon_auto_start', 'worktrees', 'realtime_conversation', 'guardian_approval'];
+
+export const CODEX_SURFACE_R1 = Object.freeze({
+  id: 'codex-no-exec-r1',
+  version: '0.162.0-alpha.2',
+  catalog_file: 'waypost-model-catalog.json',
+  // Session flags passed with -c on every launch; the owned config.toml may repeat them.
+  overrides: [...FEATURES_OFF.map(f => `features.${f}=false`), 'web_search="disabled"', 'experimental_use_unified_exec_tool=false', 'tools.update_plan.enabled=false', 'tools.experimental_request_user_input.enabled=false', 'project_doc_max_bytes=0', 'check_for_update_on_startup=false'],
+  // Enabled, non-removed features the thread may still report. `unified_exec` keeps
+  // reporting enabled whatever the config says; the pinned catalog's
+  // `shell_type: disabled` and the probe show it is not offered.
+  allowed_features: ['unified_exec', 'shell_snapshot', 'content_item_kinds', 'write_stdin_approval', 'api_key_model_discovery', 'enable_request_compression', 'unbounded_connection_retries', 'system_proxy_fallback', 'browser_annotation_api', 'in_app_chat', 'in_app_dictation', 'in_app_voice', 'plugin_sharing', 'mentions_v2', 'guardian_reuse_parent_compaction', 'auth_elicitation', 'fast_mode', 'compaction_image_budget', 'workspace_dependencies'],
+  // Catalog keys that switch tools on; the pinned entry must lack them or hold these values.
+  catalog: { absent: ['tool_mode', 'multi_agent_version', 'apply_patch_tool_type', 'web_search_tool_type'], values: { shell_type: 'disabled', experimental_supported_tools: [], supports_search_tool: false, node_repl_disabled: true } },
+  config_layers: ['sessionFlags', 'user', 'system'],
+  // Default deny during a turn: anything else withdraws isolation for the receipt.
+  turn_methods: ['turn/started', 'turn/completed', 'item/started', 'item/completed', 'item/agentMessage/delta', 'item/reasoning/summaryTextDelta', 'item/reasoning/summaryPartAdded', 'item/reasoning/textDelta', 'thread/tokenUsage/updated', 'account/rateLimits/updated', 'account/updated', 'thread/status/changed', 'rawResponseItem/completed', 'rawResponse/completed', 'model/rerouted', 'warning', 'deprecationNotice', 'remoteControl/status/changed'],
+  turn_items: ['userMessage', 'agentMessage', 'reasoning'],
+  raw_items: ['message', 'reasoning'],
+  residual_tools: [],
+});
+export const CODEX_SURFACE_R1_DIGEST = createHash('sha256').update(JSON.stringify(CODEX_SURFACE_R1)).digest('hex');
