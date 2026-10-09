@@ -5,7 +5,7 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { isAbsolute, join, dirname, relative } from 'node:path';
 import { realpathSync, readFileSync, readdirSync, statSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { CODEX_SURFACE_R1, CODEX_SURFACE_R1_DIGEST } from './codex-surface.mjs';
+import { CODEX_SURFACE_R1, CODEX_SURFACE_R1_DIGEST, PROBED_CATALOGS } from './codex-surface.mjs';
 
 const LIMIT = 2 * 1024 * 1024;
 const confirmedInventoryFailures = new WeakMap();
@@ -239,6 +239,8 @@ async function inspectCodexSurface(request, d, init, thread) {
   if (!catalogPath || typeof config.config?.model_catalog_json !== 'string' || real(config.config.model_catalog_json) !== real(catalogPath)) return no('native-surface-catalog-unpinned');
   let catalog, entry; try { catalog = readFileSync(catalogPath); entry = JSON.parse(catalog).models?.find(m => m.slug === thread.model); } catch { return no('native-surface-catalog-unpinned'); }
   if (!entry || S.catalog.absent.some(k => Object.hasOwn(entry, k)) || Object.entries(S.catalog.values).some(([k, v]) => JSON.stringify(entry[k]) !== JSON.stringify(v))) return no('native-surface-catalog-tools-present');
+  if (!PROBED_CATALOGS.has(createHash('sha256').update(catalog).digest('hex'))) return no('native-surface-catalog-unprobed');
+  if (Object.entries(S.config_expect).some(([k, v]) => config.config?.[k] !== v) || S.features_off.some(f => config.config?.features?.[f] !== false)) return no('native-surface-config-unverified');
   const features = await request('experimentalFeature/list', { threadId: thread.thread.id, limit: 500 });
   if (!Array.isArray(features?.data) || features.nextCursor || features.data.some(f => f.enabled === true && f.stage !== 'removed' && !S.allowed_features.includes(f.name))) return no('native-surface-features-unverified');
   const skills = await request('skills/list', { cwds: [d.cwd], forceReload: true });
@@ -250,10 +252,11 @@ async function inspectCodexSurface(request, d, init, thread) {
 // Default-deny frame guard of a surface turn: the first frame outside the
 // definition withdraws isolation for the receipt.
 function codexSurfaceGuard(nativeId) {
-  const S = CODEX_SURFACE_R1; let violation = null;
+  const S = CODEX_SURFACE_R1; let violation = null, rawMessage = false;
   const check = m => {
     if (violation || !m || typeof m !== 'object') return;
     const p = m.params || {};
+    if (m.method === 'rawResponseItem/completed' && p.item?.type === 'message') rawMessage = true;
     if (m.method && Object.hasOwn(m, 'id')) violation = 'native-surface-server-request';
     else if (!m.method) return;
     else if (!S.turn_methods.includes(m.method)) violation = 'native-surface-frame-' + m.method.replace(/[^a-z/]/gi, '').slice(0, 60);
@@ -261,7 +264,8 @@ function codexSurfaceGuard(nativeId) {
     else if ((m.method === 'item/started' || m.method === 'item/completed') && (!S.turn_items.includes(p.item?.type) || p.item.type === 'agentMessage' && (p.item.delivery != null || p.item.questions != null || p.item.memoryCitation != null))) violation = 'native-surface-tool-item';
     else if (m.method === 'rawResponseItem/completed' && !S.raw_items.includes(p.item?.type)) violation = 'native-surface-raw-tool-call';
   };
-  return { check, get violation() { return violation; } };
+  // Without a raw message item the raw-event guard saw nothing and proves nothing.
+  return { check, get violation() { return violation || (rawMessage ? null : 'native-surface-raw-events-absent'); } };
 }
 const SURFACE_DRAIN_MS = 1000;
 
@@ -433,7 +437,8 @@ async function codexEndpoint(d, spawnProcess) {
       if (guard) { await new Promise(r => setTimeout(r, SURFACE_DRAIN_MS)); offGuard(); }
       const after = await inspectIsolation(), isolated = before.verified && after.verified && !guard?.violation;
       // A surface turn answers with its one final_answer message (commentary is not output).
-      if (guard) { const finals = messages.filter(x => x.phase === 'final_answer'); if (finals.length === 1) result.output = finals[0].text; }
+      // Exactly one final_answer (or one unphased message) is the output; anything else answers nothing.
+      if (guard) { const finals = messages.filter(x => x.phase === 'final_answer'); result.output = finals.length === 1 ? finals[0].text : messages.length === 1 && messages[0].phase === null ? messages[0].text : ''; }
       if (guard) return {...result,context_manifest:manifest(d,nativeId,freshNative,{tools:isolated ? [...CODEX_SURFACE_R1.residual_tools]:null,tool_surface:CODEX_SURFACE_R1.id,surface_evidence:{...(surfaceEvidence?.evidence||{blocker:surfaceEvidence?.blocker||null}),guard:guard.violation?{blocker:guard.violation}:{window:'turn-plus-drain',drain_ms:SURFACE_DRAIN_MS}},instruction_sources:thread.instructionSources || [],sandbox:thread.sandbox || null,read_only:thread.sandbox?.type === 'readOnly',isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated,isolation_evidence:isolated ? {before,after}:{blocker:guard.violation||before.blocker||after.blocker}})};
       return {...result,context_manifest:manifest(d,nativeId,freshNative,{tools:isolated ? ['shell.read-only']:null,instruction_sources:thread.instructionSources || [],sandbox:thread.sandbox || null,read_only:thread.sandbox?.type === 'readOnly',isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated,isolation_evidence:isolated ? {before,after}:{blocker:before.blocker || after.blocker,servers:before.servers||after.servers||[]},read_only_evidence:'native-sandbox-response'})};
     }, close:() => {offAccount();peer.close();},stopAndWait:options=>{offAccount();return peer.stopAndWait(options);},

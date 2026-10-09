@@ -6,7 +6,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, realpathSync, rmSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createNativeEndpoint, validateNativeDescriptor } from '../scripts/team-transport.mjs';
-import { CODEX_SURFACE_R1 } from '../scripts/codex-surface.mjs';
+import { CODEX_SURFACE_R1, PROBED_CATALOGS } from '../scripts/codex-surface.mjs';
+import { createHash } from 'node:crypto';
 
 // Surface codex-no-exec-r1 against a fake app-server: readback, guard, output.
 // HOME is a scratch directory, so the pinned catalog never lands in the real home.
@@ -21,17 +22,19 @@ function fixture(t) {
   writeFileSync(join(home, CODEX_SURFACE_R1.catalog_cache), JSON.stringify({ models: [{ slug: 'gpt-6.1-sol', tool_mode: 'code_mode_only', multi_agent_version: 'v2', shell_type: 'unified_exec', experimental_supported_tools: ['clock'], supports_search_tool: true, node_repl_disabled: false }] }));
   return { root, home, cwd, executable: join(pkg, 'bin', 'codex'), descriptor: { harness: 'codex', managed: true, mode: 'read-only', cwd, executable: join(pkg, 'bin', 'codex'), codex_home: home, tool_surface: CODEX_SURFACE_R1.id, model_id: 'gpt-6.1-sol', reasoning: 'low' } };
 }
-function server(f, { patch = {}, turn = emitAnswer, skills = [{ name: 'imagegen', enabled: false }] } = {}) {
+function server(f, { patch = {}, turn = emitAnswer, skills = [{ name: 'imagegen', enabled: false }], probed = true } = {}) {
   const calls = { spawn: null, spawns: [], requests: [] };
   const spawnProcess = (exe, args, opts) => {
     calls.spawn = { exe, args, opts }; calls.spawns.push(args);
     const catalog = JSON.parse(args.find(a => a.startsWith('model_catalog_json=')).slice('model_catalog_json='.length)), skillFlag = args.find(a => a.startsWith('skills.config='));
+    // The fixture's pinned catalog stands in for a probed one.
+    if (probed) PROBED_CATALOGS.add(createHash('sha256').update(readFileSync(catalog)).digest('hex'));
     const child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough();
     const emit = m => child.stdout.write(JSON.stringify(m) + '\n');
     const results = {
       initialize: { userAgent: 'waypost/' + CODEX_SURFACE_R1.version + ' (fixture)', codexHome: f.home },
       'thread/start': { thread: { id: 'owned', sessionId: 'owned', cwd: f.cwd, ephemeral: true, turns: [], forkedFromId: null }, model: 'gpt-6.1-sol', modelProvider: 'openai', reasoningEffort: 'low', sandbox: { type: 'readOnly', networkAccess: false }, approvalPolicy: 'never', instructionSources: [join(f.home, 'AGENTS.md')] },
-      'config/read': { config: { model_catalog_json: catalog }, layers: [{ name: { type: 'sessionFlags' } }, { name: { type: 'user', file: join(f.home, 'config.toml') } }, { name: { type: 'system', file: join(f.root, 'absent', 'config.toml') } }] },
+      'config/read': { config: { model_catalog_json: catalog, ...CODEX_SURFACE_R1.config_expect, features: Object.fromEntries(CODEX_SURFACE_R1.features_off.map(k => [k, false])) }, layers: [{ name: { type: 'sessionFlags' } }, { name: { type: 'user', file: join(f.home, 'config.toml') } }, { name: { type: 'system', file: join(f.root, 'absent', 'config.toml') } }] },
       'experimentalFeature/list': { data: [{ name: 'unified_exec', stage: 'stable', enabled: true }, { name: 'shell_tool', stage: 'stable', enabled: false }], nextCursor: null },
       'skills/list': { data: [{ cwd: f.cwd, skills: skills.map(k => ({ ...k, enabled: skillFlag?.includes(JSON.stringify(k.name)) ? false : k.enabled })) }] },
       'hooks/list': { data: [{ cwd: f.cwd, hooks: [] }] },
@@ -140,7 +143,28 @@ test('plugin-contributed skills, MCP servers and plugins do not change the bound
     const f = fixture(t), s = server(f, { patch: { 'config/read': r => ({ ...r, config: { ...r.config, ...extra } }) } }), endpoint = await createNativeEndpoint(f.descriptor, { spawnProcess: s.spawnProcess });
     const m = (await send(endpoint)).context_manifest; endpoint.close(); return m.surface_evidence.config_digest;
   };
-  const base = await digestWith({ features: { shell_tool: false } });
-  assert.equal(await digestWith({ features: { shell_tool: false }, skills: { config: [{ name: 'x', enabled: false }] }, mcp_servers: { a: { enabled: false } }, plugins: { p: { enabled: false } } }), base);
-  assert.notEqual(await digestWith({ features: { shell_tool: true } }), base);
+  const base = await digestWith({});
+  assert.equal(await digestWith({ skills: { config: [{ name: 'x', enabled: false }] }, mcp_servers: { a: { enabled: false } }, plugins: { p: { enabled: false } } }), base);
+  assert.notEqual(await digestWith({ model: 'another' }), base);
+});
+
+for (const [name, options, blocker] of [
+  ['an unprobed catalog', { probed: false }, 'native-surface-catalog-unprobed'],
+  ['web search left on', { patch: { 'config/read': r => ({ ...r, config: { ...r.config, web_search: 'live' } }) } }, 'native-surface-config-unverified'],
+  ['a tool feature left on', { patch: { 'config/read': r => ({ ...r, config: { ...r.config, features: { ...r.config.features, shell_tool: true } } }) } }, 'native-surface-config-unverified'],
+]) test('a Codex surface with ' + name + ' stays unverified', async t => {
+  const f = fixture(t);
+  // A catalog no other test has registered as probed.
+  if (options.probed === false) writeFileSync(join(f.home, CODEX_SURFACE_R1.catalog_cache), JSON.stringify({ models: [{ slug: 'gpt-6.1-sol', display_name: 'unprobed ' + Math.random() }] }));
+  const s = server(f, options), endpoint = await createNativeEndpoint(f.descriptor, { spawnProcess: s.spawnProcess });
+  assert.equal((await endpoint.inspectContext()).blocker, blocker); endpoint.close();
+});
+
+test('a turn without a raw message item proves nothing, and an ambiguous answer is empty', async t => {
+  const noRaw = emit => { emit({ method: 'turn/started', params: { threadId: 'owned' } }); emit({ method: 'item/completed', params: { threadId: 'owned', item: { type: 'agentMessage', phase: 'final_answer', text: 'x' } } }); emit({ method: 'turn/completed', params: { threadId: 'owned', turn: { id: 'turn', status: 'completed' } } }); };
+  const f = fixture(t), s = server(f, { turn: noRaw }), endpoint = await createNativeEndpoint(f.descriptor, { spawnProcess: s.spawnProcess });
+  const m = (await send(endpoint)).context_manifest; assert.equal(m.tools, null); assert.equal(m.surface_evidence.guard.blocker, 'native-surface-raw-events-absent'); endpoint.close();
+  const twoFinals = emit => emitAnswer(emit, [{ method: 'item/completed', params: { threadId: 'owned', item: { type: 'agentMessage', phase: 'final_answer', text: 'first' } } }]);
+  const g = fixture(t), s2 = server(g, { turn: twoFinals }), e2 = await createNativeEndpoint(g.descriptor, { spawnProcess: s2.spawnProcess });
+  assert.equal((await send(e2)).output, ''); e2.close();
 });

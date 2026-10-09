@@ -16,7 +16,11 @@ export const CODEX_SURFACE_R1 = Object.freeze({
   catalog_cache: 'models_cache.json',
   // Instruction files the user's home may contribute; their content digests are bound.
   instruction_files: ['AGENTS.md', 'AGENTS.override.md'],
-  // Session flags passed with -c on every launch; the owned config.toml may repeat them.
+  // Session flags passed with -c on every launch; the user's files are never edited.
+  features_off: FEATURES_OFF,
+  // Effective values config/read must report under those flags (update_plan has no
+  // config/read field; it is off by flag and any plan frame withdraws isolation).
+  config_expect: { web_search: 'disabled', project_doc_max_bytes: 0, experimental_use_unified_exec_tool: false },
   overrides: [...FEATURES_OFF.map(f => `features.${f}=false`), 'web_search="disabled"', 'experimental_use_unified_exec_tool=false', 'tools.update_plan.enabled=false', 'tools.experimental_request_user_input.enabled=false', 'project_doc_max_bytes=0', 'check_for_update_on_startup=false'],
   // Enabled, non-removed features the thread may still report. `unified_exec` keeps
   // reporting enabled whatever the config says; the pinned catalog's
@@ -37,4 +41,8 @@ export const CODEX_SURFACE_R1 = Object.freeze({
   raw_items: ['message', 'reasoning'],
   residual_tools: [],
 });
+// Pinned catalogs the negative-control probe ran against through this transport on
+// the user's installation (2026-10-08); a refreshed catalog stays unverified until
+// probed again and added here.
+export const PROBED_CATALOGS = new Set(['3085306bb82e2a1541b425f4239aaa73939860c755b871651a4a22e1e424490b']);
 export const CODEX_SURFACE_R1_DIGEST = createHash('sha256').update(JSON.stringify(CODEX_SURFACE_R1)).digest('hex');

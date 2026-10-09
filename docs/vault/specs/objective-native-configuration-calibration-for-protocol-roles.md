@@ -1312,3 +1312,12 @@ Slice 5 implementation (2026-10-08, Claude Code): `executorRefusal` in
 and for each candidate; the admission unit check (from the admission's source
 invocation) now applies to named executors too, so a foreign-unit executor is
 refused at manifest instead of on its Host.
+
+Amendment (2026-10-09, ADR harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list):
+every "no-tools" context in this spec (contract 4's trial context, the leader
+acknowledgement turn, the executor of contract 29) means a context of the bound
+tool surface: `none` (no tools) or a verified `codex-no-exec-r1`. The notes
+above that refuse Codex as calibration member, executor, critic or delivery
+recipient are superseded: a Codex profile captured under a verified surface is
+admitted like any other, and the measured format still binds the surface into
+the profile.
