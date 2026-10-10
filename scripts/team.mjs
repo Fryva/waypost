@@ -90,13 +90,46 @@ function clocks(value, name) {
   if (Date.parse(value.expires_at) <= Date.parse(value.observed_at)) throw new Error(`${name}: invalid clocks`);
 }
 export const IMPLEMENT_POLICY_LIMITATIONS = "Finite correlated protocol calibration and a bounded-edit gate only. Overlapping intervals are an uncertainty frontier, not proof of equal ability. The implement gate covers small bounded no-tools edits measured by waypost-bounded-edit revision 1 and grants no dispatch, workspace-write or publication right. No architecture qualification; no stable hidden backend or invoice attestation.";
+export const OWNER_ASSIGNED_LIMITATIONS = "Owner-assigned roles only. The owner chose these roles for the models present; nothing measures role strength and no calibration backs them. Identity is a collector-observed native configuration. The assignment grants no dispatch, workspace-write or publication right.";
+const WEEK_MS = 604800000;
 const IMPLEMENT_FAMILIES = ["scoped-edit", "injected-instructions", "behavioural-fix", "minimal-diff"];
 const IMPLEMENT_SAFETY_FLAGS = ["unassigned-write", "injection-trace", "protected-region-edit", "edit-on-refusal"];
 const PROTOCOL_FAMILIES = {
   coordinate: ["dependencies", "leases", "authority", "reviewers"],
   review: ["authority-binding", "scope-identity", "accounting-order", "review-independence"],
 };
+// Owner-assigned policy (ADR owner-assigned-team-roles): the protocol-1 `manual` shape of
+// owner priorities per role, bound to participants. A role priority is list.length - index.
+function validateOwnerAssignedPolicy(policy) {
+  exact(policy, "owner-assigned policy", ["protocol", "mode", "revision", "generated_at", "expires_at", "approved_by", "approved_at", "activation", "authority_granted", "activation_scope", "installation", "assignment", "limitations", "profiles"]);
+  if (policy.activation !== true || policy.authority_granted !== false || policy.activation_scope !== "waypost-protocol") throw new Error("active protocol-scoped owner-assigned policy required");
+  positive(policy.revision, "policy.revision"); date(policy.generated_at, "policy.generated_at"); date(policy.expires_at, "policy.expires_at"); date(policy.approved_at, "policy.approved_at");
+  if (typeof policy.approved_by !== "string" || !/^owner:\S{1,200}$/.test(policy.approved_by)) throw new Error("owner approval required");
+  if (Date.parse(policy.expires_at) <= Date.parse(policy.generated_at) || Date.parse(policy.expires_at) > Date.parse(policy.generated_at) + WEEK_MS) throw new Error("policy expiry must follow generation by at most 7 days");
+  exact(policy.installation, "installation", ["request_key", "previous_policy_revision"]);
+  string(policy.installation.request_key, "installation.request_key");
+  if (!Number.isSafeInteger(policy.installation.previous_policy_revision) || policy.installation.previous_policy_revision < 0 || policy.revision !== policy.installation.previous_policy_revision + 1) throw new Error("installation revision mismatch");
+  const a = exact(policy.assignment, "assignment", ["coordinator", "reviewers", "executors", "reason", "issued_by"]);
+  for (const key of ["coordinator", "reviewers", "executors"]) if (!Array.isArray(a[key]) || a[key].length > 64 || a[key].some(x => typeof x !== "string" || !x) || new Set(a[key]).size !== a[key].length) throw new Error("bounded unique assignment lists required");
+  if (!a.coordinator.length || !a.reviewers.length) throw new Error("a coordinator and a reviewer are required");
+  string(a.reason, "assignment.reason", 4096); exact(a.issued_by, "assignment.issued_by", ["harness", "session"]); string(a.issued_by.harness, "issued_by.harness"); string(a.issued_by.session, "issued_by.session");
+  if (policy.limitations !== OWNER_ASSIGNED_LIMITATIONS) throw new Error("owner-assigned limitations mismatch");
+  if (!Array.isArray(policy.profiles) || policy.profiles.length > 1024) throw new Error("bounded native profiles required");
+  const seen = new Set(), listed = new Set([...a.coordinator, ...a.reviewers, ...a.executors]), rank = (list, id) => list.includes(id) ? list.length - list.indexOf(id) : null;
+  for (const profile of policy.profiles) {
+    exact(profile, "native profile", ["identity", "participant", "incarnation", "model_revision", "descriptor_digest", "collector", "priorities"]);
+    nativeIdentity(profile.identity);
+    string(profile.participant, "profile.participant"); string(profile.incarnation, "profile.incarnation"); positive(profile.model_revision, "profile.model_revision"); digest(profile.descriptor_digest, "profile.descriptor_digest"); string(profile.collector, "profile.collector");
+    if (seen.has(profile.participant) || !listed.has(profile.participant)) throw new Error("one native profile per listed participant required");
+    seen.add(profile.participant);
+    exact(profile.priorities, "priorities", TEAM_ROLES);
+    if (profile.priorities.coordinate !== rank(a.coordinator, profile.participant) || profile.priorities.review !== rank(a.reviewers, profile.participant) || profile.priorities.implement !== rank(a.executors, profile.participant)) throw new Error("priorities must follow the assignment order");
+  }
+  if (seen.size !== listed.size) throw new Error("every listed participant needs a native profile");
+  return structuredClone(policy);
+}
 function validateNativePolicy(policy) {
+  if (policy.mode === "owner-assigned") return validateOwnerAssignedPolicy(policy);
   exact(policy, "native policy", ["protocol", "mode", "revision", "generated_at", "expires_at", "provenance", "scales", "profiles", "activation", "authority_granted", "activation_scope", "installation", "limitations"]);
   if (policy.mode !== "automatic-calibration" || policy.activation !== true || policy.authority_granted !== false || policy.activation_scope !== "waypost-protocol") throw new Error("active protocol-scoped calibration policy required");
   positive(policy.revision, "policy.revision"); date(policy.generated_at, "policy.generated_at"); date(policy.expires_at, "policy.expires_at");
@@ -304,9 +337,16 @@ export function rankParticipant(participant, policy, role, { action, coverage, n
   return profile ? profile.priorities[role] : null;
 }
 
+// The policy row of a participant by its admitted native identity; in an owner-assigned
+// team also by participant, since two participants may share one configuration.
+export function policyRow(policy, participant) {
+  const identity = participant?.native_admission?.identity;
+  if (!identity) return null;
+  return policy.profiles.find(row => row.identity.profile_id === identity.profile_id && (policy.mode !== "owner-assigned" || row.participant === participant.id)) ?? null;
+}
 // The installed profile of a participant's current native admission, or null.
-function admittedNativeProfile(participant, policy, now) {
-  if(!nativeParticipantQuotaEligible(participant,now))return null;
+function admittedNativeProfile(participant, policy, now, quota = true) {
+  if(quota&&!nativeParticipantQuotaEligible(participant,now))return null;
   if (!Number.isFinite(now) || now < Date.parse(policy.generated_at) || now >= Date.parse(policy.expires_at) || participant.revoked !== false || participant.availability === "left") return null;
   try {
     const admission = exact(participant.native_admission, "native admission", ["protocol", "identity", "observation_id", "participant", "incarnation", "model_revision", "descriptor_digest", "collector", "source_invocation", "observed_at", "expires_at"]);
@@ -318,22 +358,29 @@ function admittedNativeProfile(participant, policy, now) {
     // Calibration validity is owner-bounded (at most 7 days); identity is proven per action.
     if (Date.parse(admission.expires_at) - Date.parse(admission.observed_at) > 604800000) return null;
     if (admission.participant !== participant.id || admission.incarnation !== participant.incarnation || admission.model_revision !== participant.model?.model_revision || admission.descriptor_digest !== participant.native_binding?.descriptor_digest || admission.collector !== participant.native_binding?.collector_id || typeof admission.collector !== "string" || !admission.collector || now < Date.parse(admission.observed_at) || now >= Date.parse(admission.expires_at)) return null;
-    return policy.profiles.find(p => p.identity.profile_id === admission.identity.profile_id && p.identity.profile_digest === admission.identity.profile_digest && p.identity.profile_revision === admission.identity.profile_revision) ?? null;
+    return policy.profiles.find(p => p.identity.profile_id === admission.identity.profile_id && p.identity.profile_digest === admission.identity.profile_digest && p.identity.profile_revision === admission.identity.profile_revision && (policy.mode !== "owner-assigned" || p.participant === participant.id)) ?? null;
   } catch { return null; }
 }
 function calibratedRole(profile, role, coverage, now) {
-  const calibration = profile?.calibration[role];
-  return !!(profile?.role_coverage[role]?.includes(coverage) && calibration?.current && calibration.qualified && now >= Date.parse(calibration.observed_at) && now < Date.parse(calibration.expires_at));
+  const calibration = profile?.calibration?.[role];
+  return !!(profile?.role_coverage?.[role]?.includes(coverage) && calibration?.current && calibration.qualified && now >= Date.parse(calibration.observed_at) && now < Date.parse(calibration.expires_at));
 }
 function rankNativeParticipant(participant, policy, role, { action, coverage, now }) {
   if (action !== undefined || role === "implement" || coverage !== "waypost-protocol-" + role) return null;
   const profile = admittedNativeProfile(participant, policy, now);
+  if (policy.mode === "owner-assigned") return profile?.priorities[role] ?? null;
   return calibratedRole(profile, role, coverage, now) ? profile.priorities[role] : null;
 }
 // Contract 29(b): the waypost-bounded-edit gate of a currently admitted
 // participant. It is a gate, never a rank (implement priority stays null).
 export function implementGate(participant, policy, now) {
   return policy?.protocol === 2 && !!participant && calibratedRole(admittedNativeProfile(participant, policy, now), "implement", "waypost-bounded-edit", now);
+}
+
+// The owner-assigned priority of a participant for a role; the quota check is optional.
+export function assignedPriority(participant, policy, role, now, { quota = true } = {}) {
+  if (policy?.protocol !== 2 || policy.mode !== "owner-assigned" || !participant) return null;
+  return admittedNativeProfile(participant, policy, now, quota)?.priorities[role] ?? null;
 }
 
 function available(participant) {
@@ -361,6 +408,19 @@ export function selectProtocolReviewerCandidate(participants, policy, floor, { c
   if (policy?.protocol !== 2 || typeof coordinator !== "string" || !coordinator || !Number.isSafeInteger(floor) || floor < 0) return null;
   return highest(participants, policy, "review", participant => participant.id !== coordinator,
     { coverage: "waypost-protocol-review", now }).find(({ rank }) => rank >= floor)?.participant ?? null;
+}
+
+// Owner order: the floor is the highest review priority among the listed independent
+// participants whatever their state, so a busy or departed higher reviewer never lowers it.
+// The reviewer is that participant only, and only if it is ready and passes the quota.
+// `excluded` are participants, `profiles` native profile ids that may not review.
+export function listedReviewer(participants, policy, { excluded = [], profiles = [], now = Date.now() } = {}) {
+  if (policy?.protocol !== 2 || policy.mode !== "owner-assigned" || !excluded.length) return { floor: null, reviewer: null };
+  const rows = policy.profiles.filter(row => row.priorities.review !== null && !excluded.includes(row.participant) && !profiles.includes(row.identity.profile_id));
+  if (!rows.length) return { floor: null, reviewer: null };
+  const floor = Math.max(...rows.map(row => row.priorities.review));
+  const independent = participants.filter(p => !excluded.includes(p.id) && !profiles.includes(p.native_admission?.identity?.profile_id));
+  return { floor, reviewer: selectProtocolReviewerCandidate(independent, policy, floor, { coordinator: excluded[0], now }) };
 }
 
 export function updateReviewFloor(previousFloor, participants, policy, { now = Date.now() } = {}) {

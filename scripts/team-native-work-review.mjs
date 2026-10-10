@@ -5,7 +5,7 @@
 // scale, which measures no code review, so the result is labelled
 // `unqualified-strongest-protocol-review-baseline`. Negative verdicts stay.
 import { routingDigest } from './model-routing.mjs';
-import { selectProtocolReviewerCandidate } from './team.mjs';
+import { selectProtocolReviewerCandidate, policyRow } from './team.mjs';
 import { selectNativeQuotaFrontier, nativeParticipantQuotaEligible } from './team-native-quota.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 
@@ -13,6 +13,13 @@ function fail(message) { throw new Error(message); }
 export const WORK_REVIEW_KIND = 'protocol-work-review';
 export const WORK_REVIEW_LABEL = 'unqualified-strongest-protocol-review-baseline';
 
+// The digest a control request pins for a participant's role: the calibration record of a
+// calibrated team, the owner-given policy row of an owner-assigned one. Lives here, not in
+// team-native-action.mjs, so the two modules do not import each other.
+export function roleDigest(t, p, role) {
+  const row = policyRow(t.policy, p);
+  return t.policy.mode === 'owner-assigned' ? { assignment_digest: routingDigest(row) } : { calibration_digest: routingDigest(row.calibration[role]) };
+}
 // The owner work ceiling's review part, in the shape the control machinery expects.
 export function workReviewPolicy(t) {
   const p = t.native_work_policy; if (!p) return null;
@@ -30,6 +37,7 @@ export function selectWorkReviewer(t, w, now) {
 }
 export function createProtocolWorkReviewRequest(s, t, { actionId, workId, now = Date.now() } = {}) {
   if (t?.policy?.protocol !== 2 || t.status !== 'active' || !t.leader || t.handover || t.review_blocker || !Number.isSafeInteger(now) || !(Date.parse(t.policy.expires_at) > now)) fail('native-work-review-active-team-required');
+  if (t.policy.mode === 'owner-assigned') fail('native-work-review-owner-assigned-unsupported');
   if (t.native_quota_freeze || t.native_protocol_handover && t.native_protocol_handover.state !== 'applied') fail('native-work-review-quota-handover-pending');
   const frontier = selectNativeQuotaFrontier(t, now); if (frontier.blocker || frontier.candidate !== t.leader) fail('native-work-review-active-team-required');
   const w = t.work?.[workId]; if (!w || w.protocol !== 2 || w.status !== 'candidate' || !w.result) fail('native-work-review-candidate-required');

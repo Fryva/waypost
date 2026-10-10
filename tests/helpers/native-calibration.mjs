@@ -24,6 +24,7 @@ export async function authorityFixture(overrides={}){
   const ctx=manifest('baseline-'+name),baseline=await collectNativeModelProfile({...options,observe:async()=>({native_id:ctx.native_id,invocation_id:'baseline-'+name,output:'token',actualModel:model,context_manifest:ctx,observed_at:at,correlation:{participant:p.id,incarnation:p.incarnation,model_revision:1,native_id:ctx.native_id,context_id:ctx.id,invocation_id:'baseline-'+name,nonce:'token'}})});
   peers.push({name,p,model,manifest,options,profile_id:baseline.profile_id});
  }
+ if(overrides.identityOnly)return identityCalls(overrides,{s,send,peers,unit,billingFor,now,at,expiry,revision:()=>revision});
  const suite=createProtocolRoleSuite({seed:'policy-fixture-seed',cohort:'cohort',profiles:peers.map(p=>p.profile_id)});
  const roles=overrides.roles??['coordinate','review'],implement=roles.includes('implement')?createImplementSuite({seed:'policy-fixture-seed',cohort:'cohort',profiles:peers.map(p=>p.profile_id)}):null;
  const members=peers.map(({p,profile_id})=>({participant:p.id,incarnation:p.incarnation,model_revision:1,descriptor_digest:p.native_binding.descriptor_digest,profile_id}));
@@ -51,6 +52,26 @@ export async function authorityFixture(overrides={}){
   }
  }
  return {state:s,revision,peers,now,at,expiry};
+}
+
+// Owner-assigned fixture (`identityOnly`): the same peers, one settled identity call and its
+// collector capture each, and no calibration cohort. `skip` names peers that make no call.
+async function identityCalls(overrides,{s,send,peers,unit,billingFor,now,at,expiry,revision}){
+ const skip=overrides.identityOnly?.skip??[];
+ for(const peer of peers.filter(x=>!skip.includes(x.name))){
+  const {p}=peer,nonce=peer.name+'-identity',invocation_id='subscription-'+nonce,ctx=peer.manifest(nonce),context_id='ledger-'+nonce,actor='collector:'+p.native_binding.collector_id,billing=billingFor(peer.name),token='WAYPOST_PROBE_'+nonce;
+  send('subscription-context-capture-v2',{participant_id:p.id,context:{id:context_id,native_id:ctx.native_id,descriptor_digest:p.native_binding.descriptor_digest,incarnation:p.incarnation,unit_scope:unit,billing_observation:billing,observed_model:null,observed_at:at,expires_at:new Date(now+300000).toISOString(),owned:true,read_only:true}},actor);
+  send('subscription-reserve-v2',{reservation:{id:invocation_id,nonce,participant:p.id,incarnation:p.incarnation,context_id,purpose:'identity',requested_model:{provider:'route',model_id:peer.model.model_id,reasoning:'unknown'},suite_digest:routingDigest({id:'waypost-identity-token',revision:1,template:'Return exactly WAYPOST_PROBE_<nonce>',read_only:true}),max_calls:1,timeout_ms:1000,estimate_tokens:'40',epoch:1,quota_revision:0,mode_revision:1,allocation_revision:1}});
+  send('subscription-consume-v2',{invocation_id,nonce},actor);
+  const native={invocation_id:nonce,native_id:ctx.native_id,output:token,actualModel:peer.model,context_manifest:ctx,usage_span:{protocol:1,schema:unit.counter_schema,native_id:ctx.native_id,turn_id:'turn-'+nonce,coverage:'complete',before:'0',after:'30',actual_tokens:'30'}};
+  const seal={original_output:token,output_digest:routingDigest(token),native_receipt_digest:routingDigest(native),native_receipt:native,observed_at:at,outcome:'completed'};
+  send('subscription-usage-v2',{invocation_id,nonce,receipt:{nonce,context_id,native_id:ctx.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:native.usage_span.turn_id,billing_before:billing,billing_after:billing,observed_model:{provider:peer.model.provider,model_id:peer.model.model_id,reasoning:peer.model.reasoning},coverage:'complete',before:'0',after:'30',actual_tokens:'30',isolation_verified:true,identity_seal:seal}},actor);
+  const observation=await collectNativeModelProfile({...peer.options,observe:async()=>({...native,observed_at:at,correlation:{participant:p.id,incarnation:p.incarnation,model_revision:1,native_id:ctx.native_id,context_id:ctx.id,invocation_id:nonce,nonce:token}})});
+  const profile=serializeNativeModelProfile(observation,{now});
+  peer.identity={invocation_id,nonce,profile,actor,seal};
+  if(overrides.identityOnly?.capture!==false)send('native-identity-capture-v2',{invocation_id,nonce,profile},actor);
+ }
+ return {state:s,revision:revision(),peers,now,at,expiry};
 }
 
 export {now,at,expiry};

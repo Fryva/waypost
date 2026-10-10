@@ -26,7 +26,7 @@ function fixture(t,options={}) {
   if(failOnce===c.type){failOnce=null;throw new Error('interrupted '+c.type);}
   if(accepted.has(request.key)){const prior=accepted.get(request.key);assert.deepEqual(c,prior.command);return {result:prior.result,revision,replayed:true};}
   revision++;
-  if(c.type.startsWith('subscription-')||c.type==='native-calibration-cohort-open-v2'||c.type.startsWith('native-model-inventory-')){const next=reduceTeamEvent(state,c);Object.assign(team,next.state.teams.team);Object.assign(state,next.state);state.teams.team=team;const result=next.result;accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};}
+  if(c.type.startsWith('subscription-')||c.type==='native-identity-capture-v2'||c.type==='native-calibration-cohort-open-v2'||c.type.startsWith('native-model-inventory-')){const next=reduceTeamEvent(state,c);Object.assign(team,next.state.teams.team);Object.assign(state,next.state);state.teams.team=team;const result=next.result;accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};}
   if(options.deferredType===c.type)return {result:{deferred:true},revision};
   if(c.type==='quota-capture-v1'){team.participants[c.observation.participant].quota_observation=c.observation;team.status='handover';}
   if(c.type==='begin-handover-v1')team.handover={old_leader:team.leader,old_epoch:team.epoch,target_epoch:team.epoch+1,acks:{},adoptions:{}};
@@ -313,6 +313,22 @@ test('subscription bootstrap returns only a detached unranked native profile fro
  assert.equal(result.probe_passed,true);assert.equal(result.actual_tokens,'30');assert.equal(result.native_profile_blocker,null);assert.equal(result.native_profile.protocol,2);
  assert.equal(result.protected_roles_granted,false);assert.deepEqual(f.team.participants.participant.model,prior);
  assert.equal(f.calls.filter(x=>x==='native-send').length,1);assert.equal(Object.keys(f.team.subscription_retired_native).length,1);
+});
+test('an identity probe of a native bootstrap team records a collector-observed identity observation, any other probe records none',async t=>{
+ for(const bootstrap of [true,false]){
+  const f=fixture(t,{nativeProbe:true,nativeProfile:true,openCodeProbe:true,billingRoute:true});
+  await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'opencode',cwd:f.root,mode:'read-only',spawn_server:true}});
+  const next=reduceTeamEvent(f.state,{type:'subscription-accounting-enable-v2',team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});Object.assign(f.team,next.state.teams.team);Object.assign(f.state,next.state);f.state.teams.team=f.team;
+  if(bootstrap)f.team.native_policy_bootstrap=true;
+  const result=await f.host.subscriptionBootstrap({nonce:'identity-probe',estimateTokens:'40',maxTokens:'100'}),x=f.state.subscription_invocations['subscription-identity-probe'];
+  assert.equal(result.probe_passed,true);assert.equal(result.native_profile_blocker,null);assert.equal(result.protected_roles_granted,false);assert.equal(f.calls.filter(c=>c==='native-send').length,1);
+  if(bootstrap){
+   assert.equal(result.identity_capture.captured,'subscription-identity-probe');assert.equal(result.identity_capture.protected_actions_granted,false);assert.equal(f.calls.at(-3),'native-identity-capture-v2',f.calls.join());
+   assert.equal(x.identity_seal.original_output,'WAYPOST_PROBE_identity-probe');assert.equal(x.identity_observation.participant,'participant');assert.equal(x.identity_observation.identity.profile_id,result.native_profile.profile_id);assert.equal(x.identity_observation.observation_id,result.native_profile.observation_id);assert.equal(f.team.policy.revision,1);assert.equal(f.team.participants.participant.native_admission,undefined);
+  }else{
+   assert.equal('identity_capture' in result,false);assert.equal(x.identity_seal,undefined);assert.equal(x.identity_observation,undefined);assert.equal(f.calls.includes('native-identity-capture-v2'),false);
+  }
+ }
 });
 test('profile validation failure cannot erase settled native token usage',async t=>{
  const f=fixture(t,{nativeProbe:true});await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});

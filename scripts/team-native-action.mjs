@@ -1,10 +1,10 @@
 // Fixed protocol-control requests. No imported request grants execution authority.
 import {assertNativeHandoverReady,nativeQuotaEligible} from './team-native-quota.mjs';
 import { routingDigest } from './model-routing.mjs';
-import { selectCoordinator, selectProtocolReviewerCandidate } from './team.mjs';
+import { selectCoordinator, selectProtocolReviewerCandidate, policyRow } from './team.mjs';
 import { buildProtocolLeadershipAuditTarget, formatProtocolLeadershipAudit, readProtocolLeadershipAudit } from './team-protocol-review.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
-import { WORK_REVIEW_KIND, workReviewPolicy, createProtocolWorkReviewRequest, workReviewSlot, formatWorkReview, workReviewPromptDigest, readWorkReview } from './team-native-work-review.mjs';
+import { WORK_REVIEW_KIND, roleDigest, workReviewPolicy, createProtocolWorkReviewRequest, workReviewSlot, formatWorkReview, workReviewPromptDigest, readWorkReview } from './team-native-work-review.mjs';
 const fail=code=>{throw Object.assign(new Error('native-action-'+code),{code:'native-action-'+code});};
 function id(value){if(typeof value!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value))fail('bounded-action-id-required');return value;}
 // A profile's binary version comes from native health (OpenCode) or, for Claude,
@@ -23,12 +23,13 @@ export function createProtocolLeaderAckRequest(team,{actionId,now=Date.now()}={}
  if(!best||team.candidate!==best.id)fail('strongest-current-candidate-required');
  const critic=selectProtocolReviewerCandidate(Object.values(team.participants),team.policy,team.review_floor,{coordinator:best.id,now});
  if(team.review_blocker||!critic||team.review_candidate!==critic.id)fail('strongest-independent-critic-required');
- const profile=team.policy.profiles.find(p=>p.identity.profile_id===best.native_admission.identity.profile_id),review=team.policy.profiles.find(p=>p.identity.profile_id===critic.native_admission.identity.profile_id);
- const request={protocol:2,kind:'protocol-leader-ack',team:team.id,action_id:id(actionId),participant:best.id,incarnation:best.incarnation,descriptor_digest:best.native_binding.descriptor_digest,current_epoch:team.epoch,target_epoch:team.epoch+1,policy_revision:team.policy.revision,policy_digest:routingDigest(team.policy),profile:structuredClone(profile.identity),calibration_digest:routingDigest(profile.calibration.coordinate),review_candidate:{participant:critic.id,incarnation:critic.incarnation,descriptor_digest:critic.native_binding.descriptor_digest,profile:structuredClone(review.identity),calibration_digest:routingDigest(review.calibration.review)}};
+ const profile=policyRow(team.policy,best),review=policyRow(team.policy,critic);
+ const request={protocol:2,kind:'protocol-leader-ack',team:team.id,action_id:id(actionId),participant:best.id,incarnation:best.incarnation,descriptor_digest:best.native_binding.descriptor_digest,current_epoch:team.epoch,target_epoch:team.epoch+1,policy_revision:team.policy.revision,policy_digest:routingDigest(team.policy),profile:structuredClone(profile.identity),...roleDigest(team,best,'coordinate'),review_candidate:{participant:critic.id,incarnation:critic.incarnation,descriptor_digest:critic.native_binding.descriptor_digest,profile:structuredClone(review.identity),...roleDigest(team,critic,'review')}};
  return {kind:request.kind,action_id:request.action_id,request_digest:routingDigest(request),request};
 }
 export function createProtocolLeadershipAuditRequest(s,t,{actionId,sourceInvocationId,now=Date.now()}={}){
  if(t?.policy?.protocol!==2||t.status!=='active'||!t.leader||t.handover||t.review_blocker||!Number.isSafeInteger(now))fail('active-independent-audit-required');
+ if(t.policy.mode==='owner-assigned')fail('owner-assigned-audit-unsupported');
  const target=buildProtocolLeadershipAuditTarget(s,t,sourceInvocationId);
  const reviewer=selectProtocolReviewerCandidate(Object.values(t.participants).filter(p=>p.id!==target.source_participant),t.policy,t.review_floor,{coordinator:t.leader,now});
  if(!reviewer)fail('strongest-independent-audit-reviewer-required');
@@ -37,6 +38,7 @@ export function createProtocolLeadershipAuditRequest(s,t,{actionId,sourceInvocat
  return {kind:request.kind,action_id:request.action_id,request_digest:routingDigest(request),request};
 }
 export function createProtocolHandoverAckRequest(s,t,{actionId,now=Date.now(),excluding=null}={}){
+ if(t.policy?.mode==='owner-assigned')fail('owner-assigned-handover-unsupported');
  const {handover:h}=assertNativeHandoverReady(s,t,now,{excluding});const p=t.participants[h.candidate],critic=t.participants[h.reviewer];
  const profile=t.policy.profiles.find(row=>row.identity.profile_id===p.native_admission.identity.profile_id),review=t.policy.profiles.find(row=>row.identity.profile_id===critic.native_admission.identity.profile_id);
  const request={protocol:2,kind:'protocol-handover-ack',team:t.id,action_id:id(actionId),participant:p.id,incarnation:p.incarnation,descriptor_digest:p.native_binding.descriptor_digest,current_epoch:t.epoch,target_epoch:h.target_epoch,runtime_epoch:h.target_epoch,policy_revision:t.policy.revision,policy_digest:routingDigest(t.policy),quota_revision:t.native_quota_revision,handover_id:h.id,handover_digest:routingDigest(h),profile:structuredClone(profile.identity),calibration_digest:routingDigest(profile.calibration.coordinate),review_candidate:{participant:critic.id,incarnation:critic.incarnation,descriptor_digest:critic.native_binding.descriptor_digest,profile:structuredClone(review.identity),calibration_digest:routingDigest(review.calibration.review)}};
@@ -140,10 +142,18 @@ function profileCapture(t,x,raw,p){
  const admission={purpose:'protocol-control',state:'settled',context_quarantined:false,billing_policy:'inherited-native',nonce:x.nonce,invocation_id:x.id,participant:x.participant,incarnation:x.incarnation,model_revision:p.model.model_revision,native_id:x.context.native_id,actual_tokens:x.charged_tokens,action:x.action,request_digest:x.action.request_digest,original_output:seal.original_output,output_digest:seal.output_digest,native_receipt_digest:seal.native_receipt_digest,observed_at:seal.observed_at};
  const {observation_id,...body}=profile;
  if(profile.protocol!==2||profile.identity_kind!=='native-configuration'||profile.provenance!=='trusted-host-settled-protocol-control'||profile.admission_id!==x.id||profile.admission_digest!==routingDigest(admission)||profile.sealed_native_receipt_digest!==seal.native_receipt_digest||!same(profile.action,x.action)||profile.request_digest!==x.action.request_digest||profile.receipt_digest!==routingDigest({invocation_id:x.nonce,output:seal.original_output,actualModel:native.actualModel,context_manifest:ctx})||profile.observation_id!=='native-observation-'+routingDigest(body)||profile.profile_digest!==routingDigest(profile.profile)||profile.profile_id!==target.profile_id||profile.profile_digest!==target.profile_digest||target.profile_revision!==profile.profile?.revision||profile.participant!==x.participant||profile.incarnation!==x.incarnation||profile.model_revision!==p.model.model_revision||profile.native_id!==x.context.native_id||profile.context_id!==ctx.id||profile.invocation_id!==x.nonce||profile.nonce!==x.nonce||profile.observed_at!==seal.observed_at||Date.parse(profile.expires_at)!==Date.parse(profile.observed_at)+900000||profile.rank_eligible!==false||!Array.isArray(profile.roles)||profile.roles.length)fail('original-action-profile-binding-required');
- const calibrated=Object.values(t.native_calibration_cohorts||{}).flatMap(cohort=>Object.values(cohort.captures||{})).find(capture=>capture.measurement?.profile_id===target.profile_id&&capture.native_profile?.profile_digest===target.profile_digest);
- if(!calibrated||!same(profile.profile,calibrated.native_profile.profile))fail('own-calibrated-profile-required');
+ if(t.policy.mode==='owner-assigned'){if(!same(target,p.native_admission?.identity))fail('own-admitted-profile-required');}
+ else{
+  const calibrated=Object.values(t.native_calibration_cohorts||{}).flatMap(cohort=>Object.values(cohort.captures||{})).find(capture=>capture.measurement?.profile_id===target.profile_id&&capture.native_profile?.profile_digest===target.profile_digest);
+  if(!calibrated||!same(profile.profile,calibrated.native_profile.profile))fail('own-calibrated-profile-required');
+ }
  if(x.action.kind==='protocol-leadership-audit'){const source=x.action.request.target.source_context;if(ctx.native_id===source.native_id||[source.reservation_context_id,source.receipt_context_id].includes(ctx.id))fail('independent-audit-context-required');}
  if(x.action.kind===WORK_REVIEW_KIND&&x.action.request.author_contexts.some(a=>a.native_id===ctx.native_id||a.context_id===ctx.id))fail('independent-review-context-required');
+ profileScope(profile,native,ctx);
+ return profile;
+}
+// The observed profile's scope and the isolated context must match the sealed native receipt.
+function profileScope(profile,native,ctx){
  const actualProfile=profile.profile,scope=actualProfile.execution_scope,routeOnly=ctx.model_provider_is_billing_route===true||native.actualModel.provider_kind==='billing-route';
  const known=value=>typeof value==='string'&&value.length>0&&value!=='unknown';
  const observed=nativeProfileVersion(ctx);
@@ -152,7 +162,43 @@ function profileCapture(t,x,raw,p){
  const validDigest=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
  if(actualProfile.harness!==ctx.harness||actualProfile.version!==observed.version||actualProfile.version_provenance!==observed.version_provenance||actualProfile.observed?.effective_reasoning!==observedReasoning||actualProfile.observed?.native_variant!==observedVariant||scope?.isolation!==ctx.isolation||scope.permissions?.rules_digest!==(validDigest(ctx.rules_digest)?ctx.rules_digest:null)||scope.context?.initial_instructions_digest!==(validDigest(ctx.initial_instructions_digest)?ctx.initial_instructions_digest:null))fail('native-action-profile-scope-changed');
  if(ctx.provenance!=='adapter-isolated'||ctx.read_only!==true||ctx.fresh!==true||ctx.fresh_review_verified!==true||ctx.author_history_inherited!==false||ctx.tools?.length!==0||ctx.author_contexts?.length!==0||profile.profile.native_routing_id!==native.actualModel.provider||profile.profile.native_model_id!==native.actualModel.model_id||profile.profile.execution_scope?.cwd!==ctx.cwd)fail('isolated-action-profile-required');
- return profile;
+}
+// Owner-assigned identity (ADR owner-assigned-team-roles): one identity-purpose call with
+// no measurement. The Host seals the receipt; this is the same seal as an action's, minus the
+// action. No slot: an identity call has none.
+export function sealIdentityReceipt(t,x,receipt,now){
+ if(receipt.identity_seal===undefined)return null;
+ if(x.purpose!=='identity')fail('stored-identity-admission-required');
+ const seal=object(receipt.identity_seal,['original_output','output_digest','native_receipt','native_receipt_digest','observed_at','outcome'],49152);
+ if(typeof seal.original_output!=='string'||Buffer.byteLength(seal.original_output)>8192||seal.output_digest!==routingDigest(seal.original_output)||!['completed','failed'].includes(seal.outcome))fail('original-identity-output-binding-required');
+ const native=object(seal.native_receipt,['invocation_id','native_id','usage_span','actualModel','context_manifest','output'],32768);
+ if(seal.native_receipt_digest!==routingDigest(native)||native.invocation_id!==x.nonce||native.native_id!==x.context.native_id||native.output!==seal.original_output||native.context_manifest?.native_id!==native.native_id||native.usage_span?.native_id!==native.native_id||native.usage_span?.turn_id!==receipt.turn_id||native.usage_span?.schema!==receipt.counter_schema||!same({provider:native.actualModel?.provider??null,model_id:native.actualModel?.model_id??null,reasoning:native.actualModel?.reasoning??null},receipt.observed_model))fail('native-identity-receipt-binding-required');
+ if(receipt.coverage!=='complete')return null;
+ if(native.usage_span.coverage!=='complete'||['before','after','actual_tokens'].some(k=>native.usage_span[k]!==receipt[k]))fail('native-identity-counter-binding-required');
+ const observed=Date.parse(seal.observed_at);if(!Number.isFinite(observed)||observed>now||now-observed>30000||Date.parse(native.actualModel?.observed_at)!==observed)fail('original-identity-clock-required');
+ return {...seal,sealed_at:new Date(now).toISOString(),context_id:x.context.id,native_id:x.context.native_id,turn_id:receipt.turn_id};
+}
+// The collector's capture of a settled identity call: the authority's only record of a
+// participant's native configuration in a team that runs no calibration. Immutable.
+export function applyNativeIdentity(s,t,c,now){
+ if(c.type!=='native-identity-capture-v2')return null;
+ object(c,['type','team','actor','at','request_key','incarnation','epoch','invocation_id','nonce','profile'],65536);
+ const x=s.subscription_invocations?.[c.invocation_id];
+ if(x?.protocol!==2||x.team!==t.id||x.nonce!==c.nonce||x.purpose!=='identity'||x.state!=='settled'||x.receipt?.coverage!=='complete'||!x.identity_seal||x.identity_seal.outcome!=='completed'||integer(x.charged_tokens)<=0n)fail('complete-sealed-identity-required');
+ const p=t.participants[x.participant],key=p?.native_binding?.collector_id,registered=s.collectors?.[key];
+ if(!p||p.revoked||p.availability==='left'||p.incarnation!==x.incarnation||p.native_binding.descriptor_digest!==x.descriptor_digest||c.actor!=='collector:'+key||c.actor!==x.collector||registered?.revoked||registered?.team!==t.id||!['runtime','usage'].every(k=>registered?.purposes?.includes(k)))fail('bound-identity-collector-required');
+ nonquarantined(t,x);
+ const seal=x.identity_seal,native=seal.native_receipt,ctx=native.context_manifest,token='WAYPOST_PROBE_'+x.nonce;
+ if(!same(sealIdentityReceipt(t,x,x.receipt,Date.parse(seal.sealed_at)),seal)||x.charged_tokens!==x.receipt.actual_tokens||integer(x.receipt.after)-integer(x.receipt.before)!==integer(x.charged_tokens))fail('original-sealed-identity-required');
+ const profile=object(c.profile,['protocol','identity_kind','profile_id','profile_digest','profile','observation_id','participant','incarnation','model_revision','native_id','context_id','invocation_id','nonce','observed_at','expires_at','receipt_digest','provenance','roles','rank_eligible','limitations'],32768);
+ const {observation_id,...body}=profile;
+ if(seal.original_output.trim()!==token||profile.nonce!==token||profile.protocol!==2||profile.identity_kind!=='native-configuration'||profile.provenance!=='trusted-host-budgeted-native-receipt'||profile.rank_eligible!==false||!Array.isArray(profile.roles)||profile.roles.length||profile.receipt_digest!==routingDigest({invocation_id:x.nonce,output:seal.original_output,actualModel:native.actualModel,context_manifest:ctx})||observation_id!=='native-observation-'+routingDigest(body)||profile.profile_digest!==routingDigest(profile.profile)||profile.profile_id!=='native-profile-'+profile.profile_digest||profile.participant!==x.participant||profile.incarnation!==x.incarnation||profile.model_revision!==p.model.model_revision||profile.native_id!==x.context.native_id||profile.context_id!==ctx.id||profile.invocation_id!==x.nonce||profile.observed_at!==seal.observed_at||Date.parse(profile.expires_at)!==Date.parse(profile.observed_at)+900000||profile.profile?.revision!==1||profile.profile?.execution_scope?.read_only!==true||!Array.isArray(profile.profile.execution_scope.tools)||profile.profile.execution_scope.tools.length)fail('original-identity-profile-binding-required');
+ profileScope(profile,native,ctx);
+ if(Date.parse(profile.observed_at)>now||!x.identity_observation&&now>=Date.parse(profile.expires_at))fail('identity-observation-expired');
+ const record={identity:{kind:'native-configuration',profile_id:profile.profile_id,profile_digest:profile.profile_digest,profile_revision:profile.profile.revision},observation_id,participant:x.participant,incarnation:x.incarnation,model_revision:p.model.model_revision,descriptor_digest:x.descriptor_digest,collector:key,source_invocation:x.id,profile_snapshot_digest:routingDigest(profile.profile),observed_at:profile.observed_at,expires_at:profile.expires_at};
+ if(x.identity_observation){if(!same(x.identity_observation,record))fail('identity-observation-immutable');return {handled:true,result:{captured:x.id,unchanged:true,protected_actions_granted:false}};}
+ x.identity_observation=record;
+ return {handled:true,result:{captured:x.id,identity:record.identity,protected_actions_granted:false}};
 }
 // A consumed control call without a terminal receipt becomes terminal from the
 // owned runtime closure of its ledger-bound operation. Its usage is unknown: the

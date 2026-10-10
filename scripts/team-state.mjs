@@ -1,6 +1,6 @@
 import { applyNativeProtocolQuota } from './team-native-quota.mjs';
 // Deterministic team transitions. Authentication and file IO belong to the CLI/store.
-import { validatePolicy, validateDescriptor, rankParticipant, selectCoordinator, selectProtocolReviewerCandidate, updateReviewFloor, policyStrengthShape } from './team.mjs';
+import { validatePolicy, validateDescriptor, rankParticipant, selectCoordinator, selectProtocolReviewerCandidate, updateReviewFloor, policyStrengthShape, listedReviewer, OWNER_ASSIGNED_LIMITATIONS } from './team.mjs';
 import { proposeModelRoute } from './model-routing.mjs';
 import { applyWorkflow } from './team-workflow.mjs';
 import { applyModelInventory } from './team-model-inventory.mjs';
@@ -11,7 +11,7 @@ const clone = structuredClone;
 const KINDS = new Set(['question', 'answer', 'progress', 'result', 'assignment', 'ack', 'quiesce', 'handover', 'review-request', 'review-result', 'cancel']);
 // Protocol 2 publication events and lease renewals are never deferred: a team has
 // one reservation, and a renewal changes no election or review state.
-const DEFERRED = new Set(['native-work-revise-v2','native-work-review-capture-v2','native-work-material-capture-v2','native-work-enable-v2','native-work-manifest-v2','native-work-cancel-v2','native-leader-resume-v2','native-protocol-quota-enable-v2','native-protocol-quota-capture-v2','native-protocol-handover-stop-capture-v2','native-protocol-handover-prepare-v2','native-protocol-handover-enable-v2','native-protocol-handover-ack-capture-v2','native-protocol-review-enable-v2','native-protocol-review-capture-v2','native-protocol-control-enable-v2','native-protocol-delivery-enable-v2','native-action-profile-capture-v2','native-leader-ack-capture-v2','native-model-inventory-capture-v1','native-model-inventory-attempt-v1','native-policy-install-v2','subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','participant-host-register-v1','quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
+const DEFERRED = new Set(['native-work-revise-v2','native-work-review-capture-v2','native-work-material-capture-v2','native-work-enable-v2','native-work-manifest-v2','native-work-cancel-v2','native-leader-resume-v2','native-protocol-quota-enable-v2','native-protocol-quota-capture-v2','native-protocol-handover-stop-capture-v2','native-protocol-handover-prepare-v2','native-protocol-handover-enable-v2','native-protocol-handover-ack-capture-v2','native-protocol-review-enable-v2','native-protocol-review-capture-v2','native-protocol-control-enable-v2','native-protocol-delivery-enable-v2','native-action-profile-capture-v2','native-leader-ack-capture-v2','native-model-inventory-capture-v1','native-model-inventory-attempt-v1','native-policy-install-v2','native-policy-assign-v2','subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-context-capture-v2','subscription-reserve-v2','subscription-consume-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','participant-host-register-v1','quota-policy-enable-v1','quota-capture-v1','control-grant-capture-v1','control-invocation-reserve-v1','native-binding-v1','join','strength-check','policy','attest','availability','revoke','leader-ack','routing-enable','routing-enable-v2','routing-grant-capture-v1','assign-routed-v2','assign-routed-v1','assign','work-dispatch-ack-v1','work-ack','submit','supervise','cancel','close','collector-register-v1','collector-revoke-v1','delivery-consume-v1','runtime-request-v1','runtime-consume-v1','runtime-capture-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1','material-capture-v1','review-context-v1','review-request-v1','review-consume-v1','review-capture-v1','revise-work-v1','integration-prepare-v1','integration-start-v1','integration-abort-v1','routing-evidence-v1','invocation-reserve-v1','invocation-consume-v1','invocation-abort-v1','close-v1']);
 function fail(message) { throw new Error(message); }
 function text(v, name, max = 256) { if (typeof v !== 'string' || !v || v.length > max || /[\x00-\x1f]/.test(v)) fail('invalid-' + name); return v; }
 function id(v) { if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(v || '') || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(v)) fail('invalid-team-id'); return v; }
@@ -51,8 +51,11 @@ function floor(t, at) {
   }
 }
 function eligibleParticipants(t,now){return Object.values(t.participants).filter(p=>!t.quota_policy?.automatic_redistribution || quotaEligible(p,now));}
+// An owner-assigned team elects only its current or primary coordinator: a busy one pauses the team, no alternate is promoted.
+const assignedCoordinator=t=>t.leader??t.policy.assignment.coordinator[0];
 function propose(t, at) {
-  const selected = selectCoordinator(eligibleParticipants(t,Date.parse(at)), t.policy, t.leader, { now: Date.parse(at), ...(t.policy?.protocol===2?{coverage:'waypost-protocol-coordinate'}:{}) });
+  const owned=t.policy?.mode==='owner-assigned',pool=owned?eligibleParticipants(t,Date.parse(at)).filter(p=>p.id===assignedCoordinator(t)):eligibleParticipants(t,Date.parse(at));
+  const selected = selectCoordinator(pool, t.policy, t.leader, { now: Date.parse(at), ...(t.policy?.protocol===2?{coverage:'waypost-protocol-coordinate'}:{}) });
   if (!selected) { t.status = 'paused'; t.candidate = null; if(t.policy?.protocol===2){t.review_candidate=null;t.review_candidate_blocker='protocol-coordinator-candidate-unavailable';} return; }
   if(t.policy?.protocol===2){
     t.review_candidate=t.review_blocker?null:selectProtocolReviewerCandidate(Object.values(t.participants),t.policy,t.review_floor,{coordinator:selected.id,now:Date.parse(at)})?.id??null;
@@ -64,6 +67,10 @@ function propose(t, at) {
   t.status = t.leader ? 'handover' : 'forming';
 }
 function nativeFloor(t,now){
+  if(t.policy.mode==='owner-assigned'){
+    const {floor}=listedReviewer(Object.values(t.participants),t.policy,{excluded:[assignedCoordinator(t)],now});
+    t.review_floor=floor;t.review_blocker=floor===null?'no-qualified-review-model':null;return;
+  }
   const eligible=Object.values(t.participants).map(p=>({p,rank:rankParticipant(p,t.policy,'review',{now,coverage:'waypost-protocol-review'})})).filter(x=>x.rank!==null);
   const strongest=eligible.length?Math.max(...eligible.map(x=>x.rank)):null;
   const identities=[...(t.required_review_identities_v2||[]),...eligible.filter(x=>x.rank===strongest).map(x=>x.p.native_admission.identity)];
@@ -87,18 +94,71 @@ function resumeNativeLeader(s,t,c){
   if(t.status!=='active')fail(t.candidate===leader?'native-resume-independent-critic-required':'native-resume-incumbent-not-selected');
   return {resumed:true,leader,epoch:t.epoch,review_candidate:t.review_candidate,protected_actions_granted:false};
 }
-function installNativePolicy(s,t,c,authority,now){
-  owner(s,c);
-  const allowed=['type','team','actor','at','request_key','cohort_id','expected_policy_revision','scope','incarnation','epoch'];
-  if(Object.keys(c).some(k=>!allowed.includes(k))||c.scope!=='waypost-protocol')fail('native-policy-selectors-only');
-  if(c.expected_policy_revision!==t.policy.revision)fail('native-policy-revision-mismatch');
-  if(!Number.isSafeInteger(authority.revision)||authority.revision<0)fail('store-authority-revision-required');
+// A policy change happens only on an idle team: no leader, no unfinished work, no pending runtime.
+function assertNativeIdle(s,t){
   if(t.leader||Object.values(t.work).some(w=>!['integrated','cancelled'].includes(w.status)))fail('native-policy-idle-migration-required');
   if(t.quota_policy?.automatic_redistribution)fail('native-policy-quota-migration-required');
   if(t.handover||Object.values(s.invocations||{}).some(x=>x.team===t.id&&!['settled','aborted'].includes(x.state)))fail('native-policy-pending-runtime-required');
   if(t.required_review_models?.length)fail('native-policy-legacy-history-bridge-required');
   if(Object.values(s.subscription_invocations||{}).some(x=>x.team===t.id&&!['settled','aborted','reconciled'].includes(x.state)))fail('unresolved-subscription-invocations');
   if(Object.values(t.runtime_requests||{}).some(x=>!x.captured&&!x.reconciled_stopped)||Object.values(t.review_requests||{}).some(x=>!x.output_digest&&!x.reconciled_stopped)||Object.values(t.deliveries||{}).some(x=>['dispatching','uncertain'].includes(x.state)))fail('native-policy-pending-runtime-required');
+}
+// The latest current identity observation of a participant: settled, unexpired, unquarantined,
+// bound to its present incarnation, descriptor, model revision and collector.
+function currentIdentity(s,t,p,now){
+  const collector=s.collectors?.[p.native_binding?.collector_id];
+  if(!collector||collector.revoked||collector.team!==t.id)return null;
+  return Object.values(s.subscription_invocations||{}).filter(x=>x.team===t.id&&x.purpose==='identity'&&x.participant===p.id&&x.state==='settled'&&x.identity_observation).filter(x=>{
+    const o=x.identity_observation;
+    return o.incarnation===p.incarnation&&o.model_revision===p.model.model_revision&&o.descriptor_digest===p.native_binding.descriptor_digest&&o.collector===p.native_binding.collector_id&&x.collector==='collector:'+o.collector&&Date.parse(o.observed_at)<=now&&now<Date.parse(o.expires_at)
+      &&!Object.values(x.binding_changes||{}).some(Boolean)&&!Object.values(t.subscription_contexts||{}).some(ctx=>ctx.native_id===x.context.native_id&&ctx.collector===x.collector&&ctx.quarantined);
+  }).map(x=>x.identity_observation).sort((a,b)=>Date.parse(b.observed_at)-Date.parse(a.observed_at)||a.source_invocation.localeCompare(b.source_invocation))[0]??null;
+}
+// Owner-only: the owner's per-role participant lists become the policy. The command carries
+// selectors only; the reducer derives every binding from its own state.
+function assignNativePolicy(s,t,c,now){
+  owner(s,c);
+  const lists=['coordinator','reviewers','executors'];
+  if(Object.keys(c).some(k=>!['type','team','actor','at','request_key','incarnation','epoch','expected_policy_revision','reason','expires_at','issued_by',...lists].includes(k)))fail('native-policy-assign-selectors-only');
+  if(t.policy.protocol===2)fail(t.policy.mode==='owner-assigned'?'native-policy-already-assigned':'native-policy-mode-switch-refused');
+  if(c.expected_policy_revision!==t.policy.revision)fail('native-policy-revision-mismatch');
+  for(const k of lists)if(!Array.isArray(c[k])||c[k].length>64||c[k].some(x=>typeof x!=='string'||!x)||new Set(c[k]).size!==c[k].length)fail('native-policy-assign-selectors-only');
+  if(!c.coordinator.length||!c.reviewers.length)fail('native-policy-assign-coordinator-and-reviewer-required');
+  text(c.reason,'assign-reason',4096);
+  if(!c.issued_by||typeof c.issued_by!=='object'||Array.isArray(c.issued_by)||Object.keys(c.issued_by).some(k=>!['harness','session'].includes(k))||Object.keys(c.issued_by).length!==2)fail('native-policy-assign-issuer-required');
+  const issued_by={harness:text(c.issued_by.harness,'issuer-harness'),session:text(c.issued_by.session,'issuer-session')};
+  assertNativeIdle(s,t);
+  const expires=Date.parse(c.expires_at);
+  if(typeof c.expires_at!=='string'||!Number.isFinite(expires)||new Date(expires).toISOString()!==c.expires_at||expires<=now)fail('native-policy-assign-expiry-required');
+  const ids=[...new Set(lists.flatMap(k=>c[k]))],observed={};
+  for(const pid of ids){
+    const p=participant(t,pid);observed[pid]=currentIdentity(s,t,p,now);
+    if(!observed[pid])fail('native-policy-assign-fresh-identity-required');
+  }
+  if(expires>Math.min(...ids.map(pid=>Date.parse(observed[pid].observed_at)))+604800000)fail('native-policy-assign-expiry-too-long');
+  const rank=(list,pid)=>list.includes(pid)?list.length-list.indexOf(pid):null;
+  const rows=ids.map(pid=>{const p=t.participants[pid],o=observed[pid];return {identity:clone(o.identity),participant:pid,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:o.descriptor_digest,collector:o.collector,priorities:{coordinate:rank(c.coordinator,pid),implement:rank(c.executors,pid),review:rank(c.reviewers,pid)}};});
+  const policy=validatePolicy({protocol:2,mode:'owner-assigned',revision:t.policy.revision+1,generated_at:c.at,expires_at:c.expires_at,approved_by:c.actor,approved_at:c.at,activation:true,authority_granted:false,activation_scope:'waypost-protocol',installation:{request_key:c.request_key,previous_policy_revision:t.policy.revision},assignment:{coordinator:[...c.coordinator],reviewers:[...c.reviewers],executors:[...c.executors],reason:c.reason,issued_by},limitations:OWNER_ASSIGNED_LIMITATIONS,profiles:rows});
+  // Decision 4: every coordinator and alternate, and every executor, has an independent listed reviewer.
+  // A reviewer may share the coordinator's configuration, never the executor's.
+  const everyone=Object.values(t.participants),profileOf=pid=>policy.profiles.find(r=>r.participant===pid).identity.profile_id;
+  for(const pid of c.coordinator)if(listedReviewer(everyone,policy,{excluded:[pid],now}).floor===null)fail('native-policy-assign-independent-reviewer-required');
+  for(const pid of c.executors)if(listedReviewer(everyone,policy,{excluded:[pid,c.coordinator[0]],profiles:[profileOf(pid)],now}).floor===null)fail('native-policy-assign-independent-reviewer-required');
+  t.policy=policy;
+  for(const p of everyone){delete p.native_admission;if(observed[p.id]){const o=observed[p.id];p.native_admission={protocol:2,identity:clone(o.identity),observation_id:o.observation_id,participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:o.descriptor_digest,collector:o.collector,source_invocation:o.source_invocation,observed_at:o.observed_at,expires_at:c.expires_at};}}
+  nativeFloor(t,now);propose(t,c.at);
+  if(!t.candidate||t.review_floor===null||t.review_floor<0||t.review_blocker)fail('native-policy-qualified-coordinate-and-review-required');
+  if(!t.review_candidate)fail('native-policy-qualified-independent-review-required');
+  return {policy_revision:policy.revision,mode:'owner-assigned',candidate:t.candidate,review_candidate:t.review_candidate,review_floor:t.review_floor,scope:'waypost-protocol',protected_actions_granted:false};
+}
+function installNativePolicy(s,t,c,authority,now){
+  owner(s,c);
+  if(t.policy?.mode==='owner-assigned')fail('native-policy-mode-switch-refused');
+  const allowed=['type','team','actor','at','request_key','cohort_id','expected_policy_revision','scope','incarnation','epoch'];
+  if(Object.keys(c).some(k=>!allowed.includes(k))||c.scope!=='waypost-protocol')fail('native-policy-selectors-only');
+  if(c.expected_policy_revision!==t.policy.revision)fail('native-policy-revision-mismatch');
+  if(!Number.isSafeInteger(authority.revision)||authority.revision<0)fail('store-authority-revision-required');
+  assertNativeIdle(s,t);
   const summary=buildAuthenticatedCalibrationSummary({teamId:t.id,cohortId:c.cohort_id,loaded:{state:s,revision:authority.revision},now});
   const proposal=compileCalibrationPolicyV2(summary,{revision:t.policy.revision+1,now});
   const policy=validatePolicy({...clone(proposal),mode:'automatic-calibration',activation:true,activation_scope:'waypost-protocol',installation:{request_key:c.request_key,cohort:c.cohort_id,previous_policy_revision:t.policy.revision}});
@@ -176,6 +236,7 @@ export function reduceTeamEvent(previous, command, authority = {}) {
     if(t.native_quota_freeze&&['runtime-request-v1','runtime-consume-v1','delivery-consume-v1','review-request-v1','review-consume-v1','invocation-reserve-v1','invocation-consume-v1','control-invocation-reserve-v1'].includes(c.type))fail('native-quota-transition-frozen');
     if(t.policy?.protocol===2 && (['policy','leader-ack','assign','assign-routed-v1','work-ack','submit','supervise','cancel','routing-enable','quota-policy-enable-v1','begin-handover-v1','quiesce-capture-v1','quiesce-ack-v1','adopt-work-v1','adoption-ack-v1','handover-accept-v1'].includes(c.type)||/^(review-|integration-|revise-work|assign-routed|work-dispatch|routing-enable-v2)/.test(c.type)||c.type==='strength-check'&&c.policy))fail('native-policy-protected-action-admission-required');
     if(c.type==='native-policy-install-v2'){result=installNativePolicy(s,t,c,authority,now);}
+    else if(c.type==='native-policy-assign-v2'){result=assignNativePolicy(s,t,c,now);}
     else if(c.type==='native-leader-resume-v2'){result=resumeNativeLeader(s,t,c);}
     else if (c.type === 'join') {
       owner(s, c); const p = clone(c.participant);

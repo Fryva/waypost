@@ -87,6 +87,8 @@ export function applyNativeWork(s, t, c, now, H) {
   H.owner(s, c);
   keys(c, c.type === 'native-work-enable-v2' ? ['revision', 'policy'] : c.type === 'native-work-manifest-v2' ? ['work_id', 'manifest'] : c.type === 'native-work-revise-v2' ? ['work_id', 'generation', 'findings_digest', 'reason'] : ['work_id', 'reason']);
   if (t.policy?.protocol !== 2 || t.accounting?.protocol !== 2 || t.accounting.billing_policy !== 'inherited-native') fail('native-work-protocol-2-subscription-required');
+  // The owner-assigned executor mode is a later slice; no current mode may run on this policy.
+  if (t.policy.mode === 'owner-assigned') fail('native-work-owner-assigned-executor-unsupported');
   let result;
   if (c.type === 'native-work-enable-v2') {
     const policy = exact(c.policy, ['kind', 'executor', 'allow_unknown_quota', 'max_attempts', 'timeout_ms', 'expires_at', 'ceilings', 'unit_allocations']);
