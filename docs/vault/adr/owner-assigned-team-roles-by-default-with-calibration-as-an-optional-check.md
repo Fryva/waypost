@@ -2,15 +2,15 @@
 type: adr
 id: "owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check"
 title: "Owner-assigned team roles by default with calibration as an optional check"
-status: proposed
+status: accepted
 date: 2026-10-10
 authors: ["Ivan Morozov"]
 tags: ["wp-20", "calibration", "roles", "policy"]
 external_refs: {}
 supersedes: null
 superseded_by: null
-review_status: pending
-reviewed_at: null
+review_status: reviewed
+reviewed_at: 2026-10-10
 drafted_by: {"harness":"claude","provider":null,"date":"2026-10-10"}
 guards: []
 code_refs: ["scripts/team.mjs", "scripts/team-state.mjs", "scripts/team-host.mjs", "scripts/team-native-work.mjs", "scripts/team-native-work-review.mjs", "scripts/team-native-action.mjs", "scripts/team-native-quota.mjs", "scripts/team-native-integration.mjs", "scripts/team-integration.mjs", "scripts/team-cli.mjs", "scripts/model-strength.mjs", "scripts/team-role-calibration.mjs", "bin/waypost"]
@@ -20,11 +20,17 @@ code_refs: ["scripts/team.mjs", "scripts/team-state.mjs", "scripts/team-host.mjs
 
 | Field | Value |
 |---|---|
-| **Status** | proposed |
+| **Status** | accepted |
 | **Date** | 2026-10-10 |
 | **Authors** | Ivan Morozov |
 
 ---
+
+## Owner acceptance
+
+The owner accepted this ADR on 2026-10-10 after one fresh waypost-critic pass
+(verdict revise; every finding resolved in the text or decided by the owner) and
+authorized implementation.
 
 ## Context
 
