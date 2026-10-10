@@ -109,9 +109,11 @@ participants took ≈13K tokens.
 5. **Review.** Only an approval by the highest-listed reviewer independent of the
    work counts for publication; a lower-listed reviewer's verdict is preliminary.
    A busy or departed higher reviewer never lowers this silently — only a new team
-   with a new assignment does. A reviewer differs from the work's executor and the
-   coordinator **and is a different native configuration** from both (spec 6.4 rule,
-   kept). It uses a fresh read-only context; the authority never approves
+   with a new assignment does. A reviewer is a different participant from the work's
+   executor and the coordinator, and **a different native configuration from the
+   executor**. It may share the coordinator's model and native configuration (owner
+   decision 2026-10-10; spec 6.4 excluded that). It uses a fresh read-only context
+   that did not author or implement the target; the authority never approves
    model-written work. If no independent listed reviewer remains, review is blocked.
 6. **Executor.** An owner-assigned executor runs under a new work mode
    (`executor: owner-assigned`) with a new prompt template revision and the
@@ -150,7 +152,8 @@ Calibrated teams keep every item below unchanged. For an owner-assigned team:
 - Accepted team ADR review floor and spec 6.1 — the floor is the highest-listed
   independent reviewer; rebaseline means a new team.
 - Spec 3.1 and 3.3 (ranking, promotion), 6.3 (stronger review admission forces
-  recheck), 6.4 (coordinator diff supervision and independent top-strength approval)
+  recheck), 6.4 (coordinator diff supervision and independent top-strength approval;
+  reviewer excluded when admitted under the leader's native configuration)
   — replaced by owner order, Host checks and decision 5.
 - Calibration spec contracts 13, 15, 16, 20, 21, 24, 26, 29(b), 31, 32 — identity
   from decision 2, bindings from decision 4, size class removed by decision 6.
@@ -261,8 +264,10 @@ with a shorter diff.
 - The golden logs `tests/fixtures/native-slice{1,2,4}-authority` replay byte for byte.
 - End-to-end owner-assigned team with zero cohorts: identity calls → assign → leader
   ACK → work → review → publication.
+- Accepted: reviewer of the coordinator's model and native configuration in a
+  separate participant session.
 - Refusals: reviewer = executor of the same work; same native configuration as the
-  executor or coordinator; coordinator as the only reviewer; caller-supplied
+  executor; coordinator as the only reviewer; caller-supplied
   bindings; changed native profile at action time; revoked reviewer's approval at
   publication; lower-listed approval while a higher independent reviewer exists;
   expired assignment; mode switch inside a team; bidi/zero-width characters added.
