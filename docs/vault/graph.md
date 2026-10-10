@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-09T06:54:22.247Z
+generated_at: 2026-10-10T21:45:07.028Z
 
 ---
 
@@ -37,6 +37,7 @@ full typed neighborhood, both directions, in one call.
 | adr/memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md | Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job | adr | proposed |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | Model-aware teams across harness sessions with one authority and independent review | adr | accepted |
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | Native configuration profiles ranked by fresh role-specific calibration | adr | proposed |
+| adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | Owner-assigned team roles by default with calibration as an optional check | adr | proposed |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | Subscription CLI token accounting with separate strict billing enforcement | adr | proposed |
 | adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md | The CLI as a thin entry with per-command modules, each readable in one pass | adr | proposed |
@@ -117,6 +118,9 @@ full typed neighborhood, both directions, in one call.
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
+| adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
+| adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | wikilink | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | mdlink | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/automatic-role-redistribution-on-verified-model-quota-exhaustion.md |

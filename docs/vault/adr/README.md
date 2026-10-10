@@ -43,6 +43,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [native-configuration-profiles-ranked-by-fresh-role-specific-calibration](./native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md) | Native configuration profiles ranked by fresh role-specific calibration | proposed | 2026-10-03 |
 | [the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass](./the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md) | The CLI as a thin entry with per-command modules, each readable in one pass | proposed | 2026-10-04 |
 | [harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list](./harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list.md) | Harness tool surfaces bound by evidence instead of an empty tool list | accepted | 2026-10-08 |
+| [owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check](./owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md) | Owner-assigned team roles by default with calibration as an optional check | proposed | 2026-10-10 |
 
 ---
 
