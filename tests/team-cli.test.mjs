@@ -144,10 +144,10 @@ test('team roles reads the latest identity into the listing and builds a command
  const a = out.participants.find(p => p.participant === 'peer-a');
  assert.match(a.identity.profile_id, /^native-profile-/); assert.equal(a.identity.native_model, 'model-a'); assert.equal(a.identity.expires_at, new Date(fxNow + 900000).toISOString());
  assert.equal(out.participants.every(p => p.calibration_hint === undefined), true); assert.equal(rolesListing(s, t, {}).participants[0].calibration_hint, null);
- const fields = ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-b, peer-c', executors: 'peer-d', reason: 'chosen', issuedBy: issuer });
+ const fields = ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-b, peer-c', executors: 'peer-d', reason: 'chosen', issuedBy: issuer, now: Date.parse(nowAt) });
  assert.deepEqual([fields.coordinator, fields.reviewers, fields.executors], [['peer-a'], ['peer-b', 'peer-c'], ['peer-d']]);
  assert.equal(fields.expires_at, new Date(Date.parse(nowAt) + 7 * dayMs).toISOString()); assert.equal(fields.expected_policy_revision, 1);
- assert.throws(() => ownerAssignFields(s, t, { coordinator: 'peer-z', reviewers: 'peer-b', reason: 'x', issuedBy: issuer }), /unknown-participant:peer-z/);
+ assert.throws(() => ownerAssignFields(s, t, { coordinator: 'peer-z', reviewers: 'peer-b', reason: 'x', issuedBy: issuer, now: Date.parse(nowAt) }), /unknown-participant:peer-z/);
  const next = reduceTeamEvent(s, assignEvent(fields)).state;
  assert.equal(next.teams.team.policy.mode, 'owner-assigned'); assert.equal(next.teams.team.candidate, 'peer-a'); assert.ok(next.teams.team.review_candidate);
  const assigned = JSON.parse(JSON.stringify(rolesListing(next, next.teams.team)));
@@ -156,8 +156,10 @@ test('team roles reads the latest identity into the listing and builds a command
 test('the default assign expiry is bounded by the earliest listed identity', async () => {
  const s = await identityFixture(), t = s.teams.team;
  for (const x of Object.values(s.subscription_invocations)) if (x.participant === 'peer-b') x.identity_observation.observed_at = new Date(Date.parse(nowAt) - dayMs).toISOString();
- const f = ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-b', reason: 'x', issuedBy: issuer });
+ const f = ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-b', reason: 'x', issuedBy: issuer, now: Date.parse(nowAt) });
  assert.equal(f.expires_at, new Date(Date.parse(nowAt) - dayMs + 7 * dayMs).toISOString());
  for (const x of Object.values(s.subscription_invocations)) if (x.participant === 'peer-d') delete x.identity_observation;
- assert.throws(() => ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-d', reason: 'x', issuedBy: issuer }), /identity-observation-required:peer-d/);
+ assert.throws(() => ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-d', reason: 'x', issuedBy: issuer, now: Date.parse(nowAt) }), /identity-observation-required:peer-d/);
+ for (const x of Object.values(s.subscription_invocations)) if (x.participant === 'peer-c') x.identity_observation.expires_at = nowAt;
+ assert.throws(() => ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-c', reason: 'x', issuedBy: issuer, now: Date.parse(nowAt) }), /identity-observation-expired:peer-c/);
 });

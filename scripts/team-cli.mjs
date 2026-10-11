@@ -64,7 +64,7 @@ export function rolesListing(s, t, hints = null) {
 }
 const idList = v => (v ? v.split(',').map(x => x.trim()).filter(Boolean) : []);
 // The selectors-only assign command: ids, reason, expiry and issuer; the reducer derives every binding.
-export function ownerAssignFields(s, t, { coordinator, reviewers, executors, reason, expiresAt, issuedBy }) {
+export function ownerAssignFields(s, t, { coordinator, reviewers, executors, reason, expiresAt, issuedBy, now = Date.now() }) {
   const lists = { coordinator: idList(coordinator), reviewers: idList(reviewers), executors: idList(executors) };
   const ids = [...new Set(Object.values(lists).flat())];
   const unknown = ids.filter(id => !t.participants[id]);
@@ -73,6 +73,8 @@ export function ownerAssignFields(s, t, { coordinator, reviewers, executors, rea
   if (!expires_at) {
     const seen = ids.map(id => [id, latestIdentity(s, t, t.participants[id])]), missing = seen.filter(([, o]) => !o).map(([id]) => id);
     if (missing.length) throw new Error('identity-observation-required:' + missing.join(','));
+    const stale = seen.filter(([, o]) => now >= Date.parse(o.expires_at)).map(([id]) => id);
+    if (stale.length) throw new Error('identity-observation-expired:' + stale.join(','));
     expires_at = new Date(Math.min(...seen.map(([, o]) => Date.parse(o.observed_at))) + 604800000).toISOString();
   }
   return { ...lists, reason, expires_at, issued_by: issuedBy, expected_policy_revision: t.policy.revision };
@@ -170,12 +172,13 @@ export async function main(argv = process.argv.slice(2)) {
     const v = loaded(); const t = v.state?.teams[target];
     if (!t) throw new Error('team-not-found');
     if (!flag('--assign')) {
-      let hints = null;
-      if (opt('--cohort')) try { const sum = buildAuthenticatedCalibrationSummary({ teamId: target, cohortId: opt('--cohort'), loaded: v }); hints = Object.fromEntries(sum.profiles.map(p => [p.participant, p.roles.map(r => ({ role: r.role, qualified: Boolean(r.qualification_candidate), current: Boolean(r.current) }))])); } catch (error) { hints = {}; }
-      const out = rolesListing(v.state, t, hints);
+      let hints = null, hintError = null;
+      if (opt('--cohort')) try { const sum = buildAuthenticatedCalibrationSummary({ teamId: target, cohortId: opt('--cohort'), loaded: v }); hints = Object.fromEntries(sum.profiles.map(p => [p.participant, p.roles.map(r => ({ role: r.role, qualified: Boolean(r.qualification_candidate), current: Boolean(r.current) }))])); } catch (error) { hints = {}; hintError = error.code || error.message; }
+      const out = { ...rolesListing(v.state, t, hints), ...(hintError ? { hint_error: hintError } : {}) };
       if (flag('--json')) { print(out); return; }
       const w = process.stdout.write.bind(process.stdout);
       w(`team ${out.team}: policy ${out.policy.mode} r${out.policy.revision}, expires ${out.policy.expires_at}${out.policy.expired ? ' (EXPIRED)' : ''}\n`);
+      if (out.hint_error) w(`  calibration hint unavailable: ${out.hint_error}\n`);
       if (out.policy.assignment) { const a = out.policy.assignment; w(`  assigned: coordinator ${a.coordinator.join(',')} | reviewers ${a.reviewers.join(',')} | executors ${a.executors.join(',') || '-'}\n  reason: ${a.reason}\n`); }
       for (const p of out.participants) {
         const i = p.identity;
