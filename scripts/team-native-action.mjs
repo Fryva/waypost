@@ -38,10 +38,9 @@ export function createProtocolLeadershipAuditRequest(s,t,{actionId,sourceInvocat
  return {kind:request.kind,action_id:request.action_id,request_digest:routingDigest(request),request};
 }
 export function createProtocolHandoverAckRequest(s,t,{actionId,now=Date.now(),excluding=null}={}){
- if(t.policy?.mode==='owner-assigned')fail('owner-assigned-handover-unsupported');
  const {handover:h}=assertNativeHandoverReady(s,t,now,{excluding});const p=t.participants[h.candidate],critic=t.participants[h.reviewer];
- const profile=t.policy.profiles.find(row=>row.identity.profile_id===p.native_admission.identity.profile_id),review=t.policy.profiles.find(row=>row.identity.profile_id===critic.native_admission.identity.profile_id);
- const request={protocol:2,kind:'protocol-handover-ack',team:t.id,action_id:id(actionId),participant:p.id,incarnation:p.incarnation,descriptor_digest:p.native_binding.descriptor_digest,current_epoch:t.epoch,target_epoch:h.target_epoch,runtime_epoch:h.target_epoch,policy_revision:t.policy.revision,policy_digest:routingDigest(t.policy),quota_revision:t.native_quota_revision,handover_id:h.id,handover_digest:routingDigest(h),profile:structuredClone(profile.identity),calibration_digest:routingDigest(profile.calibration.coordinate),review_candidate:{participant:critic.id,incarnation:critic.incarnation,descriptor_digest:critic.native_binding.descriptor_digest,profile:structuredClone(review.identity),calibration_digest:routingDigest(review.calibration.review)}};
+ const profile=policyRow(t.policy,p),review=policyRow(t.policy,critic);
+ const request={protocol:2,kind:'protocol-handover-ack',team:t.id,action_id:id(actionId),participant:p.id,incarnation:p.incarnation,descriptor_digest:p.native_binding.descriptor_digest,current_epoch:t.epoch,target_epoch:h.target_epoch,runtime_epoch:h.target_epoch,policy_revision:t.policy.revision,policy_digest:routingDigest(t.policy),quota_revision:t.native_quota_revision,handover_id:h.id,handover_digest:routingDigest(h),profile:structuredClone(profile.identity),...roleDigest(t,p,'coordinate'),review_candidate:{participant:critic.id,incarnation:critic.incarnation,descriptor_digest:critic.native_binding.descriptor_digest,profile:structuredClone(review.identity),...roleDigest(t,critic,'review')}};
  if(h.reactivation)request.reactivation_digest=routingDigest(h.reactivation);
  return {kind:request.kind,action_id:request.action_id,request_digest:routingDigest(request),request};
 }

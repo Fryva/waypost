@@ -1,4 +1,4 @@
-import { applyNativeProtocolQuota } from './team-native-quota.mjs';
+import { applyNativeProtocolQuota, selectNativeQuotaFrontier } from './team-native-quota.mjs';
 // Deterministic team transitions. Authentication and file IO belong to the CLI/store.
 import { validatePolicy, validateDescriptor, rankParticipant, selectCoordinator, selectProtocolReviewerCandidate, updateReviewFloor, policyStrengthShape, listedReviewer, OWNER_ASSIGNED_LIMITATIONS } from './team.mjs';
 import { proposeModelRoute } from './model-routing.mjs';
@@ -7,6 +7,7 @@ import { applyModelInventory } from './team-model-inventory.mjs';
 import { buildAuthenticatedCalibrationSummary } from './team-role-calibration.mjs';
 import { compileCalibrationPolicyV2 } from './model-strength.mjs';
 import { quotaEligible, effectiveReviewFloor } from './team-quota.mjs';
+import { cancelBlocker } from './team-native-work.mjs';
 const clone = structuredClone;
 const KINDS = new Set(['question', 'answer', 'progress', 'result', 'assignment', 'ack', 'quiesce', 'handover', 'review-request', 'review-result', 'cancel']);
 // Protocol 2 publication events and lease renewals are never deferred: a team has
@@ -54,11 +55,14 @@ function eligibleParticipants(t,now){return Object.values(t.participants).filter
 // An owner-assigned team elects only its current or primary coordinator: a busy one pauses the team, no alternate is promoted.
 const assignedCoordinator=t=>t.leader??t.policy.assignment.coordinator[0];
 function propose(t, at) {
-  const owned=t.policy?.mode==='owner-assigned',pool=owned?eligibleParticipants(t,Date.parse(at)).filter(p=>p.id===assignedCoordinator(t)):eligibleParticipants(t,Date.parse(at));
+  const owned=t.policy?.mode==='owner-assigned';
+  // A lost assignment elects nobody: the owner decides what follows.
+  if(owned&&t.assignment_lost){t.status='paused';t.candidate=null;t.review_candidate=null;t.review_candidate_blocker='assignment-lost';return;}
+  const pool=owned?eligibleParticipants(t,Date.parse(at)).filter(p=>p.id===(t.native_quota_policy&&t.leader?selectNativeQuotaFrontier(t,Date.parse(at)).candidate??assignedCoordinator(t):assignedCoordinator(t))):eligibleParticipants(t,Date.parse(at));
   const selected = selectCoordinator(pool, t.policy, t.leader, { now: Date.parse(at), ...(t.policy?.protocol===2?{coverage:'waypost-protocol-coordinate'}:{}) });
   if (!selected) { t.status = 'paused'; t.candidate = null; if(t.policy?.protocol===2){t.review_candidate=null;t.review_candidate_blocker='protocol-coordinator-candidate-unavailable';} return; }
   if(t.policy?.protocol===2){
-    t.review_candidate=t.review_blocker?null:selectProtocolReviewerCandidate(Object.values(t.participants),t.policy,t.review_floor,{coordinator:selected.id,now:Date.parse(at)})?.id??null;
+    t.review_candidate=owned?listedReviewer(Object.values(t.participants),t.policy,{excluded:[selected.id],now:Date.parse(at)}).reviewer?.id??null:t.review_blocker?null:selectProtocolReviewerCandidate(Object.values(t.participants),t.policy,t.review_floor,{coordinator:selected.id,now:Date.parse(at)})?.id??null;
     t.review_candidate_blocker=t.review_candidate?null:'strongest-independent-review-candidate-unavailable';
     if(selected.id===t.leader&&t.status==='active'&&!t.review_candidate){t.candidate=selected.id;t.status='paused';return;}
   }
@@ -88,11 +92,29 @@ function nativeFloor(t,now){
 function resumeNativeLeader(s,t,c){
   owner(s,c);
   if(Object.keys(c).some(k=>!['type','team','actor','at','request_key','incarnation','epoch'].includes(k)))fail('native-resume-selectors-only');
+  if(t.assignment_lost)fail('native-resume-assignment-lost');
   if(t.policy?.protocol!==2||!t.leader||!['paused','handover'].includes(t.status)||c.epoch!==t.epoch)fail('native-resume-left-active-leader-required');
   if(t.handover||t.native_quota_freeze||t.native_protocol_handover&&t.native_protocol_handover.state!=='applied')fail('native-resume-quota-handover-pending');
   const leader=t.leader;floor(t,c.at);t.status='active';t.candidate=null;propose(t,c.at);
   if(t.status!=='active')fail(t.candidate===leader?'native-resume-independent-critic-required':'native-resume-incumbent-not-selected');
   return {resumed:true,leader,epoch:t.epoch,review_candidate:t.review_candidate,protected_actions_granted:false};
+}
+// Owner-assigned lifecycle (ADR owner-assigned-team-roles, Decision 7). After every event an owner-assigned team
+// checks that each participant still holds the role the owner's list gave it. The check is idempotent: a work that
+// cannot be cancelled yet (a consumed call, an open publication) is retried on the next event.
+// Why the participant no longer holds its listed role, or null while it does.
+function roleLoss(t,pid){
+  const p=t.participants[pid],row=t.policy.profiles.find(r=>r.participant===pid),a=p?.native_admission;
+  if(!p||p.revoked)return 'revoked';if(p.availability==='left')return 'left';if(!a||!row)return 'admission-lost';
+  const b=p.native_binding;
+  return a.incarnation===row.incarnation&&p.incarnation===row.incarnation&&a.model_revision===row.model_revision&&p.model.model_revision===row.model_revision&&a.descriptor_digest===row.descriptor_digest&&b?.descriptor_digest===row.descriptor_digest&&a.collector===row.collector&&b.collector_id===row.collector?null:'rebound';
+}
+function settleOwnerAssignment(s_,t,at){
+  if(t.status==='closed'||t.policy?.protocol!==2||t.policy.mode!=='owner-assigned')return;
+  const lead=assignedCoordinator(t);
+  if(!t.assignment_lost){const reason=roleLoss(t,lead);if(reason)t.assignment_lost={participant:lead,reason,at};}
+  if(t.assignment_lost){t.status='paused';t.candidate=null;t.review_candidate=null;t.review_candidate_blocker='assignment-lost';}
+  for(const w of Object.values(t.work||{}))if(w.protocol===2&&!['integrated','cancelled'].includes(w.status)&&(t.assignment_lost||roleLoss(t,w.worker)!==null)&&!cancelBlocker(s_,t,w)){w.status='cancelled';w.cancelled_at=at;w.cancel_reason='owner-assigned-role-lost';}
 }
 // A policy change happens only on an idle team: no leader, no unfinished work, no pending runtime.
 function assertNativeIdle(s,t){
@@ -139,13 +161,14 @@ function assignNativePolicy(s,t,c,now){
   const rank=(list,pid)=>list.includes(pid)?list.length-list.indexOf(pid):null;
   const rows=ids.map(pid=>{const p=t.participants[pid],o=observed[pid];return {identity:clone(o.identity),participant:pid,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:o.descriptor_digest,collector:o.collector,priorities:{coordinate:rank(c.coordinator,pid),implement:rank(c.executors,pid),review:rank(c.reviewers,pid)}};});
   const policy=validatePolicy({protocol:2,mode:'owner-assigned',revision:t.policy.revision+1,generated_at:c.at,expires_at:c.expires_at,approved_by:c.actor,approved_at:c.at,activation:true,authority_granted:false,activation_scope:'waypost-protocol',installation:{request_key:c.request_key,previous_policy_revision:t.policy.revision},assignment:{coordinator:[...c.coordinator],reviewers:[...c.reviewers],executors:[...c.executors],reason:c.reason,issued_by},limitations:OWNER_ASSIGNED_LIMITATIONS,profiles:rows});
-  // Decision 4: every coordinator and alternate, and every executor, has an independent listed reviewer.
-  // A reviewer may share the coordinator's configuration, never the executor's.
+  // The admissions come first: a reviewer holds its role only through its admission.
   const everyone=Object.values(t.participants),profileOf=pid=>policy.profiles.find(r=>r.participant===pid).identity.profile_id;
-  for(const pid of c.coordinator)if(listedReviewer(everyone,policy,{excluded:[pid],now}).floor===null)fail('native-policy-assign-independent-reviewer-required');
-  for(const pid of c.executors)if(listedReviewer(everyone,policy,{excluded:[pid,c.coordinator[0]],profiles:[profileOf(pid)],now}).floor===null)fail('native-policy-assign-independent-reviewer-required');
   t.policy=policy;
   for(const p of everyone){delete p.native_admission;if(observed[p.id]){const o=observed[p.id];p.native_admission={protocol:2,identity:clone(o.identity),observation_id:o.observation_id,participant:p.id,incarnation:p.incarnation,model_revision:p.model.model_revision,descriptor_digest:o.descriptor_digest,collector:o.collector,source_invocation:o.source_invocation,observed_at:o.observed_at,expires_at:c.expires_at};}}
+  // Decision 4: every coordinator and alternate, and every executor, has an independent listed reviewer.
+  // A reviewer may share the coordinator's configuration, never the executor's.
+  for(const pid of c.coordinator)if(listedReviewer(everyone,policy,{excluded:[pid],now}).floor===null)fail('native-policy-assign-independent-reviewer-required');
+  for(const pid of c.executors)if(listedReviewer(everyone,policy,{excluded:[pid,c.coordinator[0]],profiles:[profileOf(pid)],now}).floor===null)fail('native-policy-assign-independent-reviewer-required');
   nativeFloor(t,now);propose(t,c.at);
   if(!t.candidate||t.review_floor===null||t.review_floor<0||t.review_blocker)fail('native-policy-qualified-coordinate-and-review-required');
   if(!t.review_candidate)fail('native-policy-qualified-independent-review-required');
@@ -369,6 +392,7 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       }
     }
   }
+  if(c.team&&s.teams[c.team])settleOwnerAssignment(s,s.teams[c.team],c.at);
   return { state: s, result };
 }
 export function authorizeActor(state, teamId, credential) {

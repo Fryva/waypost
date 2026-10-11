@@ -25,6 +25,13 @@ export const WORK_LABEL = 'unqualified-strongest-baseline';
 // refusal-class outcome.
 export const CALIBRATED_EXECUTOR = 'calibrated-bounded-edit';
 const calibrated = w => w?.executor === CALIBRATED_EXECUTOR;
+// Why a work cannot be cancelled now, or null: a consumed or uncertain call needs its reconciled closure first,
+// and a prepared publication of the work is aborted by the owner first.
+export function cancelBlocker(s, t, w) {
+  if (Object.values(s.subscription_invocations || {}).some(x => x.team === t.id && (x.work?.work_id === w.id || x.action?.kind === 'protocol-work-review' && x.action.request.target.work_id === w.id) && ['consumed', 'uncertain'].includes(x.state))) return 'native-work-cancel-reconciled-closure-required';
+  if (t.native_integration?.work_id === w.id && !['acknowledged', 'aborted'].includes(t.native_integration.state)) return 'native-work-cancel-integration-abort-required';
+  return null;
+}
 // Owner-assigned executor (ADR owner-assigned-team-roles, slice 3): the owner names the executors of an
 // owner-assigned team; nothing measures them, so the work says so and has no size class.
 export const OWNER_ASSIGNED_EXECUTOR = 'owner-assigned';
@@ -71,6 +78,8 @@ export function activeNativeLeader(t, now, worker = t.leader) {
   // A calibrated executor's Host renews only its own lease; the leader's must be live too.
   if (worker !== t.leader && !nativeParticipantQuotaEligible(t.participants[t.leader], now)) fail('native-work-leader-lease-required');
   const frontier = selectNativeQuotaFrontier(t, now);
+  // An owner-assigned team whose listed reviewer is busy, out of quota or gone waits under its own name.
+  if (t.policy.mode === 'owner-assigned' && !t.review_blocker && frontier.candidate === t.leader && !frontier.reviewer) fail('native-work-listed-reviewer-unavailable');
   if (t.review_blocker || frontier.blocker || frontier.candidate !== t.leader || !frontier.reviewer) fail('native-work-active-leader-required');
   // Leader work is reviewable only by a critic of another native configuration.
   if (!selectWorkReviewer(t, { worker }, now)) fail('native-work-strongest-independent-review-unavailable');
@@ -174,10 +183,7 @@ export function applyNativeWork(s, t, c, now, H) {
     const w = t.work?.[c.work_id];
     if (!w || w.protocol !== 2 || terminal(w)) fail('native-work-unfinished-work-required');
     text(c.reason, 500);
-    // A consumed or uncertain call for this work needs its reconciled closure first.
-    if (Object.values(s.subscription_invocations || {}).some(x => x.team === t.id && (x.work?.work_id === w.id || x.action?.kind === 'protocol-work-review' && x.action.request.target.work_id === w.id) && ['consumed', 'uncertain'].includes(x.state))) fail('native-work-cancel-reconciled-closure-required');
-    // A prepared publication of this work is aborted by the owner first.
-    if (t.native_integration?.work_id === w.id && !['acknowledged', 'aborted'].includes(t.native_integration.state)) fail('native-work-cancel-integration-abort-required');
+    const blocker = cancelBlocker(s, t, w); if (blocker) fail(blocker);
     w.status = 'cancelled'; w.cancelled_at = c.at; w.cancel_reason = c.reason;
     result = { cancelled: w.id, protected_actions_granted: false };
   }

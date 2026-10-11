@@ -5,6 +5,7 @@ import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {protocolHostFixture} from './helpers/native-protocol-host.mjs';
 import {routingDigest} from '../scripts/model-routing.mjs';
+import {reduceTeamEvent} from '../scripts/team-state.mjs';
 import {nativePublicationGate} from '../scripts/team-native-integration.mjs';
 import {createProtocolWorkReviewRequest,OWNER_ASSIGNED_REVIEW_LABEL} from '../scripts/team-native-work-review.mjs';
 
@@ -70,9 +71,23 @@ test('an approval from a lower-listed reviewer does not publish while the top in
 });
 test('a busy top reviewer keeps the floor; a revoked, departed or rebound one is out and its approval is void',async t=>{
  const f=await reviewed(t);
- assert.throws(()=>gate(f,t=>{t.participants['peer-b'].availability='busy';}),/native-work-active-leader-required/,'the busy top reviewer keeps the floor and the team waits');
- assert.throws(()=>gate(f,t=>{t.participants['peer-b'].availability='busy';asPeerC(t);}),/native-work-active-leader-required/,'a lower approval does not open it while the top is busy');
+ assert.throws(()=>gate(f,t=>{t.participants['peer-b'].availability='busy';}),/native-work-listed-reviewer-unavailable/,'the busy top reviewer keeps the floor and the team waits');
+ assert.throws(()=>gate(f,t=>{t.participants['peer-b'].availability='busy';asPeerC(t);}),/native-work-listed-reviewer-unavailable/,'a lower approval does not open it while the top is busy');
  for(const [name,mutate] of [['revoked',t=>out(t,'peer-b',{revoked:true})],['left',t=>out(t,'peer-b',{availability:'left'})],['rebound',t=>out(t,'peer-b',{incarnation:'moved'})]])assert.throws(()=>gate(f,mutate),/native-integration-approving-critic-changed/,name);
+});
+// Slice 5: the same loss through the reducer's own events, not by editing the state.
+test('a top reviewer revoked or departed by a real event voids its approval and the next listed reviewer becomes the top',async t=>{
+ const f=await reviewed(t),at=new Date().toISOString();
+ const event=(s,type,fields,actor)=>reduceTeamEvent(s,{type,team:'team',actor,at,request_key:type+'-'+fields.name,...fields.body});
+ for(const [name,after] of [['revoked',s=>event(s,'revoke',{name:'r',body:{participant_id:'peer-b'}},'owner:'+s.owner_hash).state],['left',s=>event(s,'availability',{name:'l',body:{availability:'left',incarnation:s.teams.team.participants['peer-b'].incarnation,epoch:s.teams.team.epoch}},'peer-b').state]]){
+  const s=after(structuredClone(f.load().state)),team=s.teams.team;
+  assert.equal(team.assignment_lost,undefined,name);assert.equal(team.status,'active',name);assert.equal(team.work['fix-sum'].status,'approved',name);
+  assert.throws(()=>nativePublicationGate(s,team,team.work['fix-sum'],Date.now()),/native-integration-approving-critic-changed/,name);
+ }
+});
+test('after a real revoke the reviewer request names the next listed reviewer and its own floor',async t=>{
+ const g=await reviewed(t,{review:false}),at=new Date().toISOString(),s=reduceTeamEvent(structuredClone(g.load().state),{type:'revoke',team:'team',actor:'owner:'+g.load().state.owner_hash,participant_id:'peer-b',at,request_key:'revoke-b'}).state,req=createProtocolWorkReviewRequest(s,s.teams.team,{actionId:'r2',workId:'fix-sum'}).request;
+ assert.equal(req.participant,'peer-c');assert.equal(req.review_floor,1);
 });
 test('the reviewer request names the next listed reviewer and its own floor once the top one is out',async t=>{
  const f=await reviewed(t,{review:false}),state=structuredClone(f.load().state),team=state.teams.team;
