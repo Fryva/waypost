@@ -8,6 +8,7 @@ import { buildAuthenticatedCalibrationSummary } from './team-role-calibration.mj
 import { compileCalibrationPolicyV2 } from './model-strength.mjs';
 import { quotaEligible, effectiveReviewFloor } from './team-quota.mjs';
 import { cancelBlocker } from './team-native-work.mjs';
+import { settleWorkPlans } from './team-native-work-plan.mjs';
 const clone = structuredClone;
 const KINDS = new Set(['question', 'answer', 'progress', 'result', 'assignment', 'ack', 'quiesce', 'handover', 'review-request', 'review-result', 'cancel']);
 // Protocol 2 publication events and lease renewals are never deferred: a team has
@@ -392,7 +393,7 @@ export function reduceTeamEvent(previous, command, authority = {}) {
       }
     }
   }
-  if(c.team&&s.teams[c.team])settleOwnerAssignment(s,s.teams[c.team],c.at);
+  if(c.team&&s.teams[c.team]){settleOwnerAssignment(s,s.teams[c.team],c.at);settleWorkPlans(s,s.teams[c.team],c.at,now);}
   return { state: s, result };
 }
 export function authorizeActor(state, teamId, credential) {

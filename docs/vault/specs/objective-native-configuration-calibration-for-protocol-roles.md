@@ -439,7 +439,11 @@ fixed-action pattern of contracts 20–21.
     a decomposition, not an assignment. The owner gives a goal, a pinned base and
     a list of files; the leader proposes a set of works; only the owner approves
     and installs it, whole or not at all (see the slice 7 notes). Calibrated
-    teams refuse it (`native-work-plan-owner-assigned-only`).
+    teams refuse it (`native-work-plan-owner-assigned-only`). Amended in slice 8
+    (owner, 2026-10-11): a plan may carry `depends_on` between its works; the plan
+    is approved whole and the authority installs a dependent work itself, with the
+    base at the commit of the tip of its dependencies, once they are integrated
+    (see the slice 8 notes).
 29. Executor qualification by the policy's `executor` mode. (a)
     `leader-baseline`: only the acknowledged leader executes, in a fresh owned
     context of its admitted profile, recorded `unqualified-strongest-baseline`
@@ -1462,7 +1466,76 @@ Commands: `waypost team plan TEAM` (requests, proposals, digests, `voided`);
 Critic's verdict that shaped the step: the plan is all or nothing; the owner, not
 the leader, approves; the leader's input is bounded by the owner's list. Limits that
 stay: nobody checks that the works together cover the goal; the plan has no
-`depends_on`, no file tree, no critic of the plan and no revision (a new plan is a
-new request); an install is never automatic; the leader's voided proposal is shown
+file tree, no critic of the plan and no revision (a new plan is a
+new request); slice 8 later added `depends_on` and the automatic install of dependent works; the leader's voided proposal is shown
 and refused but not marked in the state. Evidence: unit and Host tests only, no
 live run.
+
+### Slice 8 notes: dependencies inside a plan, installed by the authority (owner, 2026-10-11)
+
+Decision of the owner: the plan is approved whole (the digest covers the dependent
+works too), so a dependent work is not a second approval. When every dependency of a
+work of an installed plan is integrated, the authority installs its manifest itself,
+with the base set to the commit at the tip of its dependency chain, through the same
+manifest checks as the owner's event. Slice 7's "no `depends_on`" and "an install is
+never automatic" are amended for dependent works only; the independent works are still
+installed by the owner's event.
+
+- Answer: a work may carry `depends_on`, 1 to 3 unique indexes (0-based) of other works
+  of the same answer, never its own; `[]` is malformed. The model is told that a
+  dependent work starts after its dependencies are reviewed and published, sees their
+  result, is built on the commit of one of them and so may change the same files. The
+  prompt head is template revision 2 (`workPlanPromptDigest` hashes `template: 2`):
+  the old head forbade dependencies. The digest of a proposal adds `depends_on` to a
+  work only when it has one, so a plan without dependencies keeps its digest form.
+- Checks at capture, all or nothing, named: `native-work-plan-dependency-invalid` (an
+  index outside the answer or the work itself), `-dependency-cycle`, and
+  `-dependency-chain-required`: the tip rule of slice 6 applied to the plan graph (one
+  dependency is the tip, every other one is on the chain of bases behind it, a tip's
+  own tip and so on); sisters are impossible because no single commit holds both.
+  `-path-overlap` now applies only between works with no ancestor relation in the plan
+  graph: a work may touch the paths of its dependencies, which are integrated and hold
+  no path by the time it is installed. `-path-overlap-unfinished` covers all works,
+  dependent ones included (an approximation, rechecked at the automatic install).
+- Install (`native-work-plan-install-v2`) installs only the works without
+  dependencies, all or none of them as before. Each dependent work is recorded in
+  `plan.pending[work_id] = {depends_on: [work ids], tip: work id}`; the field exists
+  only for a plan with dependencies.
+- Automatic install (`settleWorkPlans`, run by the reducer after every event of the
+  team like `settleOwnerAssignment`, so it fires on the collector's
+  `native-integration-ack-v2` that integrates the dependency and again on any later
+  event). A team without `work_plans` is not touched, so stored logs replay byte for
+  byte. Manifest: goal, criteria, paths of the proposal, the criteria digest of the
+  authority, `base` = `commit` of the tip work, the plan's forbidden actions and
+  `depends_on` = the work ids. It goes through `installNativeManifest`, the body of
+  the manifest event with the actor check left outside; `native-work-manifest-v2` calls
+  it after `H.owner`, the hook calls it with no actor at all. No owner-only event is
+  opened to another actor and no actor is checked weaker. The work gets
+  `plan: {plan_id, proposal_digest, auto: true}`. Nothing is attempted under a
+  publication fence of the team (the fence's end is an event that retries).
+- Refusals. Tied to a passing state, kept in `plan.pending_refusals[id] = {code, at}`
+  and retried on the next event (rewritten only when the code changes, removed on
+  success): `native-work-path-overlap` (new unfinished work), the quota or handover
+  freeze, no active leader or reviewer, a leader lease, no fit executor, a not ready
+  executor, unknown quota, no independent reviewer, an unresolved negative audit, a
+  team that is not `active` (`native-work-plan-team-not-active`). Final, moved from
+  `pending` to `plan.abandoned[id] = {code, at}` and never retried: a changed leader or
+  epoch since the proposal (`native-work-plan-leader-changed`), an expired or missing
+  work ceiling, a lost owner-assigned executor role, an id taken, and any other code.
+  A `cancelled` dependency (the owner's cancel or the loss of a role) abandons the work
+  with `native-work-plan-dependency-cancelled`, a dependency that was itself abandoned
+  with `-dependency-abandoned`, down the chain in one event.
+- Review size. The Host's `native-work-plan-review-prompt-would-not-fit` and
+  execution-prompt checks at install read the inputs at the plan base for every work,
+  dependent ones too: an approximation, since the real base does not exist yet. The
+  reducer cannot read Git, so the automatic install does not repeat it; the exact
+  check for a dependent work is the one `executeNativeWork` already makes before any
+  reservation (`native-work-review-prompt-would-not-fit`). Such a work stays
+  installed and unexecutable until the owner cancels it.
+- `waypost team plan TEAM` prints the stored plans, so `pending`, `pending_refusals`
+  and `abandoned` appear as stored.
+
+Limits that stay: the owner cannot withdraw a single pending work (cancel its
+dependency, or ask a new plan); nobody checks that the works cover the goal; the
+tip of a plan's dependencies is fixed at the install (it does not change if the owner
+cancels and re-plans). Evidence: unit and Host tests only, no live run.

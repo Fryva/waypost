@@ -113,3 +113,16 @@ The owner approved the exact stored proposal in chat; `team plan --install --dig
 --reason` installed `math-1` and `math-2` together. OpenCode executed both (3,999 each),
 Codex approved both (8,681, 8,700), the leader Host published both commits; the owner's
 branch was untouched.
+
+### Dependencies inside a plan (2026-10-11, Claude Code)
+
+Slice 8 of the spec (contract 28 amended): the leader's plan may give a work `depends_on`
+(a chain of 1 to 3 other works of the plan). The owner still approves the plan whole; the
+authority then installs a dependent work itself when its dependencies are integrated, with the
+base at the commit of the tip of the chain, through the same manifest checks (no owner-only
+event is loosened: the manifest body is shared and the actor check stays in the owner's event).
+A passing obstacle is kept in the plan and retried on the next event; a final one or a
+cancelled dependency abandons the work. Acceptance: unit tests (reader, graph checks, install,
+automatic install with the right base, retry and final refusals, cancelled dependency) and a Host
+test with real Git (A then B on the same file: B installed from the commit of A on publication,
+its prompt carries A's result, its parent is A's commit). No live run.

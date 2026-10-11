@@ -125,7 +125,16 @@ The leader proposes; only the owner installs, whole or not at all. Calibrated te
    (`ID-1`, `ID-2`, ...) is installed with your base and forbidden actions and the first fit executor in your order, or none is.
    An agent runs this only after the owner's explicit answer in chat. Each work then runs, is reviewed and published as usual.
 
-No dependencies between works, no revision of a plan (ask a new one), and nobody checks that the works cover the whole goal.
+Dependencies (the leader may give a work `depends_on`, 1 to 3 other works of the same plan, as a chain): the plan is approved
+whole, so only the works without dependencies are installed by step 5. A dependent work waits in the plan (`pending`), and
+the authority installs it itself when all its dependencies are integrated, with the base at the commit of the last of them, so
+it sees their result and may change the same files. `team plan` shows what is left: `pending` (waiting),
+`pending_refusals` (a passing obstacle such as an overlapping new work or no free executor, retried on the next event),
+`abandoned` (a final refusal such as a changed leader, or a cancelled dependency; ask a new plan). Cancel the dependency to
+drop a dependent work. The review-size check at step 5 for a dependent work is only an approximation; the exact one is made
+when it is executed.
+
+No revision of a plan (ask a new one), and nobody checks that the works cover the whole goal.
 
 ## Periodic model-strength checks
 

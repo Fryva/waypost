@@ -103,6 +103,85 @@ export function negativeAuditOfCurrentAck(s, t) {
   return Object.values(t.native_protocol_reviews || {}).some(a => a.unresolved_negative && a.records.some(r => acks.has(r.source_invocation_id)));
 }
 
+// The manifest install on one state, without any actor check: the owner's event and the plan's automatic install of a dependent
+// work (owner decision 2026-10-11: the approved plan covers its dependent works) both call it, so the checks are the same ones.
+export function installNativeManifest(s, t, id, raw, at, now) {
+  // At most 80 characters, so every Host record and private ref name derived from it stays valid.
+  const workId = id; if (typeof workId !== 'string' || !WORK_ID.test(workId)) fail('native-work-invalid-id');
+  if (t.work?.[workId]) fail('native-work-already-exists');
+  const mode = currentWorkPolicy(t, now).executor;
+  // A calibrated manifest names its executor, or leaves the choice to the authority (slice 5).
+  const manifest = exact(raw, ['protocol', 'goal', 'criteria', 'criteria_digest', 'paths', 'base', 'forbidden_actions', ...(mode !== 'leader-baseline' && raw && Object.hasOwn(raw, 'executor_participant') ? ['executor_participant'] : []), ...(raw && Object.hasOwn(raw, 'depends_on') ? ['depends_on'] : [])]);
+  if (Buffer.byteLength(JSON.stringify(manifest)) > 32768) fail('native-work-manifest-too-large');
+  if (manifest.protocol !== 2) fail('native-work-manifest-protocol-required');
+  text(manifest.goal, 4000);
+  if (!Array.isArray(manifest.criteria) || !manifest.criteria.length || manifest.criteria.length > 64) fail('native-work-criteria-required');
+  manifest.criteria.forEach(x => text(x, 1000));
+  if (manifest.criteria_digest !== routingDigest(manifest.criteria)) fail('native-work-criteria-digest-required');
+  if (typeof manifest.base !== 'string' || !/^[a-f0-9]{40,64}$/.test(manifest.base)) fail('native-work-base-commit-required');
+  if (!Array.isArray(manifest.forbidden_actions) || manifest.forbidden_actions.length > 32) fail('native-work-forbidden-actions-required');
+  manifest.forbidden_actions.forEach(x => text(x, 500));
+  const paths = workPaths(manifest.paths);
+  if (manifest.depends_on !== undefined) {
+    const deps = manifest.depends_on;
+    if (!Array.isArray(deps) || !deps.length || deps.length > 16 || new Set(deps).size !== deps.length || deps.some(id => typeof id !== 'string' || !WORK_ID.test(id))) fail('native-work-dependencies-invalid');
+    const done = integratedWork(t), byCommit = new Map(done.map(x => [x.commit, x]));
+    if (!deps.every(id => done.some(x => x.id === id))) fail('native-work-dependency-not-integrated');
+    // Tip rule: the base is the commit of one dependency, and every other dependency is behind it in a chain.
+    const tip = byCommit.get(manifest.base); if (!tip || !deps.includes(tip.id)) fail('native-work-dependency-base-required');
+    const chain = new Set(); for (let x = tip; x && !chain.has(x.id); x = byCommit.get(x.manifest.base)) chain.add(x.id);
+    if (!deps.every(id => chain.has(id))) fail('native-work-dependency-chain-required');
+  }
+  let worker = null, assignment = null;
+  if (mode === OWNER_ASSIGNED_EXECUTOR) {
+    // No size class: the owner chose the executor. The Host refuses what the executor or the reviewer cannot take.
+    const policy = currentWorkPolicy(t, now);
+    if (manifest.executor_participant !== undefined) {
+      if (typeof manifest.executor_participant !== 'string') fail('native-work-ready-executor-required');
+      worker = t.participants[manifest.executor_participant];
+      const refused = executorRefusal(s, t, worker, policy, now); if (refused) fail(refused);
+    } else {
+      // No model call: the first listed executor that is fit now, in the owner's order. The leader
+      // is not the worker here, so its own configuration is not excluded; executorRefusal checks
+      // each candidate's reviewer.
+      activeNativeLeader(t, now, null);
+      const candidates = t.policy.assignment.executors.filter(id => !executorRefusal(s, t, t.participants[id], policy, now));
+      if (!candidates.length) fail('native-work-no-eligible-executor');
+      worker = t.participants[candidates[0]];
+      assignment = { mode: 'owner-order', candidates };
+    }
+  } else if (mode === CALIBRATED_EXECUTOR) {
+    // The measured class (S4-class): 1-2 assigned paths, 1-2 criteria, printable ASCII goal and criteria of at most 600 characters, no free-text forbidden list.
+    if (paths.length > 2 || manifest.criteria.length > 2 || manifest.forbidden_actions.length || !measuredText(manifest.goal, 600) || manifest.criteria.some(x => !measuredText(x, 600))) fail('native-work-size-class-exceeded');
+    const policy = currentWorkPolicy(t, now);
+    if (manifest.executor_participant !== undefined) {
+      if (typeof manifest.executor_participant !== 'string') fail('native-work-ready-executor-required');
+      worker = t.participants[manifest.executor_participant];
+      const refused = executorRefusal(s, t, worker, policy, now); if (refused) fail(refused);
+    } else {
+      // Contract 28 amended (owner, 2026-10-08): no model call; the authority picks
+      // deterministically. The gate does not rank: the strongest critic is not
+      // picked unless it is the sole candidate; otherwise the first other id.
+      activeNativeLeader(t, now);
+      const pinned = gateRefusal(null, t, now); if (pinned === 'native-work-installed-suite-changed') fail(pinned);
+      const candidates = Object.values(t.participants).filter(p => !executorRefusal(s, t, p, policy, now)).map(p => p.id).sort();
+      if (!candidates.length) fail('native-work-no-eligible-executor');
+      worker = t.participants[candidates.find(id => id !== t.review_candidate) ?? candidates[0]];
+      assignment = { mode: 'authority-deterministic', candidates };
+    }
+  }
+  const policy = currentWorkPolicy(t, now), leader = activeNativeLeader(t, now, worker?.id);
+  worker ||= leader;
+  if (worker !== leader && (!nativeParticipantQuotaEligible(worker, now) || !policy.allow_unknown_quota && worker.native_protocol_quota?.proof?.status !== 'available')) fail('native-work-known-quota-required');
+  // Owner decision 2026-10-11: several unfinished works, as long as their manifest paths do not overlap.
+  if (unfinishedWork(t).some(u => u.paths.some(p => paths.some(q => pathsOverlap(p, q))))) fail('native-work-path-overlap');
+  if (negativeAuditOfCurrentAck(s, t)) fail('native-work-unresolved-negative-leadership-audit');
+  t.work ||= {};
+  const label = mode === CALIBRATED_EXECUTOR ? CALIBRATED_EXECUTOR : mode === OWNER_ASSIGNED_EXECUTOR ? OWNER_ASSIGNED_WORK_LABEL : WORK_LABEL;
+  t.work[workId] = { protocol: 2, id: workId, manifest: clone(manifest), manifest_digest: workManifestDigest(manifest), paths, generation: 1, attempts: 0, epoch: t.epoch, worker: worker.id, worker_incarnation: worker.incarnation, worker_model_revision: worker.model?.model_revision ?? null, worker_identity: clone(worker.native_admission?.identity ?? null), policy_revision: t.policy.revision, status: 'manifest', label, ...(mode !== 'leader-baseline' ? { executor: mode } : {}), ...(assignment ? { assignment } : {}), work_policy_revision: policy.revision, created_at: at };
+  return { work: workId, manifest_digest: t.work[workId].manifest_digest, worker: worker.id, label, protected_actions_granted: false };
+}
+
 export function applyNativeWork(s, t, c, now, H) {
   if (c.type === 'native-work-material-capture-v2') return captureWorkMaterial(s, t, c, now);
   if (!['native-work-enable-v2', 'native-work-manifest-v2', 'native-work-cancel-v2', 'native-work-revise-v2'].includes(c.type)) return null;
@@ -126,80 +205,7 @@ export function applyNativeWork(s, t, c, now, H) {
     t.native_work_policy = { ...clone(policy), protocol: 2, revision: c.revision, enabled_at: c.at };
     result = { enabled: true, revision: c.revision, protected_actions_granted: false };
   } else if (c.type === 'native-work-manifest-v2') {
-    // At most 80 characters, so every Host record and private ref name derived from it stays valid.
-    const workId = c.work_id; if (typeof workId !== 'string' || !WORK_ID.test(workId)) fail('native-work-invalid-id');
-    if (t.work?.[workId]) fail('native-work-already-exists');
-    const mode = currentWorkPolicy(t, now).executor;
-    // A calibrated manifest names its executor, or leaves the choice to the authority (slice 5).
-    const manifest = exact(c.manifest, ['protocol', 'goal', 'criteria', 'criteria_digest', 'paths', 'base', 'forbidden_actions', ...(mode !== 'leader-baseline' && c.manifest && Object.hasOwn(c.manifest, 'executor_participant') ? ['executor_participant'] : []), ...(c.manifest && Object.hasOwn(c.manifest, 'depends_on') ? ['depends_on'] : [])]);
-    if (Buffer.byteLength(JSON.stringify(manifest)) > 32768) fail('native-work-manifest-too-large');
-    if (manifest.protocol !== 2) fail('native-work-manifest-protocol-required');
-    text(manifest.goal, 4000);
-    if (!Array.isArray(manifest.criteria) || !manifest.criteria.length || manifest.criteria.length > 64) fail('native-work-criteria-required');
-    manifest.criteria.forEach(x => text(x, 1000));
-    if (manifest.criteria_digest !== routingDigest(manifest.criteria)) fail('native-work-criteria-digest-required');
-    if (typeof manifest.base !== 'string' || !/^[a-f0-9]{40,64}$/.test(manifest.base)) fail('native-work-base-commit-required');
-    if (!Array.isArray(manifest.forbidden_actions) || manifest.forbidden_actions.length > 32) fail('native-work-forbidden-actions-required');
-    manifest.forbidden_actions.forEach(x => text(x, 500));
-    const paths = workPaths(manifest.paths);
-    if (manifest.depends_on !== undefined) {
-      const deps = manifest.depends_on;
-      if (!Array.isArray(deps) || !deps.length || deps.length > 16 || new Set(deps).size !== deps.length || deps.some(id => typeof id !== 'string' || !WORK_ID.test(id))) fail('native-work-dependencies-invalid');
-      const done = integratedWork(t), byCommit = new Map(done.map(x => [x.commit, x]));
-      if (!deps.every(id => done.some(x => x.id === id))) fail('native-work-dependency-not-integrated');
-      // Tip rule: the base is the commit of one dependency, and every other dependency is behind it in a chain.
-      const tip = byCommit.get(manifest.base); if (!tip || !deps.includes(tip.id)) fail('native-work-dependency-base-required');
-      const chain = new Set(); for (let x = tip; x && !chain.has(x.id); x = byCommit.get(x.manifest.base)) chain.add(x.id);
-      if (!deps.every(id => chain.has(id))) fail('native-work-dependency-chain-required');
-    }
-    let worker = null, assignment = null;
-    if (mode === OWNER_ASSIGNED_EXECUTOR) {
-      // No size class: the owner chose the executor. The Host refuses what the executor or the reviewer cannot take.
-      const policy = currentWorkPolicy(t, now);
-      if (manifest.executor_participant !== undefined) {
-        if (typeof manifest.executor_participant !== 'string') fail('native-work-ready-executor-required');
-        worker = t.participants[manifest.executor_participant];
-        const refused = executorRefusal(s, t, worker, policy, now); if (refused) fail(refused);
-      } else {
-        // No model call: the first listed executor that is fit now, in the owner's order. The leader
-        // is not the worker here, so its own configuration is not excluded; executorRefusal checks
-        // each candidate's reviewer.
-        activeNativeLeader(t, now, null);
-        const candidates = t.policy.assignment.executors.filter(id => !executorRefusal(s, t, t.participants[id], policy, now));
-        if (!candidates.length) fail('native-work-no-eligible-executor');
-        worker = t.participants[candidates[0]];
-        assignment = { mode: 'owner-order', candidates };
-      }
-    } else if (mode === CALIBRATED_EXECUTOR) {
-      // The measured class (S4-class): 1-2 assigned paths, 1-2 criteria, printable ASCII goal and criteria of at most 600 characters, no free-text forbidden list.
-      if (paths.length > 2 || manifest.criteria.length > 2 || manifest.forbidden_actions.length || !measuredText(manifest.goal, 600) || manifest.criteria.some(x => !measuredText(x, 600))) fail('native-work-size-class-exceeded');
-      const policy = currentWorkPolicy(t, now);
-      if (manifest.executor_participant !== undefined) {
-        if (typeof manifest.executor_participant !== 'string') fail('native-work-ready-executor-required');
-        worker = t.participants[manifest.executor_participant];
-        const refused = executorRefusal(s, t, worker, policy, now); if (refused) fail(refused);
-      } else {
-        // Contract 28 amended (owner, 2026-10-08): no model call; the authority picks
-        // deterministically. The gate does not rank: the strongest critic is not
-        // picked unless it is the sole candidate; otherwise the first other id.
-        activeNativeLeader(t, now);
-        const pinned = gateRefusal(null, t, now); if (pinned === 'native-work-installed-suite-changed') fail(pinned);
-        const candidates = Object.values(t.participants).filter(p => !executorRefusal(s, t, p, policy, now)).map(p => p.id).sort();
-        if (!candidates.length) fail('native-work-no-eligible-executor');
-        worker = t.participants[candidates.find(id => id !== t.review_candidate) ?? candidates[0]];
-        assignment = { mode: 'authority-deterministic', candidates };
-      }
-    }
-    const policy = currentWorkPolicy(t, now), leader = activeNativeLeader(t, now, worker?.id);
-    worker ||= leader;
-    if (worker !== leader && (!nativeParticipantQuotaEligible(worker, now) || !policy.allow_unknown_quota && worker.native_protocol_quota?.proof?.status !== 'available')) fail('native-work-known-quota-required');
-    // Owner decision 2026-10-11: several unfinished works, as long as their manifest paths do not overlap.
-    if (unfinishedWork(t).some(u => u.paths.some(p => paths.some(q => pathsOverlap(p, q))))) fail('native-work-path-overlap');
-    if (negativeAuditOfCurrentAck(s, t)) fail('native-work-unresolved-negative-leadership-audit');
-    t.work ||= {};
-    const label = mode === CALIBRATED_EXECUTOR ? CALIBRATED_EXECUTOR : mode === OWNER_ASSIGNED_EXECUTOR ? OWNER_ASSIGNED_WORK_LABEL : WORK_LABEL;
-    t.work[workId] = { protocol: 2, id: workId, manifest: clone(manifest), manifest_digest: workManifestDigest(manifest), paths, generation: 1, attempts: 0, epoch: t.epoch, worker: worker.id, worker_incarnation: worker.incarnation, worker_model_revision: worker.model?.model_revision ?? null, worker_identity: clone(worker.native_admission?.identity ?? null), policy_revision: t.policy.revision, status: 'manifest', label, ...(mode !== 'leader-baseline' ? { executor: mode } : {}), ...(assignment ? { assignment } : {}), work_policy_revision: policy.revision, created_at: c.at };
-    result = { work: workId, manifest_digest: t.work[workId].manifest_digest, worker: worker.id, label, protected_actions_granted: false };
+    result = installNativeManifest(s, t, c.work_id, c.manifest, c.at, now);
   } else if (c.type === 'native-work-revise-v2') {
     result = reviseWork(s, t, c, now);
   } else {

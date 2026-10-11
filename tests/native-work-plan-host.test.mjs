@@ -106,3 +106,30 @@ test('the plan call shares the per-unit token cap with execution and review, and
  for(const id of ['a','b','c','d']){ask(g,{planId:id});await planCall(g,id);}
  ask(g,{planId:'e'});await assert.rejects(()=>planCall(g,'e'),/control-ceiling-exceeded/,'the fifth call is over the ceiling of four');
 });
+// Step 8 (owner, 2026-10-11): B depends on A and changes the same file. The owner approves the whole plan; B is installed by the
+// authority from the commit of A once A is published, and then runs, is reviewed and published as any other work.
+test('a dependent work of a plan is installed from the commit of its dependency when that is published, and builds on it',async t=>{
+ const answers=prompt=>{const id=/GOAL-([a-z]+)/.exec(prompt)[1];return JSON.stringify({files:[{path:'src/sum.js',content:id==='a'?'export const sum=(a,b)=>a+b;\n':'export const sum=(a,b)=>a+b;\n// by B\n'}]});};
+ const f=await planned(t,{workAnswer:answers});
+ f.options.planAnswer=()=>answer([{goal:'Fix the sum GOAL-a',criteria:['sum returns a+b'],paths:[0]},{goal:'Comment the sum GOAL-b',criteria:['a comment says who changed it'],paths:[0],depends_on:[0]}]);
+ ask(f,{scope:['src/sum.js']});assert.equal((await planCall(f)).work_plan.state,'proposed');
+ const p=team(f).work_plans.p1;assert.equal(p.proposal.checks.ok,true);assert.deepEqual(p.proposal.works.map(w=>w.depends_on),[undefined,[0]]);
+ const done=f.host.installWorkPlan({planId:'p1',digest:p.proposal.digest,reason:'reviewed the exact plan'});
+ assert.deepEqual(done.installed.map(w=>w.work),['p1-1']);assert.deepEqual(done.pending,['p1-2']);
+ assert.equal(team(f).work['p1-2'],undefined);assert.ok(team(f).work_plans.p1.pending['p1-2']);
+ await f.hostFor('peer-d').executeNativeWork({workId:'p1-1',estimateTokens:'40'});f.hostFor('peer-d').captureNativeWork({workId:'p1-1'});
+ const rev=await f.hostFor('peer-b').reviewNativeWork({workId:'p1-1',estimateTokens:'40'});assert.equal(rev.work_review_captured,true,JSON.stringify(rev));
+ assert.equal(team(f).work['p1-2'],undefined,'not before A is published');
+ const pa=await f.host.publishNativeWork({workId:'p1-1',message:'Fix sum',story:'WP-20/story-x',commitIdentity:identity});
+ // The publication event itself installed B, from the commit of A and with A as its dependency.
+ const b=team(f).work['p1-2'];assert.ok(b,'installed by the authority at the publication');
+ assert.equal(b.manifest.base,pa.commit);assert.deepEqual(b.manifest.depends_on,['p1-1']);assert.deepEqual(b.plan,{plan_id:'p1',proposal_digest:p.proposal.digest,auto:true});assert.equal(b.status,'manifest');
+ assert.equal(team(f).work_plans.p1.pending,undefined);
+ const begin=f.prompts.length;
+ await f.hostFor('peer-d').executeNativeWork({workId:'p1-2',estimateTokens:'40'});
+ const prompt=f.prompts.slice(begin).find(x=>x.prompt.includes('GOAL-b')).prompt;assert.ok(prompt.includes('a+b'),'the prompt of B carries the result of A');assert.equal(prompt.includes('a-b'),false);
+ f.hostFor('peer-d').captureNativeWork({workId:'p1-2'});
+ const rev2=await f.hostFor('peer-b').reviewNativeWork({workId:'p1-2',estimateTokens:'40'});assert.equal(rev2.work_review_captured,true,JSON.stringify(rev2));
+ const pb=await f.host.publishNativeWork({workId:'p1-2',message:'Comment sum',story:'WP-20/story-x',commitIdentity:identity});
+ assert.equal(team(f).work['p1-2'].status,'integrated');assert.equal(git(f.root,'show','-s','--format=%P',pb.commit),pa.commit,'the parent of B is the commit of A');
+});

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {authorityFixture,now,at,expiry} from './helpers/native-calibration.mjs';
 import {reduceTeamEvent} from '../scripts/team-state.mjs';
 import {routingDigest} from '../scripts/model-routing.mjs';
-import {readWorkPlan,checkWorkPlan,workPlanProposalDigest,workPlanListing,createProtocolWorkPlanRequest,formatWorkPlan,workPlanPromptDigest,workPlanSlot} from '../scripts/team-native-work-plan.mjs';
+import {readWorkPlan,checkWorkPlan,workPlanShape,settleWorkPlans,workPlanProposalDigest,workPlanListing,createProtocolWorkPlanRequest,formatWorkPlan,workPlanPromptDigest,workPlanSlot} from '../scripts/team-native-work-plan.mjs';
 
 // Contract 28, slice 7 (owner, 2026-10-11): the leader's decomposition of an owner goal. The reducer side: the owner's request,
 // the strict answer, the whole-plan checks and the all-or-nothing install. The Host flow is in native-work-plan-host.test.mjs.
@@ -79,7 +79,7 @@ test('the strict answer: works with indexes or refusals, nothing else',()=>{
   'not json','[]','{}','{"works":[],"refusals":["x"]}','{"works":[]}','{"refusals":[]}','{"refusals":["a","b","c","d","e"]}','{"refusals":[1]}',
   JSON.stringify({works:[good.works[0],good.works[0],good.works[0],good.works[0],good.works[0]]}),
   JSON.stringify({works:[{...good.works[0],id:'x'}]}),JSON.stringify({works:[{goal:'g',criteria:['c']}]}),
-  JSON.stringify({works:[{...good.works[0],base:'a'.repeat(40)}]}),JSON.stringify({works:[{...good.works[0],depends_on:['w']}]}),
+  JSON.stringify({works:[{...good.works[0],base:'a'.repeat(40)}]}),JSON.stringify({works:[{...good.works[0],depends_on:['w']}]}),JSON.stringify({works:[{...good.works[0],depends_on:[]}]}),JSON.stringify({works:[{...good.works[0],depends_on:[0]}]}),JSON.stringify({works:[{...good.works[0],depends_on:[-1]}]}),JSON.stringify({works:[{...good.works[0],depends_on:[1.5]}]}),
   JSON.stringify({works:[{...good.works[0],criteria:[]}]}),JSON.stringify({works:[{...good.works[0],criteria:['1','2','3','4','5']}]}),JSON.stringify({works:[{...good.works[0],criteria:['x'.repeat(201)]}]}),
   JSON.stringify({works:[{...good.works[0],goal:'x'.repeat(601)}]}),JSON.stringify({works:[{...good.works[0],goal:' '}]}),
   JSON.stringify({works:[{...good.works[0],paths:[]}]}),JSON.stringify({works:[{...good.works[0],paths:[0,0]}]}),JSON.stringify({works:[{...good.works[0],paths:['a']}]}),JSON.stringify({works:[{...good.works[0],paths:[-1]}]}),JSON.stringify({works:[{...good.works[0],paths:[1.5]}]}),
@@ -165,12 +165,116 @@ test('the leader call is built from authority state only, pinned to the current 
  assert.equal(a.kind,'protocol-work-plan');assert.equal(r.participant,t.leader);assert.equal(r.current_epoch,t.epoch);assert.equal(r.max_works,3);assert.equal(r.inputs_digest,request().inputs_digest);assert.equal(r.plan_request_digest,t.work_plans.p1.request_digest);assert.ok(r.assignment_digest);assert.equal(r.calibration_digest,undefined);
  assert.equal(JSON.stringify(createProtocolWorkPlanRequest(s,t,{actionId:'a1',planId:'p1',now:now+1000})),JSON.stringify(a),'no volatile fact: the same request at another time');
  assert.equal(workPlanSlot(a),routingDigest({team:'team',kind:'protocol-work-plan',epoch:t.epoch,plan_id:'p1'}));
- assert.match(formatWorkPlan(a),/^Decompose one owner goal/);assert.ok(formatWorkPlan(a).includes('"index":2,"path":"src/c.js"'));assert.doesNotMatch(formatWorkPlan(a),/depends_on|criteria_digest/);
- assert.equal(workPlanPromptDigest(a),routingDigest({template:1,head:formatWorkPlan(a),suffix:'newline-json-base-files',inputs_digest:request().inputs_digest}));
+ assert.match(formatWorkPlan(a),/^Decompose one owner goal/);assert.ok(formatWorkPlan(a).includes('"index":2,"path":"src/c.js"'));assert.match(formatWorkPlan(a),/depends_on/);assert.doesNotMatch(formatWorkPlan(a),/criteria_digest/);
+ assert.equal(workPlanPromptDigest(a),routingDigest({template:2,head:formatWorkPlan(a),suffix:'newline-json-base-files',inputs_digest:request().inputs_digest}));
  assert.throws(()=>createProtocolWorkPlanRequest(s,t,{actionId:'a1',planId:'nope',now}),/native-work-plan-request-required/);
  assert.throws(()=>createProtocolWorkPlanRequest(s,t,{actionId:'bad id',planId:'p1',now}),/action-id/);
  assert.throws(()=>createProtocolWorkPlanRequest(proposed(s),proposed(s).teams.team,{actionId:'a1',planId:'p1',now}),/native-work-plan-request-required/,'a captured plan is not asked again');
  for(const [name,mutate,code] of [['no leader',x=>{x.leader=null;},/active-team-required/],['handover',x=>{x.handover={};},/active-team-required/],['freeze',x=>{x.native_quota_freeze={};},/quota-handover-pending/],['expired',x=>{x.policy.expires_at=new Date(now-1).toISOString();},/active-team-required/],['no plan ceiling',x=>{delete x.native_work_policy.ceilings.plan;},/ceiling-required/]]){
   const x=clone(s);mutate(x.teams.team);assert.throws(()=>createProtocolWorkPlanRequest(x,x.teams.team,{actionId:'a1',planId:'p1',now}),code,name);
  }
+});
+
+// ---- Step 8 (owner, 2026-10-11): dependent works of a plan are installed by the authority when their dependencies are integrated.
+const w3=(goal,paths,depends_on)=>({goal,criteria:['c'],paths,...(depends_on?{depends_on}:{})});
+test('the reader takes an optional depends_on of other works of the answer and keeps it sorted',()=>{
+ const action={request:{scope:['a','b'],max_works:3}};
+ const r=readWorkPlan(JSON.stringify({works:[w3('g',[0]),w3('h',[0],[0]),w3('i',[1],[1,0])]}),action);
+ assert.equal(Object.hasOwn(r.works[0],'depends_on'),false);assert.deepEqual(r.works[1].depends_on,[0]);assert.deepEqual(r.works[2].depends_on,[0,1]);
+ assert.throws(()=>readWorkPlan(JSON.stringify({works:[w3('g',[0]),w3('h',[0],[0,0])]}),action),/exact-work-plan-required/,'duplicates');
+ assert.throws(()=>readWorkPlan(JSON.stringify({works:[w3('g',[0]),w3('h',[0],[2])]}),action),/exact-work-plan-required/,'outside the answer');
+});
+test('the plan graph is checked whole: cycles, sisters, bad indexes, overlap between independent works only',async()=>{
+ const {state}=await enabled();const s=ask(state,{max_works:4}).state,t=s.teams.team,p=t.work_plans.p1;
+ const codes=works=>checkWorkPlan(s,t,p,works).codes;
+ assert.deepEqual(codes([w3('a',[0]),w3('b',[0],[0])]),[],'a dependent work may touch the paths of its dependency');
+ assert.deepEqual(codes([w3('a',[0]),w3('b',[0],[0]),w3('c',[0],[1])]),[],'and of a dependency further back');
+ assert.deepEqual(codes([w3('a',[0],[1]),w3('b',[1],[0])]),['native-work-plan-dependency-cycle']);
+ assert.deepEqual(codes([w3('a',[0],[0])]),['native-work-plan-dependency-invalid']);assert.deepEqual(codes([w3('a',[0],[5])]),['native-work-plan-dependency-invalid']);
+ assert.deepEqual(codes([w3('a',[0]),w3('b',[1]),w3('c',[2],[0,1])]),['native-work-plan-dependency-chain-required'],'sisters have no commit that holds both');
+ assert.deepEqual(codes([w3('a',[0]),w3('b',[1],[0]),w3('c',[2],[0,1])]),[],'a chain: a is behind b, b is the tip of c');
+ assert.deepEqual(codes([w3('a',[0]),w3('b',[1],[0]),w3('c',[2],[0]),w3('d',[2],[1,2])]),['native-work-plan-dependency-chain-required'],'b and c are sisters (c and d share a path but d is behind c)');
+ assert.deepEqual(codes([w3('a',[0]),w3('b',[0],[0]),w3('c',[0],[0])]),['native-work-plan-path-overlap'],'two works built on the same one still share paths');
+ assert.deepEqual(codes([w3('a',[0]),w3('b',[1],[0]),w3('c',[1])]),['native-work-plan-path-overlap'],'c is independent of b');
+ const open=clone(s);open.teams.team.work={o1:{protocol:2,id:'o1',status:'candidate',paths:['src/a.js']}};
+ assert.deepEqual(checkWorkPlan(open,open.teams.team,p,[w3('a',[1]),w3('b',[0],[0])]).codes,['native-work-plan-path-overlap-unfinished'],'dependent works are checked against unfinished team work too');
+ assert.deepEqual(workPlanShape([w3('a',[0]),w3('b',[0],[0]),w3('c',[0],[0,1])]).tip.slice(1),[0,1]);
+});
+test('the digest covers the dependencies, and a plan without them keeps the old digest form',async()=>{
+ const {state}=await enabled();const p=ask(state).state.teams.team.work_plans.p1;
+ const a=[w3('a',[0]),w3('b',[1])],b=[w3('a',[0]),w3('b',[1],[0])];
+ assert.notEqual(workPlanProposalDigest(p,a),workPlanProposalDigest(p,b));
+ assert.equal(workPlanProposalDigest(p,a),routingDigest({revision:1,plan_id:p.id,plan_request_digest:p.request_digest,works:a.map(w=>({goal:w.goal,criteria:w.criteria,paths:w.paths}))}));
+});
+// A plan with a (p1-1) and b (p1-2) depending on a, installed; helpers to integrate a and send any later event.
+async function chained(works=[w3('Fix sum',[0]),w3('Fix product',[0,1],[0])]){
+ const {state}=await enabled();return install(proposed(ask(state).state,works));
+}
+const integrate=(state,id,commit)=>{const x=clone(state),w=x.teams.team.work[id];w.status='integrated';w.commit=commit;w.integrated_evidence={protocol:2,commit};return x;};
+const tick=state=>send(state,'native-work-plan-request-v2',request({plan_id:'tick'+Math.random().toString(36).slice(2,8)})).state;
+const c1='e'.repeat(40);
+// The settle step called directly, for a state whose epoch moved (owner events need the current epoch).
+const settle=s=>{const x=clone(s);settleWorkPlans(x,x.teams.team,at,now);return x;};
+test('install puts only the independent works in place; the dependent ones are pending in the plan',async()=>{
+ const r=await chained(),t=r.state.teams.team,p=t.work_plans.p1;
+ assert.deepEqual(r.result.installed.map(x=>x.work),['p1-1']);assert.deepEqual(r.result.pending,['p1-2']);
+ assert.deepEqual(Object.keys(t.work),['p1-1']);assert.deepEqual(p.pending,{'p1-2':{depends_on:['p1-1'],tip:'p1-1'}});assert.deepEqual(p.installed.works,['p1-1']);
+ assert.equal(p.pending_refusals,undefined);assert.equal(p.abandoned,undefined);
+ const flat=install(proposed(ask((await enabled()).state).state)).state.teams.team.work_plans.p1;
+ assert.equal(Object.hasOwn(flat,'pending'),false,'a plan without dependencies gains no field');
+ assert.equal(JSON.stringify(Object.keys(flat.installed)),'["works","reason","installed_at"]');
+});
+test('a dependent work is installed by the authority when its dependency is integrated: base is the commit, depends_on the work, provenance auto',async()=>{
+ const r=await chained(),s=integrate(r.state,'p1-1',c1);
+ assert.equal(s.teams.team.work['p1-2'],undefined,'nothing installs without an event');
+ const after=tick(s).teams.team,w=after.work['p1-2'],p=after.work_plans.p1;
+ assert.deepEqual(w.manifest,{protocol:2,goal:'Fix product',criteria:['c'],criteria_digest:routingDigest(['c']),paths:['src/a.js','src/b.js'],base:c1,forbidden_actions:['network'],depends_on:['p1-1']});
+ assert.deepEqual(w.plan,{plan_id:'p1',proposal_digest:p.proposal.digest,auto:true});assert.equal(w.status,'manifest');assert.equal(w.worker,'peer-d');
+ assert.equal(p.pending,undefined);assert.equal(p.pending_refusals,undefined);assert.equal(p.abandoned,undefined);
+ assert.equal(JSON.stringify(tick(tick(s)).teams.team.work['p1-2']),JSON.stringify(w),'idempotent: later events change nothing');
+ const nothing=settle(r.state);assert.equal(JSON.stringify(nothing),JSON.stringify(r.state),'nothing integrated, nothing changes');
+});
+test('a chain of three: the tip of the dependencies is the base, and the middle work waits for the first',async()=>{
+ const r=await chained([w3('a',[0]),w3('b',[0],[0]),w3('c',[0],[0,1])]);let s=r.state;
+ assert.deepEqual(Object.keys(s.teams.team.work_plans.p1.pending),['p1-2','p1-3']);
+ s=tick(integrate(s,'p1-1',c1));assert.ok(s.teams.team.work['p1-2']);assert.equal(s.teams.team.work['p1-3'],undefined,'c waits for b');assert.deepEqual(Object.keys(s.teams.team.work_plans.p1.pending),['p1-3']);
+ const c2='f'.repeat(40);s=tick(integrate(s,'p1-2',c2));
+ assert.equal(s.teams.team.work['p1-3'].manifest.base,c2,'the base is the commit of the tip');assert.deepEqual(s.teams.team.work['p1-3'].manifest.depends_on,['p1-1','p1-2']);assert.equal(s.teams.team.work_plans.p1.pending,undefined);
+});
+test('a refusal tied to a passing state is kept in the plan and retried on the next event',async()=>{
+ const r=await chained(),s=integrate(r.state,'p1-1',c1);
+ const busy=clone(s);busy.teams.team.work.o1={protocol:2,id:'o1',worker:'peer-d',status:'candidate',paths:['src/b.js']};
+ const once=tick(busy),t1=once.teams.team,p1=t1.work_plans.p1;
+ assert.equal(t1.work['p1-2'],undefined);assert.equal(p1.pending_refusals['p1-2'].code,'native-work-path-overlap');assert.ok(p1.pending['p1-2'],'still pending');assert.equal(p1.abandoned,undefined);
+ const again=tick(once);assert.deepEqual(again.teams.team.work_plans.p1.pending_refusals,p1.pending_refusals,'an unchanged refusal is not rewritten');
+ const freed=clone(again);freed.teams.team.work.o1.status='cancelled';
+ const t2=tick(freed).teams.team;assert.ok(t2.work['p1-2'],'installed once the path is free');assert.equal(t2.work_plans.p1.pending,undefined);assert.equal(t2.work_plans.p1.pending_refusals,undefined,'the refusal is cleared');
+ const noExec=clone(s);noExec.teams.team.participants['peer-d'].availability='busy';
+ assert.equal(settle(noExec).teams.team.work_plans.p1.pending_refusals['p1-2'].code,'native-work-no-eligible-executor');
+});
+test('a refusal that cannot pass is final: the work is abandoned with the code and never retried',async()=>{
+ const r=await chained(),s=integrate(r.state,'p1-1',c1);
+ const expired=clone(s);expired.teams.team.native_work_policy.expires_at=new Date(now-1000).toISOString();
+ const p=settle(expired).teams.team.work_plans.p1;
+ assert.deepEqual(p.abandoned['p1-2'],{code:'native-work-owner-ceiling-required',at});assert.equal(p.pending,undefined);assert.equal(p.pending_refusals,undefined);
+ const renewed=settle(expired);renewed.teams.team.native_work_policy.expires_at=until;assert.equal(settle(renewed).teams.team.work['p1-2'],undefined,'not retried');
+ const leader=clone(s);leader.teams.team.epoch++;
+ assert.equal(settle(leader).teams.team.work_plans.p1.abandoned['p1-2'].code,'native-work-plan-leader-changed');
+});
+test('a cancelled dependency abandons the dependent work, and so on down the chain',async()=>{
+ const r=await chained([w3('a',[0]),w3('b',[0],[0]),w3('c',[0],[1])]);
+ const t=send(r.state,'native-work-cancel-v2',{work_id:'p1-1',reason:'not needed'}).state.teams.team,p=t.work_plans.p1;
+ assert.equal(t.work['p1-1'].status,'cancelled');
+ assert.deepEqual(Object.keys(p.abandoned).sort(),['p1-2','p1-3']);assert.equal(p.abandoned['p1-2'].code,'native-work-plan-dependency-cancelled');assert.equal(p.abandoned['p1-3'].code,'native-work-plan-dependency-abandoned');assert.equal(p.pending,undefined);
+ assert.equal(Object.keys(t.work).length,1);
+});
+test('a team without plans, a plan with nothing pending and a publication fence are not touched by the hook',async()=>{
+ const {state}=await enabled();assert.equal(JSON.stringify(settle(state)),JSON.stringify(state));
+ const r=await chained(),x=tick(integrate(r.state,'p1-1',c1));
+ assert.equal(JSON.stringify(settle(x).teams.team.work_plans.p1),JSON.stringify(x.teams.team.work_plans.p1));
+ const fenced=integrate(r.state,'p1-1',c1);fenced.publication_fence={team:'team'};assert.equal(settle(fenced).teams.team.work['p1-2'],undefined,'not under a publication fence');
+});
+test('the listing shows pending, abandoned and refusals of a plan as stored',async()=>{
+ const r=await chained(),busy=integrate(r.state,'p1-1',c1);busy.teams.team.work.o1={protocol:2,id:'o1',worker:'peer-d',status:'candidate',paths:['src/b.js']};
+ const [l]=workPlanListing(tick(busy).teams.team);assert.deepEqual(Object.keys(l.pending),['p1-2']);assert.equal(l.pending_refusals['p1-2'].code,'native-work-path-overlap');
 });
