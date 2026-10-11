@@ -98,6 +98,8 @@ function manifest(d, nativeId, fresh, extra = {}) {
 }
 
 // Closure proof comes from this invocation's held ChildProcess, never a saved PID.
+// `ps -o pid=,ppid=,stat=,comm=` rows of a process group that are not zombies.
+export const runningGroupMembers = rows => rows.filter(row => !/^\d+\s+\d+\s+Z/.test(row));
 export function ownedChildLifecycle(child) {
   let exited=false,stopping=false,killTimer=null;
   const closure=new Promise(resolve=>child.once('close',()=>{exited=true;clearTimeout(killTimer);resolve();}));
@@ -121,7 +123,9 @@ export function ownedChildLifecycle(child) {
       // carries the group's remaining members, so a live failure explains itself.
       const members=()=>{try{return execFileSync('/bin/ps',['-o','pid=,ppid=,stat=,comm=','-g',String(child.pid)],{encoding:'utf8',timeout:1000}).trim().split('\n').slice(0,16).map(l=>l.trim().slice(0,160));}catch{return [];}};
       const unconfirmed=code=>Object.assign(fail(code),{members:members()});
-      const alive=()=>{try{process.kill(-child.pid,0);return true;}catch(error){if(error.code==='ESRCH')return false;throw unconfirmed(error.code==='EPERM'?'native-process-group-stop-unpermitted':'native-process-group-stop-unconfirmed');}};
+      // Darwin answers EPERM for a group whose only members are unreaped zombies (checked
+      // 2026-10-11); those have ended, so only a running member makes EPERM a refusal.
+      const alive=()=>{try{process.kill(-child.pid,0);return true;}catch(error){if(error.code==='ESRCH')return false;if(error.code==='EPERM'&&!runningGroupMembers(members()).length)return false;throw unconfirmed(error.code==='EPERM'?'native-process-group-stop-unpermitted':'native-process-group-stop-unconfirmed');}};
       const settle=async ms=>{for(const end=Date.now()+ms;alive();){if(Date.now()>=end)return false;await new Promise(r=>setTimeout(r,25));}return true;};
       // OpenCode's server takes over a second to reap its children (live, 2026-10-08).
       if(!await settle(2500)){try{process.kill(-child.pid,'SIGKILL');}catch{} if(!await settle(2500))throw unconfirmed('native-process-group-stop-unconfirmed');}

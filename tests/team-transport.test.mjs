@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { createNativeEndpoint, validateNativeDescriptor, nativeVersionStatus } from '../scripts/team-transport.mjs';
+import { createNativeEndpoint, validateNativeDescriptor, nativeVersionStatus, runningGroupMembers } from '../scripts/team-transport.mjs';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { CODEX_SURFACE_R1 } from '../scripts/codex-surface.mjs';
@@ -456,4 +456,10 @@ test('the installed binary is named verified, unverified or not pinned from --ve
   writeFileSync(join(home, 'models_cache.json'), JSON.stringify({ models: [{ slug: 'm', tool_mode: 'code_mode_only' }] }));
   assert.equal(nativeVersionStatus(codex, run('codex-cli ' + CODEX_SURFACE_R1.version)).blocker, 'native-surface-catalog-unprobed');
   assert.deepEqual(nativeVersionStatus({ harness: 'opencode' }, run('1.18.33')), { version: '1.18.33', verified: null, blocker: null });
+});
+
+test('a process group of only unreaped zombies has no running member (Darwin answers EPERM for it)', () => {
+  assert.deepEqual(runningGroupMembers(['31843     1 ZN   <defunct>', '31844     1 Z    sleep']), []);
+  assert.deepEqual(runningGroupMembers(['31843     1 ZN   <defunct>', '31845 31843 S    sleep']), ['31845 31843 S    sleep']);
+  assert.deepEqual(runningGroupMembers([]), []);
 });
