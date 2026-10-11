@@ -155,7 +155,9 @@ verified surface on every path.
     truth, and a positive control shows the guard firing; it runs under an
     owner token cap. Probed so far: catalog
     `3085306bb82e2a1541b425f4239aaa73939860c755b871651a4a22e1e424490b`
-    (`gpt-6.1-sol`, 2026-10-08).
+    (`gpt-6.1-sol`, 2026-10-08) and
+    `fefbe074a61b4bf2487f603e37bd06339bdb635785f596f53fc77d26dfc416ce`
+    (`gpt-6.1-sol` on 0.162.0-alpha.17.2, 2026-10-11).
 11. **The claim.** Revision 1 claims: the user's installation, version- and
     package-pinned, with only its home instruction files (digest-bound), no
     enabled skills, hooks, plugins or MCP, a probed catalog without tool types,
@@ -196,6 +198,36 @@ bundled skills are disabled per name with `[[skills.config]] enabled = false`;
 `skills.enabled` is not a setting (Codex warns about unknown settings on
 stderr; the transport discards stderr, so the readback compares effective
 values instead).
+
+## Probe evidence (2026-10-11, 0.162.0-alpha.17.2, owner-approved, ≈45K tokens)
+
+The ChatGPT.app update brought Codex `0.162.0-alpha.17.2` and a refreshed
+`models_cache.json`. The new `gpt-6.1-sol` entry has the same tool-bearing keys
+(removed or overridden by pinning as before); only the `model_messages` text changed.
+Probes through the transport on the user's installation:
+
+1. **Unchanged code** (version unverified, so the readback stopped early): the model
+   answered `{"available":[]}`, raw items only `message` and `reasoning`, no server
+   request; the guard withdrew isolation on a new `thread/started` frame. The
+   app-server now announces the thread asynchronously after the `thread/start`
+   response, so with a short readback the frame lands in the guard window.
+2. **Revised definition, negative control:** readback refused
+   `native-surface-features-unverified` on a new stable feature `ultrafast_mode`;
+   it is now switched off by session flag (`features_off`) rather than allowed.
+   Then: readback verified, `adapter-isolated`, `tools: []`, answer
+   `{"available":[]}`, raw `message`/`reasoning` only, no server request.
+3. **Positive control, plan tool on:** the model did not call it (the plan tool is
+   not offered on this version), so it proves nothing.
+4. **Positive control, catalog as fetched** (probe-only switch, removed): the model
+   called `exec` (raw `custom_tool_call`) and `spawn_agent` (raw `function_call`);
+   the guard withdrew isolation (`native-surface-raw-tool-call`) and the readback
+   refused the catalog (`native-surface-catalog-tools-present`).
+
+Revision: `version` 0.162.0-alpha.17.2; catalog `fefbe074…` added to the probed set;
+`ultrafast_mode` off; the guard allows `thread/started` only for the context's own
+ephemeral, unforked thread without a parent (any other is
+`native-surface-foreign-thread`). The definition digest changes, so native
+profiles of Codex change identity.
 
 ## Implementation (2026-10-08/09, Claude Code)
 

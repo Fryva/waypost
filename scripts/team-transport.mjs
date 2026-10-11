@@ -259,6 +259,8 @@ function codexSurfaceGuard(nativeId) {
     if (m.method === 'rawResponseItem/completed' && p.item?.type === 'message') rawMessage = true;
     if (m.method && Object.hasOwn(m, 'id')) violation = 'native-surface-server-request';
     else if (!m.method) return;
+    // 0.162.0-alpha.17.2 announces its own thread asynchronously after thread/start; only that one is allowed.
+    else if (m.method === 'thread/started') { if (p.thread?.id !== nativeId || p.thread.ephemeral !== true || p.thread.forkedFromId != null || p.thread.parentThreadId != null) violation = 'native-surface-foreign-thread'; }
     else if (!S.turn_methods.includes(m.method)) violation = 'native-surface-frame-' + m.method.replace(/[^a-z/]/gi, '').slice(0, 60);
     else if (p.threadId !== undefined && p.threadId !== nativeId) violation = 'native-surface-foreign-thread';
     else if ((m.method === 'item/started' || m.method === 'item/completed') && (!S.turn_items.includes(p.item?.type) || p.item.type === 'agentMessage' && (p.item.delivery != null || p.item.questions != null || p.item.memoryCitation != null))) violation = 'native-surface-tool-item';

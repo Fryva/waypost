@@ -108,12 +108,20 @@ for (const [name, frame, blocker] of [
   ['an async message', { method: 'item/completed', params: { threadId: 'owned', item: { type: 'agentMessage', delivery: 'async', text: 'x' } } }, 'native-surface-tool-item'],
   ['a foreign thread', { method: 'item/started', params: { threadId: 'sub-agent', item: { type: 'agentMessage' } } }, 'native-surface-foreign-thread'],
   ['a server request', { id: 900, method: 'item/tool/call', params: { threadId: 'owned' } }, 'native-surface-server-request'],
+  ['another thread started', { method: 'thread/started', params: { thread: { id: 'sub-agent', ephemeral: true, forkedFromId: null, parentThreadId: null } } }, 'native-surface-foreign-thread'],
+  ['a sub-agent thread of its own', { method: 'thread/started', params: { thread: { id: 'owned', ephemeral: true, forkedFromId: null, parentThreadId: 'parent' } } }, 'native-surface-foreign-thread'],
+  ['a persistent thread', { method: 'thread/started', params: { thread: { id: 'owned', ephemeral: false, forkedFromId: null, parentThreadId: null } } }, 'native-surface-foreign-thread'],
 ]) test('the frame guard withdraws isolation for ' + name, async t => {
   const f = fixture(t), s = server(f, { turn: emit => emitAnswer(emit, [frame]) }), endpoint = await createNativeEndpoint(f.descriptor, { spawnProcess: s.spawnProcess });
   const m = (await send(endpoint)).context_manifest;
   assert.equal(m.tools, null); assert.equal(m.provenance, 'unverified'); assert.equal(m.surface_evidence.guard.blocker, blocker); endpoint.close();
 });
 
+test('the announcement of its own ephemeral thread (0.162.0-alpha.17.2) keeps the turn isolated', async t => {
+  const f = fixture(t), s = server(f, { turn: emit => emitAnswer(emit, [{ method: 'thread/started', params: { thread: { id: 'owned', ephemeral: true, forkedFromId: null, parentThreadId: null } } }]) }), endpoint = await createNativeEndpoint(f.descriptor, { spawnProcess: s.spawnProcess });
+  const m = (await send(endpoint)).context_manifest;
+  assert.equal(m.provenance, 'adapter-isolated'); assert.deepEqual(m.tools, []); endpoint.close();
+});
 test('a tool surface needs Codex with an absolute executable and a model; the home defaults to the user\'s', () => {
   const cwd = realpathSync(tmpdir()), base = { harness: 'codex', managed: true, cwd, executable: '/opt/codex/bin/codex', model_id: 'gpt-6.1-sol', tool_surface: CODEX_SURFACE_R1.id };
   assert.doesNotThrow(() => validateNativeDescriptor(base)); assert.doesNotThrow(() => validateNativeDescriptor({ ...base, codex_home: '/opt/home' }));
