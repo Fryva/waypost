@@ -147,6 +147,8 @@ export async function main(argv = process.argv.slice(2)) {
     else if(operation==='native-work-review-recover')print(await host.recoverWorkReview({invocationId:opt('--invocation')}));
     else if(operation==='native-work-plan')print(await host.planNativeWork({planId:opt('--plan-id'),nonce:opt('--nonce'),actionId:opt('--action-id'),estimateTokens:opt('--estimate-tokens')}));
     else if(operation==='native-work-plan-recover')print(await host.recoverWorkPlan({invocationId:opt('--invocation')}));
+    else if(operation==='native-work-plan-review')print(await host.reviewNativeWorkPlan({planId:opt('--plan-id'),nonce:opt('--nonce'),actionId:opt('--action-id'),estimateTokens:opt('--estimate-tokens')}));
+    else if(operation==='native-work-plan-review-recover')print(await host.recoverWorkPlanReview({invocationId:opt('--invocation')}));
     else if(operation==='native-work-cancel')print(host.cancelNativeWork({workId:opt('--work'),reason:opt('--reason')}));
     else if(operation==='native-leader-resume')print(host.resumeProtocolLeadership());
     else if(operation==='native-control-reconcile')print(host.reconcileProtocolControl({invocationId:opt('--invocation')}));
@@ -173,14 +175,14 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:native-work-revise|native-work-publish|native-work-publish-recover|native-work-publish-abort|native-work-review|native-work-review-recover|native-work-plan|native-work-plan-recover|native-work-capture|native-work-execute|native-work-enable|native-work-manifest|native-work-cancel|native-leader-resume|native-delivery-enable|native-control-reconcile|unknown-usage-accept|native-quota-enable|native-handover-enable|native-quota-observe|native-quota-handover|native-handover-ack|native-handover-recover|bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:native-work-revise|native-work-publish|native-work-publish-recover|native-work-publish-abort|native-work-review|native-work-review-recover|native-work-plan|native-work-plan-recover|native-work-plan-review|native-work-plan-review-recover|native-work-capture|native-work-execute|native-work-enable|native-work-manifest|native-work-cancel|native-leader-resume|native-delivery-enable|native-control-reconcile|unknown-usage-accept|native-quota-enable|native-handover-enable|native-quota-observe|native-quota-handover|native-handover-ack|native-handover-recover|bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
     return;
   }
   // Slice 7 (owner, 2026-10-11): the owner opens a plan request, reads the leader's exact proposal and installs it whole.
   if (mode === 'plan') {
     const v = loaded(), t = v.state?.teams[target]; if (!t) throw new Error('team-not-found');
     if (flag('--request')) {
-      print(await (await hostOf()).requestWorkPlan({ planId: opt('--plan-id'), goal: opt('--goal'), base: opt('--base'), scope: idList(opt('--scope')), forbiddenActions: idList(opt('--forbidden')), maxWorks: Number(opt('--max-works')) }));
+      print(await (await hostOf()).requestWorkPlan({ planId: opt('--plan-id'), goal: opt('--goal'), base: opt('--base'), scope: idList(opt('--scope')), forbiddenActions: idList(opt('--forbidden')), maxWorks: Number(opt('--max-works')), ...(flag('--critic') ? { critic: true } : {}) }));
     } else if (flag('--install')) {
       const c = consent({ yes: flag('--yes'), reason: opt('--reason') });
       if (!c.ok) throw new Error('owner-consent-required: pass --yes and --reason "<why>"');

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {authorityFixture,now,at,expiry} from './helpers/native-calibration.mjs';
 import {reduceTeamEvent} from '../scripts/team-state.mjs';
 import {routingDigest} from '../scripts/model-routing.mjs';
-import {readWorkPlan,checkWorkPlan,workPlanShape,settleWorkPlans,workPlanProposalDigest,workPlanListing,createProtocolWorkPlanRequest,formatWorkPlan,workPlanPromptDigest,workPlanSlot} from '../scripts/team-native-work-plan.mjs';
+import {readWorkPlan,checkWorkPlan,workPlanShape,settleWorkPlans,workPlanProposalDigest,workPlanListing,createProtocolWorkPlanRequest,formatWorkPlan,workPlanPromptDigest,workPlanSlot,workPlanRequestDigest,workPlanCritic,createProtocolWorkPlanReviewRequest,workPlanReviewSlot,formatWorkPlanReview,workPlanReviewPromptDigest,readWorkPlanReview} from '../scripts/team-native-work-plan.mjs';
 
 // Contract 28, slice 7 (owner, 2026-10-11): the leader's decomposition of an owner goal. The reducer side: the owner's request,
 // the strict answer, the whole-plan checks and the all-or-nothing install. The Host flow is in native-work-plan-host.test.mjs.
@@ -277,4 +277,76 @@ test('a team without plans, a plan with nothing pending and a publication fence 
 test('the listing shows pending, abandoned and refusals of a plan as stored',async()=>{
  const r=await chained(),busy=integrate(r.state,'p1-1',c1);busy.teams.team.work.o1={protocol:2,id:'o1',worker:'peer-d',status:'candidate',paths:['src/b.js']};
  const [l]=workPlanListing(tick(busy).teams.team);assert.deepEqual(Object.keys(l.pending),['p1-2']);assert.equal(l.pending_refusals['p1-2'].code,'native-work-path-overlap');
+});
+
+// Step 9 (owner, 2026-10-11): an owner-chosen critic reads the leader's proposal; the owner may install only an approved one.
+const criticPlan=async(over={},ceilings)=>{const {state}=await enabled(ceilings),s=proposed(ask(state,{critic:true,...over}).state);s.subscription_invocations={...s.subscription_invocations,i1:{id:'i1',context:{id:'ctx-lead',native_id:'native-lead'}}};return s;};
+const approve=(s,over={})=>{const p=s.teams.team.work_plans.p1;p.state='review-approved';p.review={verdict:'approve',findings:[],proposal_digest:p.proposal.digest,...over};return s;};
+test('the critic flag is part of the request digest only when set; a plan without it is the one of steps 7 and 8, byte for byte',async()=>{
+ const {state}=await enabled(),plain=ask(state),withCritic=ask(state,{critic:true});
+ assert.equal(plain.state.teams.team.work_plans.p1.critic,undefined);
+ assert.equal(plain.result.request_digest,routingDigest({revision:1,request:request()}),'no `critic` key in the digested request');
+ assert.equal(JSON.stringify(Object.keys(plain.state.teams.team.work_plans.p1)),JSON.stringify(['protocol','id','plan_id','goal','base','scope','forbidden_actions','max_works','inputs_digest','request_digest','state','requested_at']));
+ const p=withCritic.state.teams.team.work_plans.p1;assert.equal(p.critic,true);assert.equal(p.request_digest,routingDigest({revision:1,request:request({critic:true})}));assert.notEqual(p.request_digest,plain.result.request_digest);
+ assert.equal(workPlanRequestDigest(request({critic:true})),p.request_digest);assert.equal(workPlanRequestDigest(request({critic:false})),plain.result.request_digest,'only `true` enters the digest');
+ for(const bad of [false,'yes',1,null])assert.throws(()=>ask(state,{critic:bad}),/native-work-plan-critic-flag-invalid/,String(bad));
+});
+test('the critic is the top independent participant of the owner list: neither the leader nor its native configuration; none means no request',async()=>{
+ const {state}=await enabled(),t=state.teams.team,leader=t.leader;
+ const top=workPlanCritic(t,leader,now);assert.equal(top.reviewer.id,'peer-b');assert.notEqual(top.reviewer.id,leader);
+ // Both listed reviewers run the leader's native configuration: the work review would accept them, the plan critic does not.
+ const gone=clone(state),rows=gone.teams.team.policy.profiles,lead=rows.find(r=>r.participant===leader).identity.profile_id;for(const r of rows)if(['peer-b','peer-c'].includes(r.participant))r.identity.profile_id=lead;
+ assert.equal(workPlanCritic(gone.teams.team,leader,now).reviewer,null);
+ // The leader's own work needs the same independent reviewer, so the ordinary refusal comes first; the critic check is the plan's own guard.
+ assert.throws(()=>ask(gone,{critic:true}),/native-work-(plan-critic|listed-reviewer)-unavailable/);
+ const thin=await enabled({plan:{max_calls:1,max_estimate_tokens:'8000'}});
+ assert.throws(()=>ask(thin.state,{critic:true}),/native-work-plan-critic-ceiling-required/);assert.equal(ask(thin.state).state.teams.team.work_plans.p1.state,'requested');
+});
+test('install needs the approval of the current proposal when a critic was chosen; a negative verdict blocks it for good',async()=>{
+ const s=await criticPlan();
+ assert.throws(()=>install(s),/native-work-plan-critic-approval-required/,'no verdict yet');
+ assert.equal(install(approve(clone(s))).result.installed.length,2);
+ assert.throws(()=>install(approve(clone(s),{proposal_digest:'d'.repeat(64)})),/critic-approval-required/,'an approval of another proposal does not count');
+ assert.throws(()=>install(approve(clone(s),{verdict:'changes-requested'})),/critic-approval-required/);
+ for(const verdict of ['changes-requested','reject']){const r=clone(s),p=r.teams.team.work_plans.p1;p.state='review-rejected';p.review={verdict,findings:[{severity:'major',work:null,text:'x'}],proposal_digest:p.proposal.digest};assert.throws(()=>install(r),/native-work-plan-critic-rejected/,verdict);}
+ const plain=proposed(ask((await enabled()).state).state);assert.equal(install(plain).result.installed.length,2,'a plan without a critic installs as before');
+ assert.equal(workPlanListing(approve(clone(s)).teams.team)[0].voided,undefined);
+ const lost=approve(clone(s));lost.teams.team.epoch++;assert.equal(workPlanListing(lost.teams.team)[0].voided,'native-work-plan-leader-changed');assert.throws(()=>install(lost),/native-work-plan-leader-changed/,'a changed epoch voids an approved proposal');
+});
+test('the critic call is built from authority state, names the exact proposal, and runs outside the leader context',async()=>{
+ const s=await criticPlan(),t=s.teams.team,p=t.work_plans.p1;
+ const a=createProtocolWorkPlanReviewRequest(s,t,{actionId:'r1',planId:'p1',now}),r=a.request;
+ assert.equal(a.kind,'protocol-work-plan-review');assert.equal(r.participant,'peer-b');assert.notEqual(r.participant,t.leader);assert.deepEqual(r.excluded_participants,[t.leader]);assert.equal(r.label,'owner-assigned-plan-review');assert.ok(r.assignment_digest);
+ assert.deepEqual(r.author_contexts,[{native_id:'native-lead',context_id:'ctx-lead',invocation_id:'i1'}],'the context that answered the plan is the author');
+ assert.equal(r.goal,p.goal);assert.deepEqual(r.scope,p.scope);assert.equal(r.base,base);assert.equal(r.inputs_digest,p.inputs_digest);assert.equal(r.proposal.digest,p.proposal.digest);assert.deepEqual(r.proposal.works,[{goal:'Fix sum',criteria:['sum adds'],paths:[0]},{goal:'Fix product',criteria:['product multiplies','no side effects'],paths:[1,2]}]);
+ assert.equal(r.target.proposal_digest,p.proposal.digest);assert.equal(r.target_digest,routingDigest(r.target));
+ assert.equal(JSON.stringify(createProtocolWorkPlanReviewRequest(s,t,{actionId:'r1',planId:'p1',now:now+1000})),JSON.stringify(a),'no volatile fact');
+ assert.equal(workPlanReviewSlot(a),routingDigest({team:'team',kind:'protocol-work-plan-review',epoch:t.epoch,plan_id:'p1',proposal_digest:p.proposal.digest}));
+ assert.match(formatWorkPlanReview(a),/^Independent review of one decomposition plan/);assert.ok(formatWorkPlanReview(a).includes(p.proposal.digest));assert.match(formatWorkPlanReview(a),/cover the whole owner goal/);
+ assert.equal(workPlanReviewPromptDigest(a),routingDigest({template:1,head:formatWorkPlanReview(a),suffix:'newline-json-base-files',inputs_digest:p.inputs_digest}));
+ const other=proposed(ask((await enabled()).state,{critic:true}).state,[{goal:'Only one',criteria:['c'],paths:[0]}]);other.subscription_invocations=s.subscription_invocations;
+ assert.notEqual(workPlanReviewSlot(createProtocolWorkPlanReviewRequest(other,other.teams.team,{actionId:'r1',planId:'p1',now})),workPlanReviewSlot(a),'another proposal is another slot');
+ assert.throws(()=>createProtocolWorkPlanReviewRequest(s,t,{actionId:'bad id',planId:'p1',now}),/action-id/);
+ assert.throws(()=>createProtocolWorkPlanReviewRequest(s,t,{actionId:'r1',planId:'nope',now}),/review-proposal-required/);
+ const plain=proposed(ask((await enabled()).state).state);plain.subscription_invocations=s.subscription_invocations;assert.throws(()=>createProtocolWorkPlanReviewRequest(plain,plain.teams.team,{actionId:'r1',planId:'p1',now}),/review-proposal-required/,'a plan without a critic has none');
+ for(const [name,mutate,code] of [['reviewed already',x=>{x.work_plans.p1.review={};},/review-proposal-required/],['approved',x=>{x.work_plans.p1.state='review-approved';},/review-proposal-required/],['leader changed',x=>{x.epoch++;},/(leader-changed|active-team-required)/],['no leader',x=>{x.leader=null;},/active-team-required/],['freeze',x=>{x.native_quota_freeze={};},/quota-handover-pending/],['no critic',x=>{for(const id of ['peer-b','peer-c'])x.participants[id].revoked=true;},/(critic-unavailable|active-team-required)/],['no plan ceiling',x=>{delete x.native_work_policy.ceilings.plan;},/ceiling-required/]]){
+  const x=clone(s);mutate(x.teams.team);assert.throws(()=>createProtocolWorkPlanReviewRequest(x,x.teams.team,{actionId:'r1',planId:'p1',now}),code,name);
+ }
+ const noLead=clone(s);noLead.subscription_invocations={};assert.throws(()=>createProtocolWorkPlanReviewRequest(noLead,noLead.teams.team,{actionId:'r1',planId:'p1',now}),/author-context-required/);
+});
+test('the critic answer is strict: verdict, echoes, findings with a work index or null, no hidden text',async()=>{
+ const s=await criticPlan(),t=s.teams.team,a=createProtocolWorkPlanReviewRequest(s,t,{actionId:'r1',planId:'p1',now});
+ const echo={action_id:a.action_id,request_digest:a.request_digest,target_digest:a.request.target_digest},f=(over={})=>({severity:'major',work:0,text:'The product is not covered',...over});
+ const ok=(verdict,findings)=>JSON.stringify({verdict,...echo,findings});
+ assert.deepEqual(readWorkPlanReview(ok('approve',[]),a),{verdict:'approve',...echo,findings:[]});
+ assert.deepEqual(readWorkPlanReview(ok('reject',[f({work:null})]),a).findings,[f({work:null})]);assert.equal(readWorkPlanReview(ok('changes-requested',[f({work:1})]),a).verdict,'changes-requested');
+ const bad=[
+  'not json','[]','{}',ok('blocked',[f()]),ok('approve',[f()]),ok('reject',[]),ok('changes-requested',[]),
+  JSON.stringify({verdict:'approve',...echo,findings:[],extra:1}),JSON.stringify({verdict:'approve',...echo,action_id:'other',findings:[]}),JSON.stringify({verdict:'approve',...echo,request_digest:'0'.repeat(64),findings:[]}),JSON.stringify({verdict:'approve',...echo,target_digest:'0'.repeat(64),findings:[]}),
+  ok('reject',[f({work:2})]),ok('reject',[f({work:-1})]),ok('reject',[f({work:'0'})]),ok('reject',[f({work:undefined})]),ok('reject',[f({severity:'fatal'})]),ok('reject',[f({text:' '})]),ok('reject',[f({text:'x'.repeat(401)})]),ok('reject',[f({path:'a'})]),ok('reject',[f(),f()]),
+  ok('reject',Array.from({length:17},(_,i)=>f({text:'finding '+i}))),
+ ];
+ for(const raw of bad)assert.throws(()=>readWorkPlanReview(raw,a),/work-plan-review/,raw.slice(0,90));
+ for(const c of [0x202a,0x202e,0x2066,0x200b,0xfeff,0x0085,0x009f,0x007f,0x0001,0x2028,0x0a,0x09].map(c=>String.fromCharCode(c)))assert.throws(()=>readWorkPlanReview(ok('reject',[f({text:'a'+c+'b'})]),a),/exact-work-plan-review-finding-required/,'text '+c.charCodeAt(0).toString(16));
+ assert.equal(readWorkPlanReview(ok('reject',Array.from({length:16},(_,i)=>f({text:'finding '+i}))),a).findings.length,16);assert.equal(readWorkPlanReview(ok('reject',[f({text:'x'.repeat(400)})]),a).findings.length,1);
 });

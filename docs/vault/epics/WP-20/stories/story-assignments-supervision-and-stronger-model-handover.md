@@ -141,3 +141,16 @@ published `eaff812`. On that integration the authority installed `chain-2` itsel
 OpenCode 4,057 (candidate diff against `eaff812` adds only `sub`), Claude 2 approved
 4,075, published `1fcef12` with parent `eaff812`; `src/sum.js` holds the fixed `sum` and
 the new `sub`. The owner's branch was untouched.
+
+### Critic of the plan, chosen by the owner (2026-10-11, Claude Code)
+
+`critic: true` in the plan request (`team plan --request ... --critic`) names an independent critic of the plan: the top of the
+owner's reviewer list that is neither the leader nor of its native configuration (refused at the request when there is none or the
+plan ceiling allows fewer than 2 calls). The new control kind `protocol-work-plan-review` carries the owner's goal, the proposal and
+the files the leader saw; the critic judges coverage of the whole goal, fit of each work to goal and files, and the split, not code.
+Verdict `approve | changes-requested | reject` with up to 16 findings; the plan becomes `review-approved` or `review-rejected`;
+install needs the approval of the current proposal (`native-work-plan-critic-approval-required`), a negative verdict is final for
+the proposal (`native-work-plan-critic-rejected`). Plans without the flag are unchanged byte for byte. Acceptance: unit tests (flag
+and digest, critic choice and refusals, install gate, request, strict reader) and Host tests with real Git (critic approves, work
+runs; critic rejects, install refused and a new plan goes through; critic prompt carries the proposal and the files; context apart
+from the leader's; shared plan ceiling). No live run.

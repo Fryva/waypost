@@ -125,6 +125,17 @@ The leader proposes; only the owner installs, whole or not at all. Calibrated te
    (`ID-1`, `ID-2`, ...) is installed with your base and forbidden actions and the first fit executor in your order, or none is.
    An agent runs this only after the owner's explicit answer in chat. Each work then runs, is reviewed and published as usual.
 
+Critic of the plan (optional, your choice at the request): add `--critic` to step 2. The critic is the top independent participant of
+your reviewer list, never the leader or a participant of the leader's native configuration; if there is none, or the plan ceiling
+allows fewer than 2 calls (leader and critic count together), the request is refused. After step 3, ask the critic on its own Host:
+`waypost team host TEAM --operation native-work-plan-review --participant CRITIC --plan-id ID` (`--operation native-work-plan-review-recover
+--invocation ID` after an interruption). It reads the proposal and the same files and judges whether the works cover your whole goal,
+match it and the files, and are sensibly split; it does not judge code. `team plan` then shows `review-approved` or `review-rejected`
+with `review.verdict` and `review.findings`. With a critic, step 5 works only on `review-approved` for this proposal
+(`native-work-plan-critic-approval-required` before the verdict); `changes-requested` or `reject` is final for this proposal
+(`native-work-plan-critic-rejected`): ask a new plan, with the findings in the goal if you like, or write the manifests yourself. The
+decision to install stays yours.
+
 Dependencies (the leader may give a work `depends_on`, 1 to 3 other works of the same plan, as a chain): the plan is approved
 whole, so only the works without dependencies are installed by step 5. A dependent work waits in the plan (`pending`), and
 the authority installs it itself when all its dependencies are integrated, with the base at the commit of the last of them, so

@@ -286,7 +286,7 @@ function workBudget(s, t, policy, unitDigest, additional, excluding) {
   for (const x of Object.values(s.subscription_invocations || {})) {
     if (x.id === excluding || x.team !== t.id || x.state === 'aborted') continue;
     // Review and plan calls count against the same per-unit work cap, not the execution calls.
-    if (x.purpose === 'protocol-control' && ['protocol-work-review', 'protocol-work-plan'].includes(x.action?.kind) && x.control_policy_revision === policy.revision) { if (x.unit_digest === unitDigest) tokens += integer(['settled', 'reconciled'].includes(x.state) ? x.charged_tokens : x.estimate_tokens); continue; }
+    if (x.purpose === 'protocol-control' && ['protocol-work-review', 'protocol-work-plan', 'protocol-work-plan-review'].includes(x.action?.kind) && x.control_policy_revision === policy.revision) { if (x.unit_digest === unitDigest) tokens += integer(['settled', 'reconciled'].includes(x.state) ? x.charged_tokens : x.estimate_tokens); continue; }
     if (x.purpose !== 'work' || x.work_policy_revision !== policy.revision) continue;
     calls++; if (x.unit_digest === unitDigest) tokens += integer(['settled', 'reconciled'].includes(x.state) ? x.charged_tokens : x.estimate_tokens);
   }

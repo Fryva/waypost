@@ -443,7 +443,11 @@ fixed-action pattern of contracts 20–21.
     (owner, 2026-10-11): a plan may carry `depends_on` between its works; the plan
     is approved whole and the authority installs a dependent work itself, with the
     base at the commit of the tip of its dependencies, once they are integrated
-    (see the slice 8 notes).
+    (see the slice 8 notes). Amended in slice 9 (owner, 2026-10-11): the owner may
+    choose an independent critic of the plan at the request (`critic: true`). The
+    critic is a fixed control kind `protocol-work-plan-review`; it checks that the
+    works cover the owner's whole goal, not code; the owner installs only a
+    proposal it approved (see the slice 9 notes).
 29. Executor qualification by the policy's `executor` mode. (a)
     `leader-baseline`: only the acknowledged leader executes, in a fresh owned
     context of its admitted profile, recorded `unqualified-strongest-baseline`
@@ -1539,3 +1543,77 @@ Limits that stay: the owner cannot withdraw a single pending work (cancel its
 dependency, or ask a new plan); nobody checks that the works cover the goal; the
 tip of a plan's dependencies is fixed at the install (it does not change if the owner
 cancels and re-plans). Evidence: unit and Host tests only, no live run.
+
+### Slice 9 notes: an independent critic of the plan (owner, 2026-10-11)
+
+Decision of the owner: the gap "nobody checks that the works cover the goal" (slice 8)
+is closed at the level of the plan, by choice and not by default. The owner may ask
+for a critic when it opens the request; the critic reads the leader's proposal; the
+owner then installs only what the critic approved. The final word stays with the owner:
+install is still owner-only, with `--yes --reason` and the exact `--digest`.
+
+- Choice. `native-work-plan-request-v2` takes an optional `critic: true` (only `true`;
+  `false`, `null`, any other value is `native-work-plan-critic-flag-invalid`). It is part
+  of the request digest and of the stored plan only when set, so a plan without the flag
+  has the same fields, digest and events as in steps 7 and 8, byte for byte. It cannot
+  change afterwards. CLI: `waypost team plan TEAM --request ... --critic`.
+- Author rule. The plan is the leader's work, so the critic is neither the leader nor
+  of the leader's native configuration (the way the reviewer of a work excludes the
+  executor's configuration). It is the top independent participant of the owner's reviewer
+  list: `listedReviewer(participants, policy, {excluded: [leader], profiles: [leader's
+  profile], now})`. If there is none, or the plan ceiling allows fewer than 2 calls (the
+  leader's and the critic's), the request is refused at once (`native-work-plan-critic-
+  unavailable`, `native-work-plan-critic-ceiling-required`), so the leader's call is not
+  spent in vain. On an active owner-assigned team the leader's own work already needs an
+  independent reviewer, so the ordinary `native-work-listed-reviewer-unavailable` usually
+  comes first; the critic check is the plan's own guard.
+- Control kind `protocol-work-plan-review`, built by the authority from state only
+  (`createProtocolWorkPlanReviewRequest`; every reserve, consume and capture rebuilds it):
+  plan id and request digest, the owner's goal, scope, base, max works, inputs digest,
+  the proposal (goal, criteria, path indexes, `depends_on` of each work) and its digest,
+  `target` = {plan id, request digest, proposal digest, inputs digest} with its digest,
+  `...roleDigest(t, critic, 'review')`, the review floor, the excluded leader,
+  `author_contexts` (the context of the leader's plan call) and the label
+  `owner-assigned-plan-review`. The critic is told to judge (a) whether the works together
+  cover the whole goal, (b) whether each goal and criteria match the goal and the file
+  contents, with nothing extra, harmful or outside the goal, (c) whether the split and the
+  dependencies are sensible. It judges the plan, not code. The files travel as data after
+  the head, as in the plan call (`{"base","files"}`, bound by the inputs digest; the Host
+  refuses a prompt over 64 KiB or an action over 24 KiB before reserving).
+- Answer: one JSON object of at most 8 KiB, `{verdict: approve | changes-requested |
+  reject, action_id, request_digest, target_digest, findings: [{severity: blocker | major
+  | minor, work: index | null, text}]}`, at most 16 findings, `text` 1 to 400 characters
+  with no control, bidi or zero-width characters (tab and line feed included), no
+  duplicate finding; `approve` if and only if there are no findings.
+- Slot {team, kind, epoch, plan_id, proposal_digest}. Fresh owned no-tools context,
+  settle, seal, own profile capture, owned closure, as the work review. The context of
+  the critic is never the context that answered the plan (`author_contexts`, checked at
+  reserve and at the profile capture). The ceiling is the `plan` ceiling of the work
+  policy (the decision is about the plan): leader and critic calls count together against
+  its `max_calls`, and their tokens, like review and execution, against the unit's one
+  work cap. A plan with a critic therefore needs `max_calls >= 2`; the critic's calls are
+  not a second budget.
+- Capture (`native-work-plan-review-capture-v2`, collector). The verdict is stored in
+  `plan.review` and the state becomes `review-approved` or `review-rejected`; nothing is
+  granted. Only a plan in `proposed` with `critic` and no `review` can be reviewed, for
+  the leader and epoch that answered. A leader or epoch change still voids the proposal
+  (the listing shows `voided` for `proposed` and `review-approved`).
+- Install. With `critic`, `native-work-plan-install-v2` needs `review-approved` with a
+  review whose `proposal_digest` is the current proposal's; otherwise
+  `native-work-plan-critic-approval-required`. A negative verdict (`changes-requested`,
+  `reject`) is final for this proposal: `native-work-plan-critic-rejected`. The owner asks
+  a new plan (a new plan id; the findings may go into the goal) or writes the manifests
+  itself. `settleWorkPlans` and the automatic install of dependent works are unchanged:
+  the approved plan covers them.
+- Host: `waypost team host TEAM --operation native-work-plan-review --participant CRITIC
+  --plan-id ID [--nonce N --action-id A --estimate-tokens T]`, and `--operation
+  native-work-plan-review-recover --invocation ID`. The Host builds the request before
+  any reservation and refuses (`host-native-work-plan-critic-endpoint-required`) unless
+  its participant is the selected critic. `waypost team plan TEAM` prints `critic`,
+  `review.verdict` and `review.findings` as stored.
+
+Limits that stay: the critic is a reader of a decomposition on a scale that measures no
+planning, with the file contents the leader saw and nothing else, so it can miss what
+only the code shows; it checks coverage of the goal as the owner wrote it, not that the
+goal is right; one critic, one verdict per proposal. Evidence: unit and Host tests only,
+no live run.

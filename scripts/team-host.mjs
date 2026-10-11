@@ -21,7 +21,7 @@ import { harness as harnessDefinition } from './agents.mjs';
 import { collectModelInventory, metadataDescriptor } from './team-model-inventory.mjs';
 import { createProtocolLeaderAckRequest, createProtocolLeadershipAuditRequest, createProtocolHandoverAckRequest, formatProtocolLeaderAck, formatProtocolAction, readProtocolActionResponse, actionPromptDigest } from './team-native-action.mjs';
 import { createProtocolWorkReviewRequest, formatWorkReviewSuffix, WORK_REVIEW_KIND } from './team-native-work-review.mjs';
-import { createProtocolWorkPlanRequest, formatWorkPlanSuffix, workPlanRequestDigest, WORK_PLAN_KIND } from './team-native-work-plan.mjs';
+import { createProtocolWorkPlanRequest, createProtocolWorkPlanReviewRequest, formatWorkPlanSuffix, workPlanRequestDigest, WORK_PLAN_KIND, WORK_PLAN_REVIEW_KIND } from './team-native-work-plan.mjs';
 import { workPaths } from './team-native-work.mjs';
 import { nativePublicationGate, nativeIntegrationOpen } from './team-native-integration.mjs';
 import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
@@ -383,9 +383,9 @@ export function createTeamHost(config, dependencies={}) {
  // Contract 28, slice 7 (owner, 2026-10-11): the owner opens a plan request; the leader decomposes the goal from the
  // listed files of the pinned base (data after the prompt head, no tools, no file tree); the owner installs the
  // proposal whole. The request pins the digest of the files read, so a changed base blob refuses the call.
- function requestWorkPlan({planId,goal,base,scope,forbiddenActions=[],maxWorks}={}){
+ function requestWorkPlan({planId,goal,base,scope,forbiddenActions=[],maxWorks,critic}={}){
   const o=owner(),paths=workPaths(scope),inputs=integration.readWorkInputs({projectRoot,base,paths});
-  const fields={plan_id:planId,goal,base,scope:paths,forbidden_actions:forbiddenActions,max_works:maxWorks,inputs_digest:integration.workInputsDigest(inputs)};
+  const fields={plan_id:planId,goal,base,scope:paths,forbidden_actions:forbiddenActions,max_works:maxWorks,inputs_digest:integration.workInputsDigest(inputs),...(critic?{critic:true}:{})};
   const existing=getTeam().t.work_plans?.[planId];
   if(existing)return existing.request_digest===workPlanRequestDigest(fields)?{plan:planId,request_digest:existing.request_digest,unchanged:true,protected_actions_granted:false}:fail('native-work-plan-already-exists');
   fenceFree();
@@ -411,12 +411,34 @@ export function createTeamHost(config, dependencies={}) {
   return {...result,work_plan_captured:true,work_plan:captured,protected_actions_granted:false};
  }
  const recoverWorkPlan=options=>recoverProtocolAction(options,'protocol-work-plan',captureWorkPlan);
+ // Step 9 (owner, 2026-10-11): the owner-chosen critic reads the leader's exact proposal and the files it was made from on its own
+ // Host. Its verdict is stored with the plan; the owner may install only an approved plan.
+ async function reviewNativeWorkPlan({planId,nonce,actionId,estimateTokens}={}){
+  owner();const d=endpoint();fenceFree();await ensureNativeQuotaLease();const {v,t}=getTeam();
+  const core=createProtocolWorkPlanReviewRequest(v.state,t,{actionId:actionId||'work-plan-review-'+randomUUID(),planId,now:Date.parse(now())});
+  if(core.request.participant!==d.participant)fail('host-native-work-plan-critic-endpoint-required');
+  const inputs=integration.readWorkInputs({projectRoot,base:core.request.base,paths:core.request.scope});
+  if(integration.workInputsDigest(inputs)!==core.request.inputs_digest)fail('host-native-work-plan-inputs-changed');
+  const action={...core,prompt_digest:actionPromptDigest(core),operation_id:randomUUID()},promptSuffix=formatWorkPlanSuffix(inputs);
+  if(Buffer.byteLength(formatProtocolAction(action)+promptSuffix)>65536)fail('host-native-work-plan-review-prompt-too-large');
+  if(Buffer.byteLength(JSON.stringify(action))>24576)fail('host-native-work-plan-review-action-too-large');
+  return managedOperation('protocol-work-plan-review',()=>subscriptionSingleCall({nonce:nonce||'planreview_'+randomUUID().replace(/-/g,''),estimateTokens:estimateTokens||t.native_work_policy?.ceilings?.plan?.max_estimate_tokens||'16000',controlAction:action,promptSuffix}),{forceOwned:true,operation:action.operation_id,afterCompletion:captureWorkPlanReview});
+ }
+ function captureWorkPlanReview(result,completionSelectors){
+  const x=load().state.subscription_invocations?.[result.invocation_id];
+  if(x?.work_plan_review)return {...result,work_plan_review_captured:true,replayed:true,verdict:x.work_plan_review.verdict,state:x.work_plan_review.state,protected_actions_granted:false};
+  if(!x?.action_observation)return {...result,work_plan_review_captured:false,action_blocker:x?.action_blocker||result.native_profile_blocker||'native-action-profile-required',protected_actions_granted:false};
+  const completion=collectOwnedRuntimeCompletion({...completionSelectors,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id});
+  const captured=mutate('native-work-plan-review-capture-v2',{invocation_id:x.id,nonce:x.nonce,completion:serializeOwnedRuntimeCompletion(completion)},collector(),'native-work-plan-review-'+x.nonce).result;
+  return {...result,work_plan_review_captured:true,work_plan_review:captured,protected_actions_granted:false};
+ }
+ const recoverWorkPlanReview=options=>recoverProtocolAction(options,'protocol-work-plan-review',captureWorkPlanReview);
  // The owner installs the exact proposal (by digest): every work or none. Each work's executor and review inputs
  // are checked here, before the event, from the pinned base; the reducer then runs the ordinary manifest checks.
  function installWorkPlan({planId,digest,reason}={}){
   const o=owner(),plan=getTeam().t.work_plans?.[planId];
   if(plan?.state==='installed'&&plan.proposal.digest===digest)return {plan:planId,installed:plan.installed.works,unchanged:true,protected_actions_granted:false};
-  if(plan?.state!=='proposed')fail('native-work-plan-proposal-required');
+  if(!['proposed','review-approved','review-rejected'].includes(plan?.state))fail('native-work-plan-proposal-required');
   if(plan.proposal.digest!==digest)fail('native-work-plan-digest-mismatch');
   for(const w of plan.proposal.works){
    const inputs=integration.readWorkInputs({projectRoot,base:plan.base,paths:w.resolved_paths}),pseudo={manifest:{goal:w.goal,criteria:w.criteria},paths:w.resolved_paths};
@@ -705,9 +727,9 @@ export function createTeamHost(config, dependencies={}) {
   if(load().state.subscription_invocations?.[invocationId])fail('host-subscription-attempt-already-recorded-no-replay');
   if(p.quota_observation?.status==='exhausted')fail('host-subscription-quota-exhausted');
   // A Codex context carries a read-only shell; peer payloads need a no-tools context.
-  const planCall=controlAction?.kind===WORK_PLAN_KIND;
+  const planCall=controlAction?.kind===WORK_PLAN_KIND||controlAction?.kind===WORK_PLAN_REVIEW_KIND;
   if((deliveryMessage||workCall||planCall)&&d.descriptor.harness==='codex'&&d.descriptor.tool_surface!==CODEX_SURFACE_R1.id)fail(workCall||planCall?'host-native-work-no-tools-context-required':'host-delivery-no-tools-context-required');
-  if(promptSuffix&&controlAction?.kind!==WORK_REVIEW_KIND&&controlAction?.kind!==WORK_PLAN_KIND)fail('host-prompt-suffix-work-review-only');
+  if(promptSuffix&&controlAction?.kind!==WORK_REVIEW_KIND&&controlAction?.kind!==WORK_PLAN_KIND&&controlAction?.kind!==WORK_PLAN_REVIEW_KIND)fail('host-prompt-suffix-work-review-only');
   const token='WAYPOST_PROBE_'+nonce;
   // Owner-assigned teams admit identity from this one call: only a native-policy-bootstrap team that has no protocol-2 policy yet records it.
   const identityCall=!controlAction&&!trialBinding&&!deliveryMessage&&!workCall&&t.native_policy_bootstrap===true&&t.policy?.protocol!==2;
@@ -1249,5 +1271,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,requestWorkPlan,planNativeWork,recoverWorkPlan,installWorkPlan,reviseNativeWork,publishNativeWork,recoverNativePublication,abortNativePublication,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,requestWorkPlan,planNativeWork,recoverWorkPlan,reviewNativeWorkPlan,recoverWorkPlanReview,installWorkPlan,reviseNativeWork,publishNativeWork,recoverNativePublication,abortNativePublication,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

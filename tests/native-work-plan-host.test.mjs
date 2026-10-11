@@ -133,3 +133,53 @@ test('a dependent work of a plan is installed from the commit of its dependency 
  const pb=await f.host.publishNativeWork({workId:'p1-2',message:'Comment sum',story:'WP-20/story-x',commitIdentity:identity});
  assert.equal(team(f).work['p1-2'].status,'integrated');assert.equal(git(f.root,'show','-s','--format=%P',pb.commit),pa.commit,'the parent of B is the commit of A');
 });
+// Step 9 (owner, 2026-10-11): an owner-chosen critic reads the leader's proposal on its own Host before the owner may install it.
+const criticCall=(f,id='p1')=>f.hostFor('peer-b').reviewNativeWorkPlan({planId:id,estimateTokens:'40'});
+const criticPrompts=(f,begin=0)=>f.prompts.slice(begin).filter(p=>p.prompt.startsWith('Independent review of one decomposition plan'));
+test('with a critic the owner installs only after an independent critic approved the exact proposal; the critic sees the proposal and the files, in a context apart from the leader',async t=>{
+ const f=await planned(t);f.options.planAnswer=()=>good;
+ ask(f,{critic:true});assert.equal(team(f).work_plans.p1.critic,true);
+ assert.equal((await planCall(f)).work_plan.state,'proposed');
+ const p=()=>team(f).work_plans.p1,digest=p().proposal.digest;
+ assert.throws(()=>f.host.installWorkPlan({planId:'p1',digest,reason:'x'}),/native-work-plan-critic-approval-required/,'no verdict yet');
+ await assert.rejects(()=>f.host.reviewNativeWorkPlan({planId:'p1',estimateTokens:'40'}),/host-native-work-plan-critic-endpoint-required/,'only the Host of the chosen critic asks');
+ assert.equal(criticPrompts(f).length,0,'nothing was reserved or sent');
+ const begin=f.prompts.length,r=await criticCall(f);
+ assert.equal(r.work_plan_review_captured,true,JSON.stringify(r));assert.equal(r.work_plan_review.state,'review-approved');assert.equal(r.work_plan_review.verdict,'approve');assert.equal(r.protected_actions_granted,false);
+ assert.equal(p().state,'review-approved');assert.equal(p().review.verdict,'approve');assert.equal(p().review.proposal_digest,digest);assert.equal(p().review.label,'owner-assigned-plan-review');assert.equal(p().review.protected_actions_granted,false);assert.equal(Object.keys(team(f).work).length,0,'a verdict installs nothing');
+ const [sent]=criticPrompts(f,begin),cut=sent.prompt.lastIndexOf('\n'),head=sent.prompt.slice(0,cut);
+ assert.ok(head.includes(digest)&&head.includes('Fix the sum')&&head.includes('Add a product function')&&head.includes(goal),'the proposal and the owner goal are in the request');
+ assert.deepEqual(JSON.parse(sent.prompt.slice(cut+1)),{base:f.base,files:[{path:'src/mul.js',content:null},{path:'src/sum.js',content:'export const sum=(a,b)=>a-b;\n'}]},'the same files of the pinned base the leader saw');
+ assert.doesNotMatch(sent.prompt,/not in the plan scope|head moved/);
+ const calls=Object.values(f.load().state.subscription_invocations).filter(i=>i.purpose==='protocol-control'&&i.action?.kind.startsWith('protocol-work-plan')),lead=calls.find(i=>i.action.kind==='protocol-work-plan'),critic=calls.find(i=>i.action.kind==='protocol-work-plan-review');
+ assert.equal(critic.participant,'peer-b');assert.notEqual(critic.participant,team(f).leader);assert.equal(critic.control_policy_kind,'protocol-work-plan-review');assert.equal(critic.action.request.label,'owner-assigned-plan-review');
+ assert.notEqual(critic.context.native_id,lead.context.native_id);assert.notEqual(critic.context.id,lead.context.id);assert.deepEqual(critic.action.request.author_contexts,[{native_id:lead.context.native_id,context_id:lead.context.id,invocation_id:lead.id}]);
+ assert.equal(critic.action.request.proposal.digest,digest);assert.equal(critic.action.request.inputs_digest,p().inputs_digest);
+ await assert.rejects(()=>criticCall(f),/native-work-plan-review-proposal-required/,'one verdict per proposal');
+ const done=f.host.installWorkPlan({planId:'p1',digest,reason:'the critic approved and I read the plan'});assert.deepEqual(done.installed.map(w=>w.work),['p1-1','p1-2']);
+ await f.hostFor('peer-d').executeNativeWork({workId:'p1-1',estimateTokens:'40'});f.hostFor('peer-d').captureNativeWork({workId:'p1-1'});
+ assert.equal(team(f).work['p1-1'].status,'candidate');
+});
+test('a negative verdict ends the proposal: the plan is review-rejected with the findings, install is refused for good, and a new plan can be asked',async t=>{
+ const f=await planned(t),findings=[{severity:'major',work:null,text:'The product function is never exported to the callers'},{severity:'minor',work:0,text:'The criterion is vague'}];
+ f.options.planAnswer=()=>good;f.options.planReviewVerdict='changes-requested';f.options.planReviewFindings=findings;
+ ask(f,{critic:true});await planCall(f);const digest=team(f).work_plans.p1.proposal.digest;
+ const r=await criticCall(f);assert.equal(r.work_plan_review.state,'review-rejected');assert.equal(r.work_plan_review.verdict,'changes-requested');
+ const p=team(f).work_plans.p1;assert.equal(p.state,'review-rejected');assert.deepEqual(p.review.findings,findings);assert.equal(p.review.proposal_digest,digest);
+ assert.throws(()=>f.host.installWorkPlan({planId:'p1',digest,reason:'x'}),/native-work-plan-critic-rejected/);assert.equal(Object.keys(team(f).work).length,0);
+ await assert.rejects(()=>criticCall(f),/native-work-plan-review-proposal-required/,'a rejected proposal is not reviewed again');
+ // The owner asks for a new plan (new id, the findings in the goal); a critic reject is final the same way.
+ ask(f,{planId:'p2',critic:true,goal:goal+'. Also export the product function to the callers.'});await planCall(f,'p2');
+ f.options.planReviewVerdict='approve';f.options.planReviewFindings=[];
+ assert.equal((await criticCall(f,'p2')).work_plan_review.state,'review-approved');
+ assert.deepEqual(f.host.installWorkPlan({planId:'p2',digest:team(f).work_plans.p2.proposal.digest,reason:'new plan approved'}).installed.map(w=>w.work),['p2-1','p2-2']);
+ // The critic's calls count against the plan ceiling of four with the leader's: two plans with a critic use it up.
+ ask(f,{planId:'p3',critic:true});await assert.rejects(()=>planCall(f,'p3'),/control-ceiling-exceeded/);
+});
+test('a plan without the critic flag never calls a critic and installs from the proposal as before',async t=>{
+ const f=await planned(t);f.options.planAnswer=()=>good;ask(f);await planCall(f);
+ await assert.rejects(()=>criticCall(f),/native-work-plan-review-proposal-required/,'no critic was asked for');
+ assert.equal(team(f).work_plans.p1.critic,undefined);assert.equal(team(f).work_plans.p1.review,undefined);
+ assert.equal(f.host.installWorkPlan({planId:'p1',digest:team(f).work_plans.p1.proposal.digest,reason:'ok'}).installed.length,2);
+ assert.equal(criticPrompts(f).length,0);
+});
