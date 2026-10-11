@@ -154,3 +154,18 @@ the proposal (`native-work-plan-critic-rejected`). Plans without the flag are un
 and digest, critic choice and refusals, install gate, request, strict reader) and Host tests with real Git (critic approves, work
 runs; critic rejects, install refused and a new plan goes through; critic prompt carries the proposal and the files; context apart
 from the leader's; shared plan ceiling). No live run.
+
+### Live plan critic (2026-10-11, Claude Code)
+
+Owner-assigned team `crit`, zero cohorts, ≈40.3K tokens of a further 40K approval (plus
+the ≈15K left before): coordinator Claude Code (2.1.296), reviewer Codex (`gpt-6.1-sol`
+low, `codex-no-exec-r1`) for plans and works, executor OpenCode. Identities 7,265 /
+2,193 / 3,712; leader ACK 3,070. The owner requested plan `fix` with `--critic` (one
+work at most, scope `src/sum.js`). The leader proposed one work (2,805). An install
+before the critic's verdict was refused `native-work-plan-critic-approval-required`; the
+leader's Host asked to act as plan critic was refused
+`host-native-work-plan-critic-endpoint-required`. Codex, the top listed reviewer of
+another configuration than the leader, reviewed the proposal with the scope file
+(8,619): `approve`, no findings, plan `review-approved`. The owner approved in chat and
+installed it; OpenCode executed `fix-1` (3,980, `a-b` → `a+b`), Codex approved the work
+(8,702), the leader Host published `2e76db5`; the owner's branch was untouched.
