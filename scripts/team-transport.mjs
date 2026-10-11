@@ -212,14 +212,33 @@ const codexHomeOf = d => d.codex_home || join(homedir(), '.codex');
 // The pinned catalog: the model's entry from the user's own models_cache.json with
 // the tool-bearing keys removed and the definition's values set, written
 // content-addressed under ~/.waypost so the same entry always has the same path.
-function writeSurfaceCatalog(d) {
+function pinnedSurfaceCatalog(d) {
   const S = CODEX_SURFACE_R1; let entry;
   try { entry = JSON.parse(readFileSync(join(codexHomeOf(d), S.catalog_cache), 'utf8')).models?.find(m => m.slug === d.model_id); } catch { throw fail('native-surface-catalog-unavailable'); }
   if (!entry || typeof entry !== 'object') throw fail('native-surface-catalog-unavailable');
   const pinned = { ...entry, ...S.catalog.values }; for (const k of S.catalog.absent) delete pinned[k];
-  const body = JSON.stringify({ models: [pinned] }), dir = join(homedir(), '.waypost', 'codex-catalog'), path = join(dir, createHash('sha256').update(body).digest('hex') + '.json');
+  return JSON.stringify({ models: [pinned] });
+}
+function writeSurfaceCatalog(d) {
+  const body = pinnedSurfaceCatalog(d), dir = join(homedir(), '.waypost', 'codex-catalog'), path = join(dir, createHash('sha256').update(body).digest('hex') + '.json');
   if (!existsSync(path)) { mkdirSync(dir, { recursive: true, mode: 0o700 }); writeFileSync(path, body, { mode: 0o600 }); }
   return path;
+}
+// Whether the installed binary a descriptor names is one this transport verified, read
+// from `--version` without starting a session (no tokens), so `team roles` can name it
+// before roles are assigned. Codex under a surface also needs a probed catalog. A harness
+// with no version pin reports `verified: null`. Advisory: every launch checks again.
+export function nativeVersionStatus(d, run = execFileSync) {
+  let out = ''; try { out = String(run(d.executable || d.harness, ['--version'], { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] })).trim(); } catch {}
+  const no = (version, blocker) => ({ version, verified: false, blocker });
+  if (d.harness === 'claude') { const v = /^(\d+\.\d+\.\d+)\b/.exec(out)?.[1] ?? null; return CLAUDE_PREFLIGHT_VERSIONS.includes(v) ? { version: v, verified: true, blocker: null } : no(v, 'native-claude-preflight-version-unverified'); }
+  if (d.harness === 'codex' && d.tool_surface === CODEX_SURFACE_R1.id) {
+    const v = /^codex-cli (\S+)$/.exec(out)?.[1] ?? null;
+    if (v !== CODEX_SURFACE_R1.version) return no(v, 'native-surface-version-unverified');
+    let body; try { body = pinnedSurfaceCatalog(d); } catch { return no(v, 'native-surface-catalog-unavailable'); }
+    return PROBED_CATALOGS.has(createHash('sha256').update(body).digest('hex')) ? { version: v, verified: true, blocker: null } : no(v, 'native-surface-catalog-unprobed');
+  }
+  return { version: /\d+\.\d+\.\d+\S*/.exec(out)?.[0] ?? null, verified: null, blocker: null };
 }
 // Fail-closed readback of surface `codex-no-exec-r1` after thread start: the owned
 // home, no instruction sources, sandbox, config layers, pinned catalog, thread
@@ -450,8 +469,9 @@ async function codexEndpoint(d, spawnProcess) {
 // Pre-inference evidence from the inference peer itself. Semantics were read
 // from these native binaries only; any other version stays unverified.
 // 2.1.294 (2026-10-08): the same initialize, hooks and context-usage summary shapes
-// passed the strict checks below unchanged.
-const CLAUDE_PREFLIGHT_VERSIONS = ['2.1.289', '2.1.294'];
+// passed the strict checks below unchanged. 2.1.296 (2026-10-11): the same, except that
+// initialize adds `claude_code_version`, which these checks do not read.
+const CLAUDE_PREFLIGHT_VERSIONS = ['2.1.289', '2.1.294', '2.1.296'];
 const CLAUDE_CONTEXT_KEYS = ['categories','totalTokens','maxTokens','rawMaxTokens','autocompactSource','percentage','gridRows','model','memoryFiles','mcpTools','agents','autoCompactThreshold','isAutoCompactEnabled','messageBreakdown','apiUsage'];
 const CLAUDE_MESSAGE_COUNTERS = ['toolCallTokens','toolResultTokens','attachmentTokens','assistantMessageTokens','userMessageTokens','redirectedContextTokens','unattributedTokens'];
 const plainObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);

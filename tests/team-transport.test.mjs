@@ -4,7 +4,10 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { createNativeEndpoint, validateNativeDescriptor } from '../scripts/team-transport.mjs';
+import { createNativeEndpoint, validateNativeDescriptor, nativeVersionStatus } from '../scripts/team-transport.mjs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { CODEX_SURFACE_R1 } from '../scripts/codex-surface.mjs';
 
 const cwd = realpathSync(tmpdir());
 function childMock(handle,config) {
@@ -439,4 +442,18 @@ test('a child that ignores SIGTERM and outlives its root is killed with its grou
   const result = await ownedChildLifecycle(child).stopAndWait();
   assert.equal(result.process_group_closed, true);
   assert.throws(() => process.kill(-child.pid, 0), { code: 'ESRCH' });
+});
+
+test('the installed binary is named verified, unverified or not pinned from --version alone', t => {
+  const run = out => (exe, args) => { assert.deepEqual(args, ['--version']); if (out instanceof Error) throw out; return out + '\n'; };
+  assert.deepEqual(nativeVersionStatus({ harness: 'claude' }, run('2.1.296 (Claude Code)')), { version: '2.1.296', verified: true, blocker: null });
+  assert.deepEqual(nativeVersionStatus({ harness: 'claude' }, run('2.1.300 (Claude Code)')), { version: '2.1.300', verified: false, blocker: 'native-claude-preflight-version-unverified' });
+  assert.equal(nativeVersionStatus({ harness: 'claude' }, run(new Error('ENOENT'))).blocker, 'native-claude-preflight-version-unverified');
+  const home = mkdtempSync(join(tmpdir(), 'waypost-codex-home-')); t.after(() => rmSync(home, { recursive: true, force: true }));
+  const codex = { harness: 'codex', executable: '/bin/codex', model_id: 'm', tool_surface: CODEX_SURFACE_R1.id, codex_home: home };
+  assert.equal(nativeVersionStatus(codex, run('codex-cli 0.0.1')).blocker, 'native-surface-version-unverified');
+  assert.equal(nativeVersionStatus(codex, run('codex-cli ' + CODEX_SURFACE_R1.version)).blocker, 'native-surface-catalog-unavailable');
+  writeFileSync(join(home, 'models_cache.json'), JSON.stringify({ models: [{ slug: 'm', tool_mode: 'code_mode_only' }] }));
+  assert.equal(nativeVersionStatus(codex, run('codex-cli ' + CODEX_SURFACE_R1.version)).blocker, 'native-surface-catalog-unprobed');
+  assert.deepEqual(nativeVersionStatus({ harness: 'opencode' }, run('1.18.33')), { version: '1.18.33', verified: null, blocker: null });
 });

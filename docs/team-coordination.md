@@ -66,6 +66,10 @@ The owner can set roles without a calibration run. Calibration stays an optional
 2. List what was observed: `waypost team roles TEAM` (`--json` for machines). It shows harness, model,
    tool surface and the latest identity observation (profile, native model, version, reasoning, expiry) of
    each participant, and the current policy. `--cohort ID` adds advisory calibration hints, nothing more.
+   Each bound participant also gets a `binary` line from `--version` (no session, no tokens): `verified`
+   (a Claude version with a verified preflight; a Codex version and pinned catalog the surface probed),
+   `not pinned` (no version list, e.g. OpenCode) or `UNVERIFIED (<blocker>)` after a harness update. An
+   unverified one needs a new probe before it can act; `--assign` refuses it (`native-binary-unverified`).
 3. Assign: `waypost team roles TEAM --assign --coordinator a,b --reviewers c,d --executors e --reason "<why>" --yes`.
    Order in a list is priority. Without `--yes` and `--reason` the command refuses. The owner credential
    is required. `--expires-at ISO` is optional; the default is the earliest identity observation of the

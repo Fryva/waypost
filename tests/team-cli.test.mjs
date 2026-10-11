@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { authorityFixture, now as fxNow, at as nowAt } from './helpers/native-calibration.mjs';
 import { reduceTeamEvent } from '../scripts/team-state.mjs';
-import { rolesListing, ownerAssignFields } from '../scripts/team-cli.mjs';
+import { rolesListing, ownerAssignFields, participantBinary } from '../scripts/team-cli.mjs';
 const cli = fileURLToPath(new URL('../bin/waypost', import.meta.url));
 const tmp = [];
 after(() => tmp.forEach(p => rmSync(p, { recursive: true, force: true })));
@@ -162,4 +162,16 @@ test('the default assign expiry is bounded by the earliest listed identity', asy
  assert.throws(() => ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-d', reason: 'x', issuedBy: issuer, now: Date.parse(nowAt) }), /identity-observation-required:peer-d/);
  for (const x of Object.values(s.subscription_invocations)) if (x.participant === 'peer-c') x.identity_observation.expires_at = nowAt;
  assert.throws(() => ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-c', reason: 'x', issuedBy: issuer, now: Date.parse(nowAt) }), /identity-observation-expired:peer-c/);
+});
+
+test('team roles names each bound binary as verified, unverified or not pinned', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'waypost-roles-binary-')); after(() => rmSync(dir, { recursive: true, force: true }));
+  const endpoint = join(dir, 'endpoint.json'); writeFileSync(endpoint, JSON.stringify({ protocol: 1, descriptor: { harness: 'claude', managed: true } }));
+  const seen = [], status = d => { seen.push(d.harness); return { version: '2.1.300', verified: false, blocker: 'native-claude-preflight-version-unverified' }; };
+  assert.equal(participantBinary({ native_binding: null }, status), null);
+  assert.deepEqual(participantBinary({ native_binding: { endpoint_file: endpoint } }, status), { version: '2.1.300', verified: false, blocker: 'native-claude-preflight-version-unverified' });
+  assert.equal(participantBinary({ native_binding: { endpoint_file: join(dir, 'missing.json') } }, status).blocker, 'endpoint-file-unreadable');
+  assert.deepEqual(seen, ['claude']);
+  const s = await identityFixture(), t = s.teams.team, listed = rolesListing(s, t, null, p => p.id === 'peer-a' ? { version: '2.1.300', verified: false, blocker: 'x' } : null);
+  assert.equal(listed.participants.find(p => p.participant === 'peer-a').binary.verified, false); assert.equal(listed.participants.find(p => p.participant === 'peer-b').binary, null);
 });

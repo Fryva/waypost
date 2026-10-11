@@ -14,6 +14,7 @@ import { reduceTeamEvent, authorizeActor } from './team-state.mjs';
 import { readAuthority, mutateAuthority, explainRecovery, recoverLock } from './team-store.mjs';
 import { proposeModelRoute } from './model-routing.mjs';
 import { consent } from './cleanup.mjs';
+import { nativeVersionStatus } from './team-transport.mjs';
 import { buildAuthenticatedCalibrationSummary } from './team-role-calibration.mjs';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -56,10 +57,16 @@ export function latestIdentity(s, t, p) {
   const o = x.identity_observation, n = x.identity_seal?.native_receipt;
   return { profile_id: o.identity.profile_id, native_model: n?.actualModel?.model_id ?? null, reasoning: n?.actualModel?.reasoning ?? null, version: n?.context_manifest?.version ?? null, tool_surface: n?.context_manifest?.tools ?? null, observed_at: o.observed_at, expires_at: o.expires_at, expired: Date.now() >= Date.parse(o.expires_at) };
 }
-export function rolesListing(s, t, hints = null) {
+// The installed binary behind a participant's bound endpoint, checked with `--version` (no session).
+export function participantBinary(p, status = nativeVersionStatus) {
+  const file = p.native_binding?.endpoint_file; if (!file) return null;
+  let d; try { d = JSON.parse(readFileSync(file, 'utf8')).descriptor; } catch { return { version: null, verified: false, blocker: 'endpoint-file-unreadable' }; }
+  return status(d);
+}
+export function rolesListing(s, t, hints = null, binary = participantBinary) {
   const a = t.policy.mode === 'owner-assigned' ? t.policy.assignment : null;
   return { team: t.id, policy: { mode: t.policy.mode, revision: t.policy.revision, expires_at: t.policy.expires_at, expired: Date.now() >= Date.parse(t.policy.expires_at), ...(a ? { assignment: { coordinator: a.coordinator, reviewers: a.reviewers, executors: a.executors, reason: a.reason, issued_by: a.issued_by } } : {}) },
-    participants: Object.values(t.participants).map(p => ({ participant: p.id, harness: p.harness, model: p.model && { provider: p.model.provider, model_id: p.model.model_id, reasoning: p.model.reasoning }, surface: p.surface ?? 'unknown', revoked: Boolean(p.revoked), availability: p.availability, identity: latestIdentity(s, t, p), ...(hints ? { calibration_hint: hints[p.id] ?? null } : {}) })),
+    participants: Object.values(t.participants).map(p => ({ participant: p.id, harness: p.harness, model: p.model && { provider: p.model.provider, model_id: p.model.model_id, reasoning: p.model.reasoning }, surface: p.surface ?? 'unknown', revoked: Boolean(p.revoked), availability: p.availability, identity: latestIdentity(s, t, p), binary: binary(p), ...(hints ? { calibration_hint: hints[p.id] ?? null } : {}) })),
     note: 'calibration_hint is advisory only; the owner assigns roles with `team roles --assign`' };
 }
 const idList = v => (v ? v.split(',').map(x => x.trim()).filter(Boolean) : []);
@@ -184,11 +191,15 @@ export async function main(argv = process.argv.slice(2)) {
         const i = p.identity;
         w(`${p.participant}  ${p.harness}  ${p.model?.provider}/${p.model?.model_id} (${p.model?.reasoning})  surface ${p.surface}${p.revoked ? '  REVOKED' : ''}\n`);
         w(i ? `    identity ${i.profile_id.slice(0, 27)}  native-model ${i.native_model}  reasoning ${i.reasoning}  version ${i.version}  tools ${JSON.stringify(i.tool_surface)}  observed ${i.observed_at}  expires ${i.expires_at}${i.expired ? ' (EXPIRED)' : ''}\n` : '    identity none observed (run `team host --operation subscription-bootstrap`)\n');
+        if (p.binary) w(p.binary.verified === false ? `    binary ${p.binary.version ?? 'unknown'} UNVERIFIED (${p.binary.blocker}): re-probe before assigning\n` : `    binary ${p.binary.version ?? 'unknown'} ${p.binary.verified ? 'verified' : 'not pinned'}\n`);
         if (p.calibration_hint) w(`    hint (advisory): ${p.calibration_hint.map(r => r.role + (r.qualified ? ' qualified' : ' not qualified')).join(', ')}\n`);
       }
       w('assign: waypost team roles ' + target + ' --assign --coordinator a,b --reviewers c,d [--executors e] --reason "<why>" --yes\n');
       return;
     }
+    // A binary this transport has not verified would fail at the first native call; say so now.
+    const unverified = [...new Set(['--coordinator', '--reviewers', '--executors'].flatMap(k => idList(opt(k))))].filter(id => t.participants[id] && participantBinary(t.participants[id])?.verified === false);
+    if (unverified.length) throw new Error('native-binary-unverified:' + unverified.map(id => id + '(' + participantBinary(t.participants[id]).blocker + ')').join(','));
     const c = consent({ yes: flag('--yes'), reason: opt('--reason') });
     if (!c.ok) throw new Error('owner-consent-required: pass --yes and --reason "<why>"');
     assignFields = ownerAssignFields(v.state, t, { coordinator: opt('--coordinator'), reviewers: opt('--reviewers'), executors: opt('--executors'), reason: c.reason, expiresAt: opt('--expires-at'), issuedBy: { harness: detectHarness(), session: sessionId() } });
