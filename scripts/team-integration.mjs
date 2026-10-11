@@ -176,6 +176,13 @@ export function readWorkInputs({ projectRoot, base, paths }) {
   }
   return { base, files };
 }
+// True when `content` holds more of any invisible or bidirectional control character than `base` (null: empty).
+const HIDDEN_CONTROLS = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/;
+export function addsHiddenControls(base, content) {
+  const count = text => { const m = new Map(); for (const c of text ?? '') if (c.search(HIDDEN_CONTROLS) === 0) m.set(c, (m.get(c) || 0) + 1); return m; };
+  const before = count(base);
+  return [...count(content)].some(([c, n]) => n > (before.get(c) || 0));
+}
 export function workInputsDigest(inputs) { return createHash('sha256').update(JSON.stringify({ base: inputs.base, files: inputs.files.map(f => ({ path: f.path, blob_oid: f.blob_oid })) })).digest('hex'); }
 // Strict whole-patch validation: {"files":[{"path","content"}]}, listed paths
 // only, unique, bounded UTF-8 text without NUL. Returns files sorted by path.

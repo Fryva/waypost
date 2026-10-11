@@ -24,8 +24,8 @@ import { createProtocolWorkReviewRequest, formatWorkReviewSuffix, WORK_REVIEW_KI
 import { nativePublicationGate, nativeIntegrationOpen } from './team-native-integration.mjs';
 import { createParticipantHostBinding, readParticipantHost } from './team-host-registry.mjs';
 import { createOwnedRuntime, stopOwnedRuntime, collectOwnedRuntimeCompletion, serializeOwnedRuntimeCompletion, serializeOwnedRuntimeStopProof } from './team-owned-runtime.mjs';
-import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest, readWorkInputs, workInputsDigest, validateWorkPatch, writeSealedPatch, readSealedPatch, applySealedPatch, pinCandidateTree, resetWorkPaths, treeDiff, syncCheckoutIndex, workCommitText, workCommitMessageDigest, workCommit, publishWorkCommit, workPublicationState } from './team-integration.mjs';
-import { formatWorkPromptHead, workPromptDigest, calibratedWorkPromptDigest, CALIBRATED_EXECUTOR, workRevisionSource, workSuiteDigest, workPatchRef, WORK_MAX_OUTPUT_BYTES, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
+import { createIntegrationCheckout, collectCandidate, publishCandidate, reconcilePublication, publicationMessageDigest, readWorkInputs, workInputsDigest, validateWorkPatch, writeSealedPatch, readSealedPatch, applySealedPatch, pinCandidateTree, resetWorkPaths, treeDiff, syncCheckoutIndex, workCommitText, workCommitMessageDigest, workCommit, publishWorkCommit, workPublicationState, addsHiddenControls } from './team-integration.mjs';
+import { formatWorkPromptHead, workPromptDigest, calibratedWorkPromptDigest, CALIBRATED_EXECUTOR, OWNER_ASSIGNED_EXECUTOR, assigned as ownerAssignedWork, workRevisionSource, workSuiteDigest, workPatchRef, WORK_MAX_OUTPUT_BYTES, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
 import { promptFor as boundedEditPrompt } from './team-implement-suite.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 import { leasesOverStaged } from './commit.mjs';
@@ -63,7 +63,7 @@ export function createTeamHost(config, dependencies={}) {
  const now=dependencies.now||(()=>new Date().toISOString());
  let activeOperation=null,operationBusy=false;
  const native=descriptor=>activeOperation?activeOperation.native(()=>(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor)):(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor);
- const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,readWorkInputs,workInputsDigest,validateWorkPatch,writeSealedPatch,readSealedPatch,applySealedPatch,pinCandidateTree,resetWorkPaths,treeDiff,syncCheckoutIndex,workCommitText,workCommitMessageDigest,workCommit,publishWorkCommit,workPublicationState,...dependencies.integration};
+ const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,readWorkInputs,workInputsDigest,validateWorkPatch,writeSealedPatch,readSealedPatch,applySealedPatch,pinCandidateTree,resetWorkPaths,treeDiff,syncCheckoutIndex,workCommitText,workCommitMessageDigest,workCommit,publishWorkCommit,workPublicationState,addsHiddenControls,...dependencies.integration};
  async function closeNative(transport){if(transport?.stopAndWait&&transport.owns_process!==false)await transport.stopAndWait();else transport?.close();}
  function getTeam(){const v=load();const t=v.state?.teams[team];if(!t)fail('team-not-found');return {v,t};}
  // Other Hosts (participants of other harnesses) write the same authority. A
@@ -201,7 +201,7 @@ export function createTeamHost(config, dependencies={}) {
     return mutate('native-model-inventory-attempt-v1',{participant_id:p.id,participant_incarnation:p.incarnation,descriptor_digest:routingDigest(d.descriptor),nonce,started_at:new Date(startedAt).toISOString(),blocker},c,'inventory-failure-'+nonce).result;
   }finally{if(transport)await closeNative(transport);}
  }
- const workPrompt=(w,inputs,revision)=>formatWorkPromptHead(w.manifest,revision)+'\n'+JSON.stringify({base:inputs.base,files:inputs.files.map(f=>({path:f.path,content:f.content}))});
+ const workPrompt=(w,inputs,revision)=>formatWorkPromptHead(w.manifest,revision,ownerAssignedWork(w)?OWNER_ASSIGNED_EXECUTOR:undefined)+'\n'+JSON.stringify({base:inputs.base,files:inputs.files.map(f=>({path:f.path,content:f.content}))});
  // Contract 29(b): the calibration wire format itself, without read-only context.
  // Bytes, lines and charset of the measured class are checked here, before any
  // reservation; the authority sees only the inputs digest.
@@ -210,6 +210,8 @@ export function createTeamHost(config, dependencies={}) {
  // normaliser (a missing final LF is added), copied: moving them would change the
  // installed evaluators digest.
  const measuredContent=c=>typeof c==='string'&&/^[\x20-\x7e\n]+$/.test(c)&&c.endsWith('\n')&&!c.endsWith('\n\n')&&!/ \n/.test(c)&&c.split('\n').length<=SIZE_CLASS.file_lines+1&&Buffer.byteLength(c)<=SIZE_CLASS.file_bytes;
+ // A work whose review prompt (the diff carries old and new content) cannot fit 64 KiB is refused before any token is spent; the estimate is conservative.
+ const reviewWouldNotFit=(w,inputs)=>inputs.files.reduce((n,f)=>n+Buffer.byteLength(f.content??''),0)*2+Buffer.byteLength(JSON.stringify({goal:w.manifest.goal,criteria:w.manifest.criteria,paths:w.paths}))+8192>65536;
  const finalNewline=c=>c.endsWith('\n')?c:c+'\n';
  const COUNTER_SCHEMA={codex:'codex-thread-cumulative-total-v1',opencode:'opencode-native-normalized-step-total-v1',claude:'claude-native-first-turn-total-v1'};
  function calibratedWorkPrompt(w,inputs){
@@ -259,19 +261,20 @@ export function createTeamHost(config, dependencies={}) {
  async function executeNativeWork({workId,estimateTokens}={}){
   owner();const d=endpoint(),{t}=getTeam(),w=t.work?.[workId],policy=t.native_work_policy;
   if(w?.protocol!==2)fail('host-protocol-2-work-required');
-  const calibrated=w.executor===CALIBRATED_EXECUTOR;
-  if(calibrated?d.participant!==w.worker:d.participant!==t.leader||d.participant!==w.worker)fail(calibrated?'host-native-work-executor-endpoint-required':'host-native-work-leader-endpoint-required');
+  const calibrated=w.executor===CALIBRATED_EXECUTOR,owned=ownerAssignedWork(w),pinned=calibrated||owned;
+  if(pinned?d.participant!==w.worker:d.participant!==t.leader||d.participant!==w.worker)fail(pinned?'host-native-work-executor-endpoint-required':'host-native-work-leader-endpoint-required');
   // The executor's counter unit must be allocated before any native process starts.
-  if(calibrated&&!policy?.unit_allocations?.some(u=>u.unit_digest===routingDigest({scope:'team-native-counter',team,counter_schema:COUNTER_SCHEMA[d.descriptor.harness]})))fail('host-native-work-allocation-required');
+  if(pinned&&!policy?.unit_allocations?.some(u=>u.unit_digest===routingDigest({scope:'team-native-counter',team,counter_schema:COUNTER_SCHEMA[d.descriptor.harness]})))fail('host-native-work-allocation-required');
   if(d.descriptor.harness==='codex'&&d.descriptor.tool_surface!==CODEX_SURFACE_R1.id)fail('host-native-work-no-tools-context-required');
   // Everything checkable without a native process runs before one is spawned.
   if(!['manifest','attempt-failed'].includes(w.status)||!policy||w.attempts+1>policy.max_attempts)fail('host-native-work-not-dispatchable');
   const inputs=integration.readWorkInputs({projectRoot,base:w.manifest.base,paths:w.paths}),inputsDigest=integration.workInputsDigest(inputs);
   const prompt=calibrated?calibratedWorkPrompt(w,inputs):workPrompt(w,inputs,w.revision);
   if(Buffer.byteLength(prompt)>65536)fail('host-native-work-prompt-too-large');
+  if(owned&&reviewWouldNotFit(w,inputs))fail('native-work-review-prompt-would-not-fit');
   await ensureNativeQuotaLease();
   const attempt=w.attempts+1,nonce='work_'+randomUUID().replace(/-/g,''),operationId=randomUUID(),ref=workPatchRef(team,w,attempt,nonce);
-  const binding={work_id:w.id,generation:w.generation,attempt,inputs_digest:inputsDigest,prompt_digest:calibrated?calibratedWorkPromptDigest(w.manifest,inputsDigest):workPromptDigest(w.manifest,inputsDigest,w.revision)};
+  const binding={work_id:w.id,generation:w.generation,attempt,inputs_digest:inputsDigest,prompt_digest:calibrated?calibratedWorkPromptDigest(w.manifest,inputsDigest):workPromptDigest(w.manifest,inputsDigest,w.revision,owned?OWNER_ASSIGNED_EXECUTOR:undefined)};
   // A seal never throws: a failed write becomes a named outcome so the tokens still settle.
   const seal=async(rawOutput,nativeFailure)=>{
    const output_digest=routingDigest(rawOutput??''),none={output_digest,patch_digest:null,patch_ref:null,paths:[]};
@@ -288,6 +291,7 @@ export function createTeamHost(config, dependencies={}) {
    if(calibrated)patch={files:patch.files.map(f=>({path:f.path,content:finalNewline(f.content)}))};
    const base=new Map(inputs.files.map(f=>[f.path,f.content]));patch={files:patch.files.filter(f=>base.get(f.path)!==f.content)};
    if(!patch.files.length)return {...none,outcome:'native-work-empty-patch'};
+   if(owned&&patch.files.some(f=>integration.addsHiddenControls(base.get(f.path),f.content)))return {...none,outcome:'native-work-hidden-controls-added'};
    try{integration.writeSealedPatch({projectRoot,ref,patch});}catch{return {...none,outcome:'native-work-seal-write-failed'};}
    return {outcome:'completed',output_digest,patch_digest:routingDigest(patch),patch_ref:ref,paths:patch.files.map(f=>f.path)};
   };

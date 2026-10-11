@@ -5,13 +5,14 @@
 // scale, which measures no code review, so the result is labelled
 // `unqualified-strongest-protocol-review-baseline`. Negative verdicts stay.
 import { routingDigest } from './model-routing.mjs';
-import { selectProtocolReviewerCandidate, policyRow } from './team.mjs';
+import { selectProtocolReviewerCandidate, listedReviewer, policyRow } from './team.mjs';
 import { selectNativeQuotaFrontier, nativeParticipantQuotaEligible } from './team-native-quota.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 
 function fail(message) { throw new Error(message); }
 export const WORK_REVIEW_KIND = 'protocol-work-review';
 export const WORK_REVIEW_LABEL = 'unqualified-strongest-protocol-review-baseline';
+export const OWNER_ASSIGNED_REVIEW_LABEL = 'owner-assigned-review';
 
 // The digest a control request pins for a participant's role: the calibration record of a
 // calibrated team, the owner-given policy row of an owner-assigned one. Lives here, not in
@@ -31,7 +32,11 @@ export function workReviewTarget(w) {
 }
 // The critic excludes the worker and the leader, and any participant admitted
 // under their native configuration; it is never weakened to fit.
+// An owner-assigned team: the owner's reviewer list decides; the reviewer is neither the
+// executor nor the leader and does not share the executor's native configuration, but may
+// share the leader's.
 export function selectWorkReviewer(t, w, now) {
+  if (t.policy.mode === 'owner-assigned') return listedReviewer(Object.values(t.participants), t.policy, { excluded: [...new Set([w.worker, t.leader])], profiles: [t.participants[w.worker]?.native_admission?.identity?.profile_id].filter(Boolean), now }).reviewer;
   const authors = [w.worker, t.leader], authorProfiles = authors.map(id => t.participants[id]?.native_admission?.identity?.profile_id).filter(Boolean);
   return selectProtocolReviewerCandidate(Object.values(t.participants).filter(p => !authors.includes(p.id) && !authorProfiles.includes(p.native_admission?.identity?.profile_id)), t.policy, t.review_floor, { coordinator: t.leader, now });
 }
