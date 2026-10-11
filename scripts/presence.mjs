@@ -205,7 +205,7 @@ export function processTable() {
       // with the rest of the table. Reading /proc for every pid costs about a
       // third of the `ps` spawn already paid above (4 ms for 266 processes on
       // the Linux VM), and null everywhere but Linux.
-      table.set(pid, { pid, ppid: Number(m[2]), started: m[3].replace(/\s+/g, " "), ticks: startTicks(pid), comm: m[4].trim() });
+      table.set(pid, { pid, ppid: Number(m[2]), started: m[3].replace(/\s+/g, " "), ticks: startTicks(pid), comm: m[4].trim(), ...(platform() === "linux" ? { argv0: argv0Of(pid) } : {}) });
     }
   }
   return table.size ? table : null;
@@ -229,7 +229,7 @@ export function harnessProcess(table, ppid = process.ppid) {
   for (let depth = 0; depth < 32 && pid > 1; depth++) {
     const p = table.get(pid);
     if (!p) return null;
-    if (!SHELLS.test(p.comm)) return { pid: p.pid, started: p.started, ticks: p.ticks ?? null, comm: basename(p.comm) };
+    if (!SHELLS.test(p.comm)) return { pid: p.pid, started: p.started, ticks: p.ticks ?? null, comm: basename(p.comm), ...(p.argv0 ? { argv0: p.argv0 } : {}) };
     pid = p.ppid;
   }
   return null;
@@ -249,6 +249,13 @@ export function harnessProcess(table, ppid = process.ppid) {
 //
 // Linux only. macOS records a real start timestamp per process, which a sleep
 // does not touch, and Windows never reaches this path.
+// The path a Linux process was started by (argv[0], so a symlink keeps its own name).
+// `ps -o comm=` reads /proc/<pid>/comm, the main thread's name, which a runtime may
+// rename (Node 24 on Linux does), so a harness binary would lose its name there.
+export function argv0Of(pid) {
+  if (platform() !== "linux") return null;
+  try { const first = readFileSync(`/proc/${Number(pid)}/cmdline`, "utf8").split("\0")[0]; return first ? basename(first) : null; } catch { return null; }
+}
 export function startTicks(pid) {
   if (platform() !== "linux") return null;
   let stat;

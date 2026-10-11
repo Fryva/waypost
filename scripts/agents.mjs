@@ -725,14 +725,14 @@ function harnessOfProcess(env, table, ppid) {
     // real table is what that pid is looked up in.
     else if (table !== undefined || ppid !== undefined || env === process.env) proc = harnessProcess(table, ppid);
   } catch { proc = null; }
-  const comm = proc && proc.comm ? String(proc.comm).toLowerCase() : "";
-  if (!comm) return null;
   // The binary's first word, so `claude`, `codex`, `opencode`, `gemini`,
-  // `cursor-agent` all resolve; an Electron helper resolves to nothing.
-  const word = comm.split(/[^a-z0-9]+/)[0];
+  // `cursor-agent` all resolve; an Electron helper resolves to nothing. On Linux
+  // argv[0] is read too: the thread name in `comm` may have been renamed.
+  const words = [proc?.comm, proc?.argv0].filter(Boolean).map((n) => String(n).toLowerCase().split(/[^a-z0-9]+/)[0]).filter(Boolean);
+  if (!words.length) return null;
   for (const [id, h] of registry()) {
     if (h.kind === "provider") continue;
-    if (word === id || (h.process || []).includes(word)) return id;
+    if (words.some((word) => word === id || (h.process || []).includes(word))) return id;
   }
   return null;
 }
@@ -813,11 +813,12 @@ export function gateCheck({ env = process.env, table = processTable(), ppid = pr
       if (!harness) {
         // `ps -o comm=` gives the full executable path on macOS
         // (".../MacOS/claude"), so the first word is taken from the basename.
-        const comm = String(p.comm || "").toLowerCase().split(/[\\/]/).pop();
-        const word = comm.split(/[^a-z0-9]+/)[0];
-        if (word) {
-          const hit = entries.find((h) => word === h.id || h.process.includes(word));
-          if (hit) { harness = hit.id; via = "process"; }
+        // On Linux argv[0] is checked as well: `comm` is the main thread's name,
+        // which a runtime may rename (Node 24 does, 2026-10-11 on a hosted runner).
+        for (const name of [p.comm, p.argv0]) {
+          const word = String(name || "").toLowerCase().split(/[\\/]/).pop().split(/[^a-z0-9]+/)[0];
+          const hit = word && entries.find((h) => word === h.id || h.process.includes(word));
+          if (hit) { harness = hit.id; via = "process"; break; }
         }
       }
       pid = p.ppid;

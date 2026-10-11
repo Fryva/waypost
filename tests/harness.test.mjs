@@ -860,6 +860,16 @@ test("gateCheck: a known harness in the process chain is found even with WAYPOST
   assert.equal(out.evidence, true);
 });
 
+test("gateCheck: on Linux a renamed main thread in comm still matches by argv[0] (Node 24 renames it)", () => {
+  const dirs = [harnessDir([{ id: "claude", env: ["CLAUDECODE"] }])];
+  const t = new Map([[100, { pid: 100, ppid: 1, comm: "MainThread", argv0: "claude", started: "T" }], [200, { pid: 200, ppid: 100, comm: "node", started: "T" }]]);
+  const out = gateCheck({ env: {}, table: t, ppid: 200, dirs });
+  assert.equal(out.harness, "claude");
+  assert.equal(out.via, "process");
+  const without = gateCheck({ env: {}, table: new Map([[100, { pid: 100, ppid: 1, comm: "MainThread", started: "T" }]]), ppid: 100, dirs });
+  assert.equal(without.harness, null);
+});
+
 test("gateCheck: a full executable path as comm (what macOS ps reports) is matched by its basename", () => {
   const dirs = [harnessDir([{ id: "claude", env: ["CLAUDECODE"] }])];
   const t = fakeTable([
