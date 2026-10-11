@@ -35,7 +35,7 @@ export function workReviewTarget(w) {
 // An owner-assigned team: the owner's reviewer list decides; the reviewer is neither the
 // executor nor the leader and does not share the executor's native configuration, but may
 // share the leader's.
-export const ownerListedReviewer = (t, w, now) => listedReviewer(Object.values(t.participants), t.policy, { excluded: [...new Set([w.worker, t.leader])], profiles: [t.participants[w.worker]?.native_admission?.identity?.profile_id].filter(Boolean), now });
+export const ownerListedReviewer = (t, w, now) => listedReviewer(Object.values(t.participants), t.policy, { excluded: [...new Set([w.worker, t.leader].filter(Boolean))], profiles: [t.participants[w.worker]?.native_admission?.identity?.profile_id].filter(Boolean), now });
 export function selectWorkReviewer(t, w, now) {
   if (t.policy.mode === 'owner-assigned') return ownerListedReviewer(t, w, now).reviewer;
   const authors = [w.worker, t.leader], authorProfiles = authors.map(id => t.participants[id]?.native_admission?.identity?.profile_id).filter(Boolean);

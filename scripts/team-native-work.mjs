@@ -141,8 +141,10 @@ export function applyNativeWork(s, t, c, now, H) {
         worker = t.participants[manifest.executor_participant];
         const refused = executorRefusal(s, t, worker, policy, now); if (refused) fail(refused);
       } else {
-        // No model call: the first listed executor that is fit now, in the owner's order.
-        activeNativeLeader(t, now);
+        // No model call: the first listed executor that is fit now, in the owner's order. The leader
+        // is not the worker here, so its own configuration is not excluded; executorRefusal checks
+        // each candidate's reviewer.
+        activeNativeLeader(t, now, null);
         const candidates = t.policy.assignment.executors.filter(id => !executorRefusal(s, t, t.participants[id], policy, now));
         if (!candidates.length) fail('native-work-no-eligible-executor');
         worker = t.participants[candidates[0]];

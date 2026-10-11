@@ -51,6 +51,11 @@ test('the executor is one the owner listed; without a name the first fit one in 
  assert.deepEqual(install(busy,'w1',manifest()).assignment.candidates,['peer-d']);
  const none=(await enabled(['peer-c'])).state;none.teams.team.participants['peer-c'].availability='busy';assert.throws(()=>install(none,'w1',manifest()),/no-eligible-executor/);
 });
+test('without a named executor the pick works when every reviewer shares the leader configuration (live run 2026-10-11)',async()=>{
+ const {state}=await enabled(['peer-d']),t=state.teams.team,row=id=>t.policy.profiles.find(r=>r.participant===id);
+ for(const id of ['peer-b','peer-c']){row(id).identity=clone(row('peer-a').identity);t.participants[id].native_admission.identity=clone(row('peer-a').identity);}
+ const w=install(state,'w1',manifest());assert.equal(w.worker,'peer-d');assert.deepEqual(w.assignment,{mode:'owner-order',candidates:['peer-d']});
+});
 test('a work larger than the measured class is accepted: several paths, a free forbidden list and a long goal',async()=>{
  const {state}=await enabled(),big=manifest({paths:['a.js','b.js','c/d.js'],forbidden_actions:['network','write outside the paths'],goal:'Fix the sum function — café. '.repeat(100),criteria:['a','b','c'],criteria_digest:routingDigest(['a','b','c']),executor_participant:'peer-d'});
  assert.equal(install(state,'w1',big).label,'owner-assigned-unmeasured');

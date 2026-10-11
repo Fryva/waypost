@@ -58,7 +58,7 @@ calibration are separately reported pending; do not close from reducer tests alo
 - [ ] Automatically discover priorities from fresh sources, including free models; unknown identity never inherits a family rank.
 - [ ] Periodically check ranking and execution identity separately; expiry/change suspends stale authority and review.
 
-Owner-assigned branch ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]). Covered by unit, reducer and in-process Host tests in `tests/native-owner-assigned*.test.mjs`; no live run with real harnesses has been done, so none of these is a live verification.
+Owner-assigned branch ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]). Covered by unit, reducer and in-process Host tests in `tests/native-owner-assigned*.test.mjs`; one live run (2026-10-11, two Claude Code participants and OpenCode, no Codex) went identity → assign → ACK → work → review → publication; quota hand-over, role loss and Codex are verified by tests only.
 
 - [ ] An owner-assigned team starts with one identity call per participant and no calibration cohort; `native-policy-assign-v2` carries selectors only and the reducer derives bindings and admissions.
 - [ ] Role selection follows the owner's order; a later or stronger arrival gets no role and no handover; a second assignment or a mode switch is refused.
@@ -406,3 +406,31 @@ so no strict order is claimed. Claude qualifies in no role this time (it
 qualified in review on 2026-10-08 with 22/24); all three roles sit inside every
 other profile's interval band, so the run separates qualified from not, not a
 finer ranking.
+
+### Live owner-assigned team, no calibration (2026-10-11, Claude Code)
+
+Owner-approved cap 150K subscription tokens; spent ≈19.2K. Scratch project, team
+`sumteam` (`--native-policy-bootstrap`), inherited-native accounting, zero cohorts.
+Members: two Claude Code participants (`claude-opus-5-5`, binary 2.1.294 pinned on
+PATH because the installed 2.1.296 has no verified preflight) and OpenCode 1.18.33
+(`opencode-go/qwen3.8-max`, variant low). Codex was left out: Codex
+`0.162.0-alpha.17.2` and a refreshed `models_cache.json` (catalog
+`fefbe074…`) are not on the probed surface list; a probe on unchanged code
+(7.4K tokens) saw `{"available":[]}` and only `message`/`reasoning` raw items, but
+the guard withdrew isolation on a new `thread/started` frame, so the surface
+revision is still open.
+
+Owner roles (`waypost team roles --assign … --yes --reason`): coordinator Claude 1,
+reviewer Claude 2 (same native configuration as the leader, separate participant),
+executor OpenCode. Through the CLI Hosts: identity calls 2,195 / 2,195 / 3,712;
+assignment elected Claude 1 with Claude 2 as review candidate; leader ACK 3,113;
+OpenCode executed `fix-sum` (`a-b` → `a+b`, 3,933, sealed, candidate captured);
+Claude 2 approved (4,007, label `owner-assigned-review`); the leader Host
+published one commit on `refs/waypost/teams/sumteam/fix-sum/…` with
+`Waypost-Label: owner-assigned-unmeasured`, `Waypost-Harness: opencode`,
+`Waypost-Tests: not-run`; the owner's branch was untouched.
+
+Defect found and fixed (with a test): a manifest without `executor_participant`
+checked the reviewer of the leader as if the leader were the worker, so a reviewer
+sharing the leader's configuration refused it
+(`native-work-strongest-independent-review-unavailable`).
