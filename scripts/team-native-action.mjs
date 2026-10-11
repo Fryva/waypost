@@ -1,7 +1,7 @@
 // Fixed protocol-control requests. No imported request grants execution authority.
 import {assertNativeHandoverReady,nativeQuotaEligible} from './team-native-quota.mjs';
 import { routingDigest } from './model-routing.mjs';
-import { selectCoordinator, selectProtocolReviewerCandidate, policyRow } from './team.mjs';
+import { selectCoordinator, selectProtocolReviewerCandidate, policyRow, listedReviewer } from './team.mjs';
 import { buildProtocolLeadershipAuditTarget, formatProtocolLeadershipAudit, readProtocolLeadershipAudit } from './team-protocol-review.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 import { WORK_REVIEW_KIND, roleDigest, workReviewPolicy, createProtocolWorkReviewRequest, workReviewSlot, formatWorkReview, workReviewPromptDigest, readWorkReview } from './team-native-work-review.mjs';
@@ -29,12 +29,12 @@ export function createProtocolLeaderAckRequest(team,{actionId,now=Date.now()}={}
 }
 export function createProtocolLeadershipAuditRequest(s,t,{actionId,sourceInvocationId,now=Date.now()}={}){
  if(t?.policy?.protocol!==2||t.status!=='active'||!t.leader||t.handover||t.review_blocker||!Number.isSafeInteger(now))fail('active-independent-audit-required');
- if(t.policy.mode==='owner-assigned')fail('owner-assigned-audit-unsupported');
  const target=buildProtocolLeadershipAuditTarget(s,t,sourceInvocationId);
- const reviewer=selectProtocolReviewerCandidate(Object.values(t.participants).filter(p=>p.id!==target.source_participant),t.policy,t.review_floor,{coordinator:t.leader,now});
+ const owned=t.policy.mode==='owner-assigned';
+ const reviewer=owned?listedReviewer(Object.values(t.participants),t.policy,{excluded:[...new Set([t.leader,target.source_participant])],now}).reviewer:selectProtocolReviewerCandidate(Object.values(t.participants).filter(p=>p.id!==target.source_participant),t.policy,t.review_floor,{coordinator:t.leader,now});
  if(!reviewer)fail('strongest-independent-audit-reviewer-required');
- const profile=t.policy.profiles.find(p=>p.identity.profile_id===reviewer.native_admission.identity.profile_id);
- const request={protocol:2,kind:'protocol-leadership-audit',team:t.id,action_id:id(actionId),participant:reviewer.id,incarnation:reviewer.incarnation,descriptor_digest:reviewer.native_binding.descriptor_digest,current_epoch:t.epoch,policy_revision:t.policy.revision,policy_digest:routingDigest(t.policy),profile:structuredClone(profile.identity),calibration_digest:routingDigest(profile.calibration.review),current_leader:t.leader,source_invocation_id:sourceInvocationId,target_digest:routingDigest(target),target};
+ const profile=owned?policyRow(t.policy,reviewer):t.policy.profiles.find(p=>p.identity.profile_id===reviewer.native_admission.identity.profile_id);
+ const request={protocol:2,kind:'protocol-leadership-audit',team:t.id,action_id:id(actionId),participant:reviewer.id,incarnation:reviewer.incarnation,descriptor_digest:reviewer.native_binding.descriptor_digest,current_epoch:t.epoch,policy_revision:t.policy.revision,policy_digest:routingDigest(t.policy),profile:structuredClone(profile.identity),...roleDigest(t,reviewer,'review'),current_leader:t.leader,source_invocation_id:sourceInvocationId,target_digest:routingDigest(target),target};
  return {kind:request.kind,action_id:request.action_id,request_digest:routingDigest(request),request};
 }
 export function createProtocolHandoverAckRequest(s,t,{actionId,now=Date.now(),excluding=null}={}){
@@ -273,7 +273,7 @@ export function applyNativeProtocolControl(s,t,c,now,H){
     w.status=aggregate.unresolved_negative?(verdict.verdict==='blocked'?'blocked':'changes-requested'):'approved';
     x.work_review=structuredClone(record);slot.applied=true;result={captured:x.id,verdict:verdict.verdict,work_status:w.status,target_digest:r.target_digest,unresolved_negative:aggregate.unresolved_negative,label:r.label,protected_actions_granted:false};
    }else if(audit){
-    const verdict=readProtocolActionResponse(x.action_seal.original_output,x.action),record={protocol:1,scope:'stored-ack-binding-accounting-closure',protected_actions_granted:false,source_invocation_id:x.action.request.source_invocation_id,limitations:['Historical strongest election, architecture and project work are outside this audit.'],...verdict,invocation_id:x.id,participant:x.participant,incarnation:x.incarnation,model_revision:x.model_revision,descriptor_digest:x.descriptor_digest,epoch:x.epoch,policy_revision:x.action.request.policy_revision,policy_digest:x.action.request.policy_digest,profile:structuredClone(x.action.request.profile),calibration_digest:x.action.request.calibration_digest,output_digest:x.action_seal.output_digest,observed_at:x.action_observation.observed_at,completion,captured_at:c.at};
+    const verdict=readProtocolActionResponse(x.action_seal.original_output,x.action),record={protocol:1,scope:'stored-ack-binding-accounting-closure',protected_actions_granted:false,source_invocation_id:x.action.request.source_invocation_id,limitations:['Historical strongest election, architecture and project work are outside this audit.'],...verdict,invocation_id:x.id,participant:x.participant,incarnation:x.incarnation,model_revision:x.model_revision,descriptor_digest:x.descriptor_digest,epoch:x.epoch,policy_revision:x.action.request.policy_revision,policy_digest:x.action.request.policy_digest,profile:structuredClone(x.action.request.profile),...(x.action.request.assignment_digest!==undefined?{assignment_digest:x.action.request.assignment_digest}:{calibration_digest:x.action.request.calibration_digest}),output_digest:x.action_seal.output_digest,observed_at:x.action_observation.observed_at,completion,captured_at:c.at};
     t.native_protocol_reviews||={};const aggregate=t.native_protocol_reviews[verdict.target_digest]||{records:[],unresolved_negative:false};
     aggregate.records.push(record);aggregate.unresolved_negative ||= verdict.verdict!=='approve';t.native_protocol_reviews[verdict.target_digest]=aggregate;x.protocol_review=structuredClone(record);slot.applied=true;result={captured:x.id,verdict:verdict.verdict,target_digest:verdict.target_digest,unresolved_negative:aggregate.unresolved_negative,scope:'stored-ack-binding-accounting-closure',protected_actions_granted:false};
    }else{

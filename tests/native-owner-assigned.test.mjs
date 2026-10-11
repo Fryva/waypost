@@ -4,7 +4,7 @@ import { authorityFixture,now,at } from './helpers/native-calibration.mjs';
 import { reduceTeamEvent } from '../scripts/team-state.mjs';
 import { applySubscriptionAccounting } from '../scripts/team-subscription.mjs';
 import { validatePolicy,rankParticipant,listedReviewer,selectCoordinator,policyRow,OWNER_ASSIGNED_LIMITATIONS } from '../scripts/team.mjs';
-import { createProtocolLeaderAckRequest,createProtocolLeadershipAuditRequest,createProtocolHandoverAckRequest } from '../scripts/team-native-action.mjs';
+import { createProtocolLeaderAckRequest,createProtocolHandoverAckRequest } from '../scripts/team-native-action.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
 const legacy={protocol:1,revision:1,domain:'coding',mode:'automatic',generated_at:at,expires_at:new Date(now+600000).toISOString(),sources:[{id:'fixture',url:'https://example.org/fixture',retrieved_at:at}],evidence_floor:['adapter-observed'],profiles:[]};
 const day=86400000,until=new Date(now+day).toISOString();
@@ -180,10 +180,8 @@ test('the leader ACK request pins the assignment digest and no calibration diges
  const busy=clone(t);busy.participants['peer-b'].availability='busy';assert.throws(()=>createProtocolLeaderAckRequest(busy,{actionId:'ack-1',now}),/strongest-independent-critic-required/);
  const late=clone(t);assert.throws(()=>createProtocolLeaderAckRequest(late,{actionId:'ack-1',now:Date.parse(until)}),/strongest-current-candidate-required/);
 });
-test('an owner-assigned team refuses the audit, the one unfinished later-slice mode, with a named guard, not a TypeError',async()=>{
+test('an owner-assigned team refuses unsigned legacy policy events',async()=>{
  const t=team(await fixture()),state={protocol:1,owner_hash:'fixture',task_bindings:{task:'team'},teams:{team:t},collectors:{}};
- const active=clone(t);Object.assign(active,{status:'active',leader:'peer-a',candidate:null});
- assert.throws(()=>createProtocolLeadershipAuditRequest(state,active,{actionId:'audit',sourceInvocationId:'x',now}),/owner-assigned-audit-unsupported/);
  for(const type of ['policy','leader-ack','assign'])assert.throws(()=>reduceTeamEvent(state,{type,team:'team',actor:'peer-a',incarnation:'inc-a',at,request_key:type,policy:legacy}),/protected-action-admission-required/);
 });
 test('invalid owner-assigned policies are rejected', async()=>{
