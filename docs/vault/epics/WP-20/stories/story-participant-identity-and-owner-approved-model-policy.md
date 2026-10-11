@@ -58,7 +58,7 @@ calibration are separately reported pending; do not close from reducer tests alo
 - [ ] Automatically discover priorities from fresh sources, including free models; unknown identity never inherits a family rank.
 - [ ] Periodically check ranking and execution identity separately; expiry/change suspends stale authority and review.
 
-Owner-assigned branch ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]). Covered by unit, reducer and in-process Host tests in `tests/native-owner-assigned*.test.mjs`; one live run (2026-10-11, two Claude Code participants and OpenCode, no Codex) went identity → assign → ACK → work → review → publication; quota hand-over, role loss and Codex are verified by tests only.
+Owner-assigned branch ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]). Covered by unit, reducer and in-process Host tests in `tests/native-owner-assigned*.test.mjs`; live runs on 2026-10-11 (two Claude Code participants and OpenCode; then Claude Code, Codex and OpenCode) went identity → assign → ACK → work → review → publication; quota hand-over and role loss are verified by tests only.
 
 - [ ] An owner-assigned team starts with one identity call per participant and no calibration cohort; `native-policy-assign-v2` carries selectors only and the reducer derives bindings and admissions.
 - [ ] Role selection follows the owner's order; a later or stronger arrival gets no role and no handover; a second assignment or a mode switch is refused.
@@ -434,3 +434,19 @@ Defect found and fixed (with a test): a manifest without `executor_participant`
 checked the reviewer of the leader as if the leader were the worker, so a reviewer
 sharing the leader's configuration refused it
 (`native-work-strongest-independent-review-unavailable`).
+
+### Live owner-assigned three-harness team (2026-10-11, Claude Code)
+
+After the Codex surface revision for 0.162.0-alpha.17.2 (2b04738), team `trio`, zero
+cohorts, ≈28.8K tokens of the same 150K cap. Owner roles: coordinator Claude Code
+(`claude-opus-5-5`, binary 2.1.294) with Codex (`gpt-6.1-sol` low, the user's own
+installation under `codex-no-exec-r1`) as alternate; reviewers Claude then Codex;
+executor OpenCode (`qwen3.8-max` low). Identity calls: Codex 7,265 (isolation
+verified), Claude 2,193, OpenCode 3,718; assignment elected Claude with Codex as review
+candidate; leader ACK 3,061. The manifest named no executor and the owner order picked
+OpenCode (the fix of f610800 holding live); OpenCode executed `fix-sum` (3,948).
+Codex reviewed it, as the top listed reviewer that is neither the executor nor the
+leader (`approve`, 8,615, `owner-assigned-review`). The leader Host published commit
+`00e9b4d` on `refs/waypost/teams/trio/fix-sum/…` with
+`Waypost-Label: owner-assigned-unmeasured`; the owner's branch was untouched. Not
+exercised live: quota hand-over to the alternate, role loss.
