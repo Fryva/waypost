@@ -1128,8 +1128,22 @@ goal, criteria with their digest, relative normalised paths without
 case-insensitive duplicates, base commit, forbidden actions). A manifest needs
 an active team under a current policy with an independent critic, no quota
 freeze or handover, no unresolved negative audit of the current leader
-acknowledgement, and no other unfinished protocol 2 work (one at a time in this
-slice). A manifest may carry `depends_on` (1 to 16 work ids): each must be
+acknowledgement, and no unfinished protocol 2 work on overlapping paths (several works may be
+unfinished at once; paths overlap when they are equal after lower-casing or one
+is a directory prefix `a/` of the other; refused with `native-work-path-overlap`;
+cancelled and integrated work free their paths, `execution-refused` and every
+other status hold them). The policy ceilings (calls, estimate and unit tokens) are
+shared by all works of one policy revision, `max_attempts` counts per work, and a
+new ceiling still needs every work finished or cancelled
+(`native-work-unfinished-policy-migration`), as does a quota handover. Publications go one at
+a time: while another work's reservation is open, `publish` answers
+`host-native-publication-other-work-reserved` (naming the reservation and the work);
+while a publication fence is held, the Host refuses the manifest, execute,
+capture and review of every other work with `host-native-publication-fence-held`
+before it writes anything, and the owner events that did reach the authority wait
+in the deferred queue and are discarded (`deferred-discard-v1`), not applied, if
+the owner so decides. When an executor loses its role only its works are
+cancelled; losing the coordinator cancels all. A manifest may carry `depends_on` (1 to 16 work ids): each must be
 protocol 2 work already integrated, the `base` must be the commit that work
 published, and several dependencies must form one chain, with the base at its
 tip (the owner decides and writes this; no model is called). Merge the ref of

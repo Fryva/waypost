@@ -337,6 +337,9 @@ Protocol 2 (WP-20, owner 2026-10-11): a manifest names `depends_on`, integrated
 work only, so the graph is acyclic by construction; the base of the dependent
 work is the published commit of the tip of the chain of its dependencies (a
 dependency set that is not one chain is refused).
+Several works may be unfinished at once when their paths do not overlap (5.2:
+overlap refuses parallel edits; equal after lower-casing or a directory prefix);
+publications still go one at a time.
 
 5.2. Assignment contains goal, dependencies, concrete edit paths, forbidden actions,
 acceptance, immutable base and expected evidence/resource requirements. Overlap

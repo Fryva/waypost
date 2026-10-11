@@ -312,9 +312,9 @@ test('a critic admitted under the leader native configuration is not selected an
  const f=await captured(t),v=f.load(),team=v.state.teams.team,critic=team.review_candidate,now=Date.now();
  const criteria=['c'],manifest={protocol:2,goal:'g',criteria,criteria_digest:routingDigest(criteria),paths:['src/sum.js'],base:f.base,forbidden_actions:[]};
  const gate=state=>reduceTeamEvent(structuredClone(state),{type:'native-work-manifest-v2',team:'team',actor:'owner:'+state.owner_hash,at:new Date().toISOString(),request_key:'k'+Math.random(),work_id:'other',manifest},{revision:v.revision});
- // Unmodified, the leader and the critic gates pass and only the one-at-a-time rule stops the second manifest.
+ // Unmodified, the leader and the critic gates pass and only the path overlap rule stops the second manifest.
  assert.ok(selectWorkReviewer(team,{worker:team.leader},now));assert.equal(activeNativeLeader(team,now).id,team.leader);assert.ok(createProtocolWorkReviewRequest(v.state,team,{actionId:'ok',workId:'fix-sum'}));
- assert.throws(()=>gate(v.state),{message:'native-work-one-at-a-time'});
+ assert.throws(()=>gate(v.state),{message:'native-work-path-overlap'});
  // Only the critic profile qualifies as both coordinator and reviewer, so the whole team takes its native configuration:
  // the leader stays the coordinator and the frontier still names a reviewer, yet none is independent of the leader.
  const state=structuredClone(v.state),t2=state.teams.team,shared=t2.participants[critic].native_admission.identity;

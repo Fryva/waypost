@@ -17,15 +17,17 @@ const manifest=(patch={})=>({protocol:2,goal:'Fix the sum function',criteria:cri
 let seq=0;
 const send=(state,type,fields={},actor='owner:fixture',clock=at)=>reduceTeamEvent(state,{type,team:'team',actor,at:clock,request_key:type+'-'+(++seq),epoch:state.teams.team.epoch,...fields});
 // An active owner-assigned team: peer-a coordinates (peer-b is the alternate), peer-b and peer-c review, peer-d executes.
-async function team({coordinator=['peer-a','peer-b'],reviewers=['peer-b','peer-c'],work=true}={}){
+async function team({coordinator=['peer-a','peer-b'],reviewers=['peer-b','peer-c'],work=true,executors=['peer-d'],second=false}={}){
  shared??=authorityFixture({identityOnly:{},billing:name=>billing('peer-'+name)});const f=await shared,s=clone(f.state);
  Object.assign(s,{protocol:1,owner_hash:'fixture',task_bindings:{task:'team'}});Object.assign(s.teams.team,{task:'task',policy:legacy,messages:[],work:{},status:'forming',leader:null,candidate:null,required_review_models:[],native_policy_bootstrap:true});
- let state=reduceTeamEvent(s,{type:'native-policy-assign-v2',team:'team',actor:'owner:fixture',at,request_key:'assign',expected_policy_revision:1,coordinator,reviewers,executors:['peer-d'],reason:'the owner chose these roles',expires_at:until,issued_by:{harness:'claude',session:'session-1'}}).state;
+ let state=reduceTeamEvent(s,{type:'native-policy-assign-v2',team:'team',actor:'owner:fixture',at,request_key:'assign',expected_policy_revision:1,coordinator,reviewers,executors,reason:'the owner chose these roles',expires_at:until,issued_by:{harness:'claude',session:'session-1'}}).state;
  const t=state.teams.team;t.leader=t.candidate;t.candidate=null;t.status='active';
  const unit=Object.keys(state.subscription_allocations)[0];
  if(work){
   state=send(state,'native-work-enable-v2',{revision:1,policy:{kind:'protocol-work',executor:'owner-assigned',allow_unknown_quota:true,max_attempts:2,timeout_ms:60000,expires_at:until,ceilings:{execution:{max_calls:2,max_estimate_tokens:'8000'},review:{max_calls:2,max_estimate_tokens:'8000'}},unit_allocations:[{unit_digest:unit,max_tokens:'100000',allocation_revision:state.subscription_allocations[unit].revision}]}}).state;
   state=send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest({executor_participant:'peer-d'})}).state;
+  // Several works (owner, 2026-10-11): a second one on another path, by another executor.
+  if(second)state=send(state,'native-work-manifest-v2',{work_id:'w2',manifest:manifest({paths:['src/other.js'],executor_participant:'peer-c'})}).state;
  }
  return state;
 }
@@ -66,6 +68,15 @@ test('an executor who loses the role loses its work; the team goes on',async()=>
   const s=lose(await team(),'peer-d'),t=T(s);
   assert.equal(t.work.w1.status,'cancelled',name);assert.equal(t.work.w1.cancel_reason,'owner-assigned-role-lost');
   assert.equal(t.assignment_lost,undefined,name);assert.equal(t.status,'active',name);assert.equal(t.leader,'peer-a',name);
+ }
+});
+test('losing one executor cancels only its works; losing the coordinator cancels every work (owner, 2026-10-11)',async()=>{
+ for(const [name,lose] of Object.entries(LOSSES)){
+  const s0=await team({executors:['peer-d','peer-c'],second:true});assert.equal(T(s0).work.w2.worker,'peer-c',name);
+  const executor=T(lose(s0,'peer-d')),other=T(lose(s0,'peer-c'));
+  assert.deepEqual([executor.work.w1.status,executor.work.w2.status],['cancelled','manifest'],name);assert.equal(executor.work.w1.cancel_reason,'owner-assigned-role-lost');assert.equal(executor.status,'active',name);
+  assert.deepEqual([other.work.w1.status,other.work.w2.status],['manifest','cancelled'],name);
+  const leader=T(lose(s0,'peer-a'));assert.deepEqual([leader.work.w1.status,leader.work.w2.status],['cancelled','cancelled'],name);assert.equal(leader.assignment_lost.participant,'peer-a',name);
  }
 });
 test('a work with a consumed call or an open publication is left alone and cancelled on a later event',async()=>{

@@ -1,8 +1,9 @@
 // waypost — scripts/team-native-work.mjs
 // Protocol 2 work, slice 1 (owner decisions 2026-10-06): an owner-written work
 // manifest, an owner work ceiling and an owner cancel. The acknowledged leader is
-// the only executor (`leader-baseline`, recorded as unqualified), one unfinished
-// work at a time, and nothing here calls a model or grants a protected role.
+// the only executor (`leader-baseline`, recorded as unqualified). Several unfinished
+// works may run at once when their paths do not overlap (owner, 2026-10-11); nothing
+// here calls a model or grants a protected role.
 import { routingDigest } from './model-routing.mjs';
 import { selectNativeQuotaFrontier, nativeParticipantQuotaEligible } from './team-native-quota.mjs';
 import { closedCompletion } from './team-native-action.mjs';
@@ -69,6 +70,8 @@ export function workPaths(values) {
 }
 export function workManifestDigest(manifest) { return routingDigest({ revision: 1, manifest }); }
 
+// Equal after lower-casing, or one is a directory prefix (`a/`) of the other.
+const pathsOverlap = (a, b) => { const x = a.toLowerCase(), y = b.toLowerCase(); return x === y || y.startsWith(x + '/') || x.startsWith(y + '/'); };
 function unfinishedWork(t) { return Object.values(t.work || {}).filter(w => w.protocol === 2 && !terminal(w)); }
 // Dependent work (owner decisions 2026-10-11): a dependency counts only as protocol 2 work integrated with protocol 2
 // evidence of its own commit (protocol 1 history also sets `w.commit`). Inlined: team-native-integration.mjs imports this file.
@@ -187,7 +190,8 @@ export function applyNativeWork(s, t, c, now, H) {
     const policy = currentWorkPolicy(t, now), leader = activeNativeLeader(t, now, worker?.id);
     worker ||= leader;
     if (worker !== leader && (!nativeParticipantQuotaEligible(worker, now) || !policy.allow_unknown_quota && worker.native_protocol_quota?.proof?.status !== 'available')) fail('native-work-known-quota-required');
-    if (unfinishedWork(t).length) fail('native-work-one-at-a-time');
+    // Owner decision 2026-10-11: several unfinished works, as long as their manifest paths do not overlap.
+    if (unfinishedWork(t).some(u => u.paths.some(p => paths.some(q => pathsOverlap(p, q))))) fail('native-work-path-overlap');
     if (negativeAuditOfCurrentAck(s, t)) fail('native-work-unresolved-negative-leadership-audit');
     t.work ||= {};
     const label = mode === CALIBRATED_EXECUTOR ? CALIBRATED_EXECUTOR : mode === OWNER_ASSIGNED_EXECUTOR ? OWNER_ASSIGNED_WORK_LABEL : WORK_LABEL;

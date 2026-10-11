@@ -1359,3 +1359,20 @@ publications go one at a time. The exception "overlap is allowed when there is a
 dependency" is not implemented: it is unreachable, because a dependency is
 integrated before the dependent manifest exists, and so no unfinished work holds
 its paths.
+
+Step 2, several unfinished works (`team-native-work.mjs`, `team-host.mjs`). The
+check `native-work-one-at-a-time` became `native-work-path-overlap`, computed
+against every unfinished protocol 2 work (all statuses except `integrated` and
+`cancelled`, so `execution-refused` still holds its paths) by the manifest paths:
+equal after `toLowerCase()`, or one a directory prefix (`a/`) of the other.
+`native-work-unfinished-policy-migration` stays a team-wide rule, and the
+per-work integration checks are not made team-wide. Ceilings are shared by all
+works of a policy revision; `max_attempts` counts per work. Publications go one
+at a time: with a fence held for the team the Host refuses the manifest,
+execute, capture and review of other works (`host-native-publication-fence-held`)
+before any reservation or authority write, and `publish` names a reservation of
+another work (`host-native-publication-other-work-reserved`) instead of reporting
+it as its own recover-required. Handover needs every work finished or cancelled.
+Owner events of other works that reached the queue under a fence are discarded
+with `deferred-discard-v1`, not applied. Losing an executor cancels only its
+works; losing the coordinator cancels all of them.

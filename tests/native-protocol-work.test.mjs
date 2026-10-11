@@ -40,7 +40,7 @@ test('a manifest refuses unsafe paths, a wrong criteria digest or base, a second
   assert.throws(()=>send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest(patch)}),code,name);
  assert.throws(()=>send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()},'peer-a'),/owner-required/);
  const one=send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}).state;
- assert.throws(()=>send(one,'native-work-manifest-v2',{work_id:'w2',manifest:manifest()}),/native-work-one-at-a-time/);
+ assert.throws(()=>send(one,'native-work-manifest-v2',{work_id:'w2',manifest:manifest()}),/native-work-path-overlap/);
  const paused=structuredClone(state);paused.teams.team.status='paused';assert.throws(()=>send(paused,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}),/active-leader-required/);
  const frozen=structuredClone(state);frozen.teams.team.native_quota_freeze={};assert.throws(()=>send(frozen,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}),/quota-handover-pending/);
  const audited=structuredClone(state),t=audited.teams.team;audited.subscription_invocations.ack={id:'ack',team:'team',action_ack:{leader:t.leader,epoch:t.epoch}};t.native_protocol_reviews={x:{unresolved_negative:true,records:[{source_invocation_id:'ack'}]}};
@@ -157,4 +157,41 @@ test('the base of a dependent manifest is the commit of its tip, and several dep
 test('a manifest without depends_on is unchanged and carries no such key',async()=>{
  const {state}=await enabled(),w=send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}).state.teams.team.work.w1;
  assert.equal(Object.hasOwn(w.manifest,'depends_on'),false);assert.equal(w.manifest_digest,workManifestDigest(manifest()));assert.equal(Object.hasOwn(w,'depends_on'),false);
+});
+
+// Several unfinished works (owner decision 2026-10-11): their manifest paths must not overlap.
+const secondOn=(s,paths,id='w2')=>send(s,'native-work-manifest-v2',{work_id:id,manifest:manifest({paths})});
+test('a second work needs paths that overlap no unfinished work: equal, by case or under a directory prefix are refused',async()=>{
+ const {state}=await enabled(),one=send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest({paths:['src/a/x.js','docs/Guide.md']})}).state;
+ assert.equal(secondOn(one,['src/b.js']).state.teams.team.work.w2.status,'manifest');
+ assert.equal(secondOn(one,['src/a.js','src/a/y.js']).result.work,'w2','a sibling name or file is not a directory prefix');
+ for(const [name,paths] of [['equal',['docs/Guide.md']],['by case',['SRC/A/X.JS']],['a directory of an unfinished path',['src/a']],['under an unfinished path',['src/a/x.js/y']],['one of several',['ok.js','DOCS/guide.md']]])assert.throws(()=>secondOn(one,paths),/native-work-path-overlap/,name);
+ // A third work must clear both.
+ const two=secondOn(one,['src/b.js']).state;assert.throws(()=>secondOn(two,['src/b.js/z'],'w3'),/native-work-path-overlap/);assert.equal(secondOn(two,['src/c.js'],'w3').result.work,'w3');
+});
+test('cancelled and integrated work free their paths, every other status holds them',async()=>{
+ const {state}=await enabled(),one=send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}).state;
+ for(const status of ['manifest','executing','uncertain','sealed','candidate','approved','changes-requested','blocked','attempt-failed','execution-refused']){const s=structuredClone(one);s.teams.team.work.w1.status=status;assert.throws(()=>secondOn(s,['src/sum.js']),/native-work-path-overlap/,status);}
+ for(const status of ['cancelled','integrated']){const s=structuredClone(one);s.teams.team.work.w1.status=status;assert.equal(secondOn(s,['src/sum.js']).result.work,'w2',status);}
+ assert.equal(secondOn(send(one,'native-work-cancel-v2',{work_id:'w1',reason:'replan'}).state,['src/sum.js']).result.work,'w2');
+});
+test('a call in flight belongs to its work: it blocks that work only, for cancel and for a new call',async()=>{
+ const {state,unit}=await enabled(),{validateProtocolWork,workSuiteDigest,workPromptDigest}=await import('../scripts/team-native-work.mjs');
+ const two=secondOn(send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}).state,['src/other.js']).state;
+ two.subscription_invocations.call={id:'call',team:'team',purpose:'work',state:'consumed',work:{work_id:'w1'}};
+ assert.throws(()=>send(two,'native-work-cancel-v2',{work_id:'w1',reason:'x'}),/reconciled-closure-required/);assert.equal(send(two,'native-work-cancel-v2',{work_id:'w2',reason:'x'}).state.teams.team.work.w2.status,'cancelled');
+ const team=two.teams.team,leader=team.participants[team.leader],inputs='a'.repeat(64);
+ const reserve=id=>{const w=team.work[id];return validateProtocolWork(two,team,{purpose:'work',max_calls:1,estimate_tokens:'40',timeout_ms:1000,suite_digest:workSuiteDigest(),work:{work_id:id,generation:1,attempt:1,inputs_digest:inputs,prompt_digest:workPromptDigest(w.manifest,inputs)}},leader,{unit_digest:unit},now);};
+ assert.throws(()=>reserve('w1'),error=>{assert.equal(error.code??error.message,'native-work-call-in-flight');return true;});
+ assert.equal(reserve('w2').work.work_id,'w2');
+});
+test('the policy ceiling is shared by all works of a revision: what one work spent counts against another',async()=>{
+ const {state,unit}=await enabled(),{validateProtocolWork,workSuiteDigest,workPromptDigest}=await import('../scripts/team-native-work.mjs');
+ const two=secondOn(send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}).state,['src/other.js']).state,team=two.teams.team,leader=team.participants[team.leader],inputs='a'.repeat(64);
+ // w1 spent calls and tokens of the ceiling (execution 2 calls, 8000 estimate; the unit holds 50000).
+ two.subscription_invocations.old={id:'old',team:'team',purpose:'work',state:'settled',work:{work_id:'w1'},unit_digest:unit,estimate_tokens:'8000',charged_tokens:'8000',work_policy_revision:1};
+ const reserve=(id,estimate)=>{const w=team.work[id];return validateProtocolWork(two,team,{purpose:'work',max_calls:1,estimate_tokens:estimate,timeout_ms:1000,suite_digest:workSuiteDigest(),work:{work_id:id,generation:1,attempt:1,inputs_digest:inputs,prompt_digest:workPromptDigest(w.manifest,inputs)}},leader,{unit_digest:unit},now);};
+ assert.equal(reserve('w2','8000').work.work_id,'w2','one more call fits');
+ two.subscription_invocations.old2={...two.subscription_invocations.old,id:'old2'};
+ assert.throws(()=>reserve('w2','8000'),error=>{assert.equal(error.code??error.message,'native-work-owner-ceiling-exceeded');return true;});
 });

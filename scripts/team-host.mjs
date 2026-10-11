@@ -245,9 +245,13 @@ export function createTeamHost(config, dependencies={}) {
   return mutate('native-work-revise-v2',{work_id:w.id,generation:w.generation,findings_digest:found.findings_digest,reason},o).result;
  }
  function enableNativeWork({revision,policy}={}){return mutate('native-work-enable-v2',{revision,policy},owner()).result;}
+ // Owner decision 2026-10-11: under this team's publication fence the authority defers owner and collector events, so a Host
+ // step of another work is refused before it reserves or writes anything.
+ function fenceFree(){if(load().state.publication_fence?.team===team)fail('host-native-publication-fence-held');}
  function installWorkManifest({workId,manifest}={}){
   // A retried call after a lost response finds the manifest already recorded.
   const w=getTeam().t.work?.[workId];if(w?.protocol===2&&w.manifest_digest)return {work:workId,manifest_digest:w.manifest_digest,unchanged:true,protected_actions_granted:false};
+  fenceFree();
   return mutate('native-work-manifest-v2',{work_id:workId,manifest},owner()).result;
  }
  function cancelNativeWork({workId,reason}={}){
@@ -272,6 +276,7 @@ export function createTeamHost(config, dependencies={}) {
   const prompt=calibrated?calibratedWorkPrompt(w,inputs):workPrompt(w,inputs,w.revision);
   if(Buffer.byteLength(prompt)>65536)fail('host-native-work-prompt-too-large');
   if(owned&&reviewWouldNotFit(w,inputs))fail('native-work-review-prompt-would-not-fit');
+  fenceFree();
   await ensureNativeQuotaLease();
   const attempt=w.attempts+1,nonce='work_'+randomUUID().replace(/-/g,''),operationId=randomUUID(),ref=workPatchRef(team,w,attempt,nonce);
   const binding={work_id:w.id,generation:w.generation,attempt,inputs_digest:inputsDigest,prompt_digest:calibrated?calibratedWorkPromptDigest(w.manifest,inputsDigest):workPromptDigest(w.manifest,inputsDigest,w.revision,owned?OWNER_ASSIGNED_EXECUTOR:undefined)};
@@ -309,6 +314,7 @@ export function createTeamHost(config, dependencies={}) {
   if(w.result&&['candidate','approved','changes-requested','blocked'].includes(w.status))return {captured:w.id,unchanged:true,tree:w.result.tree,protected_actions_granted:false};
   const dispatch=w.dispatches?.[w.sealed_dispatch],x=dispatch&&v.state.subscription_invocations?.[dispatch.invocation_id];
   if(w.status!=='sealed'||!x)fail('host-native-work-sealed-call-required');
+  fenceFree();
   const p=t.participants[x.participant];let directory=hostDir,registryError=null;
   if(p?.host_binding)try{directory=dirname(readParticipantHost({state:v.state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)}).binding.host_file);}catch(error){registryError=error.code||'host-participant-registry-unavailable';}
   let completion;try{completion=collectOwnedRuntimeCompletion({directory:join(directory,'runtime'),team,participant:x.participant,incarnation:x.incarnation,epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.operation_id,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id});}catch(error){if(registryError)fail(registryError);if(error.code==='ENOENT')fail('host-native-work-owned-closure-unavailable');throw error;}
@@ -351,7 +357,7 @@ export function createTeamHost(config, dependencies={}) {
  // Host. The diff is recomputed from Git objects and must match the captured
  // digest; the verdict is applied after the critic's profile and owned closure.
  async function reviewNativeWork({workId,nonce,actionId,estimateTokens}={}){
-  owner();const d=endpoint();await ensureNativeQuotaLease();const {v,t}=getTeam();
+  owner();const d=endpoint();fenceFree();await ensureNativeQuotaLease();const {v,t}=getTeam();
   const core=createProtocolWorkReviewRequest(v.state,t,{actionId:actionId||'work-review-'+randomUUID(),workId,now:Date.parse(now())});
   if(core.request.participant!==d.participant)fail('host-native-work-review-endpoint-required');
   const target=core.request.target,diff=integration.treeDiff({projectRoot,base:target.base,tree:target.tree});
@@ -386,6 +392,8 @@ export function createTeamHost(config, dependencies={}) {
   await ensureNativeQuotaLease();({v,t}=getTeam());
   const checkout=workCheckout(workId),open=t.native_integration;let reservation,text;
   const reserved=()=>{throw Object.assign(new Error('host-native-publication-reserved-recover-required: reservation '+open.id+' is '+open.state),{code:'host-native-publication-reserved-recover-required',reservation_id:open.id});};
+  // Publications go one at a time: another work's open reservation is named, not reported as this work's recover-required.
+  if(nativeIntegrationOpen(t)&&open.work_id!==w.id)throw Object.assign(new Error('host-native-publication-other-work-reserved: reservation '+open.id+' of work '+open.work_id),{code:'host-native-publication-other-work-reserved',reservation_id:open.id,work_id:open.work_id});
   if(nativeIntegrationOpen(t)&&open.state!=='prepared')reserved();
   if(v.state.publication_fence)fail('host-native-publication-fence-held');
   // Before any fence is raised, on a first attempt and on a resume alike: the
