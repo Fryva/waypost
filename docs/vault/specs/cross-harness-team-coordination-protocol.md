@@ -275,8 +275,8 @@ Recompute against latest roster/policy before new grant, so a further stronger
 arrival during handover cannot be skipped.
 Owner-assigned team ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]): there is no promotion. A stronger or
 later arrival gets no role and triggers no handover. The coordinator loses its
-role on any binding change, revoke, leave, profile mismatch at action time or
-quota with no listed alternate; quota hands over only to a listed alternate that
+role on any binding change, revoke, leave or quota with no listed alternate (a
+profile mismatch at action time only refuses that action; the owner then revokes); quota hands over only to a listed alternate that
 still has an independent reviewer, without returning. Loss sets a latch: the team
 pauses and cannot resume, cancellable work is cancelled, and the owner closes the
 team with `close-v1` once every call has settled; a new team needs a new assignment.
