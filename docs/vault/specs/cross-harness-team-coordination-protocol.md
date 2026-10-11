@@ -333,6 +333,10 @@ cancelled and uncertain. Reassign/adopt is explicit. Every transition checks
 role, epoch, work generation, base, model/policy and expected team revision.
 A worker cannot mark its result reviewed/integrated. Dependencies must resolve
 and be acyclic before scheduling.
+Protocol 2 (WP-20, owner 2026-10-11): a manifest names `depends_on`, integrated
+work only, so the graph is acyclic by construction; the base of the dependent
+work is the published commit of the tip of the chain of its dependencies (a
+dependency set that is not one chain is refused).
 
 5.2. Assignment contains goal, dependencies, concrete edit paths, forbidden actions,
 acceptance, immutable base and expected evidence/resource requirements. Overlap

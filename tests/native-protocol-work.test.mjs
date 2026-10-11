@@ -4,6 +4,7 @@ import { authorityFixture, at, now, expiry } from './helpers/native-calibration.
 import { reduceTeamEvent } from '../scripts/team-state.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
 import { implementGate, rankParticipant } from '../scripts/team.mjs';
+import { workManifestDigest } from '../scripts/team-native-work.mjs';
 
 const legacy={protocol:1,revision:1,domain:'coding',mode:'automatic',generated_at:at,expires_at:expiry,sources:[{id:'fixture',url:'https://example.org/fixture',retrieved_at:at}],evidence_floor:['adapter-observed'],profiles:[]};
 let shared;
@@ -125,4 +126,35 @@ test('an unnamed calibrated manifest is refused when no executor passes every ga
  const w=send(sole,'native-work-manifest-v2',{work_id:'w1',manifest:unnamed}).state.teams.team.work.w1;
  assert.deepEqual(w.assignment.candidates,[t.review_candidate]);assert.equal(w.worker,t.review_candidate);
  assert.throws(()=>send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest({forbidden_actions:[],executor_participant:[t.review_candidate]})}),/native-work-ready-executor-required/);
+});
+
+// Dependent work (owner decisions 2026-10-11): `depends_on` names integrated protocol 2 work; the base is the tip of a chain of them.
+const A='a1'.repeat(20),B='b2'.repeat(20),C='c3'.repeat(20);
+const integrated=(state,id,commit,base,patch={})=>{const s=structuredClone(state);s.teams.team.work[id]={protocol:2,id,status:'integrated',commit,manifest:{base},integrated_evidence:{protocol:2,commit},...patch};return s;};
+const dependent=(state,deps,base,id='w9')=>send(state,'native-work-manifest-v2',{work_id:id,manifest:manifest({base,depends_on:deps})});
+test('a dependent manifest refuses a malformed depends_on, and a dependency that is not integrated protocol 2 work with evidence of its commit',async()=>{
+ const {state}=await enabled(),done=integrated(state,'wa',A,'f'.repeat(40));
+ for(const [name,deps] of [['empty',[]],['not an array','wa'],['duplicate',['wa','wa']],['bad id',['../x']],['not a string',[1]],['too many',Array.from({length:17},(_,i)=>'w'+i)]])assert.throws(()=>dependent(done,deps,A),/native-work-dependencies-invalid/,name);
+ for(const [name,deps] of [['unknown',['nobody']],['the work itself',['w9']]])assert.throws(()=>dependent(done,deps,A),/native-work-dependency-not-integrated/,name);
+ for(const [name,patch] of [['unfinished',{status:'approved'}],['cancelled',{status:'cancelled'}],['protocol 1 forged as 2',{integrated_evidence:{protocol:1,commit:A}}],['evidence of another commit',{integrated_evidence:{protocol:2,commit:B}}],['no commit',{commit:undefined}],['protocol 1',{protocol:1}]])
+  assert.throws(()=>dependent(integrated(state,'wa',A,'f'.repeat(40),patch),['wa'],A),/native-work-dependency-not-integrated/,name);
+});
+test('the base of a dependent manifest is the commit of its tip, and several dependencies are accepted only as a chain',async()=>{
+ const {state}=await enabled();let s=integrated(state,'wa',A,'f'.repeat(40));
+ assert.throws(()=>dependent(s,['wa'],'f'.repeat(40)),/native-work-dependency-base-required/,'the base is not a dependency commit');
+ const one=dependent(s,['wa'],A).state.teams.team.work.w9;assert.deepEqual(one.manifest.depends_on,['wa']);assert.equal(one.manifest_digest,workManifestDigest(one.manifest));
+ assert.notEqual(one.manifest_digest,workManifestDigest({...one.manifest,depends_on:undefined}),'depends_on is covered by the digest');
+ s=integrated(s,'wb',B,A);
+ assert.throws(()=>dependent(s,['wb'],A),/native-work-dependency-base-required/,'the base names a work that is not listed');
+ assert.equal(dependent(s,['wa','wb'],B).state.teams.team.work.w9.worker,s.teams.team.leader,'a chain [A, B] built from the commit of B');
+ assert.equal(dependent(s,['wb','wa'],B).result.work,'w9','the order of the list does not matter');
+ assert.throws(()=>dependent(s,['wa','wb'],A),/native-work-dependency-chain-required/,'B is not behind the tip A');
+ // A sister of B on the same base is not in the chain of B.
+ s=integrated(s,'wc',C,A);
+ assert.throws(()=>dependent(s,['wb','wc'],C),/native-work-dependency-chain-required/);assert.throws(()=>dependent(s,['wb','wc'],B),/native-work-dependency-chain-required/);
+ assert.equal(dependent(s,['wa','wc'],C).result.work,'w9');
+});
+test('a manifest without depends_on is unchanged and carries no such key',async()=>{
+ const {state}=await enabled(),w=send(state,'native-work-manifest-v2',{work_id:'w1',manifest:manifest()}).state.teams.team.work.w1;
+ assert.equal(Object.hasOwn(w.manifest,'depends_on'),false);assert.equal(w.manifest_digest,workManifestDigest(manifest()));assert.equal(Object.hasOwn(w,'depends_on'),false);
 });

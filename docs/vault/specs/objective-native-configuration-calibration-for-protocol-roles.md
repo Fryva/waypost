@@ -431,7 +431,10 @@ fixed-action pattern of contracts 20–21.
     deferred; leader calls are reserved for decisions the coordinate families
     measured (dependencies and leases across several works). Until then a
     calibrated manifest without an executor is assigned by the authority
-    deterministically (see the slice 5 decision).
+    deterministically (see the slice 5 decision). Amended in slice 6
+    (owner, 2026-10-11): the leader's model takes no part in dependencies
+    either; the owner supplies manifests with `depends_on` (see the slice 6
+    notes), and the authority checks them without a model call.
 29. Executor qualification by the policy's `executor` mode. (a)
     `leader-baseline`: only the acknowledged leader executes, in a fresh owned
     context of its admitted profile, recorded `unqualified-strongest-baseline`
@@ -1331,3 +1334,28 @@ above that refuse Codex as calibration member, executor, critic or delivery
 recipient are superseded: a Codex profile captured under a verified surface is
 admitted like any other, and the measured format still binds the surface into
 the profile.
+
+### Slice 6 notes: dependent works, then several unfinished works (owner, 2026-10-11)
+
+Decisions of the owner: (1) the leader's model takes no part; the owner supplies
+manifests with `depends_on`. (2) A dependent work B is built from the published
+commit of A on the team's private ref; the authority checks the base. (3) Several
+unfinished works may run at once when their paths do not overlap.
+
+Step 1, dependent works (reducer only, `team-native-work.mjs`). `depends_on` is
+an optional manifest key (1 to 16 unique work ids; `[]` is refused with
+`native-work-dependencies-invalid`) for all three executor modes; the manifest
+digest covers it and nothing is added to the work record (`manifest.depends_on`
+is the record), so every stored log replays byte for byte. A dependency must
+exist, be protocol 2, be `integrated`, and carry `integrated_evidence.protocol === 2`
+with `integrated_evidence.commit === commit` (protocol 1 history also sets
+`w.commit`); otherwise `native-work-dependency-not-integrated`. Defaults accepted
+with the plan: the manifest of B is accepted only after its dependencies are
+integrated; several dependencies only as a chain (tip rule: `base` is the commit
+of one dependency, `native-work-dependency-base-required` otherwise, and every
+other dependency is on the chain of that tip through the manifest bases,
+`native-work-dependency-chain-required` otherwise), so sisters are refused;
+publications go one at a time. The exception "overlap is allowed when there is a
+dependency" is not implemented: it is unreachable, because a dependency is
+integrated before the dependent manifest exists, and so no unfinished work holds
+its paths.

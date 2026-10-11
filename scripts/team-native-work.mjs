@@ -16,6 +16,7 @@ function integer(value) { if (typeof value !== 'string' || !/^(0|[1-9][0-9]{0,17
 function keys(c, extra) { if (Object.keys(c).some(k => !['type', 'team', 'actor', 'at', 'request_key', 'incarnation', 'epoch', ...extra].includes(k))) fail('native-work-command-fields-required'); }
 function exact(value, keys) { if (!value || typeof value !== 'object' || Array.isArray(value) || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([...keys].sort())) fail('native-work-exact-object-required'); return value; }
 function text(value, max) { if (typeof value !== 'string' || !value.trim() || value.length > max || /[\x00-\x08\x0b-\x1f]/.test(value)) fail('native-work-bounded-text-required'); return value; }
+const WORK_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/;
 const terminal = w => ['integrated', 'cancelled'].includes(w.status);
 
 export const WORK_LABEL = 'unqualified-strongest-baseline';
@@ -69,6 +70,9 @@ export function workPaths(values) {
 export function workManifestDigest(manifest) { return routingDigest({ revision: 1, manifest }); }
 
 function unfinishedWork(t) { return Object.values(t.work || {}).filter(w => w.protocol === 2 && !terminal(w)); }
+// Dependent work (owner decisions 2026-10-11): a dependency counts only as protocol 2 work integrated with protocol 2
+// evidence of its own commit (protocol 1 history also sets `w.commit`). Inlined: team-native-integration.mjs imports this file.
+const integratedWork = t => Object.values(t.work || {}).filter(w => w.protocol === 2 && w.status === 'integrated' && w.commit && w.integrated_evidence?.protocol === 2 && w.integrated_evidence.commit === w.commit);
 // The leader may act only while the team is active under a current policy and,
 // re-selected read-only at this time (leases and admissions lapse with the
 // clock), is still the coordinator with an independent critic available.
@@ -117,11 +121,11 @@ export function applyNativeWork(s, t, c, now, H) {
     result = { enabled: true, revision: c.revision, protected_actions_granted: false };
   } else if (c.type === 'native-work-manifest-v2') {
     // At most 80 characters, so every Host record and private ref name derived from it stays valid.
-    const workId = c.work_id; if (typeof workId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(workId)) fail('native-work-invalid-id');
+    const workId = c.work_id; if (typeof workId !== 'string' || !WORK_ID.test(workId)) fail('native-work-invalid-id');
     if (t.work?.[workId]) fail('native-work-already-exists');
     const mode = currentWorkPolicy(t, now).executor;
     // A calibrated manifest names its executor, or leaves the choice to the authority (slice 5).
-    const manifest = exact(c.manifest, ['protocol', 'goal', 'criteria', 'criteria_digest', 'paths', 'base', 'forbidden_actions', ...(mode !== 'leader-baseline' && c.manifest && Object.hasOwn(c.manifest, 'executor_participant') ? ['executor_participant'] : [])]);
+    const manifest = exact(c.manifest, ['protocol', 'goal', 'criteria', 'criteria_digest', 'paths', 'base', 'forbidden_actions', ...(mode !== 'leader-baseline' && c.manifest && Object.hasOwn(c.manifest, 'executor_participant') ? ['executor_participant'] : []), ...(c.manifest && Object.hasOwn(c.manifest, 'depends_on') ? ['depends_on'] : [])]);
     if (Buffer.byteLength(JSON.stringify(manifest)) > 32768) fail('native-work-manifest-too-large');
     if (manifest.protocol !== 2) fail('native-work-manifest-protocol-required');
     text(manifest.goal, 4000);
@@ -132,6 +136,16 @@ export function applyNativeWork(s, t, c, now, H) {
     if (!Array.isArray(manifest.forbidden_actions) || manifest.forbidden_actions.length > 32) fail('native-work-forbidden-actions-required');
     manifest.forbidden_actions.forEach(x => text(x, 500));
     const paths = workPaths(manifest.paths);
+    if (manifest.depends_on !== undefined) {
+      const deps = manifest.depends_on;
+      if (!Array.isArray(deps) || !deps.length || deps.length > 16 || new Set(deps).size !== deps.length || deps.some(id => typeof id !== 'string' || !WORK_ID.test(id))) fail('native-work-dependencies-invalid');
+      const done = integratedWork(t), byCommit = new Map(done.map(x => [x.commit, x]));
+      if (!deps.every(id => done.some(x => x.id === id))) fail('native-work-dependency-not-integrated');
+      // Tip rule: the base is the commit of one dependency, and every other dependency is behind it in a chain.
+      const tip = byCommit.get(manifest.base); if (!tip || !deps.includes(tip.id)) fail('native-work-dependency-base-required');
+      const chain = new Set(); for (let x = tip; x && !chain.has(x.id); x = byCommit.get(x.manifest.base)) chain.add(x.id);
+      if (!deps.every(id => chain.has(id))) fail('native-work-dependency-chain-required');
+    }
     let worker = null, assignment = null;
     if (mode === OWNER_ASSIGNED_EXECUTOR) {
       // No size class: the owner chose the executor. The Host refuses what the executor or the reviewer cannot take.

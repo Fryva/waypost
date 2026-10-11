@@ -148,3 +148,11 @@ test('an executor that adds an invisible or bidirectional character is refused; 
  g.host.installWorkManifest({workId:'fix-sum',manifest:hostManifest(g.base)});
  assert.equal((await g.hostFor('peer-d').executeNativeWork({workId:'fix-sum',estimateTokens:'40'})).status,'sealed');
 });
+test('a dependent manifest works with a selected and with a named executor (owner decisions 2026-10-11)',async()=>{
+ const {state}=await enabled(['peer-c','peer-d']),A='a1'.repeat(20),s=clone(state);
+ s.teams.team.work.wa={protocol:2,id:'wa',status:'integrated',commit:A,manifest:{base:'f'.repeat(40)},integrated_evidence:{protocol:2,commit:A}};
+ const picked=install(s,'w1',manifest({base:A,depends_on:['wa']})),named=install(s,'w2',manifest({base:A,depends_on:['wa'],executor_participant:'peer-d'}));
+ assert.equal(picked.worker,'peer-c');assert.deepEqual(picked.manifest.depends_on,['wa']);assert.equal(picked.assignment.mode,'owner-order');
+ assert.equal(named.worker,'peer-d');assert.equal(named.assignment,undefined);assert.deepEqual(named.manifest.depends_on,['wa']);
+ assert.throws(()=>install(s,'w3',manifest({base:A,depends_on:[]})),/native-work-dependencies-invalid/);assert.throws(()=>install(s,'w3',manifest({depends_on:['wa']})),/native-work-dependency-base-required/);
+});

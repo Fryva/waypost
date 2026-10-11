@@ -1129,7 +1129,11 @@ case-insensitive duplicates, base commit, forbidden actions). A manifest needs
 an active team under a current policy with an independent critic, no quota
 freeze or handover, no unresolved negative audit of the current leader
 acknowledgement, and no other unfinished protocol 2 work (one at a time in this
-slice). The acknowledged leader is recorded as the worker with the label
+slice). A manifest may carry `depends_on` (1 to 16 work ids): each must be
+protocol 2 work already integrated, the `base` must be the commit that work
+published, and several dependencies must form one chain, with the base at its
+tip (the owner decides and writes this; no model is called). Merge the ref of
+the tip of the chain: it contains every dependency. The acknowledged leader is recorded as the worker with the label
 `unqualified-strongest-baseline` (under `leader-baseline`). `native-work-cancel` cancels unfinished work in
 any team status unless a call for it is consumed or uncertain (reconcile it
 first). Protocol 1 rewrites (revoke, attest) leave protocol 2 work alone, and the
