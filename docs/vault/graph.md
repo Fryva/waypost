@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-10T22:17:52.756Z
+generated_at: 2026-10-11T03:06:35.616Z
 
 ---
 
@@ -229,6 +229,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md |
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md |
 | epics/WP-20/epic.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/epic.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
 | epics/WP-20/epic.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
@@ -251,6 +252,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
 | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
@@ -279,10 +281,12 @@ full typed neighborhood, both directions, in one call.
 | specs/cross-harness-team-coordination-protocol.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | specs/cross-harness-team-coordination-protocol.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
 | specs/cross-harness-team-coordination-protocol.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| specs/cross-harness-team-coordination-protocol.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
 | specs/cross-harness-team-coordination-protocol.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | spec-covers | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | spec-covers | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | spec-implements-adr | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | wikilink | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
+| specs/objective-native-configuration-calibration-for-protocol-roles.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | wikilink | specs/cross-harness-team-coordination-protocol.md |

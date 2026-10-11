@@ -256,6 +256,9 @@ and routable. Highest coordinate priority wins. Equal ranks keep incumbent;
 otherwise stable participant-id ordering. If top cannot acknowledge, mark it
 unavailable with a reason, then rerank eligible participants. Leader rank never
 comes from self-declared strength. Policy governs model strength, not permissions.
+Owner-assigned team ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]): the owner's ordered coordinator list
+(first entry, then alternates in order) replaces rank; a joined participant gets
+no role by arriving. Equal-rank and stable-id ordering do not apply.
 
 3.2. States: forming -> active -> handover -> active; paused and closed branches.
 A grant binds monotonic epoch, leader id, model revision and policy revision.
@@ -270,6 +273,13 @@ resuming. Explicit adoption binds retained base/scope/result, old/new epoch and
 worker acknowledgement; unadopted old results cannot advance acceptance.
 Recompute against latest roster/policy before new grant, so a further stronger
 arrival during handover cannot be skipped.
+Owner-assigned team ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]): there is no promotion. A stronger or
+later arrival gets no role and triggers no handover. The coordinator loses its
+role on any binding change, revoke, leave, profile mismatch at action time or
+quota with no listed alternate; quota hands over only to a listed alternate that
+still has an independent reviewer, without returning. Loss sets a latch: the team
+pauses and cannot resume, cancellable work is cancelled, and the owner closes the
+team with `close-v1` once every call has settled; a new team needs a new assignment.
 
 3.4. A deadline can fence a quiet leader's authority, but timeout never proves a
 worker stopped. Outstanding edits remain uncertain until acknowledgement,
@@ -361,6 +371,13 @@ cannot silently satisfy the earlier requirement. Select an available independent
 fresh read-only context at/above that floor. Top model's authoring context is
 excluded; its separately established fresh context can qualify. If none can run,
 block with strongest-independent-review-unavailable. Lower reviews are preliminary.
+Owner-assigned team ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]): the floor is the highest-listed independent
+reviewer of the owner's ordered list, not a measured rank. A busy, unavailable or
+quota-exhausted higher reviewer keeps the floor and review waits; a revoked, left
+or rebound one (new incarnation, model revision or descriptor) drops out and the
+next listed reviewer becomes the top. Only the top independent reviewer's approval
+counts for publication; lower-listed verdicts are preliminary. If no independent
+listed reviewer remains, review is blocked. Rebaselining means a new team.
 
 6.1a. Versioned owner opt-in `quota-policy-enable-v1` permits an availability
 exception to 6.1 only for exact provider-confirmed account/model quota exhaustion.
@@ -408,6 +425,9 @@ Change any target/base/criteria/evidence invalidates review. Review of a patch
 against one base does not approve a conflicted merge against another. Stronger
 review model admission before integration raises floor and forces recheck; weaker
 earlier approval no longer satisfies final acceptance.
+Owner-assigned team ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]): there is no stronger admission; arrivals get
+no role, so the floor changes only when a listed reviewer drops out (6.1). The
+attestation pins `assignment_digest` in place of `calibration_digest`.
 
 6.4. Final integration requires worker evidence, coordinator diff supervision and
 independent top-strength approval for the exact candidate. Resolve findings and
@@ -424,6 +444,15 @@ calibrated executor (`calibrated-bounded-edit`, contract 29(b) of the
 calibration spec) wrote the patch inside the measured class; that work is
 labelled `calibrated-bounded-edit`, and the critic excludes both the executor
 and the leader and their configurations.
+Owner-assigned team ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]): the same replacement holds for work by
+an owner-assigned executor (`executor: owner-assigned`, labelled
+`owner-assigned-unmeasured`; review labelled `owner-assigned-review`). Coordinator
+diff supervision is replaced by Host checks of the manifest scope (including the
+bidi/zero-width check) and approval by the top independent listed reviewer. The
+reviewer is a different participant from the executor and from the leader as a
+participant, and a different native configuration from the executor; it may share
+the leader's model and native configuration. Strength is not measured; tests are
+recorded as not run and publication goes only to the private ref the owner merges.
 
 ### 7. Git, stories and compatibility
 
@@ -552,10 +581,15 @@ live evidence: harness/model/version/OS, task ids, transcripts and reviewed comm
 
 - [ ] Contracts 1–8 have deterministic tests without legacy regression.
 - [ ] Named blockers replace silent strength/identity/delivery/gate fallbacks.
-- [ ] Strongest selection and fresh independence pass separate review.
+- [ ] Strongest selection and fresh independence pass separate review. For an
+      owner-assigned team ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]) the branch is: owner order selects
+      roles, the top listed independent reviewer gates publication, and fresh
+      independence passes separate review.
 - [ ] Claude and OpenCode actually exchange task messages both ways in their
       contexts; different models coordinate one task, demonstrate promotion,
-      rejection/revision and integration of the reviewed candidate.
+      rejection/revision and integration of the reviewed candidate. For an
+      owner-assigned team, "promotion" is replaced by role-loss handling: latch,
+      cancellation and owner `close-v1`, and quota hand-over to the listed alternate.
 - [ ] Unattended wake is claimed only for live-tested adapter combinations;
       cooperative delivery limits are explicit. Windows/Linux/remote proof separate.
 - [ ] Owner approves ADR/activates spec before implementation is treated as agreed.

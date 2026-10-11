@@ -13,7 +13,7 @@ review_status: reviewed
 reviewed_at: 2026-10-10
 drafted_by: {"harness":"claude","provider":null,"date":"2026-10-10"}
 guards: []
-code_refs: ["scripts/team.mjs", "scripts/team-state.mjs", "scripts/team-host.mjs", "scripts/team-native-work.mjs", "scripts/team-native-work-review.mjs", "scripts/team-native-action.mjs", "scripts/team-native-quota.mjs", "scripts/team-native-integration.mjs", "scripts/team-integration.mjs", "scripts/team-cli.mjs", "scripts/model-strength.mjs", "scripts/team-role-calibration.mjs", "bin/waypost"]
+code_refs: ["scripts/team.mjs", "scripts/team-state.mjs", "scripts/team-host.mjs", "scripts/team-native-work.mjs", "scripts/team-native-work-review.mjs", "scripts/team-native-action.mjs", "scripts/team-native-quota.mjs", "scripts/team-native-integration.mjs", "scripts/team-integration.mjs", "scripts/team-cli.mjs", "scripts/model-strength.mjs", "scripts/team-role-calibration.mjs", "bin/waypost", "tests/native-owner-assigned.test.mjs", "tests/native-owner-assigned-host.test.mjs", "tests/native-owner-assigned-work.test.mjs", "tests/native-owner-assigned-publish.test.mjs", "tests/native-owner-assigned-lifetime.test.mjs"]
 ---
 
 # Owner-assigned team roles by default with calibration as an optional check
@@ -308,6 +308,8 @@ no choice above.
 - **Review size.** The review prompt, including the diff, is capped at 64 KiB, so a work
   larger than that could be executed but never reviewed. A work whose inputs cannot fit
   a review prompt is refused before execution, so no execution tokens are spent on it.
+
+- **Status of the code (2026-10-11).** Implemented in slices 1-5 (commits 62d9dcf to 315451b). Leadership audit for owner-assigned teams is still refused (`owner-assigned-audit-unsupported`). No live run with real harnesses has been done; the tests are unit, reducer and in-process Host.
 
 ## References
 

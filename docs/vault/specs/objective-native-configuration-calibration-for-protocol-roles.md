@@ -132,6 +132,7 @@ project review remains fresh, independent and strongest qualified.
     strongest permitted review frontier; missing independent candidate blocks the
     whole installation. Candidate separation is not executable-context isolation.
     Caller policy/summary/score JSON is refused. Publication defers installation.
+    For an owner-assigned team ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]) there is no cohort and no install: owner-only `native-policy-assign-v2` carries selectors only (participant ids per role, alternates, `expires_at` of at most 7 days, reason, issuing harness and session). The reducer derives every binding from its own state and stores a protocol 2 policy with `mode: owner-assigned`. It is refused unless every coordinator, alternate and executor has an independent listed reviewer; a team is one mode for its life.
 14. Installation requires no active leader/work, unresolved usage, pending native
     runtime/review/dispatch or unsupported quota-policy migration. Existing v1
     historical review identities without a common typed calibration bridge block
@@ -149,6 +150,7 @@ project review remains fresh, independent and strongest qualified.
     observation ID and original clocks. Retired measurement contexts never become
     executable review contexts. Independent participants may use the same measured
     profile only after their own fresh bound capture/admission.
+    For an owner-assigned team: identity comes from the settled collector-observed `native-identity-capture-v2` of one identity-purpose call, with no measurement. The admission is created by the reducer at `native-policy-assign-v2` (not at capture) with the same bindings, and expires with the assignment.
 16. Active policy 2 requires explicit matching protocol coverage. Missing role,
     implementation or architecture coverage, stale observations and action-bound
     requests without new action admission return null. Legacy leader acknowledgements
@@ -157,6 +159,7 @@ project review remains fresh, independent and strongest qualified.
     migration needs an explicit typed bridge. Keep the entire strongest review frontier as typed historical
     requirements; future policy cohorts must freshly cover it on their common scale.
     Missing/incomparable history blocks, and numeric priority never transfers.
+    For an owner-assigned team: the owner's per-role lists replace coverage. A participant holds a role only while its admission and policy row match its present incarnation, model revision, descriptor and collector; the reducer derives these bindings and any role loss from its own state. Arrival promotes nobody and nothing is compared with a calibration.
 
 17. Periodic native model inventory uses only metadata requests on separately
     owned read-only backends. Codex model/list and OpenCode GET /provider provide
@@ -225,6 +228,7 @@ project review remains fresh, independent and strongest qualified.
     architecture and implementation actions remain closed until their own tested
     admission contracts. Retired measurement/action contexts never become critic
     contexts and an independent critic candidate is not executable review proof.
+    For an owner-assigned team: the request pins `assignment_digest` (digest of the owner's policy row for the role) in place of `calibration_digest`, and the action-time native profile must equal the admitted identity profile (`own-admitted-profile-required`) instead of a calibration capture. The coordinator is chosen by owner order, not by the strongest coordinate frontier.
 
 21. A separate owner-bounded `protocol-leadership-audit` policy may admit one
     independent fresh strongest protocol-review configuration to inspect only
@@ -256,6 +260,7 @@ project review remains fresh, independent and strongest qualified.
     positives or policy/reviewer/incarnation/epoch changes cannot resolve it.
     Resolution is not supplied by this increment. No verdict grants project review,
     work, architecture, implementation or integration rights.
+    For an owner-assigned team: this audit is not supported and is refused with `owner-assigned-audit-unsupported`.
 
 ## Modules & files on disk
 
@@ -354,6 +359,7 @@ common-cohort activation and historical review requirements remain open.
     Material changes after consumption pause with retained accounting; no new ACK
     washes a consumed slot. Without the optional extension below, recovery of the
     old leader before transfer pauses.
+    For an owner-assigned team: a quota-triggered transfer goes only to a listed alternate, in the owner's order, that still has an independent listed reviewer, and never returns to the primary when quota recovers; with no such alternate the coordinator role is lost (see the note on contract 26).
 
 25. A separate explicit native quota policy opt-in, `same_leader_reactivation:
     true`, may recover the frozen old coordinator only into a new epoch. An
@@ -397,6 +403,7 @@ fixed-action pattern of contracts 20–21.
     covers the floor, otherwise handover) or the owner accepts work cycles that
     fit one window. A refresh invalidates unconsumed grants and approvals bound
     to the old revision.
+    For an owner-assigned team: the 15-minute window does not apply. The policy and admissions last until the assignment's `expires_at` (at most 7 days from the earliest bound identity observation), and an expired assignment refuses every protected action. A second assignment is refused (`native-policy-already-assigned`). The coordinator loses its role on any binding change, revoke, leave or admission loss. Loss sets a latch: the team pauses and cannot resume, cancellable work is cancelled (`owner-assigned-role-lost`), and the owner closes the team with `close-v1` once every call has settled. A lost executor's unfinished work is cancelled the same way; a lost reviewer voids its unpublished approvals and the team continues while an independent listed reviewer remains.
 27. Owner work ceilings. `native-work-enable-v2` installs a `native_work_policy`
     (kind, executor mode, `allow_unknown_quota`, call and attempt ceilings,
     per-call estimate, timeout ≤ 300 s, expiry ≤ policy expiry, unit allocations
@@ -438,6 +445,7 @@ fixed-action pattern of contracts 20–21.
     (`native-work-size-class-exceeded`), not routed to a strongest executor;
     the owner names the executor in the manifest. Both need a ready,
     admitted, quota-eligible participant and a no-tools context (Codex refused).
+    For an owner-assigned team: a third executor mode `owner-assigned` (`native-work-enable-v2 executor: owner-assigned`). The executor must hold the executor role of the owner's list, be ready, admitted and quota-eligible, and run in a no-tools context. The (b) size class (`native-work-size-class-exceeded`) does not apply; the leader-baseline limits do. The work is labelled `owner-assigned-unmeasured`. An owner-assigned team runs only this mode and other teams may not (`native-work-executor-mode-mismatch`).
 30. Dispatch and execution. `subscription-reserve-v2` gains purpose `work` with
     work id, generation, attempt, a prompt digest the reducer recomputes from a
     frozen installed template, and the Host-declared inputs digest. Consume
@@ -468,6 +476,7 @@ fixed-action pattern of contracts 20–21.
     current epoch, policy revision and generation, for the exact digests, with
     the reviewer at or above the current floor; a stronger admission before
     publication forces a new review.
+    For an owner-assigned team: the reviewer is the top listed independent reviewer for the work, not the strongest measured one. It is not the executor and not the leader as a participant, and its native configuration differs from the executor's; it may share the leader's configuration. A busy or out-of-quota higher reviewer keeps the floor and review waits; a revoked, left or rebound one drops out. The request pins `assignment_digest` in place of `calibration_digest`; only the top independent listed reviewer's approval counts. The review is labelled `owner-assigned-review`.
 32. Integration and publication keep protocol 1's fence, deferral, private-ref
     compare-and-swap and recovery, with: prepare/start requested by the
     acknowledged leader and rechecked by the authority (leadership, admission,
@@ -482,6 +491,7 @@ fixed-action pattern of contracts 20–21.
     Host after the authority rechecks that leader; ack and reconcile come only
     from the leader's bound collector pinned in the reservation; publication
     events and quota lease renewals are not deferred under the fence.
+    For an owner-assigned team: the gate is the top independent listed reviewer's approval for the work, and the reservation and the approval pin `assignment_digest` in place of `calibration_digest`. Everything else is unchanged.
 33. Implementation calibration `waypost-bounded-edit` revision 1, a separate
     scale never mixed with `waypost-protocol-roles`: 24 trials in 4 families of
     6 (each 2 clean, 2 unsafe, 2 boundary): scoped edit (unsafe: the goal needs

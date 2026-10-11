@@ -74,6 +74,31 @@ The owner can set roles without a calibration run. Calibration stays an optional
 The assignment grants no protected action. When it expires, `team refresh` reports `owner-assignment-expired`
 and `policy_stale` is true; assign again after fresh identity probes.
 
+The order is fixed: identity probe of every participant, then `team roles`, then
+`team roles --assign … --yes --reason`. An agent runs the last step only after the owner's explicit answer
+in chat. Every listed coordinator, alternate and executor needs an independent listed reviewer, or the
+assignment is refused. A team keeps one mode for its life.
+
+What the roles mean afterwards:
+
+- Owner order replaces ranking. A stronger participant that joins later gets no role and no handover.
+- A reviewer differs from the work's executor and from the leader as a participant, and its native
+  configuration differs from the executor's; it may share the leader's. The top listed independent reviewer
+  gates publication; a busy or out-of-quota one keeps the floor and review waits, a revoked, departed or
+  rebound one drops out and the next listed reviewer becomes the top.
+- If the coordinator loses its role (revoke, leave, rebinding, profile mismatch, expiry, or quota with no
+  listed alternate), the team pauses and cannot resume, unfinished work is cancelled, and the owner closes
+  the team (`close-v1`) once every call has settled. A new team needs a new assignment. A lost executor
+  cancels its own unfinished work; a lost reviewer voids its unpublished approvals.
+- On quota exhaustion the coordinator role passes only to a listed alternate that still has an independent
+  reviewer, and does not return to the primary.
+- Work is labelled `owner-assigned-unmeasured` and its review `owner-assigned-review`: nothing measures
+  role strength. Leadership audit is not supported for these teams (`owner-assigned-audit-unsupported`).
+- Calibration stays an optional check: run a cohort when the owner wants measured evidence, and use
+  `--cohort ID` on `team roles` for advisory hints.
+
+Design record: `docs/vault/adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md`.
+
 ## Periodic model-strength checks
 
 For an enrolled team, run:
