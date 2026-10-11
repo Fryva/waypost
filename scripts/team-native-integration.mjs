@@ -6,10 +6,10 @@
 // the reservation. No model touches Git; the owner merges the ref. Protocol 1's
 // fence and deferral apply; nothing here grants a protected role.
 import { routingDigest } from './model-routing.mjs';
-import { rankParticipant } from './team.mjs';
+import { rankParticipant, policyRow } from './team.mjs';
 import { nativeParticipantQuotaEligible } from './team-native-quota.mjs';
 import { activeNativeLeader, negativeAuditOfCurrentAck, WORK_TESTS_NOT_RUN_DIGEST } from './team-native-work.mjs';
-import { WORK_REVIEW_KIND, workReviewTarget, selectWorkReviewer } from './team-native-work-review.mjs';
+import { WORK_REVIEW_KIND, workReviewTarget, selectWorkReviewer, ownerListedReviewer, roleDigest } from './team-native-work-review.mjs';
 
 const clone = structuredClone;
 function fail(message) { throw new Error(message); }
@@ -34,17 +34,19 @@ export function nativePublicationGate(s, t, w, now) {
   const target = workReviewTarget(w), target_digest = routingDigest(target), aggregate = t.native_work_reviews?.[target_digest];
   const approvals = (aggregate?.records || []).filter(r => r.verdict === 'approve' && r.generation === w.generation && r.epoch === t.epoch && r.policy_revision === t.policy.revision);
   if (!aggregate || aggregate.unresolved_negative || !approvals.length) fail('native-integration-current-approval-required');
-  const r = approvals.at(-1), p = t.participants[r.participant];
+  // An owner-assigned team: the floor is the listed top independent reviewer's of this work, and the approval that counts is that reviewer's.
+  const owned = t.policy.mode === 'owner-assigned', floor = owned ? ownerListedReviewer(t, w, now).floor : t.review_floor, top = owned ? selectWorkReviewer(t, w, now) : null;
+  const r = (owned && approvals.findLast(a => a.participant === top?.id)) || approvals.at(-1), p = t.participants[r.participant];
   if (!p || p.revoked || p.availability === 'left' || p.incarnation !== r.incarnation || p.model?.model_revision !== r.model_revision || p.native_binding?.descriptor_digest !== r.descriptor_digest) fail('native-integration-approving-critic-changed');
   // A lapsed lease is named: a live critic lease (or `team watch`) is needed to publish.
   if (!nativeParticipantQuotaEligible(p, now)) fail('native-integration-approving-critic-quota-ineligible');
   const rank = rankParticipant(p, t.policy, 'review', { coverage: 'waypost-protocol-review', now });
-  const profile = t.policy.profiles.find(x => x.identity.profile_id === p.native_admission?.identity?.profile_id);
-  if (rank === null || !Number.isSafeInteger(t.review_floor) || rank < t.review_floor || r.review_floor < t.review_floor || !profile || !same(profile.identity, r.profile) || routingDigest(profile.calibration.review) !== r.calibration_digest) fail('native-integration-approving-critic-changed');
+  const profile = owned ? policyRow(t.policy, p) : t.policy.profiles.find(x => x.identity.profile_id === p.native_admission?.identity?.profile_id);
+  if (rank === null || !Number.isSafeInteger(floor) || rank < floor || r.review_floor < floor || !profile || !same(profile.identity, r.profile) || (owned ? roleDigest(t, p, 'review').assignment_digest !== r.assignment_digest : routingDigest(profile.calibration.review) !== r.calibration_digest)) fail('native-integration-approving-critic-changed');
   const strongest = selectWorkReviewer(t, w, now);
   if (!strongest) fail('native-work-strongest-independent-review-unavailable');
   if (rankParticipant(strongest, t.policy, 'review', { coverage: 'waypost-protocol-review', now }) > rank) fail('native-integration-stronger-review-required');
-  return { generation: w.generation, base: w.result.base, tree: w.result.tree, paths: [...w.result.paths], candidate_digest: w.result.candidate_digest, manifest_digest: w.manifest_digest, criteria_digest: w.manifest.criteria_digest, target_digest, tests_digest: w.result.tests_digest, tests_status: w.result.tests_status, reviews: approvals.map(a => a.invocation_id), reviewer: { participant: r.participant, incarnation: r.incarnation, profile: clone(r.profile), calibration_digest: r.calibration_digest }, label: w.label, collector: 'collector:' + t.participants[t.leader].native_binding.collector_id };
+  return { generation: w.generation, base: w.result.base, tree: w.result.tree, paths: [...w.result.paths], candidate_digest: w.result.candidate_digest, manifest_digest: w.manifest_digest, criteria_digest: w.manifest.criteria_digest, target_digest, tests_digest: w.result.tests_digest, tests_status: w.result.tests_status, reviews: approvals.map(a => a.invocation_id), reviewer: { participant: r.participant, incarnation: r.incarnation, profile: clone(r.profile), ...(owned ? { assignment_digest: r.assignment_digest } : { calibration_digest: r.calibration_digest }) }, label: w.label, collector: 'collector:' + t.participants[t.leader].native_binding.collector_id };
 }
 function reservation(s, t, value, now) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([...RESERVATION_KEYS].sort()) || Buffer.byteLength(JSON.stringify(value)) > 32768) fail('native-integration-reservation-fields-required');

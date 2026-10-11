@@ -5,7 +5,6 @@ import { reduceTeamEvent } from '../scripts/team-state.mjs';
 import { applySubscriptionAccounting } from '../scripts/team-subscription.mjs';
 import { validatePolicy,rankParticipant,listedReviewer,selectCoordinator,policyRow,OWNER_ASSIGNED_LIMITATIONS } from '../scripts/team.mjs';
 import { createProtocolLeaderAckRequest,createProtocolLeadershipAuditRequest,createProtocolHandoverAckRequest } from '../scripts/team-native-action.mjs';
-import { createProtocolWorkReviewRequest } from '../scripts/team-native-work-review.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
 const legacy={protocol:1,revision:1,domain:'coding',mode:'automatic',generated_at:at,expires_at:new Date(now+600000).toISOString(),sources:[{id:'fixture',url:'https://example.org/fixture',retrieved_at:at}],evidence_floor:['adapter-observed'],profiles:[]};
 const day=86400000,until=new Date(now+day).toISOString();
@@ -188,7 +187,6 @@ test('an owner-assigned team refuses every unfinished later-slice mode with a na
  const active=clone(t);Object.assign(active,{status:'active',leader:'peer-a',candidate:null});
  assert.throws(()=>createProtocolLeadershipAuditRequest(state,active,{actionId:'audit',sourceInvocationId:'x',now}),/owner-assigned-audit-unsupported/);
  assert.throws(()=>createProtocolHandoverAckRequest(state,active,{actionId:'handover',now}),/owner-assigned-handover-unsupported/);
- assert.throws(()=>createProtocolWorkReviewRequest(state,active,{actionId:'review',workId:'w',now}),/owner-assigned-unsupported/);
  for(const type of ['policy','leader-ack','assign'])assert.throws(()=>reduceTeamEvent(state,{type,team:'team',actor:'peer-a',incarnation:'inc-a',at,request_key:type,policy:legacy}),/protected-action-admission-required/);
 });
 test('invalid owner-assigned policies are rejected', async()=>{
