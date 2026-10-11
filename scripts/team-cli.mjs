@@ -16,6 +16,7 @@ import { proposeModelRoute } from './model-routing.mjs';
 import { consent } from './cleanup.mjs';
 import { nativeVersionStatus } from './team-transport.mjs';
 import { buildAuthenticatedCalibrationSummary } from './team-role-calibration.mjs';
+import { workPlanListing } from './team-native-work-plan.mjs';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 export function nativeInspectionDue(participant, now = Date.now()) {
@@ -109,16 +110,19 @@ export async function main(argv = process.argv.slice(2)) {
   const loaded = () => readAuthority(root, reduceTeamEvent);
   const defaultOwner = join(projectRoot(), '.waypost', 'team-owner.json');
   const print = value => process.stdout.write(JSON.stringify(value, null, flag('--compact') ? 0 : 2) + '\n');
-  if (mode === 'host') {
+  const hostOf = async () => {
     const { createTeamHost } = await import('./team-host.mjs');
-    const operation = opt('--operation');
     const directory = join(root, 'host', target || '');
-    const host = createTeamHost({ authorityRoot: root, projectRoot: projectRoot(), vaultPath:cfg.vault_path, team: target,
+    return createTeamHost({ authorityRoot: root, projectRoot: projectRoot(), vaultPath:cfg.vault_path, team: target,
       hostDir: directory, ownerCredential: resolve(opt('--owner-credential') || defaultOwner),
       collectorPath: resolve(opt('--collector-credential') || join(directory, 'collector.json')),
       endpointPath: resolve(opt('--endpoint-file') || join(directory, opt('--participant') ? 'endpoint-' + opt('--participant') + '.json' : 'endpoint.json')),
       participant: opt('--participant'), leaderCredential:opt('--leader-credential') ? resolve(opt('--leader-credential')) : undefined, leaderEndpointPath: opt('--leader-endpoint-file') ? resolve(opt('--leader-endpoint-file')) : undefined, participantCredential: opt('--credential') ? resolve(opt('--credential')) : undefined,
       dispatcher: resolve(dirname(fileURLToPath(import.meta.url)), '../bin/waypost') });
+  };
+  if (mode === 'host') {
+    const operation = opt('--operation');
+    const host = await hostOf();
     if (operation === 'bootstrap') print(await host.bootstrap({ participant: opt('--participant'), descriptor: opt('--descriptor-file') ? json(resolve(opt('--descriptor-file'))) : undefined }));
     else if (operation === 'subscription-bootstrap') print(await host.subscriptionBootstrap({nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000',maxTokens:opt('--max-tokens')||'20000'}));
     else if (operation === 'calibration-cohort-open') print(host.openCalibrationCohort(json(resolve(opt('--request-file') || ''))));
@@ -141,6 +145,8 @@ export async function main(argv = process.argv.slice(2)) {
     else if(operation==='native-work-publish-abort')print(host.abortNativePublication({reservationId:opt('--reservation')}));
     else if(operation==='native-work-review')print(await host.reviewNativeWork({workId:opt('--work'),nonce:opt('--nonce'),actionId:opt('--action-id'),estimateTokens:opt('--estimate-tokens')}));
     else if(operation==='native-work-review-recover')print(await host.recoverWorkReview({invocationId:opt('--invocation')}));
+    else if(operation==='native-work-plan')print(await host.planNativeWork({planId:opt('--plan-id'),nonce:opt('--nonce'),actionId:opt('--action-id'),estimateTokens:opt('--estimate-tokens')}));
+    else if(operation==='native-work-plan-recover')print(await host.recoverWorkPlan({invocationId:opt('--invocation')}));
     else if(operation==='native-work-cancel')print(host.cancelNativeWork({workId:opt('--work'),reason:opt('--reason')}));
     else if(operation==='native-leader-resume')print(host.resumeProtocolLeadership());
     else if(operation==='native-control-reconcile')print(host.reconcileProtocolControl({invocationId:opt('--invocation')}));
@@ -167,7 +173,19 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:native-work-revise|native-work-publish|native-work-publish-recover|native-work-publish-abort|native-work-review|native-work-review-recover|native-work-capture|native-work-execute|native-work-enable|native-work-manifest|native-work-cancel|native-leader-resume|native-delivery-enable|native-control-reconcile|unknown-usage-accept|native-quota-enable|native-handover-enable|native-quota-observe|native-quota-handover|native-handover-ack|native-handover-recover|bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:native-work-revise|native-work-publish|native-work-publish-recover|native-work-publish-abort|native-work-review|native-work-review-recover|native-work-plan|native-work-plan-recover|native-work-capture|native-work-execute|native-work-enable|native-work-manifest|native-work-cancel|native-leader-resume|native-delivery-enable|native-control-reconcile|unknown-usage-accept|native-quota-enable|native-handover-enable|native-quota-observe|native-quota-handover|native-handover-ack|native-handover-recover|bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    return;
+  }
+  // Slice 7 (owner, 2026-10-11): the owner opens a plan request, reads the leader's exact proposal and installs it whole.
+  if (mode === 'plan') {
+    const v = loaded(), t = v.state?.teams[target]; if (!t) throw new Error('team-not-found');
+    if (flag('--request')) {
+      print(await (await hostOf()).requestWorkPlan({ planId: opt('--plan-id'), goal: opt('--goal'), base: opt('--base'), scope: idList(opt('--scope')), forbiddenActions: idList(opt('--forbidden')), maxWorks: Number(opt('--max-works')) }));
+    } else if (flag('--install')) {
+      const c = consent({ yes: flag('--yes'), reason: opt('--reason') });
+      if (!c.ok) throw new Error('owner-consent-required: pass --yes and --reason "<why>"');
+      print(await (await hostOf()).installWorkPlan({ planId: opt('--plan-id'), digest: opt('--digest'), reason: c.reason }));
+    } else print({ revision: v.revision, team: t.id, plans: workPlanListing(t) });
     return;
   }
   if (mode === 'status') {

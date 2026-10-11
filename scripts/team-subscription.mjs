@@ -3,6 +3,7 @@ import {assertNativeBillingQuotaEligible} from './team-native-quota.mjs';
 import { applyNativeProtocolControl,validateProtocolAction,consumeProtocolAction,sealProtocolAction,reconcileProtocolControl,applyNativeIdentity,sealIdentityReceipt } from './team-native-action.mjs';
 import { routingDigest } from './model-routing.mjs';
 import { applyNativeWork,validateProtocolWork,consumeProtocolWork,settleProtocolWork } from './team-native-work.mjs';
+import { applyNativeWorkPlan } from './team-native-work-plan.mjs';
 import { applyNativeIntegration } from './team-native-integration.mjs';
 import { applyNativeDelivery,validateProtocolDelivery,consumeProtocolDelivery,settleProtocolDelivery } from './team-native-delivery.mjs';
 import { applyProtocolCalibration,validateProtocolMeasurement,consumeProtocolMeasurement,sealProtocolMeasurement } from './team-role-calibration.mjs';
@@ -72,6 +73,7 @@ export function applySubscriptionAccounting(s,t,c,now,H) {
  const calibration=applyProtocolCalibration(s,t,c,now,H);if(calibration)return calibration;
  const delivery=applyNativeDelivery(s,t,c,now,H);if(delivery)return delivery;
  const work=applyNativeWork(s,t,c,now,H);if(work)return work;
+ const plan=applyNativeWorkPlan(s,t,c,now,H);if(plan)return plan;
  const integration=applyNativeIntegration(s,t,c,now,H);if(integration)return integration;
  if (typeof c.type==='string' && c.type.endsWith('-v2')) {const advanced=applyInheritedNativeAccounting(s,t,c,now,H);if(advanced)return advanced;}
  if(!['subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-context-capture-v1','subscription-reserve-v1','subscription-consume-v1','subscription-usage-v1','subscription-uncertain-v1','subscription-abort-v1'].includes(c.type))return null;
@@ -254,7 +256,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    const measurement=validateProtocolMeasurement(s,t,r,p,context,now);if(measurement)stored.measurement=measurement;
    const work=validateProtocolWork(s,t,r,p,context,now);if(work){stored.work=work.work;stored.work_policy_revision=work.policy_revision;}
    const delivery=validateProtocolDelivery(s,t,r,p,context,now);if(delivery){stored.delivery=delivery.delivery;stored.delivery_policy_revision=delivery.policy_revision;}
-   const action=validateProtocolAction(s,t,r,p,context,now);if(action){stored.action=action;if(action.kind!=='protocol-leader-ack')stored.control_policy_kind=action.kind;stored.control_policy_revision=(action.kind==='protocol-leader-ack'?t.native_control_policy:action.kind==='protocol-leadership-audit'?t.native_review_policy:action.kind==='protocol-work-review'?t.native_work_policy:t.native_handover_policy).revision;stored.model_revision=p.model.model_revision;}
+   const action=validateProtocolAction(s,t,r,p,context,now);if(action){stored.action=action;if(action.kind!=='protocol-leader-ack')stored.control_policy_kind=action.kind;stored.control_policy_revision=(action.kind==='protocol-leader-ack'?t.native_control_policy:action.kind==='protocol-leadership-audit'?t.native_review_policy:['protocol-work-review','protocol-work-plan'].includes(action.kind)?t.native_work_policy:t.native_handover_policy).revision;stored.model_revision=p.model.model_revision;}
    s.subscription_invocations||={};s.subscription_invocations[r.id]=stored;result={reserved:r.id,bootstrap_only:true};
   } else if(c.type==='subscription-reconcile-v2') {
    result=reconcileProtocolControl(s,t,c,now);

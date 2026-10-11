@@ -88,3 +88,13 @@ was accepted, executed (4,044; the candidate diff against that commit adds only
 `sub`), approved by Codex (8,633) and published. Its commit's parent is `fix-sum`'s
 commit and its `src/sum.js` holds both the fixed `sum` and the new `sub`; the owner's
 branch was untouched.
+
+### Leader decomposition for owner-assigned teams (2026-10-11, Claude Code)
+
+Slice 7 of the spec (contract 28 amended): the owner opens a plan request
+(`waypost team plan TEAM --request`), the confirmed leader proposes a set of works from the
+listed files of the pinned base (one fixed control call, no tools, no file tree), and the owner
+installs the exact proposal by digest (`--install --yes --reason`), all works or none. Acceptance:
+unit and Host tests only (`tests/native-work-plan.test.mjs`, `tests/native-work-plan-host.test.mjs`:
+request, strict answer, whole-plan checks, install all or nothing, void on leader change, a published
+work of an installed plan). No live run.

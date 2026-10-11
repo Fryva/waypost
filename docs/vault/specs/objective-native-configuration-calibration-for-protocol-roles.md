@@ -434,7 +434,12 @@ fixed-action pattern of contracts 20–21.
     deterministically (see the slice 5 decision). Amended in slice 6
     (owner, 2026-10-11): the leader's model takes no part in dependencies
     either; the owner supplies manifests with `depends_on` (see the slice 6
-    notes), and the authority checks them without a model call.
+    notes), and the authority checks them without a model call. Amended in
+    slice 7 (owner, 2026-10-11): on an owner-assigned team the leader's call is
+    a decomposition, not an assignment. The owner gives a goal, a pinned base and
+    a list of files; the leader proposes a set of works; only the owner approves
+    and installs it, whole or not at all (see the slice 7 notes). Calibrated
+    teams refuse it (`native-work-plan-owner-assigned-only`).
 29. Executor qualification by the policy's `executor` mode. (a)
     `leader-baseline`: only the acknowledged leader executes, in a fresh owned
     context of its admitted profile, recorded `unqualified-strongest-baseline`
@@ -1375,4 +1380,89 @@ another work (`host-native-publication-other-work-reserved`) instead of reportin
 it as its own recover-required. Handover needs every work finished or cancelled.
 Owner events of other works that reached the queue under a fence are discarded
 with `deferred-discard-v1`, not applied. Losing an executor cancels only its
-works; losing the coordinator cancels all of them.
+works; losing the coordinator cancels all of them. The "leader decomposition
+later" of these notes is done by slice 7, for owner-assigned teams only.
+
+### Slice 7 notes: the leader decomposes an owner goal (owner, 2026-10-11)
+
+Decisions of the owner, taken after a fresh-context critic's verdict on the first
+draft (a leader that plans and installs on its own was rejected):
+
+1. Only the owner approves a plan. The CLI shows the exact plan from the authority,
+   not a retelling, with its digest; `waypost team plan TEAM --install` with
+   `--yes --reason` installs every work of it or none.
+2. The leader sees only the contents of the files the owner listed, read from the
+   pinned base (Git blobs of mode 100644, at most 32 KiB per file and 48 KiB in
+   all, as `readWorkInputs` does for an executor), bound by a digest and sent as a
+   suffix after the prompt head, as a review sends its diff. No file tree and no
+   tools: the context is fresh, owned and no-tools like every control call.
+   Paths in a plan can only be indexes into the owner's list.
+3. Owner-assigned teams only. A calibrated team refuses with
+   `native-work-plan-owner-assigned-only`, in the request, the install, the work
+   ceiling and the call builder.
+
+What was built (`scripts/team-native-work-plan.mjs`, reducer and Host):
+
+- Owner event `native-work-plan-request-v2`: `plan_id` (an id of at most 64
+  characters), `goal` (at most 4000), `base` (a commit), `scope` (1 to 16 paths by
+  the `workPaths` rules, normalised and sorted), `forbidden_actions` (as in a
+  manifest), `max_works` (1 to 4) and `inputs_digest`, the digest of the files at
+  the base that the Host computed when the owner asked. It is stored in
+  `t.work_plans[plan_id]` only when asked: a team that never plans gains no field.
+  The `inputs_digest` is the one addition to the first draft: the control request is
+  built from authority state only (a reserve, consume and capture rebuild it), so
+  the digest of the suffix has to sit in the stored request.
+- The work policy takes an optional ceiling `plan` (`max_calls`,
+  `max_estimate_tokens`) beside `execution` and `review`; an owner-assigned team
+  only. The plan call shares the per-unit token cap of the work policy with
+  execution and review (the work and the review budgets count it, and it counts
+  both).
+- A fixed control kind `protocol-work-plan`, label `owner-assigned-plan`, asked of
+  the current confirmed leader at the current epoch, in a fresh owned no-tools
+  context, settle, seal, own profile capture and owned closure like the ACK and
+  the review. Semantic slot {team, kind, epoch, plan_id}: one call per plan and
+  epoch. The request carries no volatile fact. It stands aside, as a manifest does,
+  for a handover, a quota freeze, a publication fence and an unresolved negative
+  leadership audit of the current acknowledgement. The three owner and collector
+  events are deferred under a publication fence.
+- The answer is strict JSON of at most 8 KiB, either
+  `{"works":[{"goal","criteria","paths":[indexes into scope]}]}` (1 to 4 works,
+  goal at most 600 characters, 1 to 4 criteria of at most 200) or
+  `{"refusals":[...]}`. U+200B to U+200F, U+2028/2029, U+202A to U+202E, U+2060 to
+  U+2064, U+2066 to U+2069, U+FEFF, C0 controls other than tab and line feed, DEL
+  and C1 controls are refused in goals, criteria and refusals. The model sets no
+  base, id, executor, forbidden action, dependency or criteria digest. A malformed
+  answer is not captured (as for every control kind: no profile is collected).
+- The collector's capture stores the proposal, its digest and the report of the
+  checks, and grants nothing (`protected_actions_granted: false`). The checks are
+  of the whole plan, and any failure rejects all of it with named codes, kept for
+  the owner: `native-work-plan-too-many-works`, `-path-outside-scope`,
+  `-path-overlap` (inside the plan), `-path-overlap-unfinished`,
+  `-ceiling-exhausted` (fewer than one execution and one review call left per
+  work). A refusal is stored as `refused`. Only a `proposed` plan can be installed.
+- Owner event `native-work-plan-install-v2` (`plan_id`, the proposal `digest`,
+  `reason`): the authority builds each manifest (ids `<plan>-<n>`, the base and
+  forbidden actions of the owner, the criteria digest it computes, no
+  `executor_participant`, so the executor is the first fit one in the owner's order)
+  and runs the ordinary manifest event for each on the one state, so a refusal of
+  any work discards the event. The works carry `plan: {plan_id, proposal_digest}`.
+  The Host also refuses, before the event, a work whose review prompt would not fit
+  (`native-work-plan-review-prompt-would-not-fit`) or whose execution prompt is
+  over 64 KiB.
+- A change of leader or epoch between the capture and the install voids the
+  proposal: the install refuses with `native-work-plan-leader-changed` and the
+  listing shows `voided`.
+
+Commands: `waypost team plan TEAM` (requests, proposals, digests, `voided`);
+`waypost team plan TEAM --request --plan-id ID --goal "..." --base SHA --scope a,b --max-works N [--forbidden x,y]`;
+`waypost team host TEAM --operation native-work-plan --participant LEADER --plan-id ID [--nonce N --action-id A --estimate-tokens T]`
+(and `native-work-plan-recover --invocation ID`);
+`waypost team plan TEAM --install --plan-id ID --digest D --yes --reason "..."`.
+
+Critic's verdict that shaped the step: the plan is all or nothing; the owner, not
+the leader, approves; the leader's input is bounded by the owner's list. Limits that
+stay: nobody checks that the works together cover the goal; the plan has no
+`depends_on`, no file tree, no critic of the plan and no revision (a new plan is a
+new request); an install is never automatic; the leader's voided proposal is shown
+and refused but not marked in the state. Evidence: unit and Host tests only, no
+live run.

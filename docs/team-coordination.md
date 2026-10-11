@@ -104,6 +104,29 @@ What the roles mean afterwards:
 
 Design record: `docs/vault/adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md`.
 
+### Planning works with the leader (owner-assigned teams)
+
+Instead of writing each manifest, the owner can ask the confirmed leader to propose a set of works for a goal.
+The leader proposes; only the owner installs, whole or not at all. Calibrated teams refuse it
+(`native-work-plan-owner-assigned-only`).
+
+1. Add a `plan` ceiling to the work policy (`native-work-enable`): `"ceilings":{"execution":...,"review":...,"plan":{"max_calls":2,"max_estimate_tokens":"16000"}}`.
+   The plan call shares the unit token cap with execution and review.
+2. Open a request: `waypost team plan TEAM --request --plan-id ID --goal "..." --base SHA --scope a.js,b.js --max-works 3 [--forbidden "x,y"]`.
+   The scope is the only thing the leader will see: those files from the base commit (plain files, 32 KiB each, 48 KiB in all),
+   no file tree, no tools. Commas separate list items.
+3. Ask the leader on its own Host: `waypost team host TEAM --operation native-work-plan --participant LEADER --plan-id ID`
+   (`--operation native-work-plan-recover --invocation ID` after an interruption). Nothing is installed by this call.
+4. Read it: `waypost team plan TEAM` prints each plan with its state (`requested`, `proposed`, `rejected`, `refused`, `installed`),
+   the exact works, the digest and the checks. `rejected` lists the named reasons (`native-work-plan-too-many-works`,
+   `-path-outside-scope`, `-path-overlap`, `-path-overlap-unfinished`, `-ceiling-exhausted`); a malformed answer is not
+   captured and the request stays `requested`. `voided` means the leader or epoch changed since the answer.
+5. Install the exact proposal: `waypost team plan TEAM --install --plan-id ID --digest D --yes --reason "<why>"`. Every work
+   (`ID-1`, `ID-2`, ...) is installed with your base and forbidden actions and the first fit executor in your order, or none is.
+   An agent runs this only after the owner's explicit answer in chat. Each work then runs, is reviewed and published as usual.
+
+No dependencies between works, no revision of a plan (ask a new one), and nobody checks that the works cover the whole goal.
+
 ## Periodic model-strength checks
 
 For an enrolled team, run:

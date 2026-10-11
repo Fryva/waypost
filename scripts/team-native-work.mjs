@@ -71,8 +71,8 @@ export function workPaths(values) {
 export function workManifestDigest(manifest) { return routingDigest({ revision: 1, manifest }); }
 
 // Equal after lower-casing, or one is a directory prefix (`a/`) of the other.
-const pathsOverlap = (a, b) => { const x = a.toLowerCase(), y = b.toLowerCase(); return x === y || y.startsWith(x + '/') || x.startsWith(y + '/'); };
-function unfinishedWork(t) { return Object.values(t.work || {}).filter(w => w.protocol === 2 && !terminal(w)); }
+export const pathsOverlap = (a, b) => { const x = a.toLowerCase(), y = b.toLowerCase(); return x === y || y.startsWith(x + '/') || x.startsWith(y + '/'); };
+export function unfinishedWork(t) { return Object.values(t.work || {}).filter(w => w.protocol === 2 && !terminal(w)); }
 // Dependent work (owner decisions 2026-10-11): a dependency counts only as protocol 2 work integrated with protocol 2
 // evidence of its own commit (protocol 1 history also sets `w.commit`). Inlined: team-native-integration.mjs imports this file.
 const integratedWork = t => Object.values(t.work || {}).filter(w => w.protocol === 2 && w.status === 'integrated' && w.commit && w.integrated_evidence?.protocol === 2 && w.integrated_evidence.commit === w.commit);
@@ -115,8 +115,11 @@ export function applyNativeWork(s, t, c, now, H) {
     if (policy.kind !== 'protocol-work' || !['leader-baseline', CALIBRATED_EXECUTOR, OWNER_ASSIGNED_EXECUTOR].includes(policy.executor) || typeof policy.allow_unknown_quota !== 'boolean' || !Number.isSafeInteger(policy.max_attempts) || policy.max_attempts < 1 || policy.max_attempts > 8 || !Number.isSafeInteger(policy.timeout_ms) || policy.timeout_ms < 100 || policy.timeout_ms > 300000 || typeof policy.expires_at !== 'string' || !Number.isFinite(Date.parse(policy.expires_at)) || Date.parse(policy.expires_at) <= now || Date.parse(policy.expires_at) > Date.parse(t.policy.expires_at) || !Number.isSafeInteger(c.revision) || c.revision < 1 || c.revision <= (t.native_work_policy?.revision || 0)) fail('bounded-owner-work-ceiling-required');
     // An owner-assigned team runs only the owner-assigned executor, and no other team may.
     if ((t.policy.mode === 'owner-assigned') !== (policy.executor === OWNER_ASSIGNED_EXECUTOR)) fail('native-work-executor-mode-mismatch');
-    exact(policy.ceilings, ['execution', 'review']);
-    for (const kind of ['execution', 'review']) { const k = exact(policy.ceilings[kind], ['max_calls', 'max_estimate_tokens']); if (!Number.isSafeInteger(k.max_calls) || k.max_calls < 1 || k.max_calls > 64 || integer(k.max_estimate_tokens) <= 0n) fail('bounded-owner-work-ceiling-required'); }
+    // Slice 7 (owner, 2026-10-11): an owner-assigned team may add a `plan` ceiling for the leader's decomposition call.
+    const ceilingKinds = ['execution', 'review', ...(policy.ceilings && Object.hasOwn(policy.ceilings, 'plan') ? ['plan'] : [])];
+    if (ceilingKinds.includes('plan') && t.policy.mode !== 'owner-assigned') fail('native-work-plan-owner-assigned-only');
+    exact(policy.ceilings, ceilingKinds);
+    for (const kind of ceilingKinds) { const k = exact(policy.ceilings[kind], ['max_calls', 'max_estimate_tokens']); if (!Number.isSafeInteger(k.max_calls) || k.max_calls < 1 || k.max_calls > 64 || integer(k.max_estimate_tokens) <= 0n) fail('bounded-owner-work-ceiling-required'); }
     if (!Array.isArray(policy.unit_allocations) || !policy.unit_allocations.length || policy.unit_allocations.length > 128 || new Set(policy.unit_allocations.map(u => u.unit_digest)).size !== policy.unit_allocations.length) fail('bounded-owner-work-ceiling-required');
     for (const u of policy.unit_allocations) { exact(u, ['unit_digest', 'max_tokens', 'allocation_revision']); const allocation = s.subscription_allocations?.[u.unit_digest]; if (allocation?.protocol !== 2 || allocation.unit_scope?.team !== t.id || allocation.revision !== u.allocation_revision || integer(u.max_tokens) <= 0n || integer(u.max_tokens) > integer(allocation.max_tokens)) fail('existing-work-unit-allocation-required'); }
     if (unfinishedWork(t).length) fail('native-work-unfinished-policy-migration');
@@ -276,8 +279,8 @@ function workBudget(s, t, policy, unitDigest, additional, excluding) {
   let calls = 1, tokens = additional;
   for (const x of Object.values(s.subscription_invocations || {})) {
     if (x.id === excluding || x.team !== t.id || x.state === 'aborted') continue;
-    // Review calls count against the same per-unit work cap, not the execution calls.
-    if (x.purpose === 'protocol-control' && x.action?.kind === 'protocol-work-review' && x.control_policy_revision === policy.revision) { if (x.unit_digest === unitDigest) tokens += integer(['settled', 'reconciled'].includes(x.state) ? x.charged_tokens : x.estimate_tokens); continue; }
+    // Review and plan calls count against the same per-unit work cap, not the execution calls.
+    if (x.purpose === 'protocol-control' && ['protocol-work-review', 'protocol-work-plan'].includes(x.action?.kind) && x.control_policy_revision === policy.revision) { if (x.unit_digest === unitDigest) tokens += integer(['settled', 'reconciled'].includes(x.state) ? x.charged_tokens : x.estimate_tokens); continue; }
     if (x.purpose !== 'work' || x.work_policy_revision !== policy.revision) continue;
     calls++; if (x.unit_digest === unitDigest) tokens += integer(['settled', 'reconciled'].includes(x.state) ? x.charged_tokens : x.estimate_tokens);
   }
