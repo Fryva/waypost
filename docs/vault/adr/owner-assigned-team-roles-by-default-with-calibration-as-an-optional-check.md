@@ -279,6 +279,36 @@ with a shorter diff.
   expired assignment; mode switch inside a team; bidi/zero-width characters added.
 - Coordinator loss closes the team and cancels unfinished work.
 
+## Implementation notes (2026-10-10)
+
+Recorded while planning the implementation; they make the decision precise and change
+no choice above.
+
+- **Policy shape.** "The protocol-1 `manual` shape" means owner provenance and owner
+  priorities, not the protocol-1 record (keyed by model). The stored policy is a
+  protocol-2 policy with `mode: owner-assigned`, one row per participant (two
+  participants may share one native configuration), and priority = list length − index.
+- **Busy versus departed reviewer** (owner, 2026-10-10). A busy, unavailable or
+  quota-exhausted higher reviewer keeps the floor and review waits. One revoked, left
+  or rebound (new incarnation, model revision or descriptor) is out, and the next
+  listed reviewer becomes the top — the owner's list already names it, so this is not a
+  silent lowering.
+- **"The team is closed".** A closed team rejects every later event, settlement
+  included, so closing cannot be atomic with the loss. Coordinator loss sets a latch:
+  the team pauses, cannot resume, cancellable work is cancelled, and the owner closes
+  it with `close-v1` once every call has settled.
+- **Profile mismatch at action time** is a refusal of that action (a refused event
+  records nothing); the owner then revokes the participant or closes the team.
+- **Publication fence.** Membership of `native-policy-assign-v2` in `DEFERRED` is the
+  fence; there is no per-event fence.
+- **Identity call.** `team host --operation subscription-bootstrap` on a team without a
+  protocol-2 policy captures `native-identity-capture-v2`; the admission is created at
+  assign time and expires with the assignment. The 7-day bound counts from the earliest
+  bound identity observation. `issued_by` is declared by the CLI, not authenticated.
+- **Review size.** The review prompt, including the diff, is capped at 64 KiB, so a work
+  larger than that could be executed but never reviewed. A work whose inputs cannot fit
+  a review prompt is refused before execution, so no execution tokens are spent on it.
+
 ## References
 
 - [[model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review]]

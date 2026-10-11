@@ -92,14 +92,15 @@ test('ranks follow the owner order, an unlisted role is null and a later arrival
  assert.equal(rankParticipant(joined.participants['peer-e'],joined.policy,'coordinate',{now,coverage:'waypost-protocol-coordinate'}),null);assert.equal(rankParticipant(joined.participants['peer-e'],joined.policy,'review',{now,coverage:'waypost-protocol-review'}),null);
  assert.equal(joined.candidate,'peer-a');assert.equal(joined.review_floor,3);assert.throws(()=>reduceTeamEvent(state,{...join,request_key:'join2',participant:{...join.participant,id:'peer-f',native_admission:{}}}),/reducer-only/);
 });
-test('a busy primary pauses the team: no alternate is promoted, and the floor never drops with a busy reviewer',async()=>{
+test('a busy primary pauses the team: no alternate is promoted, and a busy reviewer keeps the floor, a departed one passes it on',async()=>{
  const t=team(await fixture(),{coordinator:['peer-a','peer-b'],reviewers:['peer-c','peer-d'],executors:[]}),state={protocol:1,owner_hash:'fixture',task_bindings:{task:'team'},teams:{team:t},collectors:{}};
  assert.equal(t.candidate,'peer-a');
  const avail=(s,id,availability)=>reduceTeamEvent(s,{type:'availability',team:'team',actor:id,incarnation:s.teams.team.participants[id].incarnation,availability,at,request_key:id+availability}).state;
  const busy=avail(state,'peer-a','busy').teams.team;assert.equal(busy.status,'paused');assert.equal(busy.candidate,null);assert.equal(busy.review_candidate,null);assert.equal(busy.leader,null);
  const back=avail(avail(state,'peer-a','busy'),'peer-a','ready').teams.team;assert.equal(back.candidate,'peer-a');assert.equal(back.status,'forming');
  const reviewerBusy=avail(state,'peer-c','busy').teams.team;assert.equal(reviewerBusy.review_floor,2,'a busy higher reviewer keeps the floor');assert.equal(reviewerBusy.review_candidate,null);assert.equal(reviewerBusy.candidate,'peer-a');
- const gone=reduceTeamEvent(state,{type:'revoke',team:'team',actor:'owner:fixture',participant_id:'peer-c',at,request_key:'revoke'}).state.teams.team;assert.equal(gone.review_floor,2);assert.equal(gone.review_candidate,null);
+ const gone=reduceTeamEvent(state,{type:'revoke',team:'team',actor:'owner:fixture',participant_id:'peer-c',at,request_key:'revoke'}).state.teams.team;assert.equal(gone.review_floor,1,'a revoked reviewer is out: the next listed one is the top');assert.equal(gone.review_candidate,'peer-d');
+ const left=avail(state,'peer-c','left').teams.team;assert.equal(left.review_floor,1);assert.equal(left.review_candidate,'peer-d');
 });
 test('a reviewer may share the coordinator configuration, never the executor configuration',async()=>{
  const f=await fixture(),same=(from,to)=>{const g=prepare(f);const o=id=>Object.values(g.state.subscription_invocations).find(x=>x.participant===id).identity_observation;o(from).identity=clone(o(to).identity);return g;};

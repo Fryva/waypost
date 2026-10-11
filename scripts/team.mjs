@@ -411,12 +411,15 @@ export function selectProtocolReviewerCandidate(participants, policy, floor, { c
 }
 
 // Owner order: the floor is the highest review priority among the listed independent
-// participants whatever their state, so a busy or departed higher reviewer never lowers it.
+// participants that still hold their role. A busy, unavailable or quota-exhausted higher
+// reviewer keeps it, so review waits; one revoked, left or rebound (new incarnation, model
+// revision or descriptor) is out, and the next listed reviewer is the top (owner, 2026-10-10).
 // The reviewer is that participant only, and only if it is ready and passes the quota.
 // `excluded` are participants, `profiles` native profile ids that may not review.
 export function listedReviewer(participants, policy, { excluded = [], profiles = [], now = Date.now() } = {}) {
   if (policy?.protocol !== 2 || policy.mode !== "owner-assigned" || !excluded.length) return { floor: null, reviewer: null };
-  const rows = policy.profiles.filter(row => row.priorities.review !== null && !excluded.includes(row.participant) && !profiles.includes(row.identity.profile_id));
+  const holds = row => { const p = participants.find(x => x.id === row.participant); return !!p && p.revoked === false && p.availability !== "left" && p.incarnation === row.incarnation && p.model?.model_revision === row.model_revision && p.native_binding?.descriptor_digest === row.descriptor_digest; };
+  const rows = policy.profiles.filter(row => row.priorities.review !== null && !excluded.includes(row.participant) && !profiles.includes(row.identity.profile_id) && holds(row));
   if (!rows.length) return { floor: null, reviewer: null };
   const floor = Math.max(...rows.map(row => row.priorities.review));
   const independent = participants.filter(p => !excluded.includes(p.id) && !profiles.includes(p.native_admission?.identity?.profile_id));
