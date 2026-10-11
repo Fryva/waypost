@@ -67,6 +67,9 @@ Waypost-Provider: kimi          (when the harness is pointed at a model vendor)
 Waypost-Story:    PS-1/story-codex-adapter
 ```
 
+*Amended by [[record-the-operating-system-of-a-commit-in-a-waypost-os-trailer]] (2026-10-12):
+`waypost commit` also writes `Waypost-OS: <platform>-<major>` after `Waypost-Session`.*
+
 This is git's own mechanism: `git interpret-trailers --parse`,
 `git log --format=%(trailers)`, `--grep` all work without our code. The subject
 line is deliberately unregulated: a human or an agent in an unfamiliar harness
@@ -145,6 +148,7 @@ presence records and two `Waypost-Session` values for one session.
 
 - `waypost log --story PS-1/story-x`, `--harness codex` and `--provider deepseek`
   answer "who did this" without anyone having agreed on anything in advance.
+  *Amended by [[record-the-operating-system-of-a-commit-in-a-waypost-os-trailer]]: `--os darwin` too.*
 - Merging two branches that each added a story produces no conflict, and the
   merge commit's board holds both.
 - An attempt to close a story another session holds stops before the commit.

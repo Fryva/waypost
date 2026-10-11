@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-11T21:02:14.967Z
+generated_at: 2026-10-11T23:20:51.080Z
 
 ---
 
@@ -38,7 +38,7 @@ full typed neighborhood, both directions, in one call.
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | Model-aware teams across harness sessions with one authority and independent review | adr | accepted |
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | Native configuration profiles ranked by fresh role-specific calibration | adr | proposed |
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | Owner-assigned team roles by default with calibration as an optional check | adr | accepted |
-| adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | Record the operating system of a commit in a Waypost-OS trailer | adr | proposed |
+| adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | Record the operating system of a commit in a Waypost-OS trailer | adr | accepted |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | Subscription CLI token accounting with separate strict billing enforcement | adr | proposed |
 | adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md | The CLI as a thin entry with per-command modules, each readable in one pass | adr | proposed |
@@ -105,6 +105,7 @@ full typed neighborhood, both directions, in one call.
 
 | From | Kind | To |
 |------|------|----|
+| adr/0006-commit-protocol.md | wikilink | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md |
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |

@@ -44,7 +44,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass](./the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md) | The CLI as a thin entry with per-command modules, each readable in one pass | proposed | 2026-10-04 |
 | [harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list](./harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list.md) | Harness tool surfaces bound by evidence instead of an empty tool list | accepted | 2026-10-08 |
 | [owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check](./owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md) | Owner-assigned team roles by default with calibration as an optional check | accepted | 2026-10-10 |
-| [record-the-operating-system-of-a-commit-in-a-waypost-os-trailer](./record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md) | Record the operating system of a commit in a Waypost-OS trailer | proposed | 2026-10-11 |
+| [record-the-operating-system-of-a-commit-in-a-waypost-os-trailer](./record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md) | Record the operating system of a commit in a Waypost-OS trailer | accepted | 2026-10-11 |
 
 ---
 

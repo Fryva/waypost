@@ -2,15 +2,15 @@
 type: adr
 id: "record-the-operating-system-of-a-commit-in-a-waypost-os-trailer"
 title: "Record the operating system of a commit in a Waypost-OS trailer"
-status: proposed
+status: accepted
 date: 2026-10-11
 authors: ["Ivan Morozov"]
 tags: ["commit-protocol", "attribution", "team"]
 external_refs: {}
 supersedes: null
 superseded_by: null
-review_status: pending
-reviewed_at: null
+review_status: reviewed
+reviewed_at: 2026-10-12
 drafted_by: {"harness":"claude","provider":null,"date":"2026-10-11"}
 guards: []
 code_refs: ["scripts/commit.mjs", "scripts/presence.mjs", "tests/commits.test.mjs", "bin/waypost", "AGENTS.md", "docs/how-it-works.md", "skills/waypost-commit/SKILL.md"]
@@ -21,7 +21,7 @@ related: "ADR-0006, ADR-0010"
 
 | Field | Value |
 |---|---|
-| **Status** | proposed |
+| **Status** | accepted |
 | **Date** | 2026-10-11 |
 | **Authors** | Ivan Morozov |
 
@@ -65,8 +65,8 @@ and none of the 26 session values in this repository's history has a host or an 
    | Linux | `linux-6` | the kernel major only; every distribution, and WSL2 or a container on another host, reports the guest kernel |
    | Windows | `win32-10` | per Node's docs `os.release()` is `10.0.<build>`, so Windows 10, 11 and current Server all read `win32-10` — **not measured** |
 
-3. **Opt-out**: `WAYPOST_OS` overrides the value; set and empty, it omits the trailer —
-   the same environment convention as `WAYPOST_HARNESS` and `WAYPOST_PROVIDER`.
+3. **No opt-out** (owner, 2026-10-12): the trailer is always written by `waypost commit`;
+   no environment variable overrides or omits it, so the history stays uniform.
 4. **Never required**, as for every Waypost trailer ([[0006-commit-protocol]] "not
    forbidden"): a commit without it is valid, and `waypost log`'s untagged rule (no
    Harness and no Session) stays as it is — a hand-made commit carrying only
@@ -92,8 +92,8 @@ value.
 1. The owner's requirement (what, which harness, which OS) is otherwise met only by a
    local, ephemeral record that other machines never see.
 2. This adds one new published datum — the platform and kernel major of the committing
-   machine — to anyone who can read the remote. It is accepted because it is coarse,
-   and the opt-out covers a contributor who does not want it.
+   machine — to anyone who can read the remote. It is accepted because it is coarse;
+   the owner chose to write it always, without an opt-out (2026-10-12).
 3. A trailer keeps git's own tools working (`git log --format=%(trailers:key=Waypost-OS)`
    parses it; checked with git 2.54).
 
@@ -107,8 +107,8 @@ value.
 **Cons**:
 - Loses the Darwin major, which separates macOS releases whose behaviour differs.
 
-**Rejected because**: (proposed) the Darwin major is the one part with diagnostic value
-and costs little; the owner decides this at acceptance.
+**Rejected because**: the owner chose platform and major (2026-10-12): more information,
+and the Darwin major separates macOS releases whose behaviour differs.
 
 ### A richer value (distribution, version, architecture)
 
@@ -144,8 +144,8 @@ and costs little; the owner decides this at acceptance.
 - `win32-10` and `linux-6` group coarsely; Windows is not measured.
 
 **What changes in code / process**:
-- `osTag()` in `scripts/presence.mjs`; `composeMessage(…, { os })`; commit `main()` reads
-  `WAYPOST_OS`; `waypost log` column, `--json` field and `--os` filter.
+- `osTag()` in `scripts/presence.mjs`; `composeMessage(…, { os })`; commit `main()` passes
+  `osTag()`; `waypost log` column, `--json` field and `--os` filter.
 - The lists of trailers and log flags in `scripts/commit.mjs` (header and usage),
   `bin/waypost` help, `AGENTS.md`, `docs/how-it-works.md`, `README.md` (which already
   omits `Waypost-Provider`) and `skills/waypost-commit/SKILL.md`.
@@ -155,14 +155,13 @@ and costs little; the owner decides this at acceptance.
 ## Verification
 
 - `tests/commits.test.mjs`: trailer-block tests inject a fixed `os`; one test compares a
-  real `waypost commit` with `osTag()`; `WAYPOST_OS=""` omits the trailer and an override
-  is written as given; git's parser reads it; `waypost log --os` filters and `--json`
+  real `waypost commit` with `osTag()`; git's parser reads it; `waypost log --os` filters and `--json`
   carries `os`; a commit without it still lists and counts as tagged.
 
-## Open questions for the owner
+## Owner acceptance
 
-- Platform-and-major (proposed) or platform only.
-- Whether the opt-out should exist (proposed: yes, `WAYPOST_OS=""`).
+Accepted by the owner on 2026-10-12 after one fresh waypost-critic pass (revise; every
+finding resolved in this text): value `<platform>-<major>` (`darwin-27`), no opt-out.
 
 ## References
 
