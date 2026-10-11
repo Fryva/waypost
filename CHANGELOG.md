@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-10-11
+
 ### Added
 - `waypost launcher [--write]`: the command on `PATH`, when it is npm's symlink
   into a checkout that another operating system edits. Every save from a system
@@ -160,6 +162,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outcome, including why nothing could be freed. `waypost size --project`
   reports `waypost-removing/`'s own size; `waypost status`/`waypost brief`
   show the active setting and the last automatic outcome.
+- Teams across harnesses and models (WP-20, **experimental**): `waypost team …`
+  lets Claude Code, Codex and OpenCode work on one task under one leader, with
+  an independent reviewer. Runbook: `docs/team-coordination.md`; spec
+  `docs/vault/specs/cross-harness-team-coordination-protocol.md`; ADR
+  "Model-aware teams across harness sessions with one authority and independent
+  review". Checked by live runs on macOS (a three-harness team from
+  calibration to a published commit, role loss, dependent and parallel works,
+  a leader plan with a critic); not verified on Windows or Linux, and process
+  closure on Windows is blocked.
+  - An authority journal and a local Host: `team create|join|status|send|poll|ack`,
+    `team host`, `team watch`. The authority replays its log from a
+    byte-verified prefix and a new process starts from the locked snapshot
+    instead of replaying everything. Cooperative MCP inboxes: `team-mcp` and
+    `team-mcp-config` (preview, or `--write` for an absent project config).
+  - Managed native endpoints for Claude Code, Codex and OpenCode (fresh,
+    read-only, no tools; OpenCode on a private loopback server; closed only by
+    the Host that opened them), with subscription token accounting and a quota
+    handover of leadership (by measured rank in calibrated teams, to a listed
+    alternate in owner-assigned ones).
+  - Roles assigned by the owner (ADR "Owner-assigned team roles by default,
+    with calibration as an optional check"): `waypost team roles <team>` lists
+    participants with their observed identity, tool surface and binary status
+    (`verified`, `not pinned`, `UNVERIFIED`); `--assign --coordinator a,b
+    --reviewers c --executors d --reason "<why>" --yes` sets them in priority
+    order. No calibration run is needed. Calibration of roles against a measured
+    cohort (`docs/vault/specs/objective-native-configuration-calibration-for-protocol-roles.md`)
+    stays an optional check, with advisory `--cohort` hints.
+  - Codex runs under the evidence-bound tool surface `codex-no-exec-r1`
+    (ADR "Harness tool surfaces bound by evidence instead of an empty tool
+    list"), revised for 0.162.0-alpha.17.2. Claude Code is admitted only after
+    a same-peer preflight (verified on 2.1.289, 2.1.294 and 2.1.296).
+  - Protocol 2 work: the owner writes a manifest; the leader executes it and
+    seals the patch on a private ref; the strongest independent critic reviews
+    it; an approved work is published as one pinned commit on the team's
+    private branch. The owner can revise a rejected work into a new
+    generation. Work is labelled `owner-assigned-unmeasured` and its review
+    `owner-assigned-review`, because nothing measures role strength. The
+    top listed independent reviewer also audits the leadership.
+  - Role lifecycle: a lost coordinator pauses the team and cancels unfinished
+    work; a lost executor cancels its own work; a lost reviewer voids its
+    unpublished approvals; on quota exhaustion the coordinator role passes to
+    the listed alternate.
+  - Several works at once when their paths do not overlap, and `depends_on`
+    (1–3 works of a chain) with the tip rule: a dependent work starts from the
+    commit of its last dependency.
+  - Decomposition by the leader: `waypost team plan <team> --request --goal …
+    --base SHA --scope …` asks the leader for a set of works; `team plan
+    <team>` shows the proposal and `--install --plan-id ID --digest D --yes
+    --reason "<why>"` installs it whole, including `depends_on` works, which
+    the authority installs itself once their dependencies are integrated.
+    `--critic` adds an optional independent review of the plan before install.
 
 ### Changed
 - Coordination follows the repository (ADR-0010): inside a git repository,
@@ -175,6 +228,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the directory in use. For one minor version both places are written and
   read, so a peer on 0.14 keeps its protection. The legacy session registry
   stays in the vault (ADR-0004).
+- `waypost log` counts commits without Waypost trailers over the latest N
+  commits before applying `--story`/`--harness`/`--provider`, and still prints
+  the count when a filter matches nothing; before, an untagged commit could
+  never match a filter and the count was always 0 when it mattered.
+- `waypost doctor --vault` with no usable vault is an issue (with the bind hint)
+  and exit 1; before, a fresh clone printed "healthy" and exited 0. The repo's
+  CI binds `docs/vault` and runs `doctor --vault` after `npm test`. The
+  acceptance gate (`acceptance_gate: on` in the vault policy) is turned on for
+  this repository's own vault as an example of the option; it is not on by
+  default.
 
 ### Fixed
 - Story plan/close now report failed claim/release writes instead of silently
@@ -342,6 +405,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   staged: a later plain `git commit` would take them, and a plain `git diff`
   no longer showed them. It now stages into a temporary copy of the index
   and prints the same list.
+- Stopping a native process group no longer fails when every member is an
+  unreaped zombie: Darwin answers `EPERM` to `kill(-pgid, 0)` then, and the stop
+  was refused as `native-process-group-stop-unpermitted`. On `EPERM` the group's
+  `ps` rows are read; with no running member the group has ended. An
+  unsignalable group is also named, and a group whose children outlive the root
+  is finished and given longer to end before it is killed.
 
 ## [0.14.0] — 2026-09-04
 
@@ -488,7 +557,8 @@ Initial public release.
 
 Hardened before release by a multi-agent audit and independent critic passes.
 
-[Unreleased]: https://github.com/Fryva/waypost/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/Fryva/waypost/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/Fryva/waypost/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Fryva/waypost/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/Fryva/waypost/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/Fryva/waypost/compare/v0.12.2...v0.13.0

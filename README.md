@@ -122,6 +122,7 @@ honest.
 | `waypost skills install` | the bundled procedures as Agent Skills, in the directory your tool reads |
 | `waypost ready` | stories that are planned, unblocked and unclaimed, with the command that claims each |
 | `waypost sessions` / `lease` / `watch` | see and coordinate who is working |
+| `waypost team …` | experimental: teams of several tools and models under an owner-assigned leader (`create`, `roles`, `plan`, `host`); see `docs/team-coordination.md` |
 | `waypost status` | a summary of the setup and role state |
 | `waypost capacity [--json]` | the machine's real free resources now, and how many more heavy jobs it can take |
 | `waypost run --heavy [--wait <Ns\|Nm>] -- <cmd…>` | claim a machine-wide slot for heavy work (a build, a full test suite, a simulator boot, a whole-disk scan) |
@@ -195,6 +196,25 @@ might be. See [ADR-0007](docs/vault/adr/0007-shared-vault-presence.md).
 When two sessions share one *checkout*, not just one vault, `waypost brief` says
 so, and `waypost commit --all` refuses to sweep the other session's uncommitted
 edits into your commit.
+
+### Teams across tools and models (experimental)
+
+One task can be worked by several tools under one leader, with an independent
+reviewer. The owner assigns the roles, the leader proposes a plan, and nothing
+is installed until the owner says so:
+
+```bash
+waypost team create <story.md> --id <team> --native-policy-bootstrap   # one team per task
+waypost team roles <team> --assign --coordinator a --reviewers b --executors c \
+  --reason "<why>" --yes                         # owner-assigned roles
+waypost team plan <team> --request --plan-id P --goal "..." --base <sha> --scope a.js [--critic]
+waypost team plan <team> --install --plan-id P --digest <digest> --yes --reason "<why>"
+```
+
+Claude Code, Codex and OpenCode take part through managed read-only endpoints;
+approved work is published as one commit on the team's private branch. Checked
+by live runs on macOS only. See [docs/team-coordination.md](docs/team-coordination.md)
+and the ADR [owner-assigned team roles](docs/vault/adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md).
 
 ## What it costs to run
 
