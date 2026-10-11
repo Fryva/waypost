@@ -71,3 +71,20 @@ No live messaging, model identity or cross-platform proof from document creation
 ## Attachments
 
 - [[model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review]]
+
+### Live dependent and parallel works (2026-10-11, Claude Code)
+
+Owner-assigned team `chain`, zero cohorts, ≈54.1K subscription tokens: coordinator
+Claude Code (2.1.296), Codex (`gpt-6.1-sol` low, `codex-no-exec-r1`) as alternate and
+work reviewer, executor OpenCode (`qwen3.8-max` low). Identities 7,265 / 2,196 /
+3,718; leader ACK 3,073. Two works on disjoint paths ran at once: `fix-sum`
+(`src/sum.js`) and `fix-mul` (`src/mul.js`); a third on `SRC/sum.js` was refused
+`native-work-path-overlap`. OpenCode executed both (3,945, 3,949), Codex approved
+both (8,646, 8,629), the leader Host published them one after the other. Then the
+dependent `add-sub` (`depends_on: ["fix-sum"]`): with the owner's base it was refused
+`native-work-dependency-base-required`, with `["fix-sum","fix-mul"]` refused
+`native-work-dependency-chain-required`; with `fix-sum`'s published commit as base it
+was accepted, executed (4,044; the candidate diff against that commit adds only
+`sub`), approved by Codex (8,633) and published. Its commit's parent is `fix-sum`'s
+commit and its `src/sum.js` holds both the fixed `sum` and the new `sub`; the owner's
+branch was untouched.
