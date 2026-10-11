@@ -58,7 +58,7 @@ calibration are separately reported pending; do not close from reducer tests alo
 - [ ] Automatically discover priorities from fresh sources, including free models; unknown identity never inherits a family rank.
 - [ ] Periodically check ranking and execution identity separately; expiry/change suspends stale authority and review.
 
-Owner-assigned branch ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]). Covered by unit, reducer and in-process Host tests in `tests/native-owner-assigned*.test.mjs`; live runs on 2026-10-11 (two Claude Code participants and OpenCode; then Claude Code, Codex and OpenCode) went identity → assign → ACK → work → review → publication; quota hand-over and role loss are verified by tests only.
+Owner-assigned branch ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]). Covered by unit, reducer and in-process Host tests in `tests/native-owner-assigned*.test.mjs`; live runs on 2026-10-11 (two Claude Code participants and OpenCode; then Claude Code, Codex and OpenCode) went identity → assign → ACK → work → review → publication, and a third run verified executor and coordinator role loss with real revokes; quota hand-over is verified by tests only.
 
 - [ ] An owner-assigned team starts with one identity call per participant and no calibration cohort; `native-policy-assign-v2` carries selectors only and the reducer derives bindings and admissions.
 - [ ] Role selection follows the owner's order; a later or stronger arrival gets no role and no handover; a second assignment or a mode switch is refused.
@@ -450,3 +450,25 @@ leader (`approve`, 8,615, `owner-assigned-review`). The leader Host published co
 `00e9b4d` on `refs/waypost/teams/trio/fix-sum/…` with
 `Waypost-Label: owner-assigned-unmeasured`; the owner's branch was untouched. Not
 exercised live: quota hand-over to the alternate, role loss.
+
+### Live role loss in an owner-assigned team (2026-10-11, Claude Code)
+
+Team `loss`, zero cohorts, ≈16.2K tokens (identities: Codex 7,265, Claude 2,193 on
+2.1.296 directly, OpenCode 3,713; leader ACK 3,066). `team roles` showed the new binary
+line: Claude 2.1.296 and Codex 0.162.0-alpha.17.2 verified, OpenCode not pinned. The
+first assignment (executors OpenCode and Codex) was refused
+`native-policy-assign-independent-reviewer-required`: with Claude leading, Codex as an
+executor has no independent listed reviewer. Then coordinator Claude with Codex as
+alternate, reviewers Claude and Codex, executor OpenCode. With real `revoke` events and
+no execution spent:
+
+- Executor loss: after a manifest picked OpenCode, revoking it cancelled the work
+  (`owner-assigned-role-lost`); the team stayed `active`, and a new manifest was refused
+  `native-work-no-eligible-executor`.
+- Coordinator loss: revoking Claude set `assignment_lost` (`revoked`) and paused the team;
+  the alternate Codex was not promoted (revocation closes, only quota hands over);
+  `native-leader-resume` was refused `native-resume-assignment-lost`; `close-v1` closed
+  the team.
+
+Not exercised live: quota hand-over to the alternate (a real exhaustion cannot be staged
+honestly).
