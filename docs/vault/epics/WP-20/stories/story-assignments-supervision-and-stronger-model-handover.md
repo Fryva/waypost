@@ -126,3 +126,18 @@ cancelled dependency abandons the work. Acceptance: unit tests (reader, graph ch
 automatic install with the right base, retry and final refusals, cancelled dependency) and a Host
 test with real Git (A then B on the same file: B installed from the commit of A on publication,
 its prompt carries A's result, its parent is A's commit). No live run.
+
+### Live leader plan with a dependent work (2026-10-11, Claude Code)
+
+Owner-assigned team `deps`, zero cohorts, ≈30.4K tokens: coordinator Claude Code 1
+(2.1.296), reviewer Claude Code 2 (same configuration, separate participant), executor
+OpenCode. Identities 2,194 / 2,194 / 3,716; leader ACK 3,041. Plan `chain` (scope
+`src/sum.js`, at most two works): the leader (3,014) proposed `chain-1` (fix `sum`) and
+`chain-2` (add `sub`, `depends_on: [0]`, same file, allowed because it depends on the
+first). The owner approved in chat; `team plan --install` installed `chain-1` and
+recorded `chain-2` as pending. `chain-1`: OpenCode 4,021, Claude 2 approved 4,075,
+published `eaff812`. On that integration the authority installed `chain-2` itself
+(base `eaff812`, `depends_on: ["chain-1"]`, plan provenance `auto: true`). `chain-2`:
+OpenCode 4,057 (candidate diff against `eaff812` adds only `sub`), Claude 2 approved
+4,075, published `1fcef12` with parent `eaff812`; `src/sum.js` holds the fixed `sum` and
+the new `sub`. The owner's branch was untouched.
