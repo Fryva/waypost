@@ -121,6 +121,16 @@ test("commit records harness, session and story; log reads them back", () => {
     "a filter that matches nothing says so rather than showing everything");
 });
 
+test("log counts commits without waypost trailers before its filter, so a filtered view still names them", () => {
+  const proj = repo();
+  waypost(proj, ["draft", "story", "PS-1", "First", "--write"]);
+  waypost(proj, ["commit", "-m", "Tagged change", "--all"], { harness: "codex", session: "codex-1" });
+  writeFileSync(join(proj, "plain.txt"), "x\n"); git(proj, ["add", "plain.txt"]); git(proj, ["commit", "-qm", "Plain git commit"]);
+  const filtered = waypost(proj, ["log", "--harness", "codex"]).stdout;
+  assert.match(filtered, /Tagged change/); assert.doesNotMatch(filtered, /Plain git commit/);
+  assert.match(filtered, /2 of the last 3 commits carry no waypost trailers/, "the base and the plain commit are untagged");
+  assert.match(waypost(proj, ["log", "--harness", "cursor"]).stdout, /no commits match[\s\S]*2 of the last 3 commits carry no waypost trailers/);
+});
 test("a story reference is resolved against the vault, so a typo cannot enter the record", () => {
   const proj = repo();
   waypost(proj, ["draft", "story", "PS-1", "Second", "--write"]);

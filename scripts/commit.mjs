@@ -334,25 +334,28 @@ function log(argv) {
     + "%x1f%(trailers:key=Waypost-Provider,valueonly,separator=%x2c)",
     "--date=short"]);
   if (!r || r.status !== 0) die("git log failed — is this a repository with commits?");
-  const rows = (r.stdout || "").split("\n").filter(Boolean).map((line) => {
+  const all = (r.stdout || "").split("\n").filter(Boolean).map((line) => {
     const [sha, author, date, subject, harness, session, story, provider] = line.split("\x1f");
     return { sha, author, date, subject, harness: harness.trim(), session: session.trim(),
       story: story.trim(), provider: (provider || "").trim() };
-  }).filter((row) => filters.every(([k, v]) =>
+  });
+  const rows = all.filter((row) => filters.every(([k, v]) =>
     (k === "Waypost-Story" ? row.story
       : k === "Waypost-Session" ? row.session
       : k === "Waypost-Provider" ? row.provider : row.harness).includes(v)))
     .slice(0, Number(n));
 
   if (argv.includes("--json")) { process.stdout.write(JSON.stringify(rows, null, 2) + "\n"); return; }
-  if (!rows.length) { process.stdout.write("no commits match\n"); return; }
+  if (!rows.length) process.stdout.write("no commits match\n");
   for (const row of rows) {
     const tag = [row.harness || "—", row.provider || null, row.story || null].filter(Boolean).join(" · ");
     process.stdout.write(`${row.sha}  ${row.date}  ${(tag).padEnd(34)} ${row.subject}\n`);
   }
-  const untagged = rows.filter((r2) => !r2.harness).length;
+  // Counted over the latest commits before any filter: an untagged commit can never match a
+  // --story/--harness/--provider filter, so counting the filtered rows always said 0.
+  const window = all.slice(0, Number(n)), untagged = window.filter((r2) => !r2.harness && !r2.session).length;
   if (untagged) {
-    process.stdout.write(`\n${untagged} of ${rows.length} carry no waypost trailers — committed outside \`waypost commit\`.\n`);
+    process.stdout.write(`\n${untagged} of the last ${window.length} commits carry no waypost trailers — committed outside \`waypost commit\`.\n`);
   }
 }
 
