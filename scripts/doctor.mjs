@@ -2109,7 +2109,12 @@ function main() {
     findings.push(...runVaultChecks(cfg));
   } else if (vault) {
     groups.push("vault");
-    findings.push(finding("vault", "info", "vault", "Vault checks skipped — no usable vault (see install issues)."));
+    // An explicit `--vault` skips the install checks that would otherwise report the missing
+    // binding, so a missing vault there is an issue: `doctor --vault` in CI must not pass on a
+    // fresh clone with no vault (it printed "healthy" and exited 0 before 2026-10-11).
+    findings.push(args.includes("--vault")
+      ? finding("vault", "issue", "vault", "No usable vault: bind one with `waypost bind <path>` (`.waypost/` is per checkout, so a fresh clone needs it too).")
+      : finding("vault", "info", "vault", "Vault checks skipped — no usable vault (see install issues)."));
   }
 
   if (wantJson) {

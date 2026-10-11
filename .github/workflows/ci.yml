@@ -21,3 +21,7 @@ jobs:
           node-version: ${{ matrix.node }}
       # No dependencies: nothing to install.
       - run: npm test
+      # The vault gate: `.waypost/` is per checkout, so a fresh clone binds the
+      # vault first; `doctor --vault` exits 1 on any issue (and on no usable vault).
+      - run: node bin/waypost bind docs/vault
+      - run: node bin/waypost doctor --vault

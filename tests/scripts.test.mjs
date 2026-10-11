@@ -1694,3 +1694,14 @@ test("draft: a command-less folder kind (diagram) dies cleanly, not with a raw s
   const declared = r.stderr.split("declares:")[1] || "";
   assert.doesNotMatch(declared, /\bdiagram\b/, "diagram must not be offered as a valid kind either");
 });
+
+test("doctor --vault without a usable vault is an issue and exits 1, not a healthy pass", () => {
+  const proj = mkdtempSync(join(tmpdir(), "waypost-novault-"));
+  spawnSync("git", ["init", "-q"], { cwd: proj });
+  const run = (...args) => spawnSync(process.execPath, [join(REPO, "scripts", "doctor.mjs"), ...args], { encoding: "utf8", env: { ...ENV, WAYPOST_PROJECT_DIR: proj }, cwd: proj, timeout: 15000 });
+  const text = run("--vault");
+  assert.equal(text.status, 1, text.stdout);
+  assert.doesNotMatch(text.stdout, /look healthy/);
+  const vaultFindings = JSON.parse(run("--vault", "--json").stdout).filter((f) => f.group === "vault");
+  assert.deepEqual(vaultFindings.map((f) => f.level), ["issue"]);
+});
