@@ -260,7 +260,7 @@ project review remains fresh, independent and strongest qualified.
     positives or policy/reviewer/incarnation/epoch changes cannot resolve it.
     Resolution is not supplied by this increment. No verdict grants project review,
     work, architecture, implementation or integration rights.
-    For an owner-assigned team: this audit is not supported and is refused with `owner-assigned-audit-unsupported`.
+    For an owner-assigned team: the auditor is the top listed reviewer independent of the leader and the source participant (it may share the leader's native configuration); the request, record and target pin `assignment_digest` instead of `calibration_digest`; a negative audit blocks new work and integration as here.
 
 ## Modules & files on disk
 

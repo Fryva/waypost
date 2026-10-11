@@ -97,7 +97,8 @@ What the roles mean afterwards:
 - On quota exhaustion the coordinator role passes only to a listed alternate that still has an independent
   reviewer, and does not return to the primary.
 - Work is labelled `owner-assigned-unmeasured` and its review `owner-assigned-review`: nothing measures
-  role strength. Leadership audit is not supported for these teams (`owner-assigned-audit-unsupported`).
+  role strength. The leadership audit is done by the top listed reviewer independent of the leader (it may share the leader's
+  configuration); a negative audit blocks new work and integration, as in calibrated teams.
 - Calibration stays an optional check: run a cohort when the owner wants measured evidence, and use
   `--cohort ID` on `team roles` for advisory hints.
 

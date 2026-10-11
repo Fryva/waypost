@@ -309,7 +309,7 @@ no choice above.
   larger than that could be executed but never reviewed. A work whose inputs cannot fit
   a review prompt is refused before execution, so no execution tokens are spent on it.
 
-- **Status of the code (2026-10-11).** Implemented in slices 1-5 (commits 62d9dcf to 315451b). Leadership audit for owner-assigned teams is still refused (`owner-assigned-audit-unsupported`). Live run 2026-10-11 (two Claude Code participants and OpenCode, ≈19.2K tokens, zero cohorts) published one reviewed work, and a three-harness run (Claude Code leader, Codex reviewer, OpenCode executor, ≈28.8K) published another after the Codex surface revision (2b04738). Role loss of the executor and the coordinator was verified live with real revokes (≈16.2K); quota hand-over is verified by tests only.
+- **Status of the code (2026-10-11).** Implemented in slices 1-5 (commits 62d9dcf to 315451b). Leadership audit for owner-assigned teams followed in fed1a98: the auditor is the top listed reviewer independent of the leader and the source (it may share the leader's configuration), pinned by `assignment_digest`; a negative audit blocks new work and integration as in calibrated teams, without a latch. Live run 2026-10-11 (two Claude Code participants and OpenCode, ≈19.2K tokens, zero cohorts) published one reviewed work, and a three-harness run (Claude Code leader, Codex reviewer, OpenCode executor, ≈28.8K) published another after the Codex surface revision (2b04738). Role loss of the executor and the coordinator was verified live with real revokes (≈16.2K); quota hand-over is verified by tests only.
 
 ## References
 

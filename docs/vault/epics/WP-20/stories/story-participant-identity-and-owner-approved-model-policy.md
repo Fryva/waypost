@@ -64,7 +64,7 @@ Owner-assigned branch ([[owner-assigned-team-roles-by-default-with-calibration-a
 - [ ] Role selection follows the owner's order; a later or stronger arrival gets no role and no handover; a second assignment or a mode switch is refused.
 - [ ] Review: the top listed independent reviewer gates publication; reviewer is not the executor, not the leader as a participant, and not the executor's native configuration, but may share the leader's; lower-listed approval, revoked reviewer's approval, expired assignment and a changed native profile at action time are refused.
 - [ ] Owner-assigned executor runs under `executor: owner-assigned` with the leader-baseline limits and no size class; added bidi or zero-width characters are refused; work and review are labelled `owner-assigned-unmeasured` and `owner-assigned-review`.
-- [ ] Coordinator loss pauses the team, cancels unfinished work and waits for the owner's `close-v1`; quota hand-over goes only to a listed alternate; leadership audit is refused (`owner-assigned-audit-unsupported`).
+- [ ] Coordinator loss pauses the team, cancels unfinished work and waits for the owner's `close-v1`; quota hand-over goes only to a listed alternate; the leadership audit is done by the top listed independent reviewer (fed1a98).
 
 ## Final Summary
 
