@@ -98,3 +98,18 @@ installs the exact proposal by digest (`--install --yes --reason`), all works or
 unit and Host tests only (`tests/native-work-plan.test.mjs`, `tests/native-work-plan-host.test.mjs`:
 request, strict answer, whole-plan checks, install all or nothing, void on leader change, a published
 work of an installed plan). No live run.
+
+### Live leader decomposition, owner-installed (2026-10-11, Claude Code)
+
+Owner-assigned team `plan`, zero cohorts, ≈44.5K tokens of a further 60K approval:
+coordinator Claude Code (2.1.296), Codex alternate and work reviewer, executor OpenCode.
+Identities 7,265 / 2,199 / 3,716; leader ACK 3,083. The owner requested plan `math`
+(goal: sum must add and mul must multiply; scope `src/sum.js`, `src/mul.js`; at most two
+works). The leader answered in one fresh no-tools call (2,844) with the scope files'
+content bound by digest: two independent works, one per file, each with concrete
+criteria (`sum(2,3)` returns 5, `mul(-2,4)` returns -8, no other file modified) that show
+it read the current, wrong implementations. All plan checks passed (`proposed`, no codes).
+The owner approved the exact stored proposal in chat; `team plan --install --digest … --yes
+--reason` installed `math-1` and `math-2` together. OpenCode executed both (3,999 each),
+Codex approved both (8,681, 8,700), the leader Host published both commits; the owner's
+branch was untouched.
