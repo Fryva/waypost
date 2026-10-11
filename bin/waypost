@@ -2118,7 +2118,7 @@ function gateEvidenceOf(gateResult) {
   if (!gateResult) return null;
   if (gateResult.via === "process") {
     const norm = (c) => String(c || "").toLowerCase().split(/[\\/]/).pop().split(/[^a-z0-9]+/)[0];
-    const hit = gateResult.ancestors.find((a) => norm(a.comm) === gateResult.harness);
+    const hit = gateResult.ancestors.find((a) => norm(a.comm) === gateResult.harness || norm(a.argv0) === gateResult.harness);
     return hit ? `an ancestor process "${gateResult.harness}" (pid ${hit.pid})` : `an ancestor process (${gateResult.harness})`;
   }
   if (gateResult.via === "env" && gateResult.markers.length) return `the environment variable ${gateResult.markers[0].var}`;

@@ -809,7 +809,7 @@ export function gateCheck({ env = process.env, table = processTable(), ppid = pr
     for (let depth = 0; depth < 128 && pid != null && pid > 1; depth++) {
       const p = table.get(pid);
       if (!p) break;
-      ancestors.push({ pid: p.pid, comm: p.comm });
+      ancestors.push({ pid: p.pid, comm: p.comm, ...(p.argv0 ? { argv0: p.argv0 } : {}) });
       if (!harness) {
         // `ps -o comm=` gives the full executable path on macOS
         // (".../MacOS/claude"), so the first word is taken from the basename.
