@@ -13,6 +13,8 @@ import { createParticipant, validatePolicy, policyStrengthShape } from './team.m
 import { reduceTeamEvent, authorizeActor } from './team-state.mjs';
 import { readAuthority, mutateAuthority, explainRecovery, recoverLock } from './team-store.mjs';
 import { proposeModelRoute } from './model-routing.mjs';
+import { consent } from './cleanup.mjs';
+import { buildAuthenticatedCalibrationSummary } from './team-role-calibration.mjs';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 export function nativeInspectionDue(participant, now = Date.now()) {
@@ -46,6 +48,35 @@ function taskKey(input, cfg) {
   if (!fm?.type || !fm?.id) throw new Error('artifact-type-and-id-required');
   return relative(vault, actual).replace(/\\/g, '/');
 }
+// Owner-assigned roles (ADR owner-assigned-team-roles): the latest settled identity observation of a participant, as the owner reads it.
+export function latestIdentity(s, t, p) {
+  const x = Object.values(s.subscription_invocations || {}).filter(x => x.team === t.id && x.purpose === 'identity' && x.participant === p.id && x.state === 'settled' && x.identity_observation)
+    .sort((a, b) => Date.parse(b.identity_observation.observed_at) - Date.parse(a.identity_observation.observed_at))[0];
+  if (!x) return null;
+  const o = x.identity_observation, n = x.identity_seal?.native_receipt;
+  return { profile_id: o.identity.profile_id, native_model: n?.actualModel?.model_id ?? null, reasoning: n?.actualModel?.reasoning ?? null, version: n?.context_manifest?.version ?? null, tool_surface: n?.context_manifest?.tools ?? null, observed_at: o.observed_at, expires_at: o.expires_at, expired: Date.now() >= Date.parse(o.expires_at) };
+}
+export function rolesListing(s, t, hints = null) {
+  const a = t.policy.mode === 'owner-assigned' ? t.policy.assignment : null;
+  return { team: t.id, policy: { mode: t.policy.mode, revision: t.policy.revision, expires_at: t.policy.expires_at, expired: Date.now() >= Date.parse(t.policy.expires_at), ...(a ? { assignment: { coordinator: a.coordinator, reviewers: a.reviewers, executors: a.executors, reason: a.reason, issued_by: a.issued_by } } : {}) },
+    participants: Object.values(t.participants).map(p => ({ participant: p.id, harness: p.harness, model: p.model && { provider: p.model.provider, model_id: p.model.model_id, reasoning: p.model.reasoning }, surface: p.surface ?? 'unknown', revoked: Boolean(p.revoked), availability: p.availability, identity: latestIdentity(s, t, p), ...(hints ? { calibration_hint: hints[p.id] ?? null } : {}) })),
+    note: 'calibration_hint is advisory only; the owner assigns roles with `team roles --assign`' };
+}
+const idList = v => (v ? v.split(',').map(x => x.trim()).filter(Boolean) : []);
+// The selectors-only assign command: ids, reason, expiry and issuer; the reducer derives every binding.
+export function ownerAssignFields(s, t, { coordinator, reviewers, executors, reason, expiresAt, issuedBy }) {
+  const lists = { coordinator: idList(coordinator), reviewers: idList(reviewers), executors: idList(executors) };
+  const ids = [...new Set(Object.values(lists).flat())];
+  const unknown = ids.filter(id => !t.participants[id]);
+  if (unknown.length) throw new Error('unknown-participant:' + unknown.join(','));
+  let expires_at = expiresAt;
+  if (!expires_at) {
+    const seen = ids.map(id => [id, latestIdentity(s, t, t.participants[id])]), missing = seen.filter(([, o]) => !o).map(([id]) => id);
+    if (missing.length) throw new Error('identity-observation-required:' + missing.join(','));
+    expires_at = new Date(Math.min(...seen.map(([, o]) => Date.parse(o.observed_at))) + 604800000).toISOString();
+  }
+  return { ...lists, reason, expires_at, issued_by: issuedBy, expected_policy_revision: t.policy.revision };
+}
 function publicTeam(t, includeInventory = false) {
   const result = structuredClone(t);
   for (const p of Object.values(result.participants)) {
@@ -54,13 +85,14 @@ function publicTeam(t, includeInventory = false) {
     p.delivery_capabilities = { native_session_binding: p.native_binding ? 'managed-endpoint-bound' : 'unverified', send_existing: 'unsupported', wake: 'unverified', inspect_model: p.identity_checked_at ? (p.model.resolved ? 'adapter-observed' : 'partial-observation') : 'unverified', desktop_delivery:'unverified' };
   }
   if(!includeInventory)for(const entry of Object.values(result.model_inventory||{}))if(entry.snapshot){entry.snapshot.projected.candidate_count=entry.snapshot.projected.candidates.length;delete entry.snapshot.projected.candidates;}
-  result.policy_stale = ['automatic','automatic-calibration'].includes(result.policy.mode) && Date.now() >= Date.parse(result.policy.expires_at);
+  result.policy_stale = ['automatic','automatic-calibration','owner-assigned'].includes(result.policy.mode) && Date.now() >= Date.parse(result.policy.expires_at);
   result.delivery = 'cooperative inboxes (including MCP) and explicitly managed native endpoints; desktop native binding and wake unverified';
   if(t.accounting?.mode==='subscription-tokens')result.accounting_capabilities={mode:'subscription-tokens',ledger:t.accounting.protocol===2?'bootstrap-and-fixed-calibration-trials':'bootstrap-only',billing_policy:t.accounting.billing_policy||'verified-route-v1',default_execution_context_collector:t.accounting.protocol===2?'codex-claude-opencode-owned-native-counter':'unavailable',native_dispatch:t.accounting.protocol===2?'bounded-codex-claude-opencode-identity-and-fixed-trials':'blocked',calibration_policy_activation:t.policy.protocol===2,scoped_native_leadership_ack:Boolean(t.native_control_policy),protected_native_actions:false,provider_enforced_spend:false,exclusive_provider_quota:false};
   return result;
 }
 export async function main(argv = process.argv.slice(2)) {
-  const [mode, target] = argv;
+  let [mode, target] = argv;
+  let assignFields;
   const flag = key => argv.includes(key);
   const opt = key => { const i = argv.indexOf(key); if (i < 0) return undefined; if (!argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('missing-value:' + key); return argv[i + 1]; };
   const cfg = readConfig(); if (!cfg?.vault_path) throw new Error('bind-a-vault-before-team-commands');
@@ -133,6 +165,31 @@ export async function main(argv = process.argv.slice(2)) {
     const v = loaded(); const t = v.state?.teams[target];
     if (target && !t) throw new Error('team-not-found');
     print({ revision: v.revision, authority: root, teams: t ? [publicTeam(t,flag('--model-inventory'))] : Object.values(v.state?.teams || {}).map(team=>publicTeam(team,flag('--model-inventory'))) }); return;
+  }
+  if (mode === 'roles') {
+    const v = loaded(); const t = v.state?.teams[target];
+    if (!t) throw new Error('team-not-found');
+    if (!flag('--assign')) {
+      let hints = null;
+      if (opt('--cohort')) try { const sum = buildAuthenticatedCalibrationSummary({ teamId: target, cohortId: opt('--cohort'), loaded: v }); hints = Object.fromEntries(sum.profiles.map(p => [p.participant, p.roles.map(r => ({ role: r.role, qualified: Boolean(r.qualification_candidate), current: Boolean(r.current) }))])); } catch (error) { hints = {}; }
+      const out = rolesListing(v.state, t, hints);
+      if (flag('--json')) { print(out); return; }
+      const w = process.stdout.write.bind(process.stdout);
+      w(`team ${out.team}: policy ${out.policy.mode} r${out.policy.revision}, expires ${out.policy.expires_at}${out.policy.expired ? ' (EXPIRED)' : ''}\n`);
+      if (out.policy.assignment) { const a = out.policy.assignment; w(`  assigned: coordinator ${a.coordinator.join(',')} | reviewers ${a.reviewers.join(',')} | executors ${a.executors.join(',') || '-'}\n  reason: ${a.reason}\n`); }
+      for (const p of out.participants) {
+        const i = p.identity;
+        w(`${p.participant}  ${p.harness}  ${p.model?.provider}/${p.model?.model_id} (${p.model?.reasoning})  surface ${p.surface}${p.revoked ? '  REVOKED' : ''}\n`);
+        w(i ? `    identity ${i.profile_id.slice(0, 27)}  native-model ${i.native_model}  reasoning ${i.reasoning}  version ${i.version}  tools ${JSON.stringify(i.tool_surface)}  observed ${i.observed_at}  expires ${i.expires_at}${i.expired ? ' (EXPIRED)' : ''}\n` : '    identity none observed (run `team host --operation subscription-bootstrap`)\n');
+        if (p.calibration_hint) w(`    hint (advisory): ${p.calibration_hint.map(r => r.role + (r.qualified ? ' qualified' : ' not qualified')).join(', ')}\n`);
+      }
+      w('assign: waypost team roles ' + target + ' --assign --coordinator a,b --reviewers c,d [--executors e] --reason "<why>" --yes\n');
+      return;
+    }
+    const c = consent({ yes: flag('--yes'), reason: opt('--reason') });
+    if (!c.ok) throw new Error('owner-consent-required: pass --yes and --reason "<why>"');
+    assignFields = ownerAssignFields(v.state, t, { coordinator: opt('--coordinator'), reviewers: opt('--reviewers'), executors: opt('--executors'), reason: c.reason, expiresAt: opt('--expires-at'), issuedBy: { harness: detectHarness(), session: sessionId() } });
+    mode = 'native-policy-assign-v2';
   }
   if (mode === 'route') {
     const v = loaded(), t = v.state?.teams[target]; if (!t) throw new Error('team-not-found');
@@ -263,7 +320,7 @@ export async function main(argv = process.argv.slice(2)) {
             for(let elapsed=0;elapsed<Math.max(1,30-Math.floor((Date.now()-passStart)/1000))&&!stopped;elapsed++)await sleep(1000);
             continue;
           }
-          const check={at,ok:!expired,kind:'native-calibration',blockers:expired?['native-calibration-expired-new-measurement-required']:[],inventory_inspections:inventoryInspections,native_inspections:inspections,native_quota_inspections:nativeQuotaInspections};
+          const check={at,ok:!expired,kind:'native-calibration',blockers:expired?[t.policy.mode==='owner-assigned'?'owner-assignment-expired':'native-calibration-expired-new-measurement-required']:[],inventory_inspections:inventoryInspections,native_inspections:inspections,native_quota_inspections:nativeQuotaInspections};
           if(Buffer.byteLength(JSON.stringify(check))>200000)throw new Error('strength-evidence-exceeds-authority-budget');
           const command={type:'strength-check',team:target,actor,at,check};
           try{
@@ -345,9 +402,10 @@ export async function main(argv = process.argv.slice(2)) {
     }
     command = { ...command, request_key: seed.request_key, at: seed.join_at }; 
   } else {
-    const ownerModes = new Set(['subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-reserve-v2','subscription-abort-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-reserve-v1','subscription-abort-v1','participant-host-register-v1','quota-policy-enable-v1','policy','attest','revoke','close','routing-enable','routing-enable-v2','collector-register-v1','collector-revoke-v1','control-invocation-reserve-v1','native-binding-v1','runtime-request-v1','begin-handover-v1','deferred-apply-v1','deferred-discard-v1','close-v1']);
+    const ownerModes = new Set(['subscription-accounting-enable-v2','subscription-allocation-update-v2','subscription-reserve-v2','subscription-abort-v2','subscription-accounting-enable-v1','subscription-allocation-update-v1','subscription-reserve-v1','subscription-abort-v1','participant-host-register-v1','quota-policy-enable-v1','policy','attest','revoke','close','routing-enable','routing-enable-v2','collector-register-v1','collector-revoke-v1','control-invocation-reserve-v1','native-binding-v1','native-policy-assign-v2','runtime-request-v1','begin-handover-v1','deferred-apply-v1','deferred-discard-v1','close-v1']);
     cred = loadCredential(resolve(opt(ownerModes.has(mode) ? '--owner-credential' : '--credential') || (ownerModes.has(mode) ? defaultOwner : '')));
     command = { ...supplied, type: mode, team };
+    if (assignFields) Object.assign(command, assignFields);
     if (mode === 'policy') command.policy = json(resolve(opt('--policy') || ''));
     if (mode === 'attest') { command.participant_id = opt('--participant'); command.model = json(resolve(opt('--model') || '')); }
     if (mode === 'revoke') command.participant_id = opt('--participant');

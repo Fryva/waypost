@@ -3542,6 +3542,7 @@ WORKING IN SEVERAL HARNESSES AT ONCE
   team refresh <id>        refresh automatic model-strength evidence
   team watch <id>          periodically check evidence [--interval <seconds>]
   team route <id>          preview a manifest [--request-file <json>]; no grant
+  team roles <id>          list participants and their observed identity; --assign --coordinator a,b --reviewers c --executors d --reason "<why>" --yes sets roles (owner)
   team host <id>           managed endpoints, relay, review and owned Git flow
                            --operation bootstrap|inspect|relay|review|checkout|
                            candidate|dispatch|publish|recover-publication

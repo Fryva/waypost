@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { authorityFixture, now as fxNow, at as nowAt } from './helpers/native-calibration.mjs';
+import { reduceTeamEvent } from '../scripts/team-state.mjs';
+import { rolesListing, ownerAssignFields } from '../scripts/team-cli.mjs';
 const cli = fileURLToPath(new URL('../bin/waypost', import.meta.url));
 const tmp = [];
 after(() => tmp.forEach(p => rmSync(p, { recursive: true, force: true })));
@@ -111,4 +114,50 @@ test('owner selects inherited-native v2 with local token telemetry capability an
  assert.equal(status.accounting.protocol,2);assert.equal(status.accounting_capabilities.native_dispatch,'bounded-codex-claude-opencode-identity-and-fixed-trials');
  assert.equal(status.accounting_capabilities.provider_enforced_spend,false);assert.equal(status.accounting_capabilities.exclusive_provider_quota,false);
  assert.match(f.run('routing-enable','fixture-team').stderr,/subscription-mode-migration-required/);
+});
+// Owner-assigned roles (ADR owner-assigned-team-roles, slice 2).
+const dayMs = 86400000, legacyPolicy = { protocol: 1, revision: 1, domain: 'coding', mode: 'automatic', generated_at: nowAt, expires_at: new Date(fxNow + 600000).toISOString(), sources: [{ id: 'fixture', url: 'https://example.org/fixture', retrieved_at: nowAt }], evidence_floor: ['adapter-observed'], profiles: [] };
+async function identityFixture() {
+ const f = await authorityFixture({ identityOnly: {} }), s = structuredClone(f.state);
+ Object.assign(s, { protocol: 1, owner_hash: 'fixture', task_bindings: { task: 'team' } });
+ Object.assign(s.teams.team, { task: 'task', policy: legacyPolicy, messages: [], work: {}, status: 'forming', leader: null, candidate: null, required_review_models: [], native_policy_bootstrap: true });
+ return s;
+}
+const issuer = { harness: 'claude', session: 'cli-test' };
+const assignEvent = fields => ({ type: 'native-policy-assign-v2', team: 'team', actor: 'owner:fixture', at: nowAt, request_key: 'cli', ...fields });
+test('team roles lists participants without identities and refuses to assign without consent or identities', () => {
+ const f = fixture(), a = f.ok('join', 'fixture-team', '--model', 'model.json', '--credential', 'a.json');
+ const out = f.ok('roles', 'fixture-team', '--json');
+ assert.equal(out.participants.length, 1); assert.equal(out.participants[0].participant, a.result.participant); assert.equal(out.participants[0].identity, null); assert.equal(out.policy.mode, 'manual');
+ assert.match(f.run('roles', 'fixture-team').stdout, /identity none observed/);
+ const base = ['roles', 'fixture-team', '--assign', '--coordinator', a.result.participant, '--reviewers', a.result.participant];
+ assert.match(f.run(...base).stderr, /owner-consent-required/);
+ assert.match(f.run(...base, '--yes').stderr, /owner-consent-required/);
+ assert.match(f.run(...base, '--yes', '--reason', 'because').stderr, /identity-observation-required:/);
+ // A participant credential is not the owner's.
+ const notOwner = f.run(...base, '--yes', '--reason', 'because', '--owner-credential', 'a.json', '--expires-at', new Date(Date.now() + dayMs).toISOString());
+ assert.notEqual(notOwner.status, 0); assert.doesNotMatch(notOwner.stderr, /consent/);
+});
+test('team roles reads the latest identity into the listing and builds a command the reducer accepts', async () => {
+ const s = await identityFixture(), t = s.teams.team;
+ const out = rolesListing(s, t); assert.equal(out.participants.length, 4);
+ const a = out.participants.find(p => p.participant === 'peer-a');
+ assert.match(a.identity.profile_id, /^native-profile-/); assert.equal(a.identity.native_model, 'model-a'); assert.equal(a.identity.expires_at, new Date(fxNow + 900000).toISOString());
+ assert.equal(out.participants.every(p => p.calibration_hint === undefined), true); assert.equal(rolesListing(s, t, {}).participants[0].calibration_hint, null);
+ const fields = ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-b, peer-c', executors: 'peer-d', reason: 'chosen', issuedBy: issuer });
+ assert.deepEqual([fields.coordinator, fields.reviewers, fields.executors], [['peer-a'], ['peer-b', 'peer-c'], ['peer-d']]);
+ assert.equal(fields.expires_at, new Date(Date.parse(nowAt) + 7 * dayMs).toISOString()); assert.equal(fields.expected_policy_revision, 1);
+ assert.throws(() => ownerAssignFields(s, t, { coordinator: 'peer-z', reviewers: 'peer-b', reason: 'x', issuedBy: issuer }), /unknown-participant:peer-z/);
+ const next = reduceTeamEvent(s, assignEvent(fields)).state;
+ assert.equal(next.teams.team.policy.mode, 'owner-assigned'); assert.equal(next.teams.team.candidate, 'peer-a'); assert.ok(next.teams.team.review_candidate);
+ const assigned = JSON.parse(JSON.stringify(rolesListing(next, next.teams.team)));
+ assert.deepEqual(assigned.policy.assignment.reviewers, ['peer-b', 'peer-c']); assert.equal(assigned.policy.assignment.issued_by.session, 'cli-test'); assert.equal(assigned.policy.mode, 'owner-assigned');
+});
+test('the default assign expiry is bounded by the earliest listed identity', async () => {
+ const s = await identityFixture(), t = s.teams.team;
+ for (const x of Object.values(s.subscription_invocations)) if (x.participant === 'peer-b') x.identity_observation.observed_at = new Date(Date.parse(nowAt) - dayMs).toISOString();
+ const f = ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-b', reason: 'x', issuedBy: issuer });
+ assert.equal(f.expires_at, new Date(Date.parse(nowAt) - dayMs + 7 * dayMs).toISOString());
+ for (const x of Object.values(s.subscription_invocations)) if (x.participant === 'peer-d') delete x.identity_observation;
+ assert.throws(() => ownerAssignFields(s, t, { coordinator: 'peer-a', reviewers: 'peer-d', reason: 'x', issuedBy: issuer }), /identity-observation-required:peer-d/);
 });

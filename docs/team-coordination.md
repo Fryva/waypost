@@ -57,6 +57,23 @@ manifest, route, attempt and policy; the whole provider-quoted maximum is reserv
 Provider pricing/maximum-liability adapters remain necessary for strict dispatch.
 An unknown subscription price or unverified maximum cannot authorize a free call.
 
+## Assigning roles as the owner
+
+The owner can set roles without a calibration run. Calibration stays an optional check.
+
+1. Probe each participant's identity: `waypost team host TEAM --operation subscription-bootstrap --participant ID`
+   (once per participant, with its own endpoint).
+2. List what was observed: `waypost team roles TEAM` (`--json` for machines). It shows harness, model,
+   tool surface and the latest identity observation (profile, native model, version, reasoning, expiry) of
+   each participant, and the current policy. `--cohort ID` adds advisory calibration hints, nothing more.
+3. Assign: `waypost team roles TEAM --assign --coordinator a,b --reviewers c,d --executors e --reason "<why>" --yes`.
+   Order in a list is priority. Without `--yes` and `--reason` the command refuses. The owner credential
+   is required. `--expires-at ISO` is optional; the default is the earliest identity observation of the
+   listed participants plus 7 days, the longest the policy allows.
+
+The assignment grants no protected action. When it expires, `team refresh` reports `owner-assignment-expired`
+and `policy_stale` is true; assign again after fresh identity probes.
+
 ## Periodic model-strength checks
 
 For an enrolled team, run:
