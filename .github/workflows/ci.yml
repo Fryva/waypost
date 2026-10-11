@@ -8,7 +8,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 40  # the full suite takes about 25 min on a hosted runner (2026-10-11)
     strategy:
       fail-fast: false
       matrix:
