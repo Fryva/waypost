@@ -1,6 +1,6 @@
 {
   "name": "waypost",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "Shared ground for AI coding agents: project memory as markdown in git, the same roles in 20+ agent tools, coordination across tools, machines and teams, and machine-wide slots and disk limits for heavy work.",
   "keywords": ["adr", "architecture-decision-records", "ai-agents", "claude-code", "opencode", "codex", "cli", "markdown", "project-management", "agent-roles", "multi-agent", "agent-coordination", "resource-management"],
   "license": "MIT",
