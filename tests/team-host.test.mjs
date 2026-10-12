@@ -10,6 +10,7 @@ import { createProtocolRoleSuite,formatProtocolTrial } from '../scripts/team-rol
 import { createTeamHost, validateBoundedUsageReceipt } from '../scripts/team-host.mjs';
 import { createImplementSuite,formatImplementTrial } from '../scripts/team-implement-suite.mjs';
 import { validatePolicy } from '../scripts/team.mjs';
+import { setRunBudget, readRunBudget, runBudgetStatus } from '../scripts/run-budget.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 function fixture(t,options={}) {
  const root=realpathSync(mkdtempSync(join(tmpdir(),'wp-host-')));t.after(()=>rmSync(root,{recursive:true,force:true}));
@@ -51,7 +52,7 @@ function fixture(t,options={}) {
   return {native_id:nativeId,usage_counter_schema:options.openCodeProbe?'opencode-native-normalized-step-total-v1':'codex-thread-cumulative-total-v1',owns_process:true,async inspectContext(){return {verified:options.nativeProbe===true};},async captureAccountingMetadata(){calls.push('metadata-read');const readIndex=options.freshNativeEachCall?endpointMetadataReads++:metadataReads++;if(options.metadataPostFailure&&readIndex>0)throw new Error('not-a-public-error');return {provider:'openai',origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'native-runtime',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:options.initialMetadataUnstable?1:0,consistent:!options.initialMetadataUnstable||readIndex>0};},async send(prompt,invocation){calls.push('native-send');if(options.failure)throw new Error('timeout');const result={invocation_id:invocation.id,output:invocation.purpose==='calibration'&&typeof options.trialAnswer==='function'?await options.trialAnswer(prompt,invocation):options.nativeProbe?prompt.split(' ').at(-1):invocation.id,usage_span:options.nativeProbe?{schema:options.openCodeProbe?'opencode-native-normalized-step-total-v1':'codex-thread-cumulative-total-v1',native_id:nativeId,turn_id:'probe-turn',coverage:options.partialUsage?'partial':'complete',before:'0',after:'30',actual_tokens:'30'}:undefined,native_id:nativeId,actualModel:{provider:options.provider||'openai',model_id:'model',reasoning:'low'},context_manifest:{id:options.freshNativeEachCall?'ctx-'+nativeCreated:'ctx',native_id:nativeId,fresh:true,read_only:true,fresh_review_verified:!options.isolationFailure,model_provider_is_billing_route:options.billingRoute||false}};if(options.nativeProfile){result.actualModel.observed_at=new Date().toISOString();Object.assign(result.context_manifest,{harness:options.openCodeProbe?'opencode':'codex',version:options.openCodeProbe?'1.18.33':'unknown',version_provenance:options.openCodeProbe?'native-health':'unverified',cwd:root,mode:'read-only',isolation:'read-only',tools:[],author_contexts:[],author_history_inherited:false,provenance:'adapter-isolated',initial_instructions_digest:'a'.repeat(64)});}
     if(options.nativeReceiptFailure){const {output,...receipt}=result;throw Object.assign(new Error('private output is not a public receipt'),{code:'native-answer-budget',native_receipt:receipt});}return result;},close(){calls.push('native-close');},...(options.stopWait?{async stopAndWait(){calls.push('native-stop-wait');await options.stopWait();calls.push('native-stopped');}}:{})};
  };
- const dependencies={load,mutate,createNativeEndpoint:native,...options.dependencies};
+ const dependencies={load,mutate,createNativeEndpoint:native,runBudgetPath:join(root,'no-run-budget.json'),...options.dependencies};
  const host=createTeamHost({authorityRoot:root,projectRoot:root,vaultPath:options.vaultPath?root:undefined,team:'team',ownerCredential:owner,collectorPath:collector,endpointPath:endpoint,leaderEndpointPath:endpoint,participant:'participant',participantCredential},dependencies);
  return {root,host,team,state,calls,endpoint,collector,requests,answers,dependencies};
 }
@@ -259,6 +260,50 @@ test('subscription mode refuses unsupported execution-context accounting before 
  assert.equal(f.calls.length,calls);assert.equal(f.calls.includes('native-create'),false);
 });
 
+async function budgetFixture(t,caps){
+ const f=fixture(t,{nativeProbe:true});await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
+ const next=reduceTeamEvent(f.state,{type:'subscription-accounting-enable-v2',team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});
+ Object.assign(f.team,next.state.teams.team);Object.assign(f.state,next.state);f.state.teams.team=f.team;
+ if(caps)await setRunBudget({path:f.dependencies.runBudgetPath,name:'fixture',caps,reason:'test'});
+ return f;
+}
+test('run budget: an exhausted schema refuses before the endpoint starts and appends no event',async t=>{
+ const f=await budgetFixture(t,{'codex-thread-cumulative-total-v1':'30'});
+ const before=f.calls.length;
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'over',estimateTokens:'40',maxTokens:'100'}),e=>e.code==='run-budget-exhausted'&&e.message.includes('codex-thread-cumulative-total-v1')&&e.message.includes('cap 30')&&e.message.includes('remaining 30'));
+ assert.deepEqual(f.calls.slice(before),[],'no endpoint, no allocation-update, no reserve');
+ assert.equal(readRunBudget(f.dependencies.runBudgetPath).entries.length,0);
+});
+test('run budget: an admitted call is derived from its invocation, so settling it counts the charge',async t=>{
+ const f=await budgetFixture(t,{'codex-thread-cumulative-total-v1':'100'});
+ const result=await f.host.subscriptionBootstrap({nonce:'counted',estimateTokens:'40',maxTokens:'100'});assert.equal(result.actual_tokens,'30');
+ assert.equal(readRunBudget(f.dependencies.runBudgetPath).entries[0].invocation,'subscription-counted');
+ const s=runBudgetStatus({path:f.dependencies.runBudgetPath,deps:{readState:()=>f.state}}).schemas['codex-thread-cumulative-total-v1'];
+ assert.deepEqual([s.spent,s.reserved,s.remaining],['30','0','70']);
+});
+test('run budget: a call that fails before the reservation takes its entry back; a schema with no cap is refused',async t=>{
+ const f=await budgetFixture(t,{'codex-thread-cumulative-total-v1':'100'});
+ f.dependencies.createNativeEndpoint=async()=>{throw new Error('endpoint-unavailable');};
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'fails',estimateTokens:'40',maxTokens:'100'}),/endpoint-unavailable/);
+ assert.equal(readRunBudget(f.dependencies.runBudgetPath).entries.length,0);
+ await setRunBudget({path:f.dependencies.runBudgetPath,name:'fixture',caps:{'other-v1':'100'},reason:'test'});
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'uncapped',estimateTokens:'40',maxTokens:'100'}),/run-budget-schema-uncapped/);
+});
+test('run budget: v1 native calls are refused in any team while a budget exists',async t=>{
+ const f=await budgetFixture(t,{'codex-thread-cumulative-total-v1':'100'});
+ await assert.rejects(f.host.inspect({action:'coordinate:exact-key',nonce:'v1'}),e=>e.code==='run-budget-uncounted-native-call');
+ assert.equal(f.calls.includes('native-send'),false);
+});
+test('run budget: a team outside subscription accounting refuses v1 native calls too',async t=>{
+ const f=fixture(t);await setRunBudget({path:f.dependencies.runBudgetPath,name:'fixture',total:'100',reason:'test'});
+ await assert.rejects(f.host.inspect({action:'coordinate:exact-key',nonce:'v1'}),e=>e.code==='run-budget-uncounted-native-call');
+});
+test('run budget: a corrupt budget file refuses the call',async t=>{
+ const f=await budgetFixture(t);
+ writeFileSync(f.dependencies.runBudgetPath,'{ corrupt');
+ await assert.rejects(f.host.subscriptionBootstrap({nonce:'corrupt',estimateTokens:'40',maxTokens:'100'}),/run-budget-invalid/);
+ assert.equal(f.calls.includes('native-send'),false);
+});
 test('inherited-native bootstrap consumes actual reducer admission before one synthetic send without role promotion',async t=>{
  const f=fixture(t,{nativeProbe:true});await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only'}});
  const next=reduceTeamEvent(f.state,{type:'subscription-accounting-enable-v2',team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});

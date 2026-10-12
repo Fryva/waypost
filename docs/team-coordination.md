@@ -1509,3 +1509,21 @@ without a native quota policy keep the previous cadence. A lapsed
 lease is not revived by a pass: it needs a new positive through
 `native-quota-observe`. Each pass starts one provider observer per leased
 participant; provider limits on that rate are unverified.
+
+## Run budget across teams
+
+The owner's token budget for a live run is one file per machine (`run-budget.json` in the machine state directory), covering every team in every project:
+
+```
+waypost team budget set --name <run> --cap <counter-schema>=<tokens> [--cap ...] [--total <tokens>] --yes --reason "<why>"
+waypost team budget status [--json]
+waypost team budget clear --yes --reason "<why>"
+```
+
+`set` creates, raises or lowers the caps and keeps the admitted calls; `set` and `clear` need `--yes --reason` after the owner answered in chat. At least one cap is required. `--total` sums tokens of different adapters and is labelled "not quota-equivalent". `status` shows cap, spent, reserved and remaining per schema and in total.
+
+Before the native endpoint starts, the Host admits each v2 call against the cap of its counter schema and the total, and refuses with `run-budget-exhausted` (schema, cap, remainder) when the estimate does not fit. A refusal writes no team event. Spending is not written to the budget: it is derived from each admitted call's invocation in its team authority (settled or reconciled charges, open calls their estimate, aborted nothing), so usage, reconciliation and accepting unknown usage settle it. A call whose invocation never reached the ledger counts zero only once its Host process is gone, so a crash can only over-count.
+
+It fails closed: a budget file that cannot be read or validated, a schema with no cap while schema caps exist, or a failed lock or write refuses the call. While a budget exists, native calls outside the v2 ledger (`inspect`, `relay`, `review`, `dispatch`, handover control) are refused in every team (`run-budget-uncounted-native-call`). Without a file nothing changes.
+
+Limits: an admission cap, not a hard spending limit; calls in flight finish and may overshoot. Exhaustion also stops leader and handover acknowledgements, so the team stalls until the owner raises the cap or clears the budget. Only calls admitted by this machine's Waypost are counted: other machines, other clients and the harness sessions that drive a run are not. Estimates are uncalibrated, so leave room in the caps. An authority that is moved or deleted counts its entries at their estimates.

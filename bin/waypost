@@ -14,6 +14,7 @@ import {
 } from "node:fs";
 import { spawnSync, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { acquireLock, releaseLock } from "../scripts/machine-lock.mjs";
 import { withTeamArtifactGate } from '../scripts/team-legacy.mjs';
 import { homedir, hostname, setPriority, uptime as osUptime, constants as osConstants } from "node:os";
 import {
@@ -2701,9 +2702,6 @@ function slotsDir(presence) {
 }
 
 const EX_TEMPFAIL = 75; // sysexits.h: temporary failure, safe to retry
-const LOCK_STALE_MS = 5 * 60 * 1000;
-const LOCK_RETRY_BUDGET_MS = 2000;
-const LOCK_RETRY_DELAY_MS = 250;
 const WAIT_POLL_MS = 5000;
 const REASON_PRINT_MS = 30_000;
 
@@ -2730,95 +2728,6 @@ function bootAuthority(capacity) {
   return BOOT_AUTHORITY;
 }
 
-// Is the lock's owner gone? The same evidence slotLive() uses for a slot
-// record: the boot identity first, then on POSIX the process table and start
-// time (a reused pid is not mistaken for the owner), on win32 signal-0. The
-// 24-hour part is left out, since a five-minute mtime already bounds a lock.
-function lockOwnerGone(owner, presence, table, capacity) {
-  if (!owner || !owner.pid) return true;
-  // An owner from an earlier boot is gone whatever its pid names now, so a
-  // pid reused after an unclean restart never holds the lock for five minutes.
-  // On the epoch path that identity drifts across a host suspend, and here
-  // being wrong breaks a live claimant's lock — two processes in the critical
-  // section — so a mismatch has to be confirmed before it counts as death.
-  if (owner.boot && capacity) {
-    const bootNow = capacity.bootIdentity();
-    if (!capacity.sameBoot(owner.boot, bootNow)) {
-      const drifting = owner.boot.kind === "epoch" && bootNow.kind === "epoch";
-      if (!drifting) return true;
-      // uptime settles "another boot" for free; nothing here may spawn, so an
-      // owner uptime cannot settle is KEPT, and the lock's own five-minute
-      // mtime cap is what bounds that. Breaking a live claimant's lock puts
-      // two processes in the critical section: the worst thing this can get
-      // wrong (WP-18, second and third amendments).
-      if (capacity.uptimeSaysOtherBoot(owner, osUptime())) return true;
-    }
-  }
-  if (process.platform === "win32") {
-    try { process.kill(owner.pid, 0); return false; }
-    catch (e) { return e.code === "ESRCH"; }
-  }
-  const rec = { host: hostname().split(".")[0], proc: { pid: owner.pid, started: owner.started || null, ticks: owner.ticks ?? null } };
-  const gone = presence.processGone(rec, table);
-  if (gone !== null) return gone;
-  try { process.kill(owner.pid, 0); return false; }
-  catch (e) { return e.code === "ESRCH"; }
-}
-
-// Broken only when its owner is dead, or the lock itself is older than five
-// minutes — either reason alone is enough to reclaim it. A briefly unreadable
-// owner.json (the sliver of time between the owner's own mkdirSync and its
-// writeFileSync) is NOT evidence of death: treating it as such let a second
-// claimant "break" a lock its rightful owner had just created, defeating
-// mutual exclusion (caught by the stress test). Only a successfully read and
-// confirmed-dead owner, or the five-minute mtime cap, may break it early.
-function breakStaleLock(lockDir, presence, table, capacity) {
-  let st;
-  try { st = statSync(lockDir); } catch { return true; } // already gone
-  if (Date.now() - st.mtimeMs > LOCK_STALE_MS) {
-    try { rmSync(lockDir, { recursive: true, force: true }); } catch { return false; }
-    return true;
-  }
-  let owner = null;
-  try { owner = JSON.parse(readFileSync(join(lockDir, "owner.json"), "utf8")); } catch {}
-  if (!owner || !lockOwnerGone(owner, presence, table, capacity)) return false;
-  try { rmSync(lockDir, { recursive: true, force: true }); } catch { return false; }
-  return true;
-}
-
-// mkdirSync is atomic on every OS: EEXIST means someone else holds it right
-// now. Retried a few times within about 2 seconds, breaking it along the way
-// per breakStaleLock(); null when the budget runs out (report busy).
-async function acquireLock(dir, presence, capacity) {
-  const lockDir = join(dir, ".lock");
-  const deadline = Date.now() + LOCK_RETRY_BUDGET_MS;
-  for (;;) {
-    try {
-      mkdirSync(lockDir);
-      const table = process.platform === "win32" ? null : presence.processTable();
-      const self = table ? table.get(process.pid) : null;
-      writeFileSync(join(lockDir, "owner.json"),
-        JSON.stringify({
-          pid: process.pid, started: self ? self.started : null, ticks: presence.startTicks(process.pid),
-          boot: capacity ? capacity.bootIdentity() : null,
-          // uptime and nothing that spawns: this runs INSIDE the lock, where
-          // the other claimants are waiting on a two-second budget.
-          uptime: osUptime(),
-        }) + "\n", "utf8");
-      return lockDir;
-    } catch (e) {
-      if (e.code !== "EEXIST") throw e;
-      const table = process.platform === "win32" ? null : presence.processTable();
-      if (breakStaleLock(lockDir, presence, table, capacity)) continue; // reclaimed — retry the mkdir at once
-      if (Date.now() >= deadline) return null;
-      await delay(LOCK_RETRY_DELAY_MS);
-    }
-  }
-}
-
-function releaseLock(lockDir) {
-  try { rmSync(lockDir, { recursive: true, force: true }); } catch {}
-}
 
 // The identity fields a slot record, a claimSlot record and a
 // waypost-removing/ marker all share — who and which process, on which
@@ -3545,6 +3454,7 @@ WORKING IN SEVERAL HARNESSES AT ONCE
   team route <id>          preview a manifest [--request-file <json>]; no grant
   team roles <id>          list participants and their observed identity; --assign --coordinator a,b --reviewers c --executors d --reason "<why>" --yes sets roles (owner)
   team host <id>           managed endpoints, relay, review and owned Git flow
+  team budget set|status|clear  the machine's token budget for live runs (set --name N --cap <schema>=<n> [--total <n>] --yes --reason "<why>")
                            --operation bootstrap|inspect|relay|review|checkout|
                            candidate|dispatch|publish|recover-publication
                            native-policy-install --cohort <id> --policy-revision <n>

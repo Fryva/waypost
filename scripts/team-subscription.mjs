@@ -48,13 +48,18 @@ function unfinished(s,t) {
 }
 function freshContext(context,now) { if(!Number.isFinite(Date.parse(context.observed_at))||!Number.isFinite(Date.parse(context.expires_at))||Date.parse(context.observed_at)>now||Date.parse(context.expires_at)<=now||Date.parse(context.expires_at)-Date.parse(context.observed_at)>300000)fail('subscription-current-context-required'); }
 function exhausted(p) { if(p.quota_observation?.status==='exhausted')fail('subscription-quota-exhausted'); }
+// The per-invocation charge: settled and reconciled count the charged tokens, an open one its estimate, an aborted one nothing.
+export function invocationCharge(x) {
+ if(x.state==='aborted')return 0n;
+ return x.state==='settled'||x.state==='reconciled'?decimal(x.charged_tokens):decimal(x.estimate_tokens);
+}
 function totals(s,unitDigest) {
  let actual=0n,reserved=0n,uncertain=false,overshoot=false;
  for(const x of Object.values(s.subscription_invocations||{}).filter(x=>x.unit_digest===unitDigest&&x.state!=='aborted')) {
-  if(x.state==='settled'){actual+=decimal(x.charged_tokens);overshoot ||= x.overshoot_allocation_revision!==undefined&&(s.subscription_allocations?.[unitDigest]?.revision||0)<=x.overshoot_allocation_revision;}
+  if(x.state==='settled'){actual+=invocationCharge(x);overshoot ||= x.overshoot_allocation_revision!==undefined&&(s.subscription_allocations?.[unitDigest]?.revision||0)<=x.overshoot_allocation_revision;}
   // Reconciled usage is unknown: its charged reservation blocks admission until the owner accepts a charge.
-  else if(x.state==='reconciled'){actual+=decimal(x.charged_tokens);overshoot ||= x.unknown_usage_accepted!==true;}
-  else {reserved+=decimal(x.estimate_tokens);uncertain ||= x.state==='uncertain';}
+  else if(x.state==='reconciled'){actual+=invocationCharge(x);overshoot ||= x.unknown_usage_accepted!==true;}
+  else {reserved+=invocationCharge(x);uncertain ||= x.state==='uncertain';}
  }
  return {actual,reserved,uncertain,overshoot};
 }

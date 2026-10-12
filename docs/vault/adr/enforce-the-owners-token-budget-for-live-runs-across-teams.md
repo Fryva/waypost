@@ -2,15 +2,16 @@
 type: adr
 id: "enforce-the-owners-token-budget-for-live-runs-across-teams"
 title: "Enforce the owner's token budget for live runs across teams"
-status: proposed
+status: accepted
 date: 2026-10-12
 authors: ["Ivan Morozov"]
 tags: ["models", "subscription", "budget"]
 external_refs: {}
 supersedes: null
 superseded_by: null
-review_status: pending
-reviewed_at: null
+code_refs: ["scripts/machine-lock.mjs","scripts/run-budget.mjs","scripts/team-subscription.mjs","scripts/team-host.mjs","scripts/team-cli.mjs","bin/waypost","tests/run-budget.test.mjs","tests/team-host.test.mjs"]
+review_status: reviewed
+reviewed_at: 2026-10-12
 drafted_by: {"harness":"claude","provider":null,"date":"2026-10-12"}
 guards: []
 ---
@@ -19,7 +20,7 @@ guards: []
 
 | Field | Value |
 |---|---|
-| **Status** | proposed; owner chose option A on 2026-10-12; critic re-pass accept-with-edits, edits applied; accepted with the implementation |
+| **Status** | accepted 2026-10-12 (owner chose option A; two critic passes) |
 | **Date** | 2026-10-12 |
 | **Authors** | Ivan Morozov |
 | **Related** | [[subscription-cli-token-accounting-with-separate-strict-billing-enforcement]] |
@@ -121,6 +122,16 @@ tokens of different adapters and is labelled "not quota-equivalent". Estimates a
 calibrated (the default is 16000; Codex probes settled at 18.5K and 19.2K), so caps
 should leave room. An authority that later becomes unreadable (moved or deleted)
 counts its entries at their estimates, which under-counts their overshoot.
+
+## Owner acceptance
+
+The owner accepted this ADR on 2026-10-12 and decided:
+
+- Option A: a machine-local admission cap checked by the Host.
+- Caps per counter schema, plus an optional raw total labelled not quota-equivalent.
+- Native calls that cannot be counted are refused while a budget is active.
+- Exhaustion stalls the team, leader and handover acknowledgements included.
+- One budget per machine, across projects.
 
 ## Open questions
 

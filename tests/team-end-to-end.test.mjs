@@ -61,7 +61,7 @@ async function fixture(t,{publicationFault}={}) {
   },close(){}};
  };
  const collectorPath=join(root,'.waypost','collector.json'),endpointPaths={leader:join(root,'.waypost','endpoint-leader.json'),worker:join(root,'.waypost','endpoint-worker.json'),reviewer:join(root,'.waypost','endpoint-reviewer.json')};
- const host=(name,extraDependencies={})=>createTeamHost({authorityRoot,projectRoot:root,vaultPath:vault,team:'team',ownerCredential:ownerPath,collectorPath,endpointPath:endpointPaths[name],participant:name,participantCredential:paths.leader,leaderEndpointPath:endpointPaths.leader,dispatcher:cli},{createNativeEndpoint,...extraDependencies});
+ const host=(name,extraDependencies={})=>createTeamHost({authorityRoot,projectRoot:root,vaultPath:vault,team:'team',ownerCredential:ownerPath,collectorPath,endpointPath:endpointPaths[name],participant:name,participantCredential:paths.leader,leaderEndpointPath:endpointPaths.leader,dispatcher:cli},{runBudgetPath:join(root,'no-run-budget.json'),createNativeEndpoint,...extraDependencies});
  for(const name of ['leader','worker','reviewer'])await host(name).bootstrap({participant:name,descriptor:{managed:true,harness:'codex',cwd:root,mode:'read-only',model_id:name==='worker'?'weak':'strong'}});
  const protectedCommand=async(type,extra={},name='leader')=>{
   const key=randomUUID(),team=load().state.teams.team,p=team.participants[name];

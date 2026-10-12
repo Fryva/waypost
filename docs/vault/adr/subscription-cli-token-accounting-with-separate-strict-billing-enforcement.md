@@ -138,8 +138,9 @@ What the code does (`scripts/team-subscription.mjs`, `scripts/team-native-action
   it. This also clears a measured-overshoot latch and invalidates control policies
   pinned to the old revision. Planned fix: raises only through an explicit
   `allocation-update`.
-- Owner session caps across teams are tracked by the operator, not enforced by the
-  ledger. See [[enforce-the-owners-token-budget-for-live-runs-across-teams]].
+- Owner session caps across teams are not enforced by the ledger; they are enforced
+  at admission when the owner sets a run budget. See
+  [[enforce-the-owners-token-budget-for-live-runs-across-teams]].
 
 Provider quota observations remain independent of token budgets. Confirmed
 exhaustion drives the existing safe role handover. Expiry or a reset timestamp does
@@ -206,8 +207,8 @@ overshoot. Native counter formats and authorization capabilities differ by harne
 Unsupported identity/quota/billing routes remain explicit blockers. Desktop MCP
 participation remains cooperative until native binding and wake are separately proved.
 
-Owner session caps across teams are tracked by the operator, not enforced by the
-ledger. A crashed Host blocks its team counter for good; recovery is a new team.
+Owner session caps across teams are not enforced by the ledger; they are enforced
+at admission when the owner sets a run budget. A crashed Host blocks its team counter for good; recovery is a new team.
 See [[enforce-the-owners-token-budget-for-live-runs-across-teams]].
 
 ## Implementation status (2026-10-12)

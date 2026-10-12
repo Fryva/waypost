@@ -32,6 +32,7 @@ import { promptFor as boundedEditPrompt } from './team-implement-suite.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 import { leasesOverStaged } from './commit.mjs';
 import { sessionId, storyRefOf } from './lib.mjs';
+import { admitRunBudget, removeRunBudgetEntry, runBudgetActive, defaultRunBudgetPath, readAuthorityState } from './run-budget.mjs';
 const sha = x => createHash('sha256').update(typeof x === 'string' ? x : JSON.stringify(x)).digest('hex');
 function fail(code) { throw Object.assign(new Error(code),{code}); }
 // A lost write race is retried within a short total budget: the wait blocks this
@@ -64,6 +65,7 @@ export function createTeamHost(config, dependencies={}) {
  const load=dependencies.load||(()=>readAuthority(authorityRoot,reduceTeamEvent));
  const now=dependencies.now||(()=>new Date().toISOString());
  let activeOperation=null,operationBusy=false;
+ const runBudgetPath=()=>dependencies.runBudgetPath||defaultRunBudgetPath();
  const native=descriptor=>activeOperation?activeOperation.native(()=>(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor)):(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor);
  const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,readWorkInputs,workInputsDigest,validateWorkPatch,writeSealedPatch,readSealedPatch,applySealedPatch,pinCandidateTree,resetWorkPaths,treeDiff,syncCheckoutIndex,workCommitText,workCommitMessageDigest,workCommit,publishWorkCommit,workPublicationState,addsHiddenControls,...dependencies.integration};
  async function closeNative(transport){if(transport?.stopAndWait&&transport.owns_process!==false)await transport.stopAndWait();else transport?.close();}
@@ -105,6 +107,8 @@ export function createTeamHost(config, dependencies={}) {
   if(operationBusy)fail('host-operation-busy');
   operationBusy=true;
   try{
+   // The v1 native paths cannot be counted; while an owner budget exists they are refused in every team.
+   if(['inspect','relay','review','dispatch','handover-control'].includes(kind)&&runBudgetActive(runBudgetPath()))fail('run-budget-uncounted-native-call');
    if(getTeam().t.accounting?.mode==='subscription-tokens' && ['inspect','relay','review','dispatch'].includes(kind))fail('host-subscription-execution-context-collector-unavailable');
   // Trusted injected transports retain their test/provider integration contract.
   // External OpenCode sessions have no owned process to supervise.
@@ -736,7 +740,11 @@ export function createTeamHost(config, dependencies={}) {
   const prompt=controlAction?formatProtocolAction(controlAction)+promptSuffix:trialBinding?trialBinding.prompt:workCall?workCall.prompt:deliveryMessage?formatDeliveryPrompt(deliveryMessage):'Synthetic protocol check. Return exactly this token and nothing else: '+token;
   const deliveryBinding=deliveryMessage?{message_id:deliveryMessage.id,prompt_digest:routingDigest(prompt)}:null;
   const suiteDigest=controlAction?controlAction.prompt_digest:trialBinding?trialBinding.measurement.suite_digest:workCall?workSuiteDigest():deliveryMessage?deliverySuiteDigest():routingDigest({id:'waypost-identity-token',revision:1,template:'Return exactly WAYPOST_PROBE_<nonce>',read_only:true});
-  const transport=await native(d.descriptor);
+  // The owner's run budget admits the call before the native endpoint starts; its entry is taken back if the ledger never records the reservation.
+  const budgetEntry=await admitRunBudget({path:runBudgetPath(),authority:authorityRoot,team,invocation:invocationId,schema:COUNTER_SCHEMA[d.descriptor.harness],estimate:estimateTokens,deps:{readState:a=>a===realpathSync(authorityRoot)?load().state:readAuthorityState(a)}});
+  const dropBudget=async()=>{if(budgetEntry)try{await removeRunBudgetEntry({path:budgetEntry.path,authority:authorityRoot,invocation:invocationId});}catch{}};
+  let transport;
+  try{transport=await native(d.descriptor);}catch(error){await dropBudget();throw error;}
   let consumed=false,binding=null;
   async function accountReceipt(receipt,nativeFailure=null){
    const {before,contextId,unit}=binding;
@@ -810,6 +818,7 @@ export function createTeamHost(config, dependencies={}) {
    const receipt=await transport.send(prompt,{id:nonce,purpose:controlAction?'protocol-control':trialBinding?'calibration':deliveryMessage?'addressed-peer-message':workCall?'protocol-work':'identity',read_only:true,max_output_chars:workCall?workCall.maxOutput??WORK_MAX_OUTPUT_BYTES:deliveryMessage?DELIVERY_MAX_ANSWER_BYTES:trialBinding||controlAction?8192:256});
    return await accountReceipt(receipt);
   }catch(error){
+   if(!load().state.subscription_invocations?.[invocationId])await dropBudget();
    if(consumed&&binding&&error.native_receipt&&['consumed','uncertain'].includes(load().state.subscription_invocations?.[invocationId]?.state)){
     const failure=typeof error.code==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(error.code)?error.code:'native-turn-failed';
     try{return await accountReceipt(error.native_receipt,failure);}catch{}

@@ -105,6 +105,28 @@ export async function main(argv = process.argv.slice(2)) {
   let assignFields;
   const flag = key => argv.includes(key);
   const opt = key => { const i = argv.indexOf(key); if (i < 0) return undefined; if (!argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('missing-value:' + key); return argv[i + 1]; };
+  // The run budget is machine-wide (run-budget ADR): it needs no bound vault.
+  if (mode === 'budget') {
+    const budget = await import('./run-budget.mjs'), cmd = target;
+    const caps = {}; argv.forEach((a, i) => { if (a === '--cap') { const [k, v, ...rest] = (argv[i + 1] || '').split('='); if (!k || v === undefined || rest.length) throw new Error('cap-schema=tokens-required'); caps[k] = v; } });
+    if (cmd === 'status') {
+      const st = budget.runBudgetStatus();
+      if (flag('--json')) { process.stdout.write(JSON.stringify(st, null, 2) + '\n'); return; }
+      if (!st) { process.stdout.write('no run budget set: native calls are not capped\n'); return; }
+      const row = (n, t, note = '') => `  ${n}  cap ${t.cap ?? '-'}  spent ${t.spent}  reserved ${t.reserved}  remaining ${t.remaining ?? '-'}${note}\n`;
+      process.stdout.write(`run budget ${st.name} (admission cap, not a hard limit)\n`);
+      for (const [k, t] of Object.entries(st.schemas)) process.stdout.write(row(k, t));
+      process.stdout.write(row('total', st.total, ` (${st.total.note})`));
+      return;
+    }
+    if (cmd !== 'set' && cmd !== 'clear') throw new Error('budget-command-required:set|status|clear');
+    const c = consent({ yes: flag('--yes'), reason: opt('--reason') });
+    if (!c.ok) throw new Error('owner-consent-required: pass --yes and --reason "<why>"');
+    if (cmd === 'clear') { process.stdout.write((await budget.clearRunBudget({ reason: c.reason })) ? 'run budget cleared\n' : 'no run budget was set\n'); return; }
+    const b = await budget.setRunBudget({ name: opt('--name'), caps, total: opt('--total') ?? null, reason: c.reason });
+    process.stdout.write(`run budget ${b.name} set: ${[...Object.entries(b.caps).map(([k, v]) => `${k}=${v}`), ...(b.total === null ? [] : [`total=${b.total}`])].join(' ')}\n`);
+    return;
+  }
   const cfg = readConfig(); if (!cfg?.vault_path) throw new Error('bind-a-vault-before-team-commands');
   const root = join(coordinationDirs(cfg.vault_path).primary, 'teams', 'authority');
   const loaded = () => readAuthority(root, reduceTeamEvent);

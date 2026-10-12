@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `waypost team budget set|status|clear`: the owner's token budget for live runs, one per machine across teams and projects, with caps per counter schema and an optional raw total. The Host refuses a native call that would pass a cap (`run-budget-exhausted`) before the endpoint starts, and refuses native calls it cannot count while a budget exists. An admission cap, not a hard limit; spending is derived from the team ledgers. See `docs/team-coordination.md`.
 - `waypost commit` writes a `Waypost-OS: <platform>-<major>` trailer (e.g. `darwin-27`), and `waypost log` shows it, carries `os` in `--json` and filters with `--os <darwin|linux|win32>`.
 - `waypost brief` lists vault commits by others since your own last commit (by `user.email`; up to five, then a count), and `--json` carries them as `vault_changes`. It keeps no state: the reference point is git history.
 
