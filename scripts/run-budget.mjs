@@ -115,6 +115,8 @@ export function deriveRunBudget(budget, deps = {}) {
 export async function admitRunBudget({ path = defaultRunBudgetPath(), authority, team, invocation, schema, estimate, deps = {} }) {
   if (readRunBudget(path) === null) return null;
   if (typeof estimate !== "string" || !INT.test(estimate)) fail("run-budget-estimate-required");
+  // An adapter without a counter schema cannot be counted; recording it would make the file invalid for every call.
+  if (typeof schema !== "string" || !SCHEMA.test(schema)) fail("run-budget-schema-unknown", `schema ${schema}`);
   const root = realpathSync(authority);
   return locked(path, () => {
     const b = readRunBudget(path);

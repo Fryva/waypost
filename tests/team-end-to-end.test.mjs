@@ -180,7 +180,7 @@ async function strictFixture(t) {
  const verifiedEvidence=assembleRoutingEvidence({runtime:workerRuntime,qualification,billing:billingEvidence}).verifiedEvidence;
  // Exercise the actual mint rather than supplying handwritten grant flags.
  const minted=createRoutingGrant({manifest,participants,policy:initial.policy,verifiedEvidence,epoch:initial.epoch,reviewFloor:initial.review_floor});assert.equal(minted.grant.participant,'worker');
- const deps={
+ const deps={runBudgetPath:join(f.root,'no-run-budget.json'),
   mutate(root,request,reducer,options){return mutateAuthority(root,request,reducer,{...options,fault:stage=>{if(authorityFault&&request.command.type===authorityFault.type&&stage===authorityFault.stage){authorityFault=null;throw new Error('simulated authority interruption');}}});},
   async prepareControlGrant({team,participant,purpose,action,nonce,work}){
    const slot=purpose==='review'?active[participant.id]:queues[participant.id][0];assert.ok(slot,'preverified native context available');
@@ -302,7 +302,7 @@ for(const interruption of [null,'after-lock','after-publication'])test('real quo
  const f=await fixture(t);f.command('quota-policy-enable-v1');await f.assign();
  const checkout=f.host('leader').checkout({workId:'work'});writeFileSync(join(checkout.path,'a.txt'),'retained candidate\n');f.host('leader').candidate({workId:'work'});
  const before=f.load().state.teams.team.work.work,beforeEpoch=f.load().state.teams.team.epoch,stops=[];let armed=interruption;
- const participantHost=name=>createTeamHost({authorityRoot:f.authorityRoot,projectRoot:f.root,vaultPath:f.vault,team:'team',ownerCredential:f.ownerPath,collectorPath:f.collectorPath,endpointPath:f.endpointPaths[name],participant:name,participantCredential:f.paths[name],leaderEndpointPath:f.endpointPaths.leader,dispatcher:cli},{mutate(root,request,reducer,options){return mutateAuthority(root,request,reducer,{...options,fault:stage=>{if(name==='worker'&&request.command.type==='adoption-ack-v1'&&armed===stage){armed=null;throw new Error('simulated worker acknowledgement interruption');}}});},createNativeEndpoint:async descriptor=>{
+ const participantHost=name=>createTeamHost({authorityRoot:f.authorityRoot,projectRoot:f.root,vaultPath:f.vault,team:'team',ownerCredential:f.ownerPath,collectorPath:f.collectorPath,endpointPath:f.endpointPaths[name],participant:name,participantCredential:f.paths[name],leaderEndpointPath:f.endpointPaths.leader,dispatcher:cli},{runBudgetPath:join(f.root,'no-run-budget.json'),mutate(root,request,reducer,options){return mutateAuthority(root,request,reducer,{...options,fault:stage=>{if(name==='worker'&&request.command.type==='adoption-ack-v1'&&armed===stage){armed=null;throw new Error('simulated worker acknowledgement interruption');}}});},createNativeEndpoint:async descriptor=>{
   const native_id='handover-native-'+randomUUID();return {native_id,async send(_prompt,invocation){
    const team=f.load().state.teams.team;assert.equal(team.runtime_requests[invocation.id].participant,'reviewer');assert.equal(team.runtime_requests[invocation.id].consumed,true);
    return {native_id,output:invocation.id,actualModel:{provider:'fixture',model_id:descriptor.model_id,reasoning:'none'},context_manifest:{id:native_id}};

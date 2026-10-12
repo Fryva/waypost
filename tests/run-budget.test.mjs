@@ -184,3 +184,11 @@ test("team budget: consent is required, set/status/clear work, and the state liv
   assert.equal(cli("clear", "--yes", "--reason", "finished").status, 0);
   assert.match(cli("status").stdout, /no run budget/);
 });
+
+test("an adapter without a counter schema is refused, and the budget stays readable for every other call", async (t) => {
+  const f = fixture(t);
+  await setRunBudget({ path: f.path, name: "run", total: "100", reason: "test" });
+  await assert.rejects(admit(f, { authority: f.authority("a"), invocation: "subscription-x", schema: undefined }), /run-budget-schema-unknown/);
+  assert.equal(readRunBudget(f.path).entries.length, 0);
+  assert.ok(await admit(f, { authority: f.authority("b"), invocation: "subscription-y" }));
+});
