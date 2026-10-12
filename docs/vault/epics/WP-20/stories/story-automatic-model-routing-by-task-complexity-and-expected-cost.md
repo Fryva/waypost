@@ -83,7 +83,10 @@ Do not weaken legacy strict proof or claim worker routing from this foundation.
       versus equal-quality baseline; tests
       alone are not claimed as savings or runtime enforcement.
 
-Additional subscription-mode acceptance (additive to strict requirements above):
+Subscription-mode acceptance moved on 2026-10-12 to the protocol-2 story
+[[story-participant-identity-and-owner-approved-model-policy]]; this story is
+protocol-1 strict billing only. The boxes below are kept for history and are no
+longer tracked here:
 
 - [ ] Owner opt-in pins mode/allocation/counter revisions; unfinished strict or
       subscription operations cannot be reinterpreted during migration.

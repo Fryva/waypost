@@ -158,7 +158,9 @@ waypost team status <team-id>
 ```
 
 These commands use the local owner credential created during team creation.
-`watch` remains in the foreground until interrupted. Every five minutes it checks
+`watch` remains in the foreground until interrupted. It runs a pass every `--interval`
+seconds (default 300), but at most 30-60 seconds apart for protocol 1 (renewal of
+provider permission), and each pass checks
 the enrolled and historically required review-model cohort. Public source requests
 are cached for 24 hours; publication evidence expires after seven days. Source
 limits are in `models/strength-sources.json`. Cached reads do not advance retrieval

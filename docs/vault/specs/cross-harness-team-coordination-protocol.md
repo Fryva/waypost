@@ -102,8 +102,10 @@ Default identity floor is adapter-observed or owner-attested. Waypost ships no
 asserted worldwide strength order. Unknown models cannot lead or satisfy top
 review or satisfy an execution capability floor. No silent weaker
 fallback. Missing evidence triggers automatic refresh/calibration discovery; unresolved
-identity remains a named blocker, never inferred ranking. Explicit manual policy
-is an optional override only.
+identity remains a named blocker, never inferred ranking. This automatic discovery
+applies to protocol-1 `automatic` policies only. Protocol-1 `manual` policy is equally
+valid, and protocol-2 teams use owner assignment by default or automatic
+calibration, never Arena ranking.
 
 2.4. Periodically recheck execution identity AND strength source freshness, and
 check again at join/protected checkpoints. Source refresh does not prove current

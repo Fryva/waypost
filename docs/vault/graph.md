@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-12T06:16:34.543Z
+generated_at: 2026-10-12T18:34:53.220Z
 
 ---
 
@@ -27,11 +27,12 @@ full typed neighborhood, both directions, in one call.
 | adr/0009-artifact-integrity-checks.md | doctor verifies artifact integrity, not just story mechanics | adr | accepted |
 | adr/0010-coordination-follows-the-repository.md | Coordination follows the repository: presence and leases in the git common dir | adr | accepted |
 | adr/0011-decisions-that-check-themselves.md | Decisions that check themselves: guards and provenance in ADRs | adr | accepted |
-| adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | Automatic model strength discovery with expiring evidence and periodic revalidation | adr | proposed |
+| adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | Automatic model strength discovery with expiring evidence and periodic revalidation | adr | accepted |
 | adr/automatic-role-redistribution-on-verified-model-quota-exhaustion.md | Automatic role redistribution on verified model quota exhaustion | adr | proposed |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | Automatic task-aware model routing with capability floors and cost budgets | adr | accepted |
 | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md | Cleanup to a machine-wide limit: set by the owner, idle artifacts oldest first | adr | accepted |
 | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | adr | accepted |
+| adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md | Enforce the owner's token budget for live runs across teams | adr | proposed |
 | adr/harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list.md | Harness tool surfaces bound by evidence instead of an empty tool list | adr | accepted |
 | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md | Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first | adr | accepted |
 | adr/memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md | Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job | adr | proposed |
@@ -40,7 +41,7 @@ full typed neighborhood, both directions, in one call.
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | Owner-assigned team roles by default with calibration as an optional check | adr | accepted |
 | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | Record the operating system of a commit in a Waypost-OS trailer | adr | accepted |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
-| adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | Subscription CLI token accounting with separate strict billing enforcement | adr | proposed |
+| adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | Subscription CLI token accounting with separate strict billing enforcement | adr | accepted |
 | adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md | The CLI as a thin entry with per-command modules, each readable in one pass | adr | proposed |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
 | epics/WP-14/epic.md | Skills as the portable layer, and the first verified harnesses | epic | planned |
@@ -107,6 +108,8 @@ full typed neighborhood, both directions, in one call.
 |------|------|----|
 | adr/0006-commit-protocol.md | wikilink | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md |
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | wikilink | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
+| adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
@@ -115,6 +118,8 @@ full typed neighborhood, both directions, in one call.
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
+| adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | mdlink | epics/WP-20/epic.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0005-harness-registry.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0006-commit-protocol.md |
@@ -140,6 +145,7 @@ full typed neighborhood, both directions, in one call.
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/automatic-role-redistribution-on-verified-model-quota-exhaustion.md |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
+| adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | mdlink | adr/0010-coordination-follows-the-repository.md |
@@ -256,6 +262,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
 | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
+| epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md | wikilink | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md |
 | epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
@@ -269,6 +276,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
+| epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
 | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |

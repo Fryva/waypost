@@ -66,7 +66,7 @@ closed. A fresh planner supplied the initial implementation plan.
 
 ## Expected Results
 
-- [ ] Strongest qualified participant automatically leads after policy/enrollment.
+- [ ] Strongest qualified participant automatically leads after policy/enrollment (protocol-1 `automatic` policies only, not a release gate; owner decision 2026-10-12. Protocol-2 teams use owner assignment by default).
 - [ ] Bounded simple tasks use economical qualified executors; complex tasks use
       strongest execution models, with independent strongest review and cost limits
       (not a release gate; owner decision 2026-10-12, protocol-1 strict billing only).
@@ -159,5 +159,5 @@ sequenceDiagram
 
 - [[model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review]] — proposed ADR.
 - [[cross-harness-team-coordination-protocol]] — draft spec.
-- [[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]] — accepted 2026-10-10; implemented in slices 1-5 (unit and in-process Host tests, no live run yet).
+- [[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]] — accepted 2026-10-10; implemented in slices 1-5 (unit and in-process Host tests; live runs on 2026-10-11 with Claude and OpenCode, then Claude, Codex and OpenCode; no protocol-1 automatic team has run live).
 - ADR-0003, ADR-0005, ADR-0006, ADR-0007, ADR-0010.

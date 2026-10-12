@@ -55,8 +55,26 @@ calibration are separately reported pending; do not close from reducer tests alo
 - [ ] Equal ranks retain eligible incumbent; stronger qualified identity is selected; provider/harness/price never implies strength.
 - [ ] Model/reasoning/policy changes invalidate protected privileges and unaccepted attestations; unit tests cover changes and malformed descriptors.
 
-- [ ] Automatically discover priorities from fresh sources, including free models; unknown identity never inherits a family rank.
-- [ ] Periodically check ranking and execution identity separately; expiry/change suspends stale authority and review.
+- [ ] Protocol-1 `automatic` teams only (not a WP-20 release gate; owner decision 2026-10-12): discover priorities from fresh sources, including free models; unknown identity never inherits a family rank.
+- [ ] Protocol-1 `automatic` teams only (not a release gate): periodically check ranking and execution identity separately; expiry/change suspends stale authority and review.
+
+Subscription-mode acceptance (moved here from the routing story on 2026-10-12; applies to inherited-native v2 accounting in protocol-2 teams, see [[subscription-cli-token-accounting-with-separate-strict-billing-enforcement]]):
+
+- [ ] Owner opt-in pins mode/allocation/counter revisions; unfinished strict or
+      subscription operations cannot be reinterpreted during migration.
+- [ ] Bounded read-only bootstrap records requested vs observed identity without
+      granting coordinator/worker/reviewer privileges; unknown quota is not available.
+- [ ] Inherited-native v2 records available same-peer billing/auth/account metadata
+      with explicit unknown fields, changes no billing settings and adds no paid
+      fallback. Unknown accounts use local team/counter budgets, not provider pools;
+      provider quota aggregation still needs verified account/model scope.
+- [ ] Native coverage/cumulative counters account each span once; missing/partial
+      usage retains uncertain reservations, and observed overshoot records truthfully.
+- [ ] Terminal accounting after epoch/allocation/quota changes grants no new calls.
+      Reserving the review estimate at execution time is a planned fix; today an
+      exhausted cap before review cancels the work.
+- [ ] Whole-cycle native-token estimates are scoped comparably; unlike counters
+      are not monetary invoices or exclusive provider quota reservations.
 
 Owner-assigned branch ([[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]]). Covered by unit, reducer and in-process Host tests in `tests/native-owner-assigned*.test.mjs`; live runs on 2026-10-11 (two Claude Code participants and OpenCode; then Claude Code, Codex and OpenCode) went identity → assign → ACK → work → review → publication, and a third run verified executor and coordinator role loss with real revokes; quota hand-over is verified by tests only.
 
