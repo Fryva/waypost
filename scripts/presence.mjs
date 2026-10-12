@@ -289,11 +289,13 @@ export function processGone(rec, table) {
 
 // ─── Heartbeat ─────────────────────────────────────────────────────────
 
+export const osTag = () => `${platform()}-${osRelease().split(".")[0]}`;
+
 export function selfDescriptor(sessionId, harness) {
   return {
     session: sessionId,
     host: hostname().split(".")[0],
-    os: `${platform()}-${osRelease().split(".")[0]}`,
+    os: osTag(),
     user: (() => { try { return userInfo().username; } catch { return null; } })(),
     harness: harness || process.env.WAYPOST_HARNESS || null,
     project_root: projectRoot(),

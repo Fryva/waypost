@@ -127,9 +127,9 @@ when they are missing, as it does roles; `waypost skill <name>` prints one.
 ## Parallel sessions (ADR-0006)
 
 - `waypost commit -m "…" [--story <id>]` — reconciles the views, checks other
-  sessions' claims, and writes `Waypost-Harness` / `Waypost-Session` / `Waypost-Provider` /
+  sessions' claims, and writes `Waypost-Harness` / `Waypost-Session` / `Waypost-OS` / `Waypost-Provider` /
   `Waypost-Story` trailers.
-- `waypost log [--story|--harness|--provider|--session <v>]` — reads that back.
+- `waypost log [--story|--harness|--provider|--session|--os <v>]` — reads that back.
 - `waypost merge <ref>` — merge without auto-commit, reconcile, then commit, so the
   board in the merge commit matches the merged vault.
 - `waypost merge-derived` — the git merge driver: a conflict in a generated file is

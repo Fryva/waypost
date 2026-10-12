@@ -12,7 +12,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { composeMessage, storyRef, detectSessionHarness, leasesOverStaged } from "../scripts/commit.mjs";
 import { storyRefOf, storyPathOf } from "../scripts/lib.mjs";
-import { processTable } from "../scripts/presence.mjs";
+import { processTable, osTag } from "../scripts/presence.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -58,7 +58,7 @@ function repo() {
 
 test("the trailer block is a trailer block, by git's own parser", () => {
   const msg = composeMessage("Do the thing", {
-    harness: "codex", session: "s1", story: "PS-1/story-x", coauthor: "A <a@example.com>",
+    harness: "codex", session: "s1", os: "darwin-27", story: "PS-1/story-x", coauthor: "A <a@example.com>",
   });
   const proj = mkdtempSync(join(tmpdir(), "waypost-t-"));
   const r = git(proj, ["interpret-trailers", "--parse"], { input: msg });
@@ -66,9 +66,10 @@ test("the trailer block is a trailer block, by git's own parser", () => {
   assert.deepEqual(parsed, [
     "Waypost-Harness: codex",
     "Waypost-Session: s1",
+    "Waypost-OS: darwin-27",
     "Waypost-Story: PS-1/story-x",
     "Co-Authored-By: A <a@example.com>",
-  ], "git must see four trailers, not prose");
+  ], "git must see five trailers, not prose");
   assert.match(msg, /^Do the thing\n\n/, "the subject keeps its own paragraph");
 });
 
@@ -119,6 +120,24 @@ test("commit records harness, session and story; log reads them back", () => {
   assert.match(waypost(proj, ["log", "--harness", "codex"]).stdout, /Open the first story/);
   assert.match(waypost(proj, ["log", "--harness", "cursor"]).stdout, /no commits match/,
     "a filter that matches nothing says so rather than showing everything");
+});
+
+test("osTag is <platform>-<major>; commit writes it, git reads it, log filters and reports it", () => {
+  assert.match(osTag(), /^[a-z0-9]+-\d+$/);
+  const proj = repo();
+  waypost(proj, ["draft", "story", "PS-1", "First", "--write"]);
+  waypost(proj, ["commit", "-m", "Tagged change", "--all"], { harness: "codex", session: "codex-1" });
+  assert.equal(git(proj, ["log", "-1", "--format=%(trailers:key=Waypost-OS,valueonly)"]).stdout.trim(), osTag());
+  assert.match(git(proj, ["interpret-trailers", "--parse"], { input: git(proj, ["log", "-1", "--format=%B"]).stdout }).stdout,
+    new RegExp(`^Waypost-OS: ${osTag()}$`, "m"));
+  assert.equal(JSON.parse(waypost(proj, ["log", "--json"]).stdout)[0].os, osTag());
+  assert.match(waypost(proj, ["log", "--os", osTag().split("-")[0]]).stdout, /Tagged change/);
+  assert.match(waypost(proj, ["log", "--os", "win32x"]).stdout, /no commits match/);
+  // a hand-made commit with Harness/Session but no OS is still tagged
+  writeFileSync(join(proj, "h.txt"), "x\n"); git(proj, ["add", "h.txt"]);
+  git(proj, ["commit", "-qm", "Hand\n\nWaypost-Harness: x\nWaypost-Session: y"]);
+  const out = waypost(proj, ["log"]).stdout;
+  assert.match(out, /Hand/); assert.match(out, /1 of the last 3 commits carry no waypost trailers/);
 });
 
 test("log counts commits without waypost trailers before its filter, so a filtered view still names them", () => {

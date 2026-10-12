@@ -4,14 +4,14 @@ description: Use when about to commit, revert, stash or reset in a project with 
 license: MIT
 metadata:
   waypost-source: skills/waypost-commit/SKILL.md
-  waypost-hash: 055f67cba0fd
+  waypost-hash: 213a0a5ba7c3
 ---
 
 # Commit through waypost
 
 - `waypost commit -m "<what>" [--story <epic>/<stem>] [--all | -- <paths>]`
   reconciles the derived views, checks other sessions' claims and leases, and
-  writes the `Waypost-Harness` / `Waypost-Session` / `Waypost-Story` trailers.
+  writes the `Waypost-Harness` / `Waypost-Session` / `Waypost-OS` / `Waypost-Story` trailers.
   One story per commit.
 - Other sessions may be live in this repository, on this machine or another:
   `waypost sessions` lists them, `waypost lease list` what they are editing.

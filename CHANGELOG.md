@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `waypost commit` writes a `Waypost-OS: <platform>-<major>` trailer (e.g. `darwin-27`), and `waypost log` shows it, carries `os` in `--json` and filters with `--os <darwin|linux|win32>`.
+
 ## [0.15.0] — 2026-10-11
 
 ### Added

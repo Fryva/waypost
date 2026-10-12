@@ -129,9 +129,9 @@ One project may be driven by several sessions at the same time (ADR-0006):
 
 - **Commit through `waypost commit -m "<what>" [--story <id>] [--all]`.** It
   reconciles the derived views, checks other sessions' claims, and writes the
-  `Waypost-Harness` / `Waypost-Session` / `Waypost-Provider` / `Waypost-Story` trailers. One
+  `Waypost-Harness` / `Waypost-Session` / `Waypost-OS` / `Waypost-Provider` / `Waypost-Story` trailers. One
   commit, one story.
-- **`waypost log [--story|--harness|--provider|--session <v>]`** reads that back. A
+- **`waypost log [--story|--harness|--provider|--session|--os <v>]`** reads that back. A
   commit made outside `waypost commit` carries no trailers; `waypost log` says how many.
 - **Opening a story claims it** (`waypost story plan --write`), closing releases it.
   Check `waypost sessions` first: if a story is already held, that is duplicated work.

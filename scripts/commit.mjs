@@ -13,6 +13,8 @@
 //
 //   Waypost-Harness:  claude         which harness the work happened in
 //   Waypost-Session:  mbp-42311      which session, so parallel work is separable
+//   Waypost-OS:       darwin-27      the operating system it was made on: platform and
+//                                kernel major (ADR record-the-operating-system-...)
 //   Waypost-Story:    PS-1/story-x   the story it serves, when it serves one
 //   Waypost-Provider: kimi           which model provider produced it, when the
 //                                harness is pointed at one (DeepSeek, Kimi,
@@ -35,7 +37,7 @@
 //                      [--all | --tracked] [--dry-run] [--no-reconcile] [-- <pathspec>…]
 //      node commit.mjs --merge <ref> [-m <msg>]
 //      node commit.mjs --log [--story <id>] [--session <id>] [--harness <id>]
-//                            [--provider <id>] [-n <count>]
+//                            [--provider <id>] [--os <text>] [-n <count>]
 
 import { withTeamCommitGate } from './team-legacy.mjs';
 import { existsSync, readFileSync, mkdtempSync, copyFileSync, rmSync } from "node:fs";
@@ -49,7 +51,7 @@ import {
 } from "./lib.mjs";
 import { detectProvider } from "./agents.mjs";
 import { sessionId, claimsOf, CLAIM_WINDOW_MS } from "./sessions.mjs";
-import { readLeases, vaultRel, sharedTree, sharedWith } from "./presence.mjs";
+import { osTag, readLeases, vaultRel, sharedTree, sharedWith } from "./presence.mjs";
 import { runReconcile } from "./reconcile.mjs";
 
 function die(msg) {
@@ -93,10 +95,11 @@ export function storyPathOf(ref, cfg) {
   return storyPathOfLib(ref, cfg && cfg.vault_path);
 }
 
-export function composeMessage(subject, { harness: h, session, story, provider, coauthor }) {
+export function composeMessage(subject, { harness: h, session, os, story, provider, coauthor }) {
   const trailers = [
     `Waypost-Harness: ${h}`,
     `Waypost-Session: ${session}`,
+    ...(os ? [`Waypost-OS: ${os}`] : []),
     ...(provider ? [`Waypost-Provider: ${provider}`] : []),
     ...(story ? [`Waypost-Story: ${story}`] : []),
     ...(coauthor ? [`Co-Authored-By: ${coauthor}`] : []),
@@ -247,7 +250,7 @@ function main() {
   }
 
   const message = composeMessage(subject, {
-    harness: h, session: self, story, provider: detectProvider(),
+    harness: h, session: self, os: osTag(), story, provider: detectProvider(),
     coauthor: (cfg && cfg.commit && cfg.commit.coauthor) || process.env.WAYPOST_COAUTHOR || null,
   });
 
@@ -327,29 +330,31 @@ function log(argv) {
     ["Waypost-Session", opt("--session")],
     ["Waypost-Harness", opt("--harness")],
     ["Waypost-Provider", opt("--provider")],
+    ["Waypost-OS", opt("--os")],
   ].filter(([, v]) => v);
   const r = git(["log", `-n${Number(n) * (filters.length ? 20 : 1)}`,
     "--format=%h%x1f%an%x1f%ad%x1f%s%x1f%(trailers:key=Waypost-Harness,valueonly,separator=%x2c)"
     + "%x1f%(trailers:key=Waypost-Session,valueonly,separator=%x2c)%x1f%(trailers:key=Waypost-Story,valueonly,separator=%x2c)"
-    + "%x1f%(trailers:key=Waypost-Provider,valueonly,separator=%x2c)",
+    + "%x1f%(trailers:key=Waypost-Provider,valueonly,separator=%x2c)"
+    + "%x1f%(trailers:key=Waypost-OS,valueonly,separator=%x2c)",
     "--date=short"]);
   if (!r || r.status !== 0) die("git log failed — is this a repository with commits?");
   const all = (r.stdout || "").split("\n").filter(Boolean).map((line) => {
-    const [sha, author, date, subject, harness, session, story, provider] = line.split("\x1f");
+    const [sha, author, date, subject, harness, session, story, provider, os] = line.split("\x1f");
     return { sha, author, date, subject, harness: harness.trim(), session: session.trim(),
-      story: story.trim(), provider: (provider || "").trim() };
+      story: story.trim(), provider: (provider || "").trim(), os: (os || "").trim() };
   });
   const rows = all.filter((row) => filters.every(([k, v]) =>
     (k === "Waypost-Story" ? row.story
       : k === "Waypost-Session" ? row.session
-      : k === "Waypost-Provider" ? row.provider : row.harness).includes(v)))
+      : k === "Waypost-Provider" ? row.provider : k === "Waypost-OS" ? row.os : row.harness).includes(v)))
     .slice(0, Number(n));
 
   if (argv.includes("--json")) { process.stdout.write(JSON.stringify(rows, null, 2) + "\n"); return; }
   if (!rows.length) process.stdout.write("no commits match\n");
   for (const row of rows) {
-    const tag = [row.harness || "—", row.provider || null, row.story || null].filter(Boolean).join(" · ");
-    process.stdout.write(`${row.sha}  ${row.date}  ${(tag).padEnd(34)} ${row.subject}\n`);
+    const tag = [row.harness || "—", row.provider || null, row.os || null, row.story || null].filter(Boolean).join(" · ");
+    process.stdout.write(`${row.sha}  ${row.date}  ${(tag).padEnd(44)} ${row.subject}\n`);
   }
   // Counted over the latest commits before any filter: an untagged commit can never match a
   // --story/--harness/--provider filter, so counting the filtered rows always said 0.

@@ -12,7 +12,7 @@ superseded_by: null
 review_status: reviewed
 reviewed_at: 2026-10-12
 drafted_by: {"harness":"claude","provider":null,"date":"2026-10-11"}
-guards: []
+guards: [{"require": "Waypost-OS", "in": "scripts/commit.mjs", "why": "the commit protocol writes the OS trailer (ADR record-the-operating-system-of-a-commit-in-a-waypost-os-trailer)"}]
 code_refs: ["scripts/commit.mjs", "scripts/presence.mjs", "tests/commits.test.mjs", "bin/waypost", "AGENTS.md", "docs/how-it-works.md", "skills/waypost-commit/SKILL.md"]
 related: "ADR-0006, ADR-0010"
 ---

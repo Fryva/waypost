@@ -177,7 +177,7 @@ waypost log --story PS-1/story-codex-adapter     # or --harness codex
 ```
 
 Every commit carries git trailers (`Waypost-Harness`, `Waypost-Session`,
-`Waypost-Story`) that git itself can read, so the record survives without this
+`Waypost-OS`, `Waypost-Provider`, `Waypost-Story`) that git itself can read, so the record survives without this
 tool. Generated views regenerate on merge instead of conflicting line by line.
 See [ADR-0006](docs/vault/adr/0006-commit-protocol.md).
 

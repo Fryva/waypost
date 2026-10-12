@@ -8,7 +8,7 @@ license: MIT
 
 - `waypost commit -m "<what>" [--story <epic>/<stem>] [--all | -- <paths>]`
   reconciles the derived views, checks other sessions' claims and leases, and
-  writes the `Waypost-Harness` / `Waypost-Session` / `Waypost-Story` trailers.
+  writes the `Waypost-Harness` / `Waypost-Session` / `Waypost-OS` / `Waypost-Story` trailers.
   One story per commit.
 - Other sessions may be live in this repository, on this machine or another:
   `waypost sessions` lists them, `waypost lease list` what they are editing.
