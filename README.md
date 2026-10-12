@@ -4,14 +4,37 @@
 [![CI](https://github.com/Fryva/waypost/actions/workflows/ci.yml/badge.svg)](https://github.com/Fryva/waypost/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-**Waypost gives your AI coding agents a shared memory of your project — the
-decisions, plans and open work — kept as plain markdown in git, and it works the
-same in 20+ agent tools.**
+**Waypost is the shared ground for AI coding agents on one project: a memory of
+the project's decisions and open work, kept as markdown in git; the same roles and
+rules in 20+ agent tools; coordination when several tools, sessions or machines
+work at once; and a guard that keeps heavy builds and test runs from choking the
+computer they run on.**
 
 A waypost is a signpost left where the path forks, for whoever comes next. That
 is the idea: every decision, spec, epic, story and a kanban board live as
 readable files in your repo, so the next agent — or the next model a year from
 now — can see *why* the project is the way it is, instead of guessing.
+
+Waypost is one dependency-free Node CLI. It does four things:
+
+1. **Project memory.** Decisions (ADRs), specs, epics, stories and a board as
+   plain markdown in the repo, with a deterministic health check (`waypost
+   doctor`) and an orientation packet for the start of every session (`waypost
+   brief`), which also lists what teammates changed since your last commit.
+2. **One source of rules for every tool.** Agent roles and skills are defined
+   once and rendered into the native format of Claude Code, Codex, OpenCode,
+   Cursor, Gemini CLI and 16 more. `waypost setup` asks the running tool which
+   one it is, rather than guessing from files.
+3. **Tools working together.** Sessions in different tools, on different
+   machines and operating systems see each other (`sessions`, `lease`, `watch`),
+   every commit records which tool, session, story and OS made it, and
+   experimental **teams** let Claude Code, Codex and OpenCode work one task under
+   an owner-assigned leader with an independent reviewer and an owner token budget.
+4. **Machine resources.** Heavy work (a build, a full test suite, a simulator)
+   runs only through a machine-wide slot sized from the computer's real free
+   cores and memory (`waypost capacity`, `waypost run --heavy`), and build
+   artifacts are trimmed under a machine-wide disk limit (`waypost clean
+   --limit`), oldest first.
 
 Harness-agnostic fork of [ProjectStore](https://github.com/SmartAndPoint/ProjectStore).
 
@@ -22,6 +45,14 @@ Harness-agnostic fork of [ProjectStore](https://github.com/SmartAndPoint/Project
 - **Every tool stores things differently.** Claude Code, Codex, Cursor, Gemini
   and the rest each have their own format for agent instructions. Waypost keeps
   **one** source of truth and renders it into whatever tool you use.
+- **Agents in different tools collide.** Two sessions edit the same file, sweep
+  each other's changes into a commit, or nobody can tell afterwards which tool
+  wrote what. Waypost makes every live session visible and every commit
+  attributable, and refuses the moves that would destroy another session's work.
+- **Agents overload the machine.** Several agents each starting a build or a
+  test suite at once can hang a laptop for half an hour, and build caches grow
+  to tens of gigabytes. Waypost decides from the machine's real free resources
+  how many heavy jobs may run, and keeps build artifacts under a limit.
 - **No lock-in.** Everything is plain markdown in git — no server, no database,
   no proprietary format. Open it in any editor, or in Obsidian for the graph and
   board views.
@@ -90,9 +121,14 @@ link graph. Every file it makes is plain markdown you can read and edit by hand.
 - The **same agent roles in every tool** — define a reviewer or a planner once,
   use it in Claude Code, Codex, Cursor, and 18 more.
 - A **deterministic health check**, `waypost doctor`, that verifies the vault is
-  consistent with zero AI and zero guesswork.
-- **Coordination for teams and multiple machines** — who is working on what,
-  across tools, sessions and even a vault synced over iCloud or Dropbox.
+  consistent with zero AI and zero guesswork, and can gate CI.
+- **Coordination across tools, machines and people** — who is working on what,
+  which files they hold, attributed commits, even on a vault synced over iCloud
+  or Dropbox.
+- **Teams of several tools and models** (experimental) — one task, an
+  owner-assigned leader, independent review, and a token budget per run.
+- **A machine that stays usable** — heavy jobs share slots sized from real free
+  resources, and build artifacts stay under a disk limit.
 
 ## The everyday loop
 
@@ -212,9 +248,51 @@ waypost team plan <team> --install --plan-id P --digest <digest> --yes --reason 
 ```
 
 Claude Code, Codex and OpenCode take part through managed read-only endpoints;
-approved work is published as one commit on the team's private branch. Checked
-by live runs on macOS only. See [docs/team-coordination.md](docs/team-coordination.md)
+approved work is published as one commit on the team's private branch. Live runs
+on macOS covered a Claude Code, Codex and OpenCode trio, the loss of a role,
+chained and parallel works, a plan from the leader and a plan critic.
+
+The owner's token budget for live runs holds across every team on the machine,
+per tool's token counter and optionally in total. A call that would exceed it is
+refused before it starts:
+
+```bash
+waypost team budget set --name run-1 --total 250000 --yes --reason "<who agreed>"
+waypost team budget status
+```
+
+Sessions that are not team members can still read and answer a team's inbox
+through an MCP server (`waypost team-mcp-config --harness claude …` prints or
+writes the config). See [docs/team-coordination.md](docs/team-coordination.md)
 and the ADR [owner-assigned team roles](docs/vault/adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md).
+
+## Keeping the machine usable
+
+Agents start builds, test suites and simulators without knowing what else is
+running. Waypost measures the machine itself (cores, load, available memory, and
+memory pressure on macOS) and hands out machine-wide slots for heavy work, shared
+by every agent tool and session on the computer:
+
+```bash
+waypost capacity                              # free resources now, and who holds the slots
+waypost run --heavy -- xcodebuild build …     # runs only if a slot is free, at lowered priority
+waypost run --heavy --wait 20m -- npm test    # or waits for one
+```
+
+A refused job exits with code 75 and names the reason. Build artifacts are kept
+under one machine-wide limit: after each heavy job Waypost removes the project's
+least recently built artifacts until it is back under the limit, never the
+newest. The owner sets the limit once per machine:
+
+```bash
+waypost clean --limit 20      # GB; or free:30%, or off
+waypost size --project        # read-only: what the build artifacts weigh
+waypost size --global         # toolchain caches, simulators, Docker, each with its own clean command
+```
+
+See the ADRs [heavy work sized to the machine](docs/vault/adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md),
+[cleanup to a machine-wide limit](docs/vault/adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md)
+and [disk hygiene by discovery](docs/vault/adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md).
 
 ## What it costs to run
 

@@ -1,8 +1,8 @@
 {
   "name": "waypost",
   "version": "0.15.0",
-  "description": "One project vault — decisions, specs, epics, stories, a board — as markdown in git, and the same agent roles in every harness. Harness-agnostic fork of ProjectStore.",
-  "keywords": ["adr", "architecture-decision-records", "ai-agents", "claude-code", "opencode", "codex", "cli", "markdown", "project-management", "agent-roles"],
+  "description": "Shared ground for AI coding agents: project memory as markdown in git, the same roles in 20+ agent tools, coordination across tools, machines and teams, and machine-wide slots and disk limits for heavy work.",
+  "keywords": ["adr", "architecture-decision-records", "ai-agents", "claude-code", "opencode", "codex", "cli", "markdown", "project-management", "agent-roles", "multi-agent", "agent-coordination", "resource-management"],
   "license": "MIT",
   "author": "Ivan Morozov",
   "homepage": "https://github.com/Fryva/waypost#readme",
