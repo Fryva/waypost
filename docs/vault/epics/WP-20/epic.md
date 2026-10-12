@@ -68,7 +68,8 @@ closed. A fresh planner supplied the initial implementation plan.
 
 - [ ] Strongest qualified participant automatically leads after policy/enrollment.
 - [ ] Bounded simple tasks use economical qualified executors; complex tasks use
-      strongest execution models, with independent strongest review and cost limits.
+      strongest execution models, with independent strongest review and cost limits
+      (not a release gate; owner decision 2026-10-12, protocol-1 strict billing only).
 - [ ] One accepted scheduling history despite concurrent requests and crashes.
 - [ ] Sessions exchange assignments, questions, findings and evidence in context;
       wake/autonomy is separately measured, not inferred from a mailbox.

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-11T23:20:51.080Z
+generated_at: 2026-10-12T06:16:34.543Z
 
 ---
 
@@ -29,14 +29,14 @@ full typed neighborhood, both directions, in one call.
 | adr/0011-decisions-that-check-themselves.md | Decisions that check themselves: guards and provenance in ADRs | adr | accepted |
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | Automatic model strength discovery with expiring evidence and periodic revalidation | adr | proposed |
 | adr/automatic-role-redistribution-on-verified-model-quota-exhaustion.md | Automatic role redistribution on verified model quota exhaustion | adr | proposed |
-| adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | Automatic task-aware model routing with capability floors and cost budgets | adr | proposed |
+| adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | Automatic task-aware model routing with capability floors and cost budgets | adr | accepted |
 | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md | Cleanup to a machine-wide limit: set by the owner, idle artifacts oldest first | adr | accepted |
 | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | adr | accepted |
 | adr/harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list.md | Harness tool surfaces bound by evidence instead of an empty tool list | adr | accepted |
 | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md | Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first | adr | accepted |
 | adr/memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md | Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job | adr | proposed |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | Model-aware teams across harness sessions with one authority and independent review | adr | accepted |
-| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | Native configuration profiles ranked by fresh role-specific calibration | adr | proposed |
+| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | Native configuration profiles ranked by fresh role-specific calibration | adr | accepted |
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | Owner-assigned team roles by default with calibration as an optional check | adr | accepted |
 | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | Record the operating system of a commit in a Waypost-OS trailer | adr | accepted |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
@@ -110,6 +110,10 @@ full typed neighborhood, both directions, in one call.
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
+| adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
+| adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
+| adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | mdlink | epics/WP-20/epic.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0005-harness-registry.md |
@@ -118,8 +122,13 @@ full typed neighborhood, both directions, in one call.
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0010-coordination-follows-the-repository.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
+| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
+| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list.md |
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
+| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
+| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy.md |
+| adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | wikilink | specs/objective-native-configuration-calibration-for-protocol-roles.md |
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | wikilink | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
@@ -251,6 +260,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-independent-strongest-model-review-of-immutable-evidence.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md | mdlink | epics/WP-20/epic.md |
+| epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md | wikilink | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md |
 | epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-live-claude-and-opencode-coordination-on-one-task.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | epics/WP-20/stories/story-local-authority-log-and-crash-safe-mutations.md | mdlink | epics/WP-20/epic.md |

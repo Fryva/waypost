@@ -15,7 +15,7 @@ specs: ["cross-harness-team-coordination-protocol"]
 started_at: null
 closed_at: null
 plan_updated_at: null
-blocked_by: ["WP-20/story-participant-identity-and-owner-approved-model-policy", "WP-20/story-local-authority-log-and-crash-safe-mutations", "WP-20/story-addressed-messages-and-verified-harness-delivery", "WP-20/story-assignments-supervision-and-stronger-model-handover", "WP-20/story-independent-strongest-model-review-of-immutable-evidence", "WP-20/story-reviewed-integration-and-team-aware-story-gates", "WP-20/story-team-cli-orientation-and-deterministic-diagnostics", "WP-20/story-automatic-model-routing-by-task-complexity-and-expected-cost"]
+blocked_by: ["WP-20/story-participant-identity-and-owner-approved-model-policy", "WP-20/story-local-authority-log-and-crash-safe-mutations", "WP-20/story-addressed-messages-and-verified-harness-delivery", "WP-20/story-assignments-supervision-and-stronger-model-handover", "WP-20/story-independent-strongest-model-review-of-immutable-evidence", "WP-20/story-reviewed-integration-and-team-aware-story-gates", "WP-20/story-team-cli-orientation-and-deterministic-diagnostics"]
 ---
 
 # Live Claude, Codex and OpenCode coordination on one task
@@ -50,9 +50,6 @@ spec activation. Route through spec contracts 1–8, Acceptance.
 - [ ] Different real model descriptors and policy evidence are recorded; strongest eligible leader visibly supervises weaker model diff.
 - [ ] A stronger arrival hands over without concurrent accepted leaders or unsafe duplicate editing.
 - [ ] Independent strongest-model context rejects a concrete defect, worker revises and new target passes fresh review.
-- [ ] One integrated task demonstrates a routine economical route and a complex
-      strongest route, using actual collector-qualified models and observed
-      whole-cycle usage/cost at the same acceptance quality.
 - [ ] Exact reviewed tree integrates with contributors and trailers; stale/duplicate results and changed target/base cannot pass.
 - [ ] Per-adapter unattended wake either has live evidence or is explicitly unsupported; generic autonomous support is not claimed.
 - [ ] Mac/Windows/Linux and remote evidence are distinguished; full regression suite through heavy gate plus doctor passes before release.
@@ -66,6 +63,9 @@ Pending implementation, evidence and independent review.
 See [[cross-harness-team-coordination-protocol]]. Its acceptance is additive.
 No live messaging, model identity or cross-platform proof from document creation.
 
+Owner decision 2026-10-12: economical routing is not a release gate for this story
+(see [[automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets]]).
+
 ## Dependencies
 
 - WP-20/story-participant-identity-and-owner-approved-model-policy
@@ -75,7 +75,6 @@ No live messaging, model identity or cross-platform proof from document creation
 - WP-20/story-independent-strongest-model-review-of-immutable-evidence
 - WP-20/story-reviewed-integration-and-team-aware-story-gates
 - WP-20/story-team-cli-orientation-and-deterministic-diagnostics
-- WP-20/story-automatic-model-routing-by-task-complexity-and-expected-cost
 
 ## Attachments
 

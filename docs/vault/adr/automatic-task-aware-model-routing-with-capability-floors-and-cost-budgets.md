@@ -2,7 +2,7 @@
 type: adr
 id: "automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets"
 title: "Automatic task-aware model routing with capability floors and cost budgets"
-status: proposed
+status: accepted
 date: 2026-10-01
 authors: ["Ivan Morozov", "Codex (OpenAI)"]
 tags: ["models", "routing", "cost"]
@@ -10,28 +10,44 @@ external_refs: {}
 supersedes: null
 superseded_by: null
 review_status: reviewed
-reviewed_at: 2026-10-01
+reviewed_at: 2026-10-12
 drafted_by: {"harness":"codex","provider":null,"date":"2026-10-01"}
 guards: []
+code_refs: ["scripts/model-routing.mjs", "models/routing.schema.json", "scripts/team-evidence.mjs", "scripts/team-workflow.mjs", "scripts/team-state.mjs", "scripts/team-host.mjs", "scripts/team-cli.mjs", "bin/waypost", "tests/team-routing.test.mjs", "tests/team-evidence.test.mjs", "tests/team-end-to-end.test.mjs", "tests/team-host.test.mjs"]
 ---
 
 # Automatic task-aware model routing with capability floors and cost budgets
 
 | Field | Value |
 |---|---|
-| Status | proposed; owner requires automatic economical execution, mechanism under review |
+| Status | accepted for protocol-1 teams with strict, provider-bounded billing; owner decision 2026-10-12 |
 | Date | 2026-10-01 |
 | Deciders | Ivan Morozov |
 | Supersedes / Superseded by | none / none |
-| Related | [[automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation]], [[model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review]], [[cross-harness-team-coordination-protocol]], WP-20 |
+| Related | [[automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation]], [[model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review]], [[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]], [[subscription-cli-token-accounting-with-separate-strict-billing-enforcement]], [[native-configuration-profiles-ranked-by-fresh-role-specific-calibration]], [[cross-harness-team-coordination-protocol]], [[story-automatic-model-routing-by-task-complexity-and-expected-cost]], WP-20 |
+
+## Owner acceptance
+
+The owner accepted this ADR on 2026-10-12 after a fresh-context waypost-critic pass
+(verdict revise; every required edit applied below) and narrowed it:
+
+- Scope is protocol-1 teams with strict, provider-bounded billing
+  (`routing-enable`/`-v2`). Protocol-2 teams (owner-assigned or
+  automatic-calibration) and subscription-token accounting are out of scope.
+  Extending routing there needs a new ADR.
+- Economical routing is no longer a WP-20 release gate.
+- The parent ADRs
+  [[automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation]]
+  and [[subscription-cli-token-accounting-with-separate-strict-billing-enforcement]]
+  stay proposed and get their own critic pass later.
 
 ## Context
 
-The owner requires automatic selection of models for agents: simple tasks may use
+The owner wants automatic selection of models for agents: simple tasks may use
 cheaper models to reduce token spend; complex computation and architectural choices
 need stronger models. Using the strongest model for every edit wastes resources.
-The earlier requirement still holds: the strongest eligible participant coordinates
-and independently strongest qualified fresh contexts review work.
+The earlier requirement still holds: the coordinator and final reviewers are
+selected by the team's policy, at or above its review floor.
 
 ## Decision drivers
 
@@ -52,28 +68,42 @@ and independently strongest qualified fresh contexts review work.
 
 ## Decision
 
+### Scope
+
+Applies to protocol-1 teams with strict, provider-bounded billing
+(`routing-enable`/`-v2`). Protocol-2 teams (owner-assigned or automatic-calibration)
+and subscription-token accounting are out of scope; routing is refused there.
+Extending it requires a new ADR defining the interplay with
+[[owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check]].
+Today the refusal is not a named blocker: `team route` on a protocol-2 policy throws
+`routing-task-domain-mismatch` (`scripts/model-routing.mjs`). See Implementation
+status.
+
 ### Role and task boundaries
 
 Separate model strength discovery from assignment routing. Coordinator and final
-independent critics always satisfy the strongest qualified role requirement and
-historical review floor. A cheap preparatory check cannot substitute for final
+independent critics are the participants selected by the team's policy, at or above
+its review floor. A cheap preparatory check cannot substitute for final
 review. Architecture/security decisions, migrations, broad uncertain changes and
-complex reasoning route to the strongest qualified execution cohort. Routine,
-bounded, reversible work may use a lower-cost capable executor.
+complex reasoning route to the strongest qualified execution cohort in the team's
+policy. Routine, bounded, reversible work may use a lower-cost capable executor.
 
 A task manifest pins goal, acceptance criteria, concrete scope, domain, risk flags,
-estimated input/output tokens, tool needs, execution isolation and dependencies.
+estimated input/output tokens, tool needs and execution isolation. Pinning
+dependencies is intended but not implemented (see Implementation status).
 The acknowledged coordinator approves the manifest using trusted authority events.
 Cheap workers cannot lower their own complexity/capability floor. Initial deterministic
 rules permit routine classification only for explicit bounded reversible work with
 no architectural/security/data-loss/publication flags; missing/conflicting information
 is complex/unknown, not routine. File count alone never proves low complexity.
-Classification cache binds immutable manifest hash, classifier/routing policy
-revision, task-class calibration and evaluation evidence revision/expiry. A policy
-or evidence change reclassifies even unchanged text. Worker-supplied descriptions
+The proposal emits a cache key that binds immutable manifest hash, classifier/routing
+policy revision, task-class calibration and evaluation evidence revision/expiry; no
+cache is stored yet. A policy or evidence change changes the key, so unchanged text
+is reclassified. Worker-supplied descriptions
 are untrusted signals; the coordinator records evidence references and can raise
 the floor. Changed scope/criteria, new risk or failure invalidates classification.
-Account for classification cost too.
+Classification is deterministic and free; task-class qualification is the cost that
+can exceed savings.
 
 ### Candidate eligibility and objective
 
@@ -82,7 +112,7 @@ runtime evidence, fresh comparable capability evidence in the task domain, requi
 tools/isolation and usable provider quota. For complex tasks require the strongest
 eligible execution level; routine work still needs an explicit demonstrated
 capability floor approved by the coordinator. Unknown capability fails admission;
-unknown models require verified calibration. A generic overall leaderboard cannot
+in protocol-1 routing, unknown models require verified calibration. A generic overall leaderboard cannot
 prove a task-specific capability or justify a numerical floor by itself. Initial
 cheaper-task qualification requires a trusted collector over a pinned versioned
 task-class suite: isolated exact invocations, independent strongest acceptance
@@ -141,9 +171,13 @@ price and quota revisions, account/quota pool, invocation envelope, attempt ceil
 and maximum authorized spend. Concurrent
 assignments cannot each spend the same remaining budget. Actual invocation collector
 records usage and releases only proven unused reservation; ambiguous provider timeout
-remains reserved until reconciled. Idempotent retries never create duplicate grants. Each attempt additionally has
-a persisted invocation nonce and prepared -> dispatching -> running -> settled/
-uncertain/aborted state. Consume/reserve the attempt under authority before network
+remains reserved until reconciled. The reducer rejects a second reservation of the same grant digest, but a retried
+mint creates a new grant: the grant id is random (`scripts/team-evidence.mjs`) and the
+request key is random per call (`scripts/team-host.mjs`). Duplicate grants are not
+deduplicated; spend stays capped by the shared-pool allocation and the task
+budget checked at reservation. Each attempt additionally has
+a persisted invocation nonce and prepared -> dispatching -> settled/
+uncertain/aborted state (the code has no separate `running` state). Consume/reserve the attempt under authority before network
 dispatch. Provider idempotency is used only where verified for that endpoint and
 exact request. Crash after sending but before receiving invocation id remains
 uncertain; without proven no-dispatch/no-liability or provider reconciliation,
@@ -183,8 +217,9 @@ claim budget enforcement. No timer running means expired grants fail on next use
 
 Simple work can use cheaper/free capable models while strong models retain control
 and independent verification. Routing adds evidence collectors and accounting; scarce
-quality/pricing/quota evidence can block cheaper candidates. Short tasks may cost more
-to classify than they save, so cached deterministic routine classification is preferred.
+quality/pricing/quota evidence can block cheaper candidates. Classification is
+deterministic and free, so short tasks do not pay for it; the cost that can exceed
+savings is task-class qualification.
 Public rankings are useful capability evidence but not a complete task-class evaluator.
 
 ## Verification and follow-up
@@ -197,8 +232,9 @@ budget races, ambiguous timeout, stronger-model escalation, currency mismatch, s
 unbounded in-flight liability, exhausted final-review reservation, policy/evidence
 classification cache invalidation, model fallback and invariant strongest final critics. The full feature is not
 implemented by a pure routing function or unit tests. This story depends on
-independent review and reviewed integration; the final live Claude/Codex/OpenCode
-story depends on routing too, so release proof cannot omit economical execution.
+independent review and reviewed integration. By owner decision of 2026-10-12
+economical routing is not a WP-20 release gate: the final live
+Claude/Codex/OpenCode story does not depend on it.
 
 Cost-saving baseline pins the same task suite, exact acceptance criteria,
 strongest supervision/review, execution route and tariff dates; compare the whole
@@ -208,6 +244,26 @@ Reduced token price alone is not measured task savings.
 Fresh-context critics must review the design before acceptance. Current core tests
 and the partial team CLI prove neither real model routing nor billed cost savings.
 
+## Implementation status (2026-10-12)
+
+Done: manifest validation, the classifier from declared risk flags, the proposal
+(`proposeModelRoute`), the protocol-1 grant/reserve/consume/settle reducer path, the
+task-class collector, and host dispatch with injected adapters.
+
+Missing: real billing and usage adapters, escalation, watch schedules, retry and
+uncertainty estimation, dependency pinning (absent from `validateManifest` and
+`models/routing.schema.json`), reasoning/cache/request charges (the price record has
+only input, output and tool units), grant deduplication, and protocol-2 support.
+`team route` on a protocol-2 policy throws `routing-task-domain-mismatch` rather than
+returning a named blocker; this is a known gap.
+
+Capability floor: `min_passes` is an absolute pass count set by the manifest author,
+and Wilson confidence is ignored (`scripts/model-routing.mjs`). The router
+therefore does not yet implement the confidence evidence this ADR describes.
+
+Follow-up: `routingDigest` is a shared digest used by about 20 unrelated modules.
+Moving it to a neutral module is a possible later cleanup.
+
 ## Independent review record
 
 Two fresh-context critics examined architecture/backlog. Both first returned revise.
@@ -216,9 +272,17 @@ all blockers closed and architecture/backlog shippable, with an epic table numer
 reference correction. That table correction was applied; its final response was
 interrupted by a usage limit, so no second completed final-verdict message is
 claimed. This review does not demonstrate runtime routing, budget enforcement or
-measured savings. The decision remains proposed.
+measured savings. The decision remained proposed until the second pass below.
 
 Corrections include execution-route/account/shared-pool identity, invocation liability
 and full-cycle reservations, classifier cache revision binding, consume-before-
 dispatch recovery, task-class collector ownership, compatible capability floors and
-an integrated three-harness live acceptance dependency.
+an integrated three-harness live acceptance dependency (dropped as a release
+gate on 2026-10-12).
+
+Second pass, 2026-10-12: a fresh-context waypost-critic returned revise. Edits
+applied: scope narrowed to protocol-1 strict billing, "strongest" wording tied to the
+team's policy, release-gate language replaced by the owner decision, classification
+cache described as a key only, implementation status added, the idempotent-retry and
+state-machine claims corrected, and code references added. The owner then accepted
+the narrowed ADR.
