@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40  # the full suite takes about 25 min on a hosted runner (2026-10-11)
     permissions:
-      contents: read
+      contents: write  # the GitHub Release below
       id-token: write   # lets npm attach build provenance to the release
     steps:
       - uses: actions/checkout@v5
@@ -41,3 +41,14 @@ jobs:
       - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The GitHub Release page follows npm: its notes are this version's
+      # CHANGELOG section (releases 0.12-0.14 were published to npm only).
+      - name: GitHub Release from the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {if (f) exit} f' CHANGELOG.md > notes.md
+          printf '\nInstall: `npm i -g waypost@%s`\n' "$v" >> notes.md
+          gh release create "$GITHUB_REF_NAME" --title "waypost $GITHUB_REF_NAME" --notes-file notes.md --latest
