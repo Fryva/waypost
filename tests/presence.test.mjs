@@ -1169,3 +1169,29 @@ test("a temp file from another machine is never swept by this one", () => {
       "pid liveness is a local fact; sweeping another host's temp destroys a write in progress there");
   });
 });
+
+test("brief lists vault commits by others since your own last commit, and nothing else", () => {
+  const { proj, vault } = project();
+  const g = (args, email) => spawnSync("git", [...(email ? ["-c", `user.email=${email}`, "-c", "user.name=" + email.split("@")[0]] : []), ...args], { cwd: proj, encoding: "utf8" });
+  spawnSync("git", ["config", "user.email", "me@example.com"], { cwd: proj });
+  spawnSync("git", ["config", "user.name", "me"], { cwd: proj });
+  const brief = () => spawnSync(process.execPath, [Waypost, "brief", "--no-install"], {
+    encoding: "utf8", env: { ...process.env, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
+  }).stdout;
+  writeFileSync(join(proj, ".gitignore"), ".waypost/\n", "utf8");
+  g(["add", "-A"]); g(["commit", "-qm", "mine"]);
+  assert.doesNotMatch(brief(), /Vault changes by others/, "nothing by others yet");
+
+  writeFileSync(join(vault, "note-a.md"), "a\n", "utf8");
+  g(["add", "-A"]); g(["commit", "-qm", "teammate edits the vault"], "ann@example.com");
+  writeFileSync(join(proj, "code.txt"), "x\n", "utf8");
+  g(["add", "-A"]); g(["commit", "-qm", "teammate edits code only"], "ann@example.com");
+  let out = brief();
+  assert.match(out, /Vault changes by others since your last commit/);
+  assert.match(out, /ann: teammate edits the vault/);
+  assert.doesNotMatch(out, /edits code only/, "a change outside the vault is not listed");
+
+  writeFileSync(join(vault, "note-b.md"), "b\n", "utf8");
+  g(["add", "-A"]); g(["commit", "-qm", "my own vault edit"]);
+  assert.doesNotMatch(brief(), /Vault changes by others/, "your own commit moves the reference point");
+});

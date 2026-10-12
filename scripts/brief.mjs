@@ -14,6 +14,7 @@
 // CLI: node brief.mjs [--json] [--budget <ms>]
 
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { readConfig, gatherVaultFacts, renderVaultSkeleton, ignoreEpipe, readCleanupSetting, readLastAutoCleanup } from "./lib.mjs";
 import { peers, readLeases, sharedTree, sharedWith, SHARED_TREE_ADVICE, hostSlug } from "./presence.mjs";
 import { sessionId } from "./sessions.mjs";
@@ -26,7 +27,9 @@ export async function brief(cfg, opts = {}) {
   const teams=teamOrientation(cfg.vault_path);
   if(teams.facts.length)facts.teams=teams.facts;
   if(teams.error)facts.team_authority_error=teams.error;
-  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) + teams.text + cleanupLine() };
+  const changes = vaultChanges(cfg.vault_path);
+  if (changes) facts.vault_changes = changes.facts;
+  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) + (changes ? changes.text : "") + teams.text + cleanupLine() };
 }
 
 // The machine-wide cleanup-limit setting (the amended machine-wide-limit
@@ -43,6 +46,33 @@ function cleanupLine() {
     if (outcome) line += ` — ${formatOutcome(outcome)}`;
     return line + "\n";
   } catch { return ""; }
+}
+
+// What other people changed in the vault since your own last commit — the
+// "what happened while I was away" a teammate needs first. The reference point
+// is git's own record (your last commit, by user.email), so there is no state
+// file and no clock. Silent when you have never committed, when nothing by
+// others landed since, or when git is not there.
+const SHOWN_CHANGES = 5;
+export function vaultChanges(vault) {
+  try {
+    const git = (args) => {
+      const r = spawnSync("git", ["-C", vault, ...args], { encoding: "utf8", timeout: 3000 });
+      return r.status === 0 ? r.stdout.trim() : "";
+    };
+    const email = git(["config", "user.email"]).toLowerCase();
+    if (!email) return null;
+    const since = git(["log", "-1", "--format=%H", "-F", "-i", `--author=${email}`]);
+    if (!since) return null;
+    const lines = git(["log", "--no-merges", "--format=%h%x09%ae%x09%an%x09%s", `${since}..HEAD`, "--", "."])
+      .split("\n").filter(Boolean).map((l) => l.split("\t"))
+      .filter(([, ae]) => ae.toLowerCase() !== email);
+    if (!lines.length) return null;
+    const L = ["", `## Vault changes by others since your last commit (${since.slice(0, 7)})`, ""];
+    for (const [h, , an, subject] of lines.slice(0, SHOWN_CHANGES)) L.push(`- ${h} ${an}: ${subject}`);
+    if (lines.length > SHOWN_CHANGES) L.push(`- …and ${lines.length - SHOWN_CHANGES} more: \`git log ${since.slice(0, 7)}..HEAD -- <vault>\``);
+    return { facts: { since, count: lines.length }, text: L.join("\n") + "\n" };
+  } catch { return null; }
 }
 
 // The skeleton explains itself in full every session. Most of that explanation
