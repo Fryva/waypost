@@ -127,7 +127,9 @@ export async function stopOwnedRuntime(options){
    const cap=read(base+'.capability.json');bound(cap,scope);if(cap.operation!==intent.operation||!/^http:\/\/127\.0\.0\.1:[0-9]+\/stop$/.test(cap.url||'')||!/^([a-f0-9]{64})$/.test(cap.token||''))throw fail('stop-capability-invalid');
    const controller=new AbortController();let timer;
    try{timer=setTimeout(()=>controller.abort(),timeout);const response=await bounded(fetch(cap.url,{method:'POST',redirect:'error',signal:controller.signal,headers:{Authorization:'Bearer '+cap.token,'Content-Type':'application/json'},body:JSON.stringify({scope,operation:intent.operation})}),timeout);if(response.status!==200)throw fail('operation-stop-unconfirmed');await response.body?.cancel();}
-   catch{throw fail('operation-stop-unconfirmed');}finally{clearTimeout(timer);controller.abort();}
+   // The operation may close itself between the check above and this request (it sees the
+   // barrier, writes its proof and closes its server first): its proof then answers instead.
+   catch{if(!exists(base+'.closed.json'))throw fail('operation-stop-unconfirmed');}finally{clearTimeout(timer);controller.abort();}
   }
   const proof=read(base+'.closed.json');bound(proof,scope);if(proof.operation!==intent.operation||proof.stopped!==true||proof.callback_drained!==true||!Array.isArray(proof.consumptions))throw fail('closure-proof-invalid');proofs.push(proof);
  }

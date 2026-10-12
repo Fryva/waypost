@@ -23,8 +23,7 @@ test('stop latches before pending native factory settles and awaits outer finall
  const f=fixture(),started=defer(),factory=defer(),outer=defer();let scope,closed=0,drained=false;
  try{
   const running=f.runtime.run({kind:'dispatch'},async s=>{scope=s;const native=s.native(()=>{started.resolve();return factory.promise;});try{await native;}catch(e){assert.match(e.message,/operation-stopped/);}await outer.promise;drained=true;});
-  // The stop waits for the callback, which the test releases only after polling; 1 s was too short on a hosted runner (2026-10-11).
-  await started.promise;const stopping=stopOwnedRuntime({...f.options,timeoutMs:5000});await until(()=>scope.stopRequested);
+  await started.promise;const stopping=stopOwnedRuntime({...f.options,timeoutMs:1000});await until(()=>scope.stopRequested);
   factory.resolve({native_id:'pending',async stopAndWait(){closed++;return {stopped:true};}});await until(()=>closed>0);assert.equal(drained,false);
   outer.resolve();assert.equal((await stopping).stopped,true);await running;assert.equal(drained,true);
  }finally{factory.resolve(endpoint());outer.resolve();f.cleanup();}
