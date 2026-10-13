@@ -533,3 +533,24 @@ test("story gate reports failed coordination after writing the story", () => {
   assert.match(closed.stderr, /story updated, but release failed/);
   assert.match(closed.stderr, /Retry with `waypost sessions --release`/);
 });
+
+test("a commit the team gate refuses for non-local storage says so in one line, with no stack trace and no commit", () => {
+  // A Dropbox directory in the path is what storageOf() reads as cloud storage,
+  // the same stand-in tests/team-store.test.mjs uses for authority-nonlocal.
+  const proj = join(mkdtempSync(join(tmpdir(), "waypost-c-")), "Dropbox", "p");
+  mkdirSync(proj, { recursive: true });
+  git(proj, ["init", "-q", "-b", "main"]);
+  git(proj, ["config", "user.email", "t@example.com"]);
+  git(proj, ["config", "user.name", "T"]);
+  waypost(proj, ["bind", join(proj, "vault")]);
+  // Refused only where an authority already exists: one made from a machine on
+  // which this disk is local, read back from one on which it is not.
+  mkdirSync(join(proj, ".git", "waypost", "vault", "teams", "authority"), { recursive: true });
+  writeFileSync(join(proj, "a.txt"), "a\n");
+  git(proj, ["add", "a.txt"]);
+  const r = waypost(proj, ["commit", "-m", "add a"], { expectFail: true });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /^waypost commit: refused: the team authority must live on local storage, and this checkout is on Dropbox, cloud\./);
+  assert.doesNotMatch(r.stderr, /\n\s+at /, "no stack trace");
+  assert.notEqual(git(proj, ["rev-parse", "--verify", "-q", "HEAD"]).status, 0, "nothing was committed");
+});

@@ -7,7 +7,7 @@
 // Subcommands: see help() at the bottom, or `waypost help`.
 
 import { resolve, dirname, join, sep, basename, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, lstatSync, unlinkSync, rmSync,
   statfsSync, appendFileSync, realpathSync, renameSync, openSync, closeSync, fsyncSync, linkSync,
@@ -34,6 +34,10 @@ const INHERITED_PROC = process.env.WAYPOST_PROC;
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SCRIPT = (name) => join(ROOT, "scripts", `${name}.mjs`);
+// A file URL, not `file://${path}`: on Windows that string is only valid by
+// luck for a drive letter and is rejected outright for a UNC checkout
+// (\\Mac\share\…), which is how an npm shim on a Parallels share launches us.
+const SCRIPT_URL = (name) => pathToFileURL(SCRIPT(name)).href;
 const VERSION = (() => {
   try { return JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version; }
   catch { return "0.0.0"; }
@@ -279,8 +283,8 @@ async function handleSetup(args) {
 
   if (dry) {
     say("would discover tools and ecosystems");
-    const discovery = await import(`file://${SCRIPT("discovery")}`);
-    const presence = await import(`file://${SCRIPT("presence")}`);
+    const discovery = await import(SCRIPT_URL("discovery"));
+    const presence = await import(SCRIPT_URL("presence"));
     const home = homedir();
     const host = presence.hostSlug();
     const machinePath = discovery.machineProfilePath({ home, host });
@@ -341,8 +345,8 @@ async function handleSetup(args) {
   // the same yes `waypost clean --apply` needs, asked at most once here.
   await step("audit build output (project, and the machine if its profile was just refreshed)", async () => {
     try {
-      const capacity = await import(`file://${SCRIPT("capacity")}`);
-      const presence = await import(`file://${SCRIPT("presence")}`);
+      const capacity = await import(SCRIPT_URL("capacity"));
+      const presence = await import(SCRIPT_URL("presence"));
       const dir = slotsDir(presence);
       mkdirSync(dir, { recursive: true });
       const where = slotWhere(projectRoot());
@@ -353,10 +357,10 @@ async function handleSetup(args) {
       }
       recordAuthority(claim.file, capacity);
       try {
-        const cleanup = await import(`file://${SCRIPT("cleanup")}`);
-        const sizes = await import(`file://${SCRIPT("sizes")}`);
-        const toolchains = await import(`file://${SCRIPT("toolchains")}`);
-        const discovery = await import(`file://${SCRIPT("discovery")}`);
+        const cleanup = await import(SCRIPT_URL("cleanup"));
+        const sizes = await import(SCRIPT_URL("sizes"));
+        const toolchains = await import(SCRIPT_URL("toolchains"));
+        const discovery = await import(SCRIPT_URL("discovery"));
         const mods = { cleanup, sizes, toolchains, presence, discovery };
         const auditNow = cleanNow();
         const ctx = gatherCleanContext(mods, { budget: sizes.DEFAULT_ENTRY_BUDGET, includeMachine: machineRefreshedThisRun });
@@ -451,7 +455,7 @@ function registryReadFailed(what, e) {
 // being a label and becomes what gets written.
 async function detectedHarnesses() {
   try {
-    const A = await import(`file://${SCRIPT("agents")}`);
+    const A = await import(SCRIPT_URL("agents"));
     return withRegistryHome(() => A.detectHarnesses(projectRoot()));
   } catch (e) {
     registryReadFailed("the project's harnesses", e);
@@ -468,7 +472,7 @@ async function detectedHarnesses() {
 // detectedHarnesses() answers; callers union the two.
 async function runningHarness() {
   try {
-    const A = await import(`file://${SCRIPT("agents")}`);
+    const A = await import(SCRIPT_URL("agents"));
     return withRegistryHome(() => {
       const h = process.env.WAYPOST_HARNESS || A.detectHarness();
       return h && h !== "unknown" && A.harnessIds().includes(h) ? h : null;
@@ -984,9 +988,9 @@ function printDoc(dir, name, suffix) {
 // `waypost profile` and `waypost setup`'s own discovery step, so both apply
 // the exact same refresh rule.
 async function refreshProfiles({ force = false } = {}) {
-  const discovery = await import(`file://${SCRIPT("discovery")}`);
-  const toolchains = await import(`file://${SCRIPT("toolchains")}`);
-  const presence = await import(`file://${SCRIPT("presence")}`);
+  const discovery = await import(SCRIPT_URL("discovery"));
+  const toolchains = await import(SCRIPT_URL("toolchains"));
+  const presence = await import(SCRIPT_URL("presence"));
   const root = projectRoot();
   const host = presence.hostSlug();
   const home = homedir();
@@ -1080,8 +1084,8 @@ function tildeHome(p) {
 async function handleSize(args) {
   let sizes, toolchains;
   try {
-    sizes = await import(`file://${SCRIPT("sizes")}`);
-    toolchains = await import(`file://${SCRIPT("toolchains")}`);
+    sizes = await import(SCRIPT_URL("sizes"));
+    toolchains = await import(SCRIPT_URL("toolchains"));
   } catch (e) { fail(`size: ${e.message}`); }
   const json = flag(args, "--json");
 
@@ -1093,8 +1097,8 @@ async function handleSize(args) {
     // released, even when the scan itself throws.
     let capacity, presence;
     try {
-      capacity = await import(`file://${SCRIPT("capacity")}`);
-      presence = await import(`file://${SCRIPT("presence")}`);
+      capacity = await import(SCRIPT_URL("capacity"));
+      presence = await import(SCRIPT_URL("presence"));
     } catch (e) { fail(`size --global: ${e.message}`); }
     const dir = slotsDir(presence);
     mkdirSync(dir, { recursive: true });
@@ -1116,7 +1120,7 @@ async function handleSize(args) {
       // `size` stays read-only, Decision 3 of the ADR) is measured directly;
       // otherwise today's path, unchanged. A profile is never rebuilt or
       // refreshed by this command.
-      const discovery = await import(`file://${SCRIPT("discovery")}`);
+      const discovery = await import(SCRIPT_URL("discovery"));
       const host = presence.hostSlug();
       const machinePath = discovery.machineProfilePath({ home: homedir(), host });
       let machine = null;
@@ -1292,7 +1296,7 @@ function cleanNow() {
 // harness still needs --yes --reason regardless.
 async function isHarnessDetected() {
   try {
-    const agents = await import(`file://${SCRIPT("agents")}`);
+    const agents = await import(SCRIPT_URL("agents"));
     if (agents.detectHarness(process.env) !== "unknown") return true;
     if (agents.detectHarness({ ...process.env, WAYPOST_HARNESS: "" }) !== "unknown") return true;
     return false;
@@ -2084,8 +2088,8 @@ async function handleInternalDelete(argv) {
 
   let marker = null;
   try {
-    const capacity = await import(`file://${SCRIPT("capacity")}`);
-    const presence = await import(`file://${SCRIPT("presence")}`);
+    const capacity = await import(SCRIPT_URL("capacity"));
+    const presence = await import(SCRIPT_URL("presence"));
     marker = selfMarker(capacity, presence);
   } catch { /* best effort — deletion proceeds either way */ }
 
@@ -2215,7 +2219,7 @@ async function handleCleanLimit(rawValue, mods, json, now) {
   }
 
   let agents;
-  try { agents = await import(`file://${SCRIPT("agents")}`); } catch (e) { fail(`clean --limit: ${e.message}`); }
+  try { agents = await import(SCRIPT_URL("agents")); } catch (e) { fail(`clean --limit: ${e.message}`); }
 
   // Always run, gated or not: an off/loosen change is never refused by it,
   // but its own view is still recorded in the setting (the ADR: "every
@@ -2487,12 +2491,12 @@ async function handleClean(args) {
 
   let cleanup, sizes, toolchains, capacity, presence, discovery;
   try {
-    cleanup = await import(`file://${SCRIPT("cleanup")}`);
-    sizes = await import(`file://${SCRIPT("sizes")}`);
-    toolchains = await import(`file://${SCRIPT("toolchains")}`);
-    capacity = await import(`file://${SCRIPT("capacity")}`);
-    presence = await import(`file://${SCRIPT("presence")}`);
-    discovery = await import(`file://${SCRIPT("discovery")}`);
+    cleanup = await import(SCRIPT_URL("cleanup"));
+    sizes = await import(SCRIPT_URL("sizes"));
+    toolchains = await import(SCRIPT_URL("toolchains"));
+    capacity = await import(SCRIPT_URL("capacity"));
+    presence = await import(SCRIPT_URL("presence"));
+    discovery = await import(SCRIPT_URL("discovery"));
   } catch (e) { fail(`clean: ${e.message}`); }
 
   const now = cleanNow();
@@ -2616,8 +2620,8 @@ async function handleClean(args) {
 async function handleCapacity(args) {
   let capacity, presence;
   try {
-    capacity = await import(`file://${SCRIPT("capacity")}`);
-    presence = await import(`file://${SCRIPT("presence")}`);
+    capacity = await import(SCRIPT_URL("capacity"));
+    presence = await import(SCRIPT_URL("presence"));
   } catch (e) { fail(`capacity: ${e.message}`); }
 
   const releaseId = opt(args, "--release");
@@ -3008,7 +3012,7 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
     if (!where || !where.root || !where.common) return void logAndReportAuto(finish("skipped", "not in a git work tree"), host);
 
     let cleanup;
-    try { cleanup = await import(`file://${SCRIPT("cleanup")}`); }
+    try { cleanup = await import(SCRIPT_URL("cleanup")); }
     catch (e) { return void logAndReportAuto(finish("failed", e.message), host); }
 
     // Pinned to the executable's own tree, never WAYPOST_HOME: an agent
@@ -3063,9 +3067,9 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
 
     let sizes, toolchains, discovery;
     try {
-      sizes = await import(`file://${SCRIPT("sizes")}`);
-      toolchains = await import(`file://${SCRIPT("toolchains")}`);
-      discovery = await import(`file://${SCRIPT("discovery")}`);
+      sizes = await import(SCRIPT_URL("sizes"));
+      toolchains = await import(SCRIPT_URL("toolchains"));
+      discovery = await import(SCRIPT_URL("discovery"));
     } catch (e) { return void logAndReportAuto(finish("failed", e.message, { adopted }), host); }
     const mods = { cleanup, sizes, toolchains, presence, discovery };
 
@@ -3296,8 +3300,8 @@ async function handleRun(args) {
 
   let capacity, presence;
   try {
-    capacity = await import(`file://${SCRIPT("capacity")}`);
-    presence = await import(`file://${SCRIPT("presence")}`);
+    capacity = await import(SCRIPT_URL("capacity"));
+    presence = await import(SCRIPT_URL("presence"));
   } catch (e) { fail(`run --heavy: ${e.message}`); }
 
   const dir = slotsDir(presence);
@@ -3347,8 +3351,8 @@ async function handleRun(args) {
 // the rest of `waypost status` down with it.
 async function cleanupStatusLine() {
   try {
-    const presence = await import(`file://${SCRIPT("presence")}`);
-    const cleanup = await import(`file://${SCRIPT("cleanup")}`);
+    const presence = await import(SCRIPT_URL("presence"));
+    const cleanup = await import(SCRIPT_URL("cleanup"));
     const host = presence.hostSlug();
     const setting = readCleanupSetting({ host });
     if (!setting) return "cleanup  none\n";
@@ -3607,8 +3611,8 @@ async function selfInstall(rest) {
   if (!cfg || !cfg.vault_path || !existsSync(cfg.vault_path)) return;
   let current = process.env.WAYPOST_HARNESS || "unknown";
   try {
-    const A = await import(`file://${SCRIPT("agents")}`);
-    const S = await import(`file://${SCRIPT("skills")}`);
+    const A = await import(SCRIPT_URL("agents"));
+    const S = await import(SCRIPT_URL("skills"));
     withRegistryHome(() => {
       const h = process.env.WAYPOST_HARNESS || A.detectHarness();
       if (!h || h === "unknown" || !A.harnessIds().includes(h)) return;
@@ -3651,7 +3655,7 @@ async function heartbeat(cmd) {
     // Harness and session id are already resolved and pinned in the environment
     // by main() (G-1, E-3): the child this command spawns (sessions, lease,
     // watch, status, brief) labels the session the way commits do.
-    const { beat } = await import(`file://${SCRIPT("presence")}`);
+    const { beat } = await import(SCRIPT_URL("presence"));
     const cfg = readConfig();
     if (cfg && cfg.vault_path && existsSync(cfg.vault_path)) {
       beat(cfg.vault_path, process.env.WAYPOST_SESSION_ID, { harness: process.env.WAYPOST_HARNESS || null });
@@ -3700,14 +3704,14 @@ async function main() {
   // process is not. One `ps` per working command.
   if (!process.env.WAYPOST_PROC && !QUIET_COMMANDS.has(cmd)) {
     try {
-      const { harnessProcess } = await import(`file://${SCRIPT("presence")}`);
+      const { harnessProcess } = await import(SCRIPT_URL("presence"));
       const p = harnessProcess();
       if (p) process.env.WAYPOST_PROC = JSON.stringify(p);
     } catch { /* no process table: the counter rules stay */ }
   }
   if (!process.env.WAYPOST_HARNESS) {
     try {
-      const { detectHarness } = await import(`file://${SCRIPT("agents")}`);
+      const { detectHarness } = await import(SCRIPT_URL("agents"));
       // Pinned like every read in handleSetup: this is the first registry read
       // of the process, and an unpinned one would both take its answer from a
       // foreign WAYPOST_HOME and prime the memo every later read inherits.

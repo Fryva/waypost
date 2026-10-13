@@ -54,6 +54,21 @@ import { sessionId, claimsOf, CLAIM_WINDOW_MS } from "./sessions.mjs";
 import { osTag, readLeases, vaultRel, sharedTree, sharedWith } from "./presence.mjs";
 import { runReconcile } from "./reconcile.mjs";
 
+// The team gate refuses by throwing a coded error; that is an answer, not a
+// crash, so it is said in one line instead of a stack trace. Anything else
+// thrown under the gate is a bug and keeps its stack.
+function gateRefusal(e) {
+  const code = e?.code || String(e?.message || "").split(":")[0];
+  if (code === "authority-nonlocal") {
+    const st = e.storage || {};
+    const where = [st.provider, st.kind].filter(Boolean).join(", ") || "not local";
+    return `refused: the team authority must live on local storage, and this checkout is on ${where}.\n`
+      + "  Commit from the machine whose own disk holds the checkout.";
+  }
+  if (/^(authority|team)-/.test(code)) return `refused by the team gate: ${e.message}`;
+  throw e;
+}
+
 function die(msg) {
   process.stderr.write(`waypost commit: ${msg}\n`);
   process.exit(1);
@@ -260,7 +275,9 @@ function main() {
   }
 
   const commit=()=>git(['commit','-F','-'],{input:message});
-  const r=cfg?.vault_path ? withTeamCommitGate(cfg.vault_path,()=>stagedFiles(io),commit,{ artifactPath: story ? join(cfg.vault_path,'epics',story.split('/')[0],'stories',story.split('/').slice(1).join('/')+'.md') : undefined }) : commit();
+  let r;
+  try { r = cfg?.vault_path ? withTeamCommitGate(cfg.vault_path,()=>stagedFiles(io),commit,{ artifactPath: story ? join(cfg.vault_path,'epics',story.split('/')[0],'stories',story.split('/').slice(1).join('/')+'.md') : undefined }) : commit(); }
+  catch (e) { die(gateRefusal(e)); }
   process.stdout.write(r.stdout || "");
   if (r.status !== 0) {
     process.stderr.write(r.stderr || "");
