@@ -41,8 +41,11 @@ skips writing the block where it would land. The title predates this finding.
 
 ## Decomposition
 
-- [ ] Confirm on the macOS host: a fresh Claude session in this repo has
-      `AGENTS.md` content (sentinel rule) after the fix, and did not before.
+- [x] Confirm on the macOS host: a fresh Claude session in this repo has
+      `AGENTS.md` content (sentinel rule) after the fix, and did not before —
+      2026-10-13, Claude Code 2.1.296, `claude -p` with file tools denied, in
+      a worktree of 67a50fa with a sentinel appended to `AGENTS.md`:
+      `@../AGENTS.md` → sentinel returned; `@AGENTS.md` → `NONE`.
 - [x] Fix this repo: `@../AGENTS.md` in `.claude/CLAUDE.md` — 2026-10-13.
 - [x] Resolve an import against the importing file's directory
       (`importTargets`, `importsSharedFile` in `scripts/agents.mjs`); fenced
