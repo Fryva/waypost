@@ -76,7 +76,7 @@ a generator and compare the result with what is on disk.
 | `waypost harnesses` | the registry: where roles land and how to invoke them |
 | `waypost commit` / `merge` / `log` | the commit protocol (ADR-0006) |
 | `waypost skills …` | the bundled Agent Skills: install/list/uninstall/validate (WP-14) |
-| `waypost ready [--all]` | planned, unblocked, unclaimed stories with the claim command (WP-15) |
+| `waypost ready [--all]` | planned, unblocked, unclaimed stories with the claim command (WP-15); a story whose spec is not `active` or whose spec's ADR is not `accepted` is blocked |
 | `waypost sessions` / `watch` / `lease` / `storage` | presence and leases (ADR-0007) |
 | `waypost prompt [name]` / `waypost skill [name]` | loop procedures and skills |
 | `waypost status` | bind summary, live sessions, role state |

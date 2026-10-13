@@ -156,7 +156,7 @@ honest.
 | `waypost harnesses` | which agent tools are supported |
 | `waypost commit -m "…" [--story <id>]` | commit with harness/session/story trailers |
 | `waypost skills install` | the bundled procedures as Agent Skills, in the directory your tool reads |
-| `waypost ready` | stories that are planned, unblocked and unclaimed, with the command that claims each |
+| `waypost ready` | stories that are planned, unblocked (by other stories, a draft spec or a proposed ADR) and unclaimed, with the command that claims each |
 | `waypost sessions` / `lease` / `watch` | see and coordinate who is working |
 | `waypost team …` | experimental: teams of several tools and models under an owner-assigned leader (`create`, `roles`, `plan`, `host`); see `docs/team-coordination.md` |
 | `waypost status` | a summary of the setup and role state |

@@ -50,7 +50,7 @@ Before analysing a task, planning, editing or running checks:
 | `waypost brief` | orientation packet at the start of work (`--full` for the tutorial) |
 | `waypost draft <kind> "<title>" [--write]` | draft an artifact; `--write` creates it and reconciles |
 | `waypost story plan\|close <path> [--write]` | story lifecycle gates |
-| `waypost ready [--all]` | stories that are planned, unblocked (`blocked_by`) and unclaimed, with the claim command |
+| `waypost ready [--all]` | stories that are planned, unblocked (`blocked_by`, a draft spec, a proposed ADR) and unclaimed, with the claim command |
 | `waypost kanban` / `graph` / `codemap` | regenerate one derived view |
 | `waypost graph --for <path>` | one artifact's neighbourhood instead of the whole graph |
 | `waypost search "<text>"` | vault-wide search returning pointers, not documents |
@@ -211,8 +211,8 @@ One project may be driven by several sessions at the same time (ADR-0006):
 
 - **Before an architectural choice** — read `adr/README.md` and the relevant ADR
   rather than deciding it again.
-- **Before picking work** — `waypost ready` lists stories that are planned, whose
-  `blocked_by` stories are done, and that no live session claims; `waypost next`
+- **Before picking work** — `waypost ready` lists planned stories whose `blocked_by`
+  are done, `specs` active, specs' `adr` accepted, unclaimed; `waypost next`
   ranks the first three. A story declares its blockers in frontmatter as a JSON
   list: `blocked_by: ["<epic>/<stem>"]`; the board marks them `#blocked`, and
   `doctor` names a reference to no story, a cycle, or two ADRs with one number.

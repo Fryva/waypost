@@ -3513,7 +3513,7 @@ PROCEDURES
   skills …                 Agent Skills in this project: install [--harness <id,…>|all], list, uninstall, validate
   launcher [--write]       the command on PATH: is it npm's symlink into a checkout that loses its
                            executable bit (one another OS edits)? --write replaces it with a shim
-  ready [--all] [--json]   stories that are planned, unblocked (blocked_by) and unclaimed, with the claim command
+  ready [--all] [--json]   stories that are planned, unblocked (blocked_by, draft spec, proposed ADR) and unclaimed, with the claim command
   sessions [--touch]       active-session registry (--claim/--release/--prune [--older-than 6h])
   tokens [flags]           what the loop cost, from Claude Code transcripts
                            (Claude-only: no other harness writes them)
