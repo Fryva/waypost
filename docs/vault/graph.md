@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-13T17:12:45.038Z
+generated_at: 2026-10-13T23:47:15.594Z
 
 ---
 
@@ -104,7 +104,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md | The owner's global files on every machine migrate into the one source | story | planned |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
-| ops/run-waypost-from-a-checkout-another-operating-system-edits.md | Run waypost from a checkout another operating system edits | runbook | draft |
+| ops/run-waypost-from-a-checkout-another-operating-system-edits.md | Run waypost from a checkout another operating system edits | runbook | active |
 | ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
 | specs/cross-harness-team-coordination-protocol.md | Cross-harness team coordination protocol | spec | active |

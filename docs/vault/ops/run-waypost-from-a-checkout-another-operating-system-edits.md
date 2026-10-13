@@ -2,7 +2,7 @@
 type: runbook
 slug: "run-waypost-from-a-checkout-another-operating-system-edits"
 title: "Run waypost from a checkout another operating system edits"
-status: draft
+status: active
 date: 2026-09-17
 authors: ["Ivan Morozov"]
 tags: ["install", "cross-os"]
@@ -19,6 +19,10 @@ network share, a synced folder. Every save from a system without an executable b
 command answers `permission denied`, usually in the middle of someone's work. `core.fileMode=false`,
 which such a checkout needs anyway, means git neither notices nor restores the bit, and `chmod +x`
 holds only until the next save from the other machine.
+
+The shims below fix the command on `PATH`; they cannot keep the bit on `bin/waypost` itself. So in
+such a checkout, run `waypost` (or `node bin/waypost`), never `bin/waypost` directly, and do not
+count on `chmod +x bin/waypost`: it lasts until the next save from the other system.
 
 `waypost doctor` warns about this before it happens (`[launcher]`, a warning) and reports it as an
 issue once the bit is gone. It never repairs it on its own: the repair writes into a directory on
@@ -58,12 +62,31 @@ up at once.
 - [ ] `waypost launcher` says "nothing on PATH depends on the entry point's executable bit".
 - [ ] `chmod -x <checkout>/bin/waypost && waypost --version` still prints the version.
 
+## Diagnosis
+
+To confirm the other system is what dropped the bit, and not a tool on this machine:
+
+```bash
+stat -f '%Sp %Sm' bin/waypost     # Linux: stat -c '%A %y' bin/waypost
+waypost sessions --json           # a live session whose host/os is the other system, with a
+                                  # project_root like Y:\…, quiet since about that mtime
+git diff --cached --summary       # nothing: the index still says 100755, core.fileMode hides it
+```
+
+Observed 2026-10-13: a Windows Claude Code session over `Y:\` saved `bin/waypost` at 20:39 and the
+file came back `rw-r--r--`; the same edit with Claude Code on the macOS side keeps the bit.
+
 ## Rollback
 
 `npm link` from the checkout (or deleting the shim and recreating the symlink) restores npm's
 layout. The shim carries a `waypost-launcher-shim` marker line and is safe to delete.
 
 ## Common Issues
+
+### `waypost` works, `bin/waypost` says `permission denied`
+
+Expected after a save from the other system: the shim on `PATH` does not need the bit, the entry
+point does. Run `waypost` or `node bin/waypost` instead.
 
 ### `npm link` was run again
 
