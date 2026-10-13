@@ -56,6 +56,7 @@ Each story is blocked by the one above it.
 | `story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work` | planned | the lock, the slot records, liveness, `run --heavy`, `--release`, and a stress test |
 | `story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work` | planned | the routing-block line, `waypost prompt heavy`, `AGENTS.md`, Waypost's own test suite under the limit, and the ADR accepted |
 | `story-capacity-verified-on-linux-and-windows-virtual-machines` | planned | the per-OS probes, the shared slot, restart and sleep on the owner's machines |
+| `story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app` | planned | machine state out of AppData into one root, migrated from every old root; one slot across packaged apps |
 
 ## Expected Results
 

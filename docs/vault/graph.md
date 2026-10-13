@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-13T02:03:21.652Z
+generated_at: 2026-10-13T17:12:45.038Z
 
 ---
 
@@ -39,6 +39,7 @@ full typed neighborhood, both directions, in one call.
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | Model-aware teams across harness sessions with one authority and independent review | adr | accepted |
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | Native configuration profiles ranked by fresh role-specific calibration | adr | accepted |
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | Owner-assigned team roles by default with calibration as an optional check | adr | accepted |
+| adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md | Owner's global rules: one harness-neutral source, reaching every installed harness on every machine | adr | accepted |
 | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | Record the operating system of a commit in a Waypost-OS trailer | adr | accepted |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | Subscription CLI token accounting with separate strict billing enforcement | adr | accepted |
@@ -76,11 +77,13 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-18/epic.md | Heavy work sized to the machine | epic | planned |
 | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md | Capacity verified on Linux and Windows virtual machines | story | in-progress |
 | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md | The heavy-work rule in every project, and Waypost's own heavy work | story | done |
+| epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app.md | The heavy-work slot is machine-wide on Windows, not one per packaged app | story | planned |
 | epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os.md | waypost capacity: the machine's real free resources, measured by each OS | story | done |
 | epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work.md | waypost run --heavy: a machine-wide slot for heavy work | story | done |
 | epics/WP-19/epic.md | The process layer on any host, and honest harness detection | epic | planned |
 | epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md | setup asked the filesystem alone about which harnesses a project uses | story | in-progress |
 | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md | Codex keeps one session and direct installers see the running harness | story | in-progress |
+| epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share.md | Project rules reach Claude sessions on a VM whose checkout is on a network share | story | planned |
 | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md | ps in the C locale, so the process table exists on any host | story | done |
 | epics/WP-20/epic.md | One task coordinated across harnesses and AI models | epic | planned |
 | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md | Addressed messages and verified harness delivery | story | planned |
@@ -94,6 +97,11 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
 | epics/WP-21/epic.md | Source an agent can read in one pass | epic | planned |
+| epics/WP-22/epic.md | The owner's global rules on every machine and harness | epic | planned |
+| epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md | A source on another machine reaches each VM through a local cache | story | planned |
+| epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | Each machine replies in its own user's language | story | planned |
+| epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md | Global rules reach every installed harness, and doctor refuses a machine where they do not | story | planned |
+| epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md | The owner's global files on every machine migrate into the one source | story | planned |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
 | ops/run-waypost-from-a-checkout-another-operating-system-edits.md | Run waypost from a checkout another operating system edits | runbook | draft |
@@ -222,6 +230,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md | mdlink | epics/WP-17/epic.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md |
+| epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work.md |
 | epics/WP-18/epic.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
@@ -229,15 +238,18 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md | mdlink | epics/WP-18/epic.md |
+| epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md |
 | epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md |
+| epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share.md |
 | epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md |
 | epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md | mdlink | epics/WP-19/epic.md |
+| epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md |
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md |
@@ -284,6 +296,19 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md |
+| epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md |
+| epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md |
+| epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md |
+| epics/WP-22/epic.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
+| epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
+| epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md | mdlink | epics/WP-22/epic.md |
+| epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
+| epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | mdlink | epics/WP-22/epic.md |
+| epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
+| epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md | mdlink | epics/WP-22/epic.md |
+| epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
+| epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md | mdlink | epics/WP-22/epic.md |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | specs/cross-harness-team-coordination-protocol.md | mdlink | epics/WP-20/epic.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md |

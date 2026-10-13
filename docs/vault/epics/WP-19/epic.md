@@ -105,6 +105,7 @@ OpenCode is only the harness whose live run happened to surface them.
 | [ps in the C locale, so the process table exists on any host](stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md) | done | ask `ps` for the spelling the parser reads; cover locale in a test |
 | [setup asked the filesystem alone about which harnesses a project uses](stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md) | in-progress | union project markers and the running harness in setup |
 | [Codex keeps one session and direct installers see the running harness](stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md) | in-progress | direct installers, thread identity and brief self-install |
+| [Project rules reach Claude sessions on a VM whose checkout is on a network share](stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share.md) | planned | Claude imports resolve against the importing file; this repo's import fixed |
 
 ## Expected Results
 

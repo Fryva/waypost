@@ -46,6 +46,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check](./owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md) | Owner-assigned team roles by default with calibration as an optional check | accepted | 2026-10-10 |
 | [record-the-operating-system-of-a-commit-in-a-waypost-os-trailer](./record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md) | Record the operating system of a commit in a Waypost-OS trailer | accepted | 2026-10-11 |
 | [enforce-the-owners-token-budget-for-live-runs-across-teams](./enforce-the-owners-token-budget-for-live-runs-across-teams.md) | Enforce the owner's token budget for live runs across teams | accepted | 2026-10-12 |
+| [owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine](./owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md) | Owner's global rules: one harness-neutral source, reaching every installed harness on every machine | accepted | 2026-10-13 |
 
 ---
 
