@@ -44,10 +44,17 @@ build (or the other way round)". It concluded "`waypost capacity` checks only
 the cores and does not see the harness agents' memory", with a manual rule:
 wait until `free -m` shows 2 GB or more available.
 
-Not recorded, and not recoverable here (the VM was shut down before the
-journal was read): the kill log — the kernel OOM killer or systemd-oomd —
-MemAvailable at admission, which agents started before the build and which
-after, and the build's peak memory.
+Not recorded: MemAvailable at admission, which agents started before the
+build and which after. The kill log was recovered on 2026-10-13 from the VM's
+persistent journal (boot `fd300454…`): the **kernel OOM killer**, not
+systemd-oomd, which is not installed there. At 21:41:32 it killed `rustc`
+(anon-rss 2.9 GB, swap 252 kB free) — already its first choice, every
+process in the list at `oom_score_adj` 100. The harness died anyway, 90 s
+later and by a different hand: `rustc` ran inside the desktop app's own
+systemd scope (`app-com.anthropic.Claude-2808.scope`), and with
+`DefaultOOMPolicy=stop` systemd stops a unit one of whose processes the OOM
+killer took — "Stopping timed out. Killing", then `Failed with result
+'oom-kill'`. See Verification.
 
 What the code shows:
 1. **The share was a quarter.** On 3.8 GB, a job's share was 0.95 GB, so the
@@ -220,7 +227,8 @@ order.
   memory
 - a Mac at warning with 2.7 GB available takes one 2 GB job, not two, and
   none under critical pressure
-- on Linux an OOM kill takes the build, and the session survives
+- on Linux an OOM kill takes the build — and, per Verification, the session
+  survives only where the job does not share a systemd unit with it
 
 **Negative / trade-offs**:
 - with two jobs running, the reserve counts the first one's memory twice
@@ -258,6 +266,27 @@ Before acceptance:
   was;
 - on the owner's Mac: sample `waypost capacity --json` over a working session
   at normal and warning pressure.
+
+Linux VM, 2026-10-13 (Debian 13.6 arm64, 4 cores, now 5.9 GB RAM and 3.3 GB
+swap, so the share is 2 GB, not 1.9):
+- refusal — passes: with 3.6 GB held by another process, MemAvailable
+  1.69 GB, `capacity --json` gave `can_start: 0`, "memory: 1.6 GB available, a
+  heavy job needs 2.0 GB", and `run --heavy` exited 75; `can start 1` again
+  once it was freed;
+- `oom_score_adj` test — passes, `tests/slots.test.mjs` 69 of 69 on the VM,
+  `tests/capacity.test.mjs` 62 of 62;
+- the kill log — the kernel OOM killer; Context has the record;
+- **Decision 5 does not deliver its consequence.** A real global OOM, driven
+  twice from a stand-in harness scope (`systemd-run --user --scope`, holding
+  a `sleep`): with the job started by `run --heavy` inside that scope, the
+  kernel chose the job (`oom_score_adj:1000`), and systemd then failed the
+  whole scope with `oom-kill` — harness dead, the wrapper with it. With the
+  job in a scope of its own (`run --heavy -- systemd-run --user --scope …`),
+  the job's scope failed, `run --heavy` reported exit 137, and the harness
+  lived. `oom_score_adj` picks the victim; the cgroup the victim sits in
+  decides what else systemd takes down. The rejected alternative "Run the
+  job in its own systemd scope" is the one that keeps the session — for this
+  reason, not systemd-oomd's.
 
 ## References
 
