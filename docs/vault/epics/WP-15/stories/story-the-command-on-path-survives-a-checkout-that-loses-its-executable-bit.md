@@ -3,11 +3,11 @@ type: story
 id: "story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit"
 epic: "WP-15"
 title: "The command on PATH survives a checkout that loses its executable bit"
-status: planned
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-17
-updated: 2026-09-17
+updated: 2026-10-13
 external_refs: {}
 tags: ["install", "cross-os"]
 code_refs:
@@ -18,9 +18,9 @@ code_refs:
   - bin/waypost
   - CHANGELOG.md
 specs: []
-started_at: null
-closed_at: null
-plan_updated_at: null
+started_at: "2026-10-13T02:01:18.842Z"
+closed_at: "2026-10-13T02:03:20.885Z"
+plan_updated_at: "2026-10-13T02:01:18.842Z"
 ---
 
 # The command on PATH survives a checkout that loses its executable bit
@@ -28,7 +28,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-15](../epic.md) |
-| **Status** | planned |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -67,13 +67,20 @@ to reach it once the command itself refuses to start.
 - [x] A symlinked launcher to an entry point without the bit is `broken`, and doctor reports an issue — confirmed by: `tests/launcher.test.mjs`; live on macOS 2026-09-17
 - [x] `--write` replaces only symlinks that resolve to this checkout, and the shim runs with the bit off, arguments intact — confirmed by: `tests/launcher.test.mjs`; live on macOS 2026-09-17 (`waypost --version`, `wyp --version` with `bin/waypost` at mode 0664)
 - [x] A regular file on PATH and a symlink into another checkout are never touched — confirmed by: `tests/launcher.test.mjs`
-- [ ] Verified on Linux (`~/.local/bin` symlink layout of the Debian VM)
+- [x] Verified on Linux (`~/.local/bin` symlink layout of the Debian VM) — confirmed by: live on Debian 13.6 arm64, node 20.19.2, 2026-10-12: `npm link` symlinks in `~/.local/bin` reported `exposed` and doctor warned (exit 0); `bin/waypost` at 0644 → `permission denied` (126), `broken`, doctor issue (exit 1); `node scripts/launcher.mjs --write` wrote shims, `waypost --version` and `wyp --version` answered 0.16.0 with the bit off
 - [x] `waypost launcher` works as a routed command — confirmed by: `tests/launcher.test.mjs` (routed through `bin/waypost`); live on macOS 2026-09-17
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+`waypost launcher [--write]` reports whether the command on PATH depends on the entry point's
+executable bit (`none` / `exposed` / `broken`) and replaces this checkout's symlinks with node shims;
+`waypost doctor` warns while exposed and reports an issue once broken. Covered by
+`tests/launcher.test.mjs`, verified live on macOS (2026-09-17) and on the Debian VM (2026-10-12),
+where the guest's `~/.local/bin` now holds shims again.
+
+Follow-up for anyone repeating the check: restoring a backed-up shim with `cp` onto a path that is
+still a symlink writes through it into the shared `bin/waypost`. Remove the symlink first, or just
+re-run `--write`. Windows stays out of scope (npm writes `.cmd`/`.ps1` there).
 
 ## Technical Notes
 
@@ -91,4 +98,4 @@ Fryva's `check-memory.mjs` already honours `WAYPOST_CHECKOUT` for the same reaso
 
 ---
 
-*Last updated: 2026-09-17*
+*Last updated: 2026-10-13*

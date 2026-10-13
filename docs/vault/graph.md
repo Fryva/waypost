@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-12T19:38:58.357Z
+generated_at: 2026-10-13T02:03:21.652Z
 
 ---
 
@@ -58,7 +58,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive.md | Measure the git common dir and worktree binding on macOS, Windows and a cloud drive | story | in-progress |
 | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md | Runtime coordination moves to the git common dir; old records read for one version | story | done |
 | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md | Shared-checkout detection covers sibling worktrees of one repository | story | done |
-| epics/WP-15/stories/story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit.md | The command on PATH survives a checkout that loses its executable bit | story | planned |
+| epics/WP-15/stories/story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit.md | The command on PATH survives a checkout that loses its executable bit | story | done |
 | epics/WP-15/stories/story-the-merge-driver-regenerates-a-derived-view-without-writing-into-the-worktree.md | The merge driver regenerates a derived view without writing into the worktree | story | planned |
 | epics/WP-16/epic.md | Decisions that check themselves | epic | planned |
 | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md | ADR-0011 accepted: guards and drafted_by in ADR frontmatter | story | done |
