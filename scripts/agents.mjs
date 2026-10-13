@@ -21,7 +21,7 @@
 // CLI: node agents.mjs list|show|install|uninstall|register|unregister|model [args]
 
 import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync, unlinkSync, rmdirSync, statSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve, relative } from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import {
@@ -1044,17 +1044,36 @@ const BLOCK_RE = /<!--\s*waypost:agents v\d+[\s\S]*?<!--\s*\/waypost:agents\s*--
 // nothing but an import of a shared instruction file. Captures the basename
 // (without extension) so the caller can check it names the SPECIFIC shared
 // file found, not just any AGENTS/CLAUDE mention.
-const IMPORT_RE = /^@\.?\/?(AGENTS|CLAUDE)\.md\s*$/m;
+// An `@path` line on its own, the form Claude Code expands. The path is
+// resolved against the importing file's own directory, as Claude Code does —
+// so in .claude/CLAUDE.md `@AGENTS.md` means .claude/AGENTS.md, and only
+// `@../AGENTS.md` reaches the root one (WP-19).
+const IMPORT_LINE_RE = /^@(\S+)\s*$/gm;
 
-// True when `ownFile`'s own text already @-imports `sharedFile` (its
-// basename, e.g. "AGENTS.md") — the shared file then reaches the harness
-// through that import, so writing the block into ownFile too would be a
-// second copy of standing context the harness reads on every turn (ADR-0008).
-export function importsSharedFile(ownPath, sharedFile) {
+// Claude Code does not expand an import inside a code fence or an HTML
+// comment, so neither counts here: a fenced `@dataclass` is not an import, and
+// a fenced example `@AGENTS.md` does not carry the block.
+function importableText(text) {
+  return text
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, "");
+}
+
+export function importTargets(ownPath) {
   let text;
-  try { text = readFileSync(ownPath, "utf8"); } catch { return false; }
-  const m = text.match(IMPORT_RE);
-  return !!m && `${m[1]}.md` === sharedFile;
+  try { text = readFileSync(ownPath, "utf8"); } catch { return []; }
+  return [...importableText(text).matchAll(IMPORT_LINE_RE)]
+    .map((m) => m[1])
+    .filter((t) => !t.startsWith("~") && !/^[a-z]+:\/\//i.test(t))
+    .map((t) => resolve(dirname(ownPath), t));
+}
+
+// True when `ownPath` @-imports the file at `sharedPath` — the shared file
+// then reaches the harness through that import, so writing the block into
+// ownPath too would be a second copy of standing context the harness reads on
+// every turn (ADR-0008).
+export function importsSharedFile(ownPath, sharedPath) {
+  return importTargets(ownPath).some((t) => relative(t, resolve(sharedPath)) === "");
 }
 
 // Where the routing block goes: every instruction file the project already has,
@@ -1079,14 +1098,16 @@ export function instructionTargetFor(id, proj = projectRoot()) {
   // (CLAUDE.md → AGENTS.md, the bridge Anthropic documents) defers to it:
   // the block reaches the harness through the import, once.
   const sharedCandidates = declared.filter((f) => !f.includes("/") && existsSync(join(proj, f)));
-  const shared = sharedCandidates.find((f) => !sharedCandidates.some((g) => g !== f && importsSharedFile(join(proj, f), g)));
+  const shared = sharedCandidates.find((f) => !sharedCandidates.some((g) => g !== f && importsSharedFile(join(proj, f), join(proj, g))));
   if (ownPresent.length) {
-    // An own file that itself @-imports the shared one already reaches the
-    // harness through that import (G-1: this repo's own .claude/CLAUDE.md
-    // is `@AGENTS.md`) — write the block into the shared file only. An own
-    // file with no such import keeps today's behaviour.
-    return [...new Set(ownPresent.map((f) =>
-      (sharedOk && shared && importsSharedFile(join(proj, f), shared)) ? shared : f))];
+    // The harness loads all of these files together, so one import of the
+    // shared file anywhere among them already carries the block (G-1: this
+    // repo's .claude/CLAUDE.md is `@../AGENTS.md`) — then no own file is a
+    // target, or the block would be read twice. With no import anywhere, each
+    // own file keeps today's behaviour.
+    const imported = sharedOk && shared && [...ownPresent, ...sharedCandidates]
+      .some((f) => f !== shared && importsSharedFile(join(proj, f), join(proj, shared)));
+    return imported ? [shared] : ownPresent;
   }
   if (sharedOk && shared) return [shared];
   if (own.length) return [own[0]];
@@ -1098,7 +1119,7 @@ export function instructionTargets(proj = projectRoot()) {
   // that import (the G-1 rule, which used to cover only .claude/CLAUDE.md):
   // writing it there too would put it in Claude's context twice.
   const out = new Set(["AGENTS.md", "CLAUDE.md"].filter((f) => existsSync(join(proj, f))
-    && !(f === "CLAUDE.md" && existsSync(join(proj, "AGENTS.md")) && importsSharedFile(join(proj, f), "AGENTS.md"))));
+    && !(f === "CLAUDE.md" && existsSync(join(proj, "AGENTS.md")) && importsSharedFile(join(proj, f), join(proj, "AGENTS.md")))));
   for (const id of detectHarnesses(proj)) for (const f of instructionTargetFor(id, proj)) out.add(f);
   return [...out];
 }

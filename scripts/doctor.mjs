@@ -21,7 +21,7 @@
 //      finding exists, so `waypost doctor && ...` sees failures.
 
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, accessSync, constants } from "node:fs";
-import { join, basename, resolve, dirname } from "node:path";
+import { join, basename, resolve, dirname, relative } from "node:path";
 import { homedir, platform } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -73,6 +73,7 @@ import {
   harnessIds,
   instructionTargets,
   importsSharedFile,
+  importTargets,
   harnessOwnedPaths,
   status as agentStatus,
 } from "./agents.mjs";
@@ -230,6 +231,16 @@ export function checkInstructionsHygiene(proj) {
   const running = detectHarness();
   const claudeUsed = detectHarnesses(proj).includes("claude") || running === "claude";
   if (claudeUsed) {
+    // Claude Code resolves an `@path` against the importing file, so
+    // `@AGENTS.md` in .claude/CLAUDE.md names .claude/AGENTS.md — an import
+    // that loads nothing and says nothing (WP-19).
+    for (const f of ["CLAUDE.md", ".claude/CLAUDE.md"]) {
+      for (const t of importTargets(join(proj, f))) {
+        if (existsSync(t)) continue;
+        out.push(finding("install", "warn", "claude-import-missing",
+          `${f} imports ${relative(proj, t).replace(/\\/g, "/")}, which does not exist: Claude Code resolves an import against the importing file, so nothing is loaded. In .claude/CLAUDE.md the root AGENTS.md is \`@../AGENTS.md\`.`, f));
+      }
+    }
     const agents = join(proj, "AGENTS.md");
     let agentsHasBlock = false;
     try { agentsHasBlock = AGENT_BLOCK_MARKER.test(readFileSync(agents, "utf8")); AGENT_BLOCK_MARKER.lastIndex = 0; } catch {}
@@ -237,7 +248,7 @@ export function checkInstructionsHygiene(proj) {
       const reaches = ["CLAUDE.md", ".claude/CLAUDE.md"].some((f) => {
         const p = join(proj, f);
         if (!existsSync(p)) return false;
-        if (importsSharedFile(p, "AGENTS.md")) return true;
+        if (importsSharedFile(p, agents)) return true;
         try { const has = AGENT_BLOCK_MARKER.test(readFileSync(p, "utf8")); AGENT_BLOCK_MARKER.lastIndex = 0; return has; } catch { return false; }
       });
       if (!reaches) {
@@ -2062,6 +2073,26 @@ export function applyFixes(cfg, proj, findings) {
       done.push(r.status === 0
         ? `skills install --harness ${harnesses.join(",")}`
         : `skills install failed: ${(r.stderr || "").trim()}`);
+    }
+  }
+
+  if (has("claude-import-missing")) {
+    // A bare `@NAME` written as if from the project root — the usual shape of
+    // the mistake — is rewritten to the path that reaches that root file from
+    // the importing file's directory. Anything else is left for the owner.
+    for (const f of ["CLAUDE.md", ".claude/CLAUDE.md"]) {
+      const p = join(proj, f);
+      if (!existsSync(p)) continue;
+      const before = readFileSync(p, "utf8");
+      const after = before.replace(/^@(\S+)(\s*)$/gm, (line, raw, tail) => {
+        if (raw.includes("/") || raw.startsWith("~")) return line;
+        if (existsSync(resolve(dirname(p), raw)) || !existsSync(join(proj, raw))) return line;
+        return `@${relative(dirname(p), join(proj, raw)).replace(/\\/g, "/")}${tail}`;
+      });
+      if (after !== before) {
+        writeFileSync(p, after, "utf8");
+        done.push(`${f}: import rewritten to resolve against the file itself`);
+      }
     }
   }
 

@@ -1,7 +1,7 @@
 # Waypost rules
 
 The single source of rules is `AGENTS.md` in the repository root.
-`.claude/CLAUDE.md` only points at it (`@AGENTS.md`), and `opencode.json` pulls
+`.claude/CLAUDE.md` only points at it (`@../AGENTS.md` — an import resolves against the importing file), and `opencode.json` pulls
 it in through `instructions`.
 
 This directory is a place for rules specific to Claude Code. Technical rules are

@@ -13,7 +13,7 @@ import { detectHarnesses, detectHarness, gateCheck, registry } from "../scripts/
 import { storedVaultPath, resolveVaultPath } from "../scripts/lib.mjs";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
-  instructionTargets, skillsOf, CONFIDENCE } from "../scripts/agents.mjs";
+  instructionTargets, importTargets, importsSharedFile, skillsOf, CONFIDENCE } from "../scripts/agents.mjs";
 import { skillNames, readSkill, validateSkill, DESCRIPTION_MAX, DESCRIPTIONS_TOTAL_MAX } from "../scripts/skills.mjs";
 import { ambientEnv } from "./env.mjs";
 
@@ -1055,10 +1055,45 @@ test("doctor: instruction-file hygiene — length is a warning, and Claude gets 
   const size = doctor().find((f) => f.check === "instructions-size");
   assert.ok(size && size.level === "warn" && /AGENTS\.md is \d+ lines/.test(size.message), JSON.stringify(size));
 
-  // No false positive on this repository: .claude/CLAUDE.md is `@AGENTS.md`.
+  // No false positive on this repository: .claude/CLAUDE.md is `@../AGENTS.md`.
   const here = JSON.parse(waypost(REPO, ["doctor", "--install", "--json"], { expectFail: true }).stdout);
-  assert.ok(!here.some((f) => f.check === "claude-bridge" || f.check === "instructions-size"),
-    JSON.stringify(here.filter((f) => /claude-bridge|instructions-size/.test(f.check))));
+  assert.ok(!here.some((f) => /^(claude-bridge|claude-import-missing|instructions-size)$/.test(f.check)),
+    JSON.stringify(here.filter((f) => /claude-bridge|claude-import-missing|instructions-size/.test(f.check))));
+});
+
+test("importTargets: fenced code and HTML comments are not imports; ~ and absolute paths are left alone", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-imp-"));
+  writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
+  writeFileSync(join(proj, "CLAUDE.md"),
+    "```python\n@dataclass\n@AGENTS.md\n```\n<!--\n@AGENTS.md\n-->\n@~/.claude/personal.md\n", "utf8");
+  assert.equal(importsSharedFile(join(proj, "CLAUDE.md"), join(proj, "AGENTS.md")), false,
+    "a fenced or commented example carries nothing");
+  assert.deepEqual(importTargets(join(proj, "CLAUDE.md")), [], "~ imports are the user's, not checked here");
+});
+
+test("instructionTargets: a root CLAUDE.md that imports AGENTS.md is enough — a broken .claude/CLAUDE.md beside it gets no second copy", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-shared6-"));
+  mkdirSync(join(proj, ".claude"), { recursive: true });
+  writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
+  writeFileSync(join(proj, "CLAUDE.md"), "@AGENTS.md\n", "utf8");
+  writeFileSync(join(proj, ".claude", "CLAUDE.md"), "@AGENTS.md\n", "utf8");
+  assert.deepEqual(instructionTargets(proj), ["AGENTS.md"]);
+});
+
+test("doctor: an @-import in .claude/CLAUDE.md that resolves to a missing file is reported (WP-19)", () => {
+  const { proj } = bound();
+  writeFileSync(join(proj, "AGENTS.md"), "# rules\n", "utf8");
+  mkdirSync(join(proj, ".claude"), { recursive: true });
+  writeFileSync(join(proj, ".claude", "CLAUDE.md"), "@AGENTS.md\n", "utf8");
+  const doctor = () => JSON.parse(waypost(proj, ["doctor", "--install", "--json"], { expectFail: true }).stdout);
+  const missing = doctor().find((f) => f.check === "claude-import-missing");
+  assert.ok(missing && missing.level === "warn" && /\.claude\/AGENTS\.md/.test(missing.message), JSON.stringify(missing));
+  waypost(proj, ["doctor", "--install", "--fix"], { expectFail: true });
+  assert.equal(readFileSync(join(proj, ".claude", "CLAUDE.md"), "utf8"), "@../AGENTS.md\n", "--fix rewrites it to reach the root file");
+  assert.ok(!doctor().some((f) => f.check === "claude-import-missing"));
+  writeFileSync(join(proj, "CLAUDE.md"), "@NOTES.md\n", "utf8");
+  const root = doctor().find((f) => f.check === "claude-import-missing");
+  assert.ok(root && /CLAUDE\.md imports NOTES\.md/.test(root.message), "a root CLAUDE.md is checked too");
 });
 
 // ─── guards and provenance (ADR-0011) ──────────────────────────────────
@@ -1862,16 +1897,35 @@ test("register: an existing .claude/CLAUDE.md is preferred over inventing one", 
   assert.ok(!existsSync(join(proj, "CLAUDE.md")));
 });
 
-// G-1: this repository's own layout — .claude/CLAUDE.md is the one line
-// `@AGENTS.md` — used to get the routing block written into BOTH files, so
-// Claude Code read it twice (once through the import, once directly).
-test("instructionTargets: an own file that @-imports AGENTS.md is not itself a target", () => {
+// G-1, corrected by WP-19: in .claude/CLAUDE.md, `@AGENTS.md` resolves to
+// .claude/AGENTS.md (Claude Code resolves against the importing file), so it
+// reaches nothing — and the block must go into .claude/CLAUDE.md itself.
+test("instructionTargets: `@AGENTS.md` in .claude/CLAUDE.md is not an import of the root AGENTS.md", () => {
   const proj = mkdtempSync(join(tmpdir(), "wp-shared4-"));
   mkdirSync(join(proj, ".claude"), { recursive: true });
   writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
   writeFileSync(join(proj, ".claude", "CLAUDE.md"), "@AGENTS.md\n", "utf8");
-  assert.deepEqual(instructionTargets(proj), ["AGENTS.md"],
-    "the import already reaches Claude Code; a second copy is twice the standing context");
+  const targets = instructionTargets(proj);
+  assert.ok(targets.includes(".claude/CLAUDE.md"),
+    "the import names .claude/AGENTS.md; without the block Claude Code sees no rules");
+});
+
+test("instructionTargets: a root CLAUDE.md importing `@../AGENTS.md` points outside the project, not at its AGENTS.md", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-shared4c-"));
+  writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
+  writeFileSync(join(proj, "CLAUDE.md"), "@../AGENTS.md\n", "utf8");
+  assert.ok(instructionTargets(proj).includes("CLAUDE.md"));
+});
+
+// Claude Code resolves an import against the importing file, so in
+// .claude/CLAUDE.md the root AGENTS.md is `@../AGENTS.md` — the form this
+// repository now uses. It is the same import, and must not be read as "none".
+test("instructionTargets: `@../AGENTS.md` in .claude/CLAUDE.md is an import of the root AGENTS.md", () => {
+  const proj = mkdtempSync(join(tmpdir(), "wp-shared4b-"));
+  mkdirSync(join(proj, ".claude"), { recursive: true });
+  writeFileSync(join(proj, "AGENTS.md"), "# agents\n", "utf8");
+  writeFileSync(join(proj, ".claude", "CLAUDE.md"), "@../AGENTS.md\n", "utf8");
+  assert.deepEqual(instructionTargets(proj), ["AGENTS.md"]);
 });
 
 test("instructionTargets: an own file with no import keeps today's behaviour (both targets)", () => {
