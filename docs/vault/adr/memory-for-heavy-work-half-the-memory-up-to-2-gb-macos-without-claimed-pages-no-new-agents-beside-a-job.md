@@ -114,10 +114,15 @@ Decision 3 already carries one.
    (`inactive_file` in v2 `memory.stat`, `total_inactive_file` in v1), as the
    kubelet computes a working set. Page cache left by a clone or an install
    does not refuse a job forever.
-5. **Linux: the job is the OOM killer's first choice.** `waypost run
-   --heavy` raises `/proc/self/oom_score_adj` to 1000 before it spawns the
-   job; the job and everything it starts inherit it. Raising needs no
-   privilege. If memory runs out anyway, the build dies, not the harness.
+5. **Linux: the job is the OOM killer's first choice, in a scope of its
+   own.** `waypost run --heavy` raises `/proc/self/oom_score_adj` to 1000
+   before it spawns the job; the job and everything it starts inherit it.
+   Raising needs no privilege. Under a reachable systemd user manager it
+   starts the job through `systemd-run --user --scope --collect`, so the unit
+   systemd stops after an OOM kill is the job's, not the harness's; a probe
+   decides, and without a manager the job runs as before. If memory runs out
+   anyway, the build dies, not the harness. (Owner, 2026-10-13, after the
+   Linux VM pass in Verification.)
 6. **No agents beside a heavy job, in either order.** The routing block's
    rule becomes "Heavy work: `waypost run --heavy -- <cmd>`; no agents beside
    it." (block v3). `prompts/heavy.md` step 6 gives the reason: let the
@@ -209,7 +214,11 @@ heavy job, Waypost's own `npm test` included, for over half an hour.
 - `systemd-run --user --scope` is not everywhere; more moving parts
 
 **Rejected because**: the owner chose `oom_score_adj` alone; revisit if the
-next kill log shows systemd-oomd.
+next kill log shows systemd-oomd. **Revisited 2026-10-13 and taken into
+Decision 5** for a reason this entry did not foresee: the 2026-09-27 kill log
+shows the kernel OOM killer, and systemd's `DefaultOOMPolicy=stop` stopping
+the scope the victim shared with the harness. "Not everywhere" is handled by
+the probe: no user manager, no scope.
 
 ### Only the rule, no rule, or "no new agents during it"
 
@@ -227,8 +236,8 @@ order.
   memory
 - a Mac at warning with 2.7 GB available takes one 2 GB job, not two, and
   none under critical pressure
-- on Linux an OOM kill takes the build — and, per Verification, the session
-  survives only where the job does not share a systemd unit with it
+- on Linux an OOM kill takes the build, and the session survives —
+  verified on the VM under a systemd user manager (Verification)
 
 **Negative / trade-offs**:
 - with two jobs running, the reserve counts the first one's memory twice
@@ -250,11 +259,11 @@ order.
 - `scripts/capacity.mjs`: `JOB_MEMORY_DIVISOR` 2, the holder reserve in
   `canStart`, the pressure-level formula, the inactive-file subtraction, the
   critical-pressure reason
-- `bin/waypost` `runHeavy`: `oom_score_adj` on Linux
+- `bin/waypost` `runHeavy`: `oom_score_adj` and the job's own scope on Linux
 - `templates/agents-block.md.tmpl`, `AGENT_BLOCK_VERSION` 3, `AGENTS.md`;
   `prompts/heavy.md` step 6
 - tests: `tests/capacity.test.mjs` on the measured Mac and VM figures,
-  `tests/slots.test.mjs` for `oom_score_adj` (Linux only),
+  `tests/slots.test.mjs` for `oom_score_adj` and the scope (Linux only),
   `tests/harness.test.mjs` for the rule
 
 ## Verification

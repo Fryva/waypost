@@ -3173,12 +3173,21 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
 // both. Nothing on this whole path may call fail() or readConfig() (both
 // call process.exit): a bug in the cleanup must never take the wrapped
 // command's own already-decided exit status down with it.
+// A probe, not a guess from XDG_RUNTIME_DIR: systemd-run fails the same way
+// (exit 1) for an unreachable manager and for a command that exits 1, so the
+// choice is made before the job starts.
+function ownScopeAvailable(env) {
+  const r = spawnSync("systemd-run", ["--user", "--scope", "--quiet", "--collect", "--", "true"], { stdio: "ignore", timeout: 5000, env });
+  return r.status === 0;
+}
+
 async function runHeavy(argv, claim, where, mods) {
   try { setPriority(osConstants.priority.PRIORITY_BELOW_NORMAL); }
   catch { /* best-effort: a restricted sandbox must not block the run */ }
   // Linux: if memory runs out anyway, the kernel's OOM killer takes this job
   // first, not the harness beside it (ADR "Memory for heavy work: half the
-  // memory up to 2 GB, …"). Inherited across fork and exec; raising needs no
+  // memory up to 2 GB, …"; the job's own scope below keeps systemd from
+  // taking the harness down with it). Inherited across fork and exec; raising needs no
   // privilege, lowering would, so a higher value already set is left alone.
   if (process.platform === "linux") {
     try {
@@ -3202,8 +3211,19 @@ async function runHeavy(argv, claim, where, mods) {
   if (INHERITED_HARNESS === undefined) delete childEnv.WAYPOST_HARNESS;
   if (INHERITED_PROC === undefined) delete childEnv.WAYPOST_PROC;
 
-  const [cmd, ...cmdArgs] = argv;
+  let [cmd, ...cmdArgs] = argv;
   const useShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(cmd);
+  // Linux under a systemd user manager: the job gets a scope of its own. The
+  // OOM killer's victim is only half of it — systemd then stops the whole
+  // unit the victim sat in (DefaultOOMPolicy=stop), and that unit is the
+  // harness's own app scope when the job runs in it: the 2026-09-27 VM
+  // incident, reproduced 2026-10-13. `--scope` execs the command in place, so
+  // its pid, signals, environment and exit status stay this child's. Without
+  // a reachable user manager the command runs as before.
+  if (process.platform === "linux" && ownScopeAvailable(childEnv)) {
+    cmdArgs = ["--user", "--scope", "--quiet", "--collect", "--", cmd, ...cmdArgs];
+    cmd = "systemd-run";
+  }
 
   // A signal THIS wrapper itself caught — set the moment it arrives, so a
   // tool that traps Ctrl-C and exits 130 on its own terms (never actually

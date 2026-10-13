@@ -485,6 +485,35 @@ test("run --heavy: on Linux the job is the OOM killer's first choice, not the ha
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
+const CGROUP_OF_CHILD = "process.stdout.write(require('fs').readFileSync('/proc/self/cgroup','utf8'))";
+
+test("run --heavy: under a systemd user manager the job sits in a scope of its own, not the caller's", { skip: process.platform !== "linux" }, (t) => {
+  if (spawnSync("systemd-run", ["--user", "--scope", "--quiet", "--collect", "--", "true"], { stdio: "ignore" }).status !== 0) {
+    return t.skip("no reachable systemd user manager");
+  }
+  const home = tmpHome();
+  try {
+    const r = runCli(["run", "--heavy", "--", "node", "-e", CGROUP_OF_CHILD], heavyEnv(home));
+    assert.equal(r.status, 0, r.stderr);
+    assert.notEqual(r.stdout.trim(), readFileSync("/proc/self/cgroup", "utf8").trim());
+    assert.match(r.stdout.trim(), /\.scope$/);
+    const exit = runCli(["run", "--heavy", "--", "node", "-e", "process.exit(3)"], heavyEnv(home));
+    assert.equal(exit.status, 3, "the command's own exit status, not systemd-run's");
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("run --heavy: without systemd-run the job runs where it was started", { skip: process.platform !== "linux" }, () => {
+  const home = tmpHome();
+  try {
+    // An empty directory: node's own may be /bin, which holds systemd-run too.
+    const bare = join(home, "bare-path");
+    mkdirSync(bare);
+    const r = runCli(["run", "--heavy", "--", process.execPath, "-e", CGROUP_OF_CHILD], heavyEnv(home, { PATH: bare }));
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout.trim(), readFileSync("/proc/self/cgroup", "utf8").trim());
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
 // ─── the command runs: exit codes, priority, cleanup ──────────────────────
 
 test("run --heavy: the record carries the value a later epoch mismatch is checked against (WP-18)", () => {
