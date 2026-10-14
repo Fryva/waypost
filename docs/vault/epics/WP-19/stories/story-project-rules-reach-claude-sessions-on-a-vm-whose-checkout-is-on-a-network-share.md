@@ -82,6 +82,10 @@ skips writing the block where it would land. The title predates this finding.
   case, a root `CLAUDE.md` importing `@../AGENTS.md`, fenced and commented
   examples, the two-file layout, and `doctor` report plus `--fix`; red with
   the change reverted, green with it.
+- 2026-10-14, `FROSTBEBE`: after a restart the resumed Claude desktop session
+  received `AGENTS.md` in full through `.claude/CLAUDE.md` = `@../AGENTS.md`
+  (and the local `~/.claude/CLAUDE.md`); before the fix it showed the
+  `@AGENTS.md` line unexpanded. The checkout is on `Y:` (`\\Mac\frost`).
 
 ## Dependencies
 

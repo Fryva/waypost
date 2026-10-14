@@ -157,8 +157,12 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
         claim was proven on 2026-10-13/14 by
         `story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app`
         (terminal ↔ Claude app ↔ Codex app, exit 75 each way measured).
-      - [ ] Windows, after a restart — **by a real restart, 2026-09-17, and
-        not yet a pass.** A running holder's record survived the restart
+      - [x] Windows, after a restart — **passed by a second real restart,
+        2026-10-14** (evidence in
+        `story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app`:
+        a dead holder and a pid-4 plant both freed at uptime 58 s, the plant by
+        the uptime rule, the next claim exit 0). The first one, 2026-09-17, was
+        **not a pass:** A running holder's record survived the restart
         (unlike Linux, a clean Windows restart does not let the wrapper
         release it) and was pruned correctly, its pid being dead. A planted
         previous-boot record naming a process that exists again (pid 4) was
@@ -1037,6 +1041,18 @@ What this does not yet have: a second real restart, to watch the rule work on
 records the machine itself wrote rather than on the same numbers replayed
 through real probes. That is one restart away, and it is what would let the
 "after a restart the slot is free" criterion be ticked for Windows.
+- 2026-10-14, the second real Windows restart on `FROSTBEBE`, staged from the
+  owner's terminal after `7756d62`: a live holder `11920-1791947260347-azeh1p`
+  (`run --heavy`, claimed at uptime 82 114 s) and a plant
+  `4-1791947311463-plant` (pid 4 / System, the holder's own boot, uptime and
+  authority), both in `~/.local/state/waypost/slots.FROSTBEBE`; snapshot in
+  `~/.local/state/waypost-restart-test/pre-restart.json`. After an ordinary
+  Restart, at uptime 58 s, from a normal PowerShell
+  (`post-restart.ps1`, log beside it): both records still on disk;
+  `capacity --json` (read-only, 1822 ms) "holders": 0 — the holder settled by
+  its dead pid, the plant, whose pid 4 is alive again, by the uptime rule
+  (82 114 > 58); `run --heavy` with the memory probe fixed ran, exit 0, and
+  pruned both records.
 
 ## Dependencies
 

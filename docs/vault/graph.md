@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-14T02:49:36.390Z
+generated_at: 2026-10-14T03:13:39.060Z
 
 ---
 
@@ -79,7 +79,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md | Capacity verified on Linux and Windows virtual machines | story | in-progress |
 | epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable.md | Cleanup tests prove a live holder on Windows: fixtures record the comm tasklist reports, and the fake clean tool is a real executable | story | done |
 | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md | The heavy-work rule in every project, and Waypost's own heavy work | story | done |
-| epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app.md | The heavy-work slot is machine-wide on Windows, not one per packaged app | story | in-progress |
+| epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app.md | The heavy-work slot is machine-wide on Windows, not one per packaged app | story | done |
 | epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os.md | waypost capacity: the machine's real free resources, measured by each OS | story | done |
 | epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work.md | waypost run --heavy: a machine-wide slot for heavy work | story | done |
 | epics/WP-19/epic.md | The process layer on any host, and honest harness detection | epic | planned |

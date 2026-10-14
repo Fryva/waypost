@@ -3,7 +3,7 @@ type: story
 id: "story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app"
 epic: "WP-18"
 title: "The heavy-work slot is machine-wide on Windows, not one per packaged app"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-10-13
@@ -13,7 +13,7 @@ tags: []
 code_refs: []
 specs: []
 started_at: "2026-10-14T02:48:32.505Z"
-closed_at: null
+closed_at: "2026-10-14T03:13:35.371Z"
 plan_updated_at: "2026-10-14T02:48:32.505Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-10-14T02:48:32.505Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-18](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -67,7 +67,8 @@ not see each other, the case the slot exists for.
       `claude-desktop` throughout); its slot-sharing result held inside the
       Claude package only and is annotated there; CPU, liveness, priority,
       sleep and restart results are unaffected.
-- [ ] Then re-stage the second real Windows restart from the owner's terminal.
+- [x] Then re-stage the second real Windows restart from the owner's terminal
+      — 2026-10-14, passed (Technical Notes).
 
 ## Implementation Plan
 
@@ -167,8 +168,20 @@ and legacy slot reads are for one release: their removal is a follow-up.
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Waypost's machine state — heavy-work slots, the run budget, the cleanup limit,
+the machine profile — now lives in one root, `~/.local/state/waypost`, on every
+OS, from the home directory alone. On Windows the old `%LOCALAPPDATA%\Waypost`
+was virtualized per MSIX package, so the Claude app, the Codex app and a
+terminal each had their own "machine-wide" slot. The first command after the
+upgrade moves every old root, per file and fail-closed for the run budget
+(`scripts/state-migrate.mjs`); old slot directories stay readable for one
+release. Live on `FROSTBEBE`: a slot held from any of terminal, Claude app and
+Codex app refuses `run --heavy` from the others (exit 75), and after a real
+restart both a dead holder and a planted pid-4 record are freed. Tests:
+`tests/state-migrate.test.mjs` and the updated suites; five code critic
+passes. Risks and follow-ups: tombstones and legacy slot reads to remove in a
+later release; the Codex sandbox cannot reach a checkout on a network share;
+an unlistable `Packages` refuses the budget until a full view has checked.
 
 ## Technical Notes
 
@@ -253,6 +266,18 @@ and legacy slot reads are for one release: their removal is a follow-up.
   from inside Codex listed the terminal's holder and refused `run --heavy` with
   exit 75. Limitation, not this story's: Codex cannot work on a checkout that
   lives on a network share from inside its Windows sandbox.
+- 2026-10-14, the second real Windows restart on `FROSTBEBE`, staged from the
+  owner's terminal after `7756d62`: a live holder `11920-1791947260347-azeh1p`
+  (`run --heavy`, claimed at uptime 82 114 s) and a plant
+  `4-1791947311463-plant` (pid 4 / System, the holder's own boot, uptime and
+  authority), both in `~/.local/state/waypost/slots.FROSTBEBE`; snapshot in
+  `~/.local/state/waypost-restart-test/pre-restart.json`. After an ordinary
+  Restart, at uptime 58 s, from a normal PowerShell
+  (`post-restart.ps1`, log beside it): both records still on disk;
+  `capacity --json` (read-only, 1822 ms) "holders": 0 — the holder settled by
+  its dead pid, the plant, whose pid 4 is alive again, by the uptime rule
+  (82 114 > 58); `run --heavy` with the memory probe fixed ran, exit 0, and
+  pruned both records.
 
 ## Dependencies
 
