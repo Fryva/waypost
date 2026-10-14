@@ -3470,11 +3470,12 @@ VAULT
 WORKING IN SEVERAL HARNESSES AT ONCE
   commit -m "<what>"       commit with the trailers that say which harness,
                            session, OS and story it came from [--story <id>]
+                           [--task <id>: an external tracker's task id, repeatable]
                            [--all: everything not ignored | --tracked]
                            [--dry-run] [-- <paths>]
   merge <ref>              merge, re-derive the views, then commit — so the
                            board in the merge commit matches the merged vault
-  log [--story|--harness|--provider|--session|--os <v>]
+  log [--story|--task|--harness|--provider|--session|--os <v>]
                            the history, read back through those trailers
                            (--os takes darwin, linux or win32, not "macos")
   sessions --claim <story> tell the other live sessions what you are on

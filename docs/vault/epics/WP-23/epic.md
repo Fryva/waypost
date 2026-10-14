@@ -8,7 +8,7 @@ created: 2026-10-14
 updated: 2026-10-14
 external_refs: {}
 tags: []
-code_refs: []
+code_refs: ["scripts/commit.mjs", "bin/waypost.mjs", "tests/commits.test.mjs", "AGENTS.md", "CHANGELOG.md"]
 review_status: pending
 reviewed_at: null
 ---

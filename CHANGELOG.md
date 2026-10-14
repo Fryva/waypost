@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `waypost commit --task <id>` writes a `Waypost-Task: <id>` trailer for an external tracker's task id (YouTrack, Jira, Linear…), with or without a vault; it is never looked up, only checked for shape, and may repeat. `waypost log --task <id>` matches it exactly and shows it; `--json` carries `tasks`. `--story` still rejects an id the vault does not know (ADR-0006). An older CLI ignores `--task` silently.
+
 ### Changed
 
 - The dispatcher itself no longer links the team code; `story --write` loads it lazily. A syntax error in team work in progress can no longer break `run --heavy`, `capacity`, `size`, `clean`, `profile`, `help` or `version`; commands that run `doctor`, `reconcile`, `sessions`, `commit`, `brief`, `ready` or `status` still load it in their own process. The CLI entry moved to `bin/waypost.mjs` so extension-based tools (a code index) see it; `bin/waypost` stays as a small shim, and every path that invokes it is unchanged.

@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-14T22:39:44.197Z
+generated_at: 2026-10-14T23:03:08.446Z
 
 ---
 
@@ -27,7 +27,6 @@ generated_at: 2026-10-14T22:39:44.197Z
 - [ ] [[epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not|WP-22: Global rules reach every installed harness, and doctor refuses a machine where they do not]] #p2
 - [ ] [[epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source|WP-22: The owner's global files on every machine migrate into the one source]] #p2 #blocked
 - [ ] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2
-- [ ] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2
 - [ ] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2
 - [ ] [[epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool|WP-23: README opens a path for working alone, in one tool]] #p2 #blocked
 
@@ -78,6 +77,7 @@ generated_at: 2026-10-14T22:39:44.197Z
 - [x] [[epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host|WP-19: ps in the C locale, so the process table exists on any host]] #p1 #done
 - [x] [[epics/WP-19/stories/story-an-empty-team-authority-on-a-network-share-does-not-block-commits-from-another-machine|WP-19: An empty team authority on a network share does not block commits from another machine]] #p2 #done
 - [x] [[epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees|WP-21: The team code loads only for story --write, and the CLI entry is an .mjs the code index sees]] #p2 #done
+- [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 
 
 

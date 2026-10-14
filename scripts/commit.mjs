@@ -16,6 +16,9 @@
 //   Waypost-OS:       darwin-27      the operating system it was made on: platform and
 //                                kernel major (ADR record-the-operating-system-...)
 //   Waypost-Story:    PS-1/story-x   the story it serves, when it serves one
+//   Waypost-Task:     PROJ-123       an external tracker's task id (YouTrack, Jira…),
+//                                never looked up — the vault story stays the checked
+//                                reference (ADR solo-entry-without-a-profile-...)
 //   Waypost-Provider: kimi           which model provider produced it, when the
 //                                harness is pointed at one (DeepSeek, Kimi,
 //                                GLM, MiniMax, DashScope…): the same harness
@@ -33,10 +36,10 @@
 // --no-commit, reconciling, then committing puts the correct board in the merge
 // commit itself instead of in a follow-up nobody remembers to make.
 //
-// CLI: node commit.mjs -m <msg> [--story <path|id>] [--all] [--force]
+// CLI: node commit.mjs -m <msg> [--story <path|id>] [--task <id>]… [--all] [--force]
 //                      [--all | --tracked] [--dry-run] [--no-reconcile] [-- <pathspec>…]
 //      node commit.mjs --merge <ref> [-m <msg>]
-//      node commit.mjs --log [--story <id>] [--session <id>] [--harness <id>]
+//      node commit.mjs --log [--story <id>] [--task <id>] [--session <id>] [--harness <id>]
 //                            [--provider <id>] [--os <text>] [-n <count>]
 
 import { withTeamCommitGate } from './team-legacy.mjs';
@@ -110,13 +113,33 @@ export function storyPathOf(ref, cfg) {
   return storyPathOfLib(ref, cfg && cfg.vault_path);
 }
 
-export function composeMessage(subject, { harness: h, session, os, story, provider, coauthor }) {
+// An external task id is not looked up anywhere, so its shape is the whole check:
+// an allowlist, which also keeps out the \x1f `log` splits its fields on.
+export const TASK_ID = /^[A-Za-z0-9][A-Za-z0-9._#/-]{0,63}$/;
+
+// Every `--task <id>`, in order; a missing value, a flag in its place or an id
+// outside TASK_ID is an error rather than a commit that silently lacks it.
+export function taskIds(args) {
+  const ids = [];
+  args.forEach((a, i) => {
+    if (a.startsWith("--task=")) throw new Error("--task takes a task id as the next argument: --task PROJ-123");
+    if (a !== "--task") return;
+    const v = args[i + 1];
+    if (v === undefined || v.startsWith("-")) throw new Error("--task takes a task id, e.g. --task PROJ-123");
+    if (!TASK_ID.test(v)) throw new Error(`"${v}" is not a task id: letters, digits and . _ # / -, up to 64 characters`);
+    if (!ids.includes(v)) ids.push(v);
+  });
+  return ids;
+}
+
+export function composeMessage(subject, { harness: h, session, os, story, tasks = [], provider, coauthor }) {
   const trailers = [
     `Waypost-Harness: ${h}`,
     `Waypost-Session: ${session}`,
     ...(os ? [`Waypost-OS: ${os}`] : []),
     ...(provider ? [`Waypost-Provider: ${provider}`] : []),
     ...(story ? [`Waypost-Story: ${story}`] : []),
+    ...tasks.map((id) => `Waypost-Task: ${id}`),
     ...(coauthor ? [`Co-Authored-By: ${coauthor}`] : []),
   ];
   const body = subject.replace(/\s*$/, "");
@@ -205,6 +228,8 @@ function main() {
   if (opt("--story") && !story) {
     die(`no story matches "${opt("--story")}" in the vault — pass its path, or <epic>/<story-stem>`);
   }
+  let tasks;
+  try { tasks = taskIds(args); } catch (e) { die(e.message); }
 
   // Another live session on the same story is the multi-harness failure this
   // command exists to surface: two agents closing one story from two places.
@@ -265,7 +290,7 @@ function main() {
   }
 
   const message = composeMessage(subject, {
-    harness: h, session: self, os: osTag(), story, provider: detectProvider(),
+    harness: h, session: self, os: osTag(), story, tasks, provider: detectProvider(),
     coauthor: (cfg && cfg.commit && cfg.commit.coauthor) || process.env.WAYPOST_COAUTHOR || null,
   });
 
@@ -286,7 +311,7 @@ function main() {
   const sha = (git(["rev-parse", "--short", "HEAD"]).stdout || "").trim();
   const prov = detectProvider();
   process.stdout.write(`recorded ${sha}  harness=${h}${prov ? ` provider=${prov}` : ""} session=${self}`
-    + `${story ? ` story=${story}` : ""}\n`);
+    + `${story ? ` story=${story}` : ""}${tasks.length ? ` task=${tasks.join(",")}` : ""}\n`);
 }
 
 // Merge without committing, let the driver resolve the derived views, then
@@ -342,6 +367,7 @@ function pluginDir() {
 function log(argv) {
   const opt = (name) => { const i = argv.indexOf(name); return i === -1 ? null : argv[i + 1]; };
   const n = opt("-n") || "20";
+  const task = opt("--task");
   const filters = [
     ["Waypost-Story", opt("--story")],
     ["Waypost-Session", opt("--session")],
@@ -349,28 +375,32 @@ function log(argv) {
     ["Waypost-Provider", opt("--provider")],
     ["Waypost-OS", opt("--os")],
   ].filter(([, v]) => v);
-  const r = git(["log", `-n${Number(n) * (filters.length ? 20 : 1)}`,
+  const r = git(["log", `-n${Number(n) * (filters.length || task ? 20 : 1)}`,
     "--format=%h%x1f%an%x1f%ad%x1f%s%x1f%(trailers:key=Waypost-Harness,valueonly,separator=%x2c)"
     + "%x1f%(trailers:key=Waypost-Session,valueonly,separator=%x2c)%x1f%(trailers:key=Waypost-Story,valueonly,separator=%x2c)"
     + "%x1f%(trailers:key=Waypost-Provider,valueonly,separator=%x2c)"
-    + "%x1f%(trailers:key=Waypost-OS,valueonly,separator=%x2c)",
+    + "%x1f%(trailers:key=Waypost-OS,valueonly,separator=%x2c)"
+    + "%x1f%(trailers:key=Waypost-Task,valueonly,separator=%x2c)",
     "--date=short"]);
   if (!r || r.status !== 0) die("git log failed — is this a repository with commits?");
   const all = (r.stdout || "").split("\n").filter(Boolean).map((line) => {
-    const [sha, author, date, subject, harness, session, story, provider, os] = line.split("\x1f");
+    const [sha, author, date, subject, harness, session, story, provider, os, tasks] = line.split("\x1f");
     return { sha, author, date, subject, harness: harness.trim(), session: session.trim(),
-      story: story.trim(), provider: (provider || "").trim(), os: (os || "").trim() };
+      story: story.trim(), provider: (provider || "").trim(), os: (os || "").trim(),
+      tasks: (tasks || "").split(",").map((s) => s.trim()).filter(Boolean) };
   });
   const rows = all.filter((row) => filters.every(([k, v]) =>
     (k === "Waypost-Story" ? row.story
       : k === "Waypost-Session" ? row.session
-      : k === "Waypost-Provider" ? row.provider : k === "Waypost-OS" ? row.os : row.harness).includes(v)))
+      : k === "Waypost-Provider" ? row.provider : k === "Waypost-OS" ? row.os : row.harness).includes(v))
+    // A task id is matched exactly: PROJ-12 is not PROJ-123.
+    && (!task || row.tasks.includes(task)))
     .slice(0, Number(n));
 
   if (argv.includes("--json")) { process.stdout.write(JSON.stringify(rows, null, 2) + "\n"); return; }
   if (!rows.length) process.stdout.write("no commits match\n");
   for (const row of rows) {
-    const tag = [row.harness || "—", row.provider || null, row.os || null, row.story || null].filter(Boolean).join(" · ");
+    const tag = [row.harness || "—", row.provider || null, row.os || null, row.story || null, ...row.tasks].filter(Boolean).join(" · ");
     process.stdout.write(`${row.sha}  ${row.date}  ${(tag).padEnd(44)} ${row.subject}\n`);
   }
   // Counted over the latest commits before any filter: an untagged commit can never match a

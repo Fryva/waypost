@@ -60,9 +60,9 @@ Before analysing a task, planning, editing or running checks:
 | `waypost agents …` | roles: `list`/`show`/`install`/`uninstall`/`register`/`model` |
 | `waypost skills …` | Agent Skills: `install`/`list`/`uninstall`/`validate` — the bundled procedures as standard `SKILL.md`, in the directory each harness discovers |
 | `waypost harnesses` | which harnesses are supported, where roles land, how to invoke them |
-| `waypost commit -m "<what>"` | commit with harness/session/story trailers |
+| `waypost commit -m "<what>" [--task <id>]` | commit with harness/session/story trailers; `--task` adds an external tracker's id |
 | `waypost merge <ref>` | merge, re-derive the views, then commit |
-| `waypost log [--story\|--harness]` | history read back through those trailers |
+| `waypost log [--story\|--task\|--harness]` | history read back through those trailers |
 | `waypost sessions [--touch] [--claim/--release] [--prune [--older-than <span>]]` | active sessions and story claims |
 | `waypost watch` | stay live and see other devices' events |
 | `waypost lease <path…>` | announce the files you are editing right now |

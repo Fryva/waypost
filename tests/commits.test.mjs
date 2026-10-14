@@ -166,6 +166,35 @@ test("a story reference is resolved against the vault, so a typo cannot enter th
   assert.match(r.stderr, /no story matches/);
 });
 
+test("an external task id goes in its own Waypost-Task trailer, with or without a vault, and log matches it exactly", () => {
+  // No vault: a bare repository is enough for the trailer.
+  const bare = mkdtempSync(join(tmpdir(), "waypost-task-"));
+  git(bare, ["init", "-q", "-b", "main"]);
+  git(bare, ["config", "user.email", "t@example.com"]);
+  git(bare, ["config", "user.name", "T"]);
+  writeFileSync(join(bare, "a.txt"), "a\n"); git(bare, ["add", "-A"]);
+  waypost(bare, ["commit", "-m", "Bare", "--task", "PROJ-123"]);
+  assert.match(git(bare, ["log", "-1", "--format=%(trailers:key=Waypost-Task,valueonly)"]).stdout, /^PROJ-123$/m);
+
+  // A bound vault with no such story: the id is not looked up, and repeats stay separate lines.
+  const proj = repo();
+  writeFileSync(join(proj, "b.txt"), "b\n"); git(proj, ["add", "b.txt"]);
+  waypost(proj, ["commit", "-m", "Two tasks", "--task", "PROJ-123", "--task", "OPS-7"]);
+  const lines = git(proj, ["log", "-1", "--format=%(trailers:key=Waypost-Task,valueonly)"]).stdout.trim().split("\n");
+  assert.deepEqual(lines, ["PROJ-123", "OPS-7"]);
+
+  assert.match(waypost(proj, ["log", "--task", "PROJ-123"]).stdout, /Two tasks/);
+  assert.match(waypost(proj, ["log", "--task", "OPS-7"]).stdout, /Two tasks/);
+  assert.match(waypost(proj, ["log", "--task", "PROJ-12"]).stdout, /no commits match/, "PROJ-12 is not PROJ-123");
+
+  for (const bad of [["--task", "a b"], ["--task", "X".repeat(65)], ["--task", "A\x1fB"], ["--task"], ["--task", "--all"], ["--task=PROJ-9"]]) {
+    writeFileSync(join(proj, "c.txt"), bad.join("|")); git(proj, ["add", "c.txt"]);
+    const r = waypost(proj, ["commit", "-m", "bad", ...bad], { expectFail: true });
+    assert.notEqual(r.status, 0, `${JSON.stringify(bad)} must be refused`);
+    assert.match(r.stderr, /task id/);
+  }
+});
+
 test("storyRefOf understands all three on-disk story shapes, and storyPathOf is its inverse (G-9)", () => {
   const vault = mkdtempSync(join(tmpdir(), "waypost-ref-"));
   const plain = join(vault, "epics", "E1", "stories", "s.md");
