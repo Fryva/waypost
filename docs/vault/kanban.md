@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-14T03:13:37.929Z
+generated_at: 2026-10-14T03:58:49.988Z
 
 ---
 
@@ -41,6 +41,7 @@ generated_at: 2026-10-14T03:13:37.929Z
 - [ ] [[epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness|WP-19: Codex keeps one session and direct installers see the running harness]] #p2
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
+- [ ] [[epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees|WP-21: The team code loads only for story --write, and the CLI entry is an .mjs the code index sees]] #p2
 
 ## Review
 
