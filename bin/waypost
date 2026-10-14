@@ -20,7 +20,7 @@ import { homedir, hostname, setPriority, uptime as osUptime, constants as osCons
 import {
   parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, sessionIdFlag, storyRefOf, expandHome,
   storedVaultPath, resolveVaultPath, bindingInfo, readConfig as readConfigLib, isLinkedWorktree, worktreeTag,
-  machineStateDir, askYesNo, readCleanupSetting, readLastAutoCleanup, REMOVING_DIR,
+  machineStateDir, legacyStateDirs, legacyDirsToMove, ensureMachineStateDir, accountStateDir, LIMIT_WRITER, stateWriteHint, askYesNo, readCleanupSetting, readLastAutoCleanup, REMOVING_DIR,
 } from "../scripts/lib.mjs";
 
 // Captured before main() (below) pins WAYPOST_SESSION_ID, WAYPOST_HARNESS and
@@ -1101,7 +1101,7 @@ async function handleSize(args) {
       presence = await import(SCRIPT_URL("presence"));
     } catch (e) { fail(`size --global: ${e.message}`); }
     const dir = slotsDir(presence);
-    mkdirSync(dir, { recursive: true });
+    try { ensureMachineStateDir(dir); } catch (e) { fail(`size --global: ${stateWriteHint(dir, e)}`); }
     const where = slotWhere(process.cwd());
     const claim = await claimSlot(dir, ["waypost", "size", "--global"], capacity, presence, where);
     if (!claim.ok) {
@@ -1882,8 +1882,7 @@ const APFS_FREE_SPACE_NOTE = "free space is read with fs.statfsSync; bavail excl
 const CLEAN_LOG_ROTATE_BYTES = 1024 * 1024;
 
 function appendCleanLog(host, line) {
-  const dir = machineStateDir();
-  mkdirSync(dir, { recursive: true });
+  const dir = ensureMachineStateDir();
   const file = join(dir, `cleanup.${host}.jsonl`);
   try {
     if (statSync(file).size >= CLEAN_LOG_ROTATE_BYTES) renameSync(file, `${file}.1`);
@@ -2270,11 +2269,11 @@ async function handleCleanLimit(rawValue, mods, json, now) {
   };
   const setAt = new Date(now).toISOString();
   const settingRec = {
-    v: 1, host, limit: parsed, set_at: setAt, change, previous: currentLimit,
+    v: 1, host, limit: parsed, set_at: setAt, change, previous: currentLimit, written_by: LIMIT_WRITER,
     gate: gateInfo, by: { session: process.env.WAYPOST_SESSION_ID || null },
   };
   try {
-    mkdirSync(machineStateDir(), { recursive: true });
+    ensureMachineStateDir();
     writeFileAtomic(join(machineStateDir(), `cleanup-limit.${host}.json`), JSON.stringify(settingRec, null, 2) + "\n");
   } catch (e) { fail(`clean --limit: could not write the setting: ${e.message}`); }
 
@@ -2632,7 +2631,7 @@ async function handleCapacity(args) {
 
   const dir = slotsDir(presence);
   let holders;
-  try { holders = capacity.readHolders({ dir, authority: bootAuthority(capacity) }); }
+  try { holders = capacity.readHolders({ dir, dirs: legacySlotsDirs(presence), authority: bootAuthority(capacity) }); }
   catch { holders = { live: [], stale: [] }; }
 
   let m;
@@ -2676,7 +2675,8 @@ async function handleCapacityRelease(capacity, presence, id, force, json) {
   // separator and no dot, so --release can never reach a file outside it.
   if (!/^[A-Za-z0-9_-]+$/.test(String(id))) fail(`capacity --release: "${id}" is not a slot id`);
   const dir = slotsDir(presence);
-  const file = join(dir, `${id}.json`);
+  const file = [dir, ...legacySlotsDirs(presence)].map((d) => join(d, `${id}.json`)).find((p) => existsSync(p))
+    || join(dir, `${id}.json`);
   if (!existsSync(file)) fail(`capacity --release: no such holder "${id}"`);
   let rec;
   try { rec = JSON.parse(readFileSync(file, "utf8")); }
@@ -2703,6 +2703,14 @@ async function handleCapacityRelease(capacity, presence, id, force, json) {
 // (readHolders, slotLive, bootIdentity) only ever reads it.
 function slotsDir(presence) {
   return join(machineStateDir(), `slots.${presence.hostSlug()}`);
+}
+
+// The slot directories older versions kept under their state roots — on
+// Windows one per packaged harness. Read beside slotsDir() for one release, so
+// a heavy job an older Waypost still holds keeps refusing the next one; new
+// claims and the lock always go to slotsDir().
+function legacySlotsDirs(presence) {
+  return legacyStateDirs().map((d) => join(d, `slots.${presence.hostSlug()}`)).filter((d) => existsSync(d));
 }
 
 const EX_TEMPFAIL = 75; // sysexits.h: temporary failure, safe to retry
@@ -2799,7 +2807,7 @@ async function claimSlot(dir, argv, capacity, presence, where = null) {
     return { ok: false, reason: "the slot lock is busy — another `waypost run --heavy` is claiming right now" };
   }
   try {
-    const holders = capacity.readHolders({ dir, authority: bootAuthority(capacity) });
+    const holders = capacity.readHolders({ dir, dirs: legacySlotsDirs(presence), authority: bootAuthority(capacity) });
     for (const rec of holders.stale) { try { unlinkSync(rec.file); } catch {} }
     const m = await capacity.measure({ holders: holders.live, env: process.env });
     warnIfProbed(m);
@@ -3043,7 +3051,7 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
       return void logAndReportAuto(finish("skipped", "the git directory is on another filesystem", { adopted }), host);
     }
 
-    const holdersNow = capacity.readHolders({ dir: slotsDir(presence), authority: bootAuthority(capacity) });
+    const holdersNow = capacity.readHolders({ dir: slotsDir(presence), dirs: legacySlotsDirs(presence), authority: bootAuthority(capacity) });
     const blocking = capacity.blockingHolder(holdersNow.live, { self: claim.id, root, platform: process.platform, canon: safeRealpath });
     if (blocking) {
       return void logAndReportAuto(finish("skipped", `another heavy job overlaps this tree (${blocking.holder.id})`, { adopted }), host);
@@ -3127,11 +3135,12 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
     let freed = 0;
     let deadlineHit = false;
     let holderBlocked = null;
+    const oldSlots = legacySlotsDirs(presence);
     let i = 0;
     for (; i < eligible.length; i++) {
       if (freed >= need) break;
       if (Date.now() > deadline) { deadlineHit = true; break; }
-      const holders = capacity.readHolders({ dir: slotsDir(presence), authority: bootAuthority(capacity) });
+      const holders = capacity.readHolders({ dir: slotsDir(presence), dirs: oldSlots, authority: bootAuthority(capacity) });
       const hit = capacity.blockingHolder(holders.live, { self: claim.id, root, platform: process.platform, canon: safeRealpath });
       if (hit) { holderBlocked = hit; break; }
       const item = eligible[i];
@@ -3305,7 +3314,7 @@ async function handleRun(args) {
   } catch (e) { fail(`run --heavy: ${e.message}`); }
 
   const dir = slotsDir(presence);
-  mkdirSync(dir, { recursive: true });
+  try { ensureMachineStateDir(dir); } catch (e) { fail(`run --heavy: ${stateWriteHint(dir, e)}`); }
   const retryCmd = `waypost run --heavy -- ${argv.map(shellQuote).join(" ")}`;
   const deadline = waitMs != null ? Date.now() + waitMs : null;
   let lastPrinted = 0;
@@ -3663,6 +3672,45 @@ async function heartbeat(cmd) {
   } catch { /* presence is advisory; a command must never fail because of it */ }
 }
 
+// Machine state moved to one root on every OS (the global-rules ADR,
+// Decision 1). Whatever an older version left under its own root — on Windows
+// one per packaged harness — moves on the first command that finds it; a
+// failure is reported and retried next time, never fatal.
+async function migrateStateIfNeeded() {
+  // The suite's own children never move a developer's real state; a budget
+  // still waiting in an old root refuses on its own (run-budget.mjs), so
+  // leaving the move for later never opens anything.
+  if (process.env.WAYPOST_NO_STATE_MIGRATION === "1") return;
+  try {
+    // Only roots under this process's own home, or any when that home is the
+    // account's: a command run with HOME/USERPROFILE pointed elsewhere never
+    // carries the owner's real state there (lib.mjs legacyDirsToMove).
+    const from = legacyDirsToMove();
+    // A root with something to move that this process may not move: say why,
+    // and what to do — otherwise the budget refusal is a dead end.
+    const movable = new Set(from);
+    const all = legacyStateDirs();
+    const stuck = all.filter((d) => !movable.has(d));
+    if (stuck.length) {
+      const mig0 = await import(SCRIPT_URL("state-migrate"));
+      let account = null;
+      try { account = (await import("node:os")).userInfo().homedir; } catch {}
+      for (const d of stuck) {
+        if (!mig0.pendingEntries(d).length) continue;
+        process.stderr.write(`waypost: machine state: ${d} is not moved — this process's home (${homedir()}) is not the account's own (${account || "unknown"}). Run any waypost command as the account itself, or move its files into ${accountStateDir() || "the account's own ~/.local/state/waypost"} by hand.\n`);
+      }
+    }
+    if (!from.length) return;
+    const mig = await import(SCRIPT_URL("state-migrate"));
+    if (!from.some((d) => mig.pendingEntries(d).length)) return;
+    const [presence, capacity] = await Promise.all([import(SCRIPT_URL("presence")), import(SCRIPT_URL("capacity"))]);
+    const report = await mig.migrateMachineState({ to: machineStateDir(), from, deps: { presence, capacity } });
+    for (const line of report) process.stderr.write(`waypost: machine state: ${line}\n`);
+  } catch (e) {
+    process.stderr.write(`waypost: machine state: could not move it yet (${e.message}) — tried again next run\n`);
+  }
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   // The detached deleter's own entry point (spawnDeleter above), dispatched
@@ -3697,6 +3745,7 @@ async function main() {
   // pid is bin/waypost itself and differs on every invocation. Every child this
   // process spawns inherits both via `env: { ...process.env }`.
   const [cmd = "", ...rest] = args;
+  if (cmd && !["help", "--help", "-h", "version", "--version", "-v"].includes(cmd)) await migrateStateIfNeeded();
   // The harness process first (ADR-0007 amendment): the scripts this command
   // spawns beat as well, and from inside them the nearest ancestor is this very
   // process, gone the moment the command ends — and harness detection reads it

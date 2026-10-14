@@ -46,6 +46,7 @@ function heavyEnv(home, extra = {}) {
   return {
     ...ambientEnv(),
     HOME: home,
+    USERPROFILE: home,
     XDG_STATE_HOME: home,
     LOCALAPPDATA: home,
     WAYPOST_NO_BEAT: "1",

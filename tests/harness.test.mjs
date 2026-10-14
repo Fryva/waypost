@@ -90,7 +90,7 @@ function bound() {
 // only a symlink to the real `git` this step's own plumbing (gitCommonDir,
 // bind) needs. Without this, `setup` used to probe every real tool on the
 // machine running the suite and write a real machine.<host>.json under
-// ~/Library/Application Support/Waypost (or the Linux/Windows equivalent) —
+// ~/.local/state/waypost (one root on every OS) —
 // on macOS, /usr/bin/pip3 is a shim that can pop an install dialog. Mirrors
 // the pattern in tests/scripts.test.mjs.
 let _gitPath = null;
@@ -109,7 +109,7 @@ function hermeticDiscoveryEnv() {
   const home = mkdtempSync(join(tmpdir(), "waypost-h-home-"));
   const bin = mkdtempSync(join(tmpdir(), "waypost-h-bin-"));
   symlinkSync(realGitPath(), join(bin, "git"));
-  return { HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, ...withoutHarnessEvidence() };
+  return { HOME: home, USERPROFILE: home, XDG_STATE_HOME: home, LOCALAPPDATA: home, PATH: bin, ...withoutHarnessEvidence() };
 }
 
 // ─── role definitions ──────────────────────────────────────────────────
@@ -1788,7 +1788,7 @@ test("a leading --project expands `~` the same way `bind` does", () => {
   mkdirSync(target, { recursive: true });
   spawnSync("git", ["init", "-q"], { cwd: target });
   const r = spawnSync(process.execPath, [Waypost, "--project", "~/proj", "bind", join(target, "vault")], {
-    encoding: "utf8", env: { ...ambientEnv(), WAYPOST_HOME: REPO, HOME: fakeHome },
+    encoding: "utf8", env: { ...ambientEnv(), WAYPOST_HOME: REPO, HOME: fakeHome, USERPROFILE: fakeHome },
   });
   assert.equal(r.status, 0, r.stderr);
   assert.ok(existsSync(join(target, ".waypost", "projectstore.json")),

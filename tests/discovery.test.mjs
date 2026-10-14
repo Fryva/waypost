@@ -5,6 +5,8 @@
 // ever touches, probes or asks a real tool on the machine running the tests.
 //   node --test tests/discovery.test.mjs
 
+// Children spawned from this file never move a developer's real machine state.
+import "./env.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from "node:fs";
@@ -149,20 +151,19 @@ test("detectManifests: matches exact names and *.ext suffixes at the project roo
 
 // ─── machineStateDir / machineProfilePath / projectProfilePath ──────────
 
-test("machineStateDir resolves per OS from the injected platform and environment (re-exported from lib.mjs — one implementation)", () => {
+test("machineStateDir is one root from the home directory on every OS (re-exported from lib.mjs — one implementation)", () => {
   const home = join("HOME");
-  assert.equal(machineStateDir({ platform: "darwin", env: {}, home }), join(home, "Library", "Application Support", "Waypost"));
-  assert.equal(machineStateDir({ platform: "linux", env: {}, home }), join(home, ".local", "state", "waypost"));
-  assert.equal(machineStateDir({ platform: "linux", env: { XDG_STATE_HOME: join("XDG") }, home }), join("XDG", "waypost"));
-  assert.equal(machineStateDir({ platform: "win32", env: {}, home }), join(home, "AppData", "Local", "Waypost"));
-  assert.equal(machineStateDir({ platform: "win32", env: { LOCALAPPDATA: join("LAD") }, home }), join("LAD", "Waypost"));
+  for (const platform of ["darwin", "linux", "win32"]) {
+    assert.equal(machineStateDir({ platform, env: { XDG_STATE_HOME: join("XDG"), LOCALAPPDATA: join("LAD") }, home }),
+      join(home, ".local", "state", "waypost"), platform);
+  }
 });
 
 test("machineProfilePath and projectProfilePath: machine.<host>.json in the machine state directory, project.<host>.json under .waypost/state/", () => {
   const home = join("HOME");
   assert.equal(
     machineProfilePath({ platform: "darwin", env: {}, home, host: "h1" }),
-    join(home, "Library", "Application Support", "Waypost", "machine.h1.json"),
+    join(home, ".local", "state", "waypost", "machine.h1.json"),
   );
   assert.equal(
     projectProfilePath({ projectRoot: join("PROJ"), host: "h1" }),

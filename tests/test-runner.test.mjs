@@ -47,7 +47,7 @@ test("scripts/test.mjs: a busy machine refuses at once (exit 75) and never spawn
   try {
     const env = {
       ...ambientEnv(),
-      HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home,
+      HOME: home, USERPROFILE: home, XDG_STATE_HOME: home, LOCALAPPDATA: home,
       WAYPOST_NO_BEAT: "1",
       WAYPOST_HEAVY_WAIT: "", // never wait — refuse at once, deterministically
       // Zero idle cores: `run --heavy` refuses on the cpu check before it

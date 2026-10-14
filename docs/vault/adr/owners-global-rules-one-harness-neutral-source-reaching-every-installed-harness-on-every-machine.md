@@ -120,7 +120,8 @@ Harness facts ("documented" until load-tested here):
      with different content in two roots is a conflict: every copy is kept
      under `migrated-conflicts/`; for the run budget, live runs are refused
      until the owner sets it again; for the cleanup limit, the most
-     restrictive value wins. A run budget found anywhere but the new root
+     restrictive value wins (between copies older versions left — see the
+     2026-10-13 amendment below). A run budget found anywhere but the new root
      refuses live runs rather than reading as "no budget"; slots are read from
      every old root for one release. Existing files keep their host-name keys; new
      per-machine data is keyed by a machine id (`/etc/machine-id`,
@@ -303,6 +304,17 @@ Harness facts ("documented" until load-tested here):
    - `brief` prints one line with the value, its provenance, entrypoint and date;
    - a language change re-renders this machine's delivery points without the
      gate, through `brief`'s render path (drift skipped).
+
+### Amendment, 2026-10-13 — accepted by the owner 2026-10-14
+
+**The cleanup limit across the move.** Decision 1's "for the cleanup limit,
+the most restrictive value wins" applies between copies that older versions
+left behind. A limit written by this version (`written_by:
+"waypost-state-v2"`, set through `waypost clean --limit`) is the owner's
+latest explicit choice and wins over any older copy, a loosening or `off`
+included. Reason: applied on every read, the rule kept the owner from
+loosening a limit while an older copy survived the move, and the command
+reported success anyway (WP-18 story, fourth code critic pass, S-4).
 
 ## Rationale
 

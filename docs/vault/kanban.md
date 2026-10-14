@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-14T01:46:53.733Z
+generated_at: 2026-10-14T02:49:35.371Z
 
 ---
 
@@ -13,7 +13,6 @@ generated_at: 2026-10-14T01:46:53.733Z
 - [ ] [[epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt|WP-17: doctor and next surface build artifacts]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines|WP-17: Verified on Linux and Windows virtual machines]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains|WP-17: Detectors: superseded device support, unavailable simulators, duplicate toolchains]] #p2
-- [ ] [[epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app|WP-18: The heavy-work slot is machine-wide on Windows, not one per packaged app]] #p2
 - [ ] [[epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share|WP-19: Project rules reach Claude sessions on a VM whose checkout is on a network share]] #p2
 - [ ] [[epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery|WP-20: Addressed messages and verified harness delivery]] #p1 #blocked
 - [ ] [[epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover|WP-20: Assignments supervision and stronger-model handover]] #p1 #blocked
@@ -38,6 +37,7 @@ generated_at: 2026-10-14T01:46:53.733Z
 - [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
 - [ ] [[epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run|WP-17: The machine-wide limit: automatic cleanup at the end of a heavy run]] #p2
 - [ ] [[epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines|WP-18: Capacity verified on Linux and Windows virtual machines]] #p1
+- [ ] [[epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app|WP-18: The heavy-work slot is machine-wide on Windows, not one per packaged app]] #p2
 - [ ] [[epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here|WP-19: setup asked the filesystem alone about which harnesses a project uses]] #p1
 - [ ] [[epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness|WP-19: Codex keeps one session and direct installers see the running harness]] #p2
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
@@ -72,6 +72,7 @@ generated_at: 2026-10-14T01:46:53.733Z
 - [x] [[epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable|WP-18: Cleanup tests prove a live holder on Windows: fixtures record the comm tasklist reports, and the fake clean tool is a real executable]] #p2 #done
 - [x] [[epics/WP-18/stories/story-a-live-holder-started-through-a-differently-cased-path-still-reads-as-live-on-windows|WP-18: A live holder started through a differently cased path still reads as live on Windows]] #p2 #done
 - [x] [[epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host|WP-19: ps in the C locale, so the process table exists on any host]] #p1 #done
+- [x] [[epics/WP-19/stories/story-an-empty-team-authority-on-a-network-share-does-not-block-commits-from-another-machine|WP-19: An empty team authority on a network share does not block commits from another machine]] #p2 #done
 
 
 

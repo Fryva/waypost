@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-14T01:46:53.991Z
+generated_at: 2026-10-14T02:49:36.390Z
 
 ---
 
@@ -79,11 +79,12 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md | Capacity verified on Linux and Windows virtual machines | story | in-progress |
 | epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable.md | Cleanup tests prove a live holder on Windows: fixtures record the comm tasklist reports, and the fake clean tool is a real executable | story | done |
 | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md | The heavy-work rule in every project, and Waypost's own heavy work | story | done |
-| epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app.md | The heavy-work slot is machine-wide on Windows, not one per packaged app | story | planned |
+| epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app.md | The heavy-work slot is machine-wide on Windows, not one per packaged app | story | in-progress |
 | epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os.md | waypost capacity: the machine's real free resources, measured by each OS | story | done |
 | epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work.md | waypost run --heavy: a machine-wide slot for heavy work | story | done |
 | epics/WP-19/epic.md | The process layer on any host, and honest harness detection | epic | planned |
 | epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md | setup asked the filesystem alone about which harnesses a project uses | story | in-progress |
+| epics/WP-19/stories/story-an-empty-team-authority-on-a-network-share-does-not-block-commits-from-another-machine.md | An empty team authority on a network share does not block commits from another machine | story | done |
 | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md | Codex keeps one session and direct installers see the running harness | story | in-progress |
 | epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share.md | Project rules reach Claude sessions on a VM whose checkout is on a network share | story | planned |
 | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md | ps in the C locale, so the process table exists on any host | story | done |
@@ -250,10 +251,12 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md |
+| epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-an-empty-team-authority-on-a-network-share-does-not-block-commits-from-another-machine.md |
 | epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md |
 | epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share.md |
 | epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md |
 | epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md | mdlink | epics/WP-19/epic.md |
+| epics/WP-19/stories/story-an-empty-team-authority-on-a-network-share-does-not-block-commits-from-another-machine.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md | mdlink | epics/WP-19/epic.md |

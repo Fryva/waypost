@@ -5,6 +5,8 @@
 // checks, spec acceptance attribution, evidence/lifecycle gates, link
 // resolution, and the session registry.
 
+// Children spawned from this file never move a developer's real machine state.
+import "./env.mjs";
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync as fsMkdtemp, writeFileSync, mkdirSync, readFileSync, readdirSync, statSync, rmSync } from "node:fs";

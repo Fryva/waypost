@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -18,7 +18,7 @@ import {
   readCores, readBusy, readMemory, canStart, measure,
   CORES_PER_SLOT, JOB_CORE_DIVISOR, JOB_MEMORY_CAP, JOB_MEMORY_DIVISOR,
 } from "../scripts/capacity.mjs";
-import { machineStateDir } from "../scripts/lib.mjs";
+import { machineStateDir, legacyStateDirs } from "../scripts/lib.mjs";
 import { ambientEnv } from "./env.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -35,7 +35,7 @@ function tmpHome() {
 }
 
 function realRunEnv(home) {
-  return { ...ambientEnv(), WAYPOST_NO_BEAT: "1", HOME: home, XDG_STATE_HOME: home, LOCALAPPDATA: home };
+  return { ...ambientEnv(), WAYPOST_NO_BEAT: "1", HOME: home, USERPROFILE: home, XDG_STATE_HOME: home, LOCALAPPDATA: home };
 }
 
 // A fake `os`-shaped object. cpus() may be given as an array (returned every
@@ -68,29 +68,34 @@ function runFrom(map) {
 
 // ─── machineStateDir ─────────────────────────────────────────────────────
 
-test("machineStateDir: darwin", () => {
-  const p = machineStateDir({ platform: "darwin", env: {}, home: "/Users/x" });
-  assert.equal(p, join("/Users/x", "Library", "Application Support", "Waypost"));
+// One root on every OS, from the home directory alone (the global-rules ADR,
+// Decision 1): a packaged Windows harness sees a private copy of AppData, and
+// a GUI app never sees a shell's XDG_* variables — so neither is read.
+test("machineStateDir: ~/.local/state/waypost on every OS, whatever the environment says", () => {
+  for (const platform of ["darwin", "win32", "linux"]) {
+    const env = { LOCALAPPDATA: "C:\\elsewhere", XDG_STATE_HOME: "/elsewhere" };
+    assert.equal(machineStateDir({ platform, env, home: "/h" }), join("/h", ".local", "state", "waypost"), platform);
+  }
 });
 
-test("machineStateDir: win32 with LOCALAPPDATA", () => {
-  const p = machineStateDir({ platform: "win32", env: { LOCALAPPDATA: "C:\\Users\\x\\AppData\\Local" }, home: "C:\\Users\\x" });
-  assert.equal(p, join("C:\\Users\\x\\AppData\\Local", "Waypost"));
-});
-
-test("machineStateDir: win32 without LOCALAPPDATA falls back to home", () => {
-  const p = machineStateDir({ platform: "win32", env: {}, home: "C:\\Users\\x" });
-  assert.equal(p, join("C:\\Users\\x", "AppData", "Local", "Waypost"));
-});
-
-test("machineStateDir: linux with XDG_STATE_HOME", () => {
-  const p = machineStateDir({ platform: "linux", env: { XDG_STATE_HOME: "/custom/state" }, home: "/home/x" });
-  assert.equal(p, join("/custom/state", "waypost"));
-});
-
-test("machineStateDir: linux default", () => {
-  const p = machineStateDir({ platform: "linux", env: {}, home: "/home/x" });
-  assert.equal(p, join("/home/x", ".local", "state", "waypost"));
+test("legacyStateDirs: every old root that exists — each packaged app's copy on win32, XDG when set — never the new one", () => {
+  const home = mkdtempSync(join(tmpdir(), "wp-legacy-"));
+  try {
+    const local = join(home, "AppData", "Local");
+    const real = join(local, "Waypost");
+    const pkgA = join(local, "Packages", "Claude_x", "LocalCache", "Local", "Waypost");
+    const pkgB = join(local, "Packages", "OpenAI.Codex_y", "LocalCache", "Local", "Waypost");
+    for (const d of [real, pkgA, pkgB]) mkdirSync(d, { recursive: true });
+    mkdirSync(join(local, "Packages", "Other_z", "LocalCache", "Local"), { recursive: true }); // no Waypost: not listed
+    const win = legacyStateDirs({ platform: "win32", env: { LOCALAPPDATA: local }, home });
+    assert.deepEqual(new Set(win), new Set([real, pkgA, pkgB]));
+    const mac = join(home, "Library", "Application Support", "Waypost");
+    mkdirSync(mac, { recursive: true });
+    assert.deepEqual(legacyStateDirs({ platform: "darwin", env: {}, home }), [mac]);
+    // XDG pointing at the new root itself is not a legacy root.
+    mkdirSync(join(home, ".local", "state", "waypost"), { recursive: true });
+    assert.deepEqual(legacyStateDirs({ platform: "linux", env: { XDG_STATE_HOME: join(home, ".local", "state") }, home }), []);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
 // ─── readCores ───────────────────────────────────────────────────────────

@@ -6,6 +6,8 @@
 // wrote itself on a temp PATH, exactly the way tests/discovery.test.mjs does.
 //   node --test tests/toolchains.test.mjs
 
+// Children spawned from this file never move a developer's real machine state.
+import "./env.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, readdirSync, rmSync, realpathSync } from "node:fs";

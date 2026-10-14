@@ -13,7 +13,7 @@
 // Exports:
 //   findOnPath(name, { platform, env })                  -> absolute path | null
 //   detectManifests(entries, { projectRoot })             -> [{ id, name, manifest }]
-//   machineStateDir({ platform, env, home })              -> absolute dir (from ./lib.mjs — the
+//   machineStateDir({ home })                             -> absolute dir (from ./lib.mjs — the
 //                                                             one implementation capacity.mjs's
 //                                                             slot table already uses)
 //   machineProfilePath({ platform, env, home, host })     -> absolute path to machine.<host>.json

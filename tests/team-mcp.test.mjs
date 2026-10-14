@@ -1,3 +1,5 @@
+// Children spawned from this file never move a developer's real machine state.
+import "./env.mjs";
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough, Writable } from 'node:stream';

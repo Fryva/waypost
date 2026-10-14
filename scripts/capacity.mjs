@@ -501,9 +501,18 @@ export function slotLive(rec, {
 // split into live and stale by slotLive(). Read and compute only — a stale
 // record is reported, never removed; bin/waypost prunes under the lock, so
 // two readers racing here never delete a record the other still sees as live.
-export function readHolders({ dir, ...probes } = {}) {
-  let names = [];
-  try { names = readdirSync(dir); } catch { return { live: [], stale: [] }; }
+// `dirs` adds directories read the same way — for one release, the slot
+// directories earlier versions kept under older state roots (bin/waypost
+// legacySlotsDirs()), so an older Waypost's live holder still counts. A record
+// reached twice (one directory under two spellings) counts once.
+export function readHolders({ dir, dirs = [], ...probes } = {}) {
+  const files = [];
+  for (const d of [dir, ...dirs].filter(Boolean)) {
+    let names = [];
+    try { names = readdirSync(d); } catch { continue; }
+    for (const name of names) files.push([d, name]);
+  }
+  if (!files.length) return { live: [], stale: [] };
   const platform = probes.platform ?? process.platform;
   // No process table on win32 (presence.mjs's own probe returns null there);
   // slotLive() never consults `table` on that branch, so it is not worth a
@@ -517,12 +526,15 @@ export function readHolders({ dir, ...probes } = {}) {
   const uptimeNow = probes.uptimeNow ?? (probes.os || defaultOs()).uptime();
   const live = [];
   const stale = [];
-  for (const name of names) {
+  const ids = new Set();
+  for (const [d, name] of files) {
     if (!name.endsWith(".json")) continue; // skips .lock and any stray entry
-    const file = join(dir, name);
+    const file = join(d, name);
     let rec;
     try { rec = JSON.parse(readFileSync(file, "utf8")); } catch { continue; }
     if (!rec || !rec.id || !rec.proc) continue;
+    if (ids.has(rec.id)) continue;
+    ids.add(rec.id);
     const entry = { ...rec, file };
     (slotLive(rec, { ...probes, platform, table, bootNow, authority, uptimeNow }) ? live : stale).push(entry);
   }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Waypost keeps its machine state (heavy-work slots, the run budget, the cleanup limit, the machine profile) in `~/.local/state/waypost` on every OS, found from the home directory alone. On Windows the old `%LOCALAPPDATA%\Waypost` was one directory per packaged harness — the Claude and Codex apps each saw a private copy — so the "machine-wide" heavy-work slot and the run budget were not machine-wide; and a GUI app never saw a shell's `XDG_STATE_HOME`. The first command after upgrading moves whatever earlier versions left behind, from every old location; a run budget that is still in an old location refuses live runs until it has moved, and one found with two different contents refuses until the owner sets it again. Slot records an older Waypost still holds keep counting for this release (one way only: an older Waypost does not see a holder in the new location). A run budget's old copy is overwritten with a marker an older Waypost refuses, so a process still running the old code stops live runs instead of reading "no budget". A GUI app that never saw `XDG_STATE_HOME` cannot see a budget left there until a command run from a shell moves it. Inside a packaged Windows app (MSIX) the old `%LOCALAPPDATA%\Waypost` shows that app's own copy first, so a budget set from a terminal with an older version can stay hidden from it: run one waypost command from a terminal to finish the move. After upgrading, restart long-running Waypost processes (a team MCP server, a `team watch` loop) on every machine: one whose budget moved refuses with `run-budget-invalid`, and one that had no budget never sees a budget set afterwards.
+
 ### Fixed
 
 - `waypost commit`, `story plan` and `story close` work from a second machine that sees the checkout over a share (a VM on the host's disk), as long as no team was ever created: an empty team-authority directory the host left on its local disk no longer refuses as `authority-nonlocal`. One that holds a team still does.
