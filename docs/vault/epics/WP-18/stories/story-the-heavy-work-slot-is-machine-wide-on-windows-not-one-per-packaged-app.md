@@ -137,13 +137,30 @@ and legacy slot reads are for one release: their removal is a follow-up.
 
 ## Acceptance Criteria
 
-- [ ] A slot held from the Claude app refuses a heavy job from the Codex app
-      and from a terminal, and the other way round, on `FROSTBEBE`.
-- [ ] No Waypost machine state resolves under AppData.
-- [ ] After the upgrade the run budget, the cleanup limit and a live slot are
-      all still in force; a budget left only in the old root refuses live runs.
-- [ ] Hermetic tests for the move from two package-store fixtures, a
-      conflicting budget, the fallback and the AppData refusal.
+- [x] A slot held from the Claude app refuses a heavy job from the Codex app
+      and from a terminal, and the other way round, on `FROSTBEBE` — evidence
+      (2026-10-13/14, Technical Notes): a terminal holder refused `run --heavy`
+      from inside the Claude package (exit 75) and from inside the Codex app
+      (exit 75, holder `12324-1791946725233-qqm4ds` listed by `capacity`); a
+      slot claimed from inside the Claude package wrote its record to the same
+      `~/.local/state/waypost/slots.FROSTBEBE` the terminal and Codex read.
+      Codex needed `~/.local/state/waypost` as a writable root in its config.
+- [x] No Waypost machine state resolves under AppData — evidence:
+      `machineStateDir()` is `~/.local/state/waypost` on every OS
+      (`tests/capacity.test.mjs`, `tests/discovery.test.mjs`); `realpathSync.native`
+      of records written from inside the Claude package and from inside the
+      Codex app is `C:\Users\frost\.local\state\waypost\…`;
+      `ensureMachineStateDir()` refuses AppData and package stores
+      (`tests/state-migrate.test.mjs`).
+- [x] After the upgrade the run budget, the cleanup limit and a live slot are
+      all still in force; a budget left only in the old root refuses live runs
+      — evidence: `tests/state-migrate.test.mjs` (the first command moves the
+      budget and tombstones the old copy; a budget still in an old root
+      refuses; the stricter or the owner's latest limit is in force; a live
+      holder in an old slot directory refuses `run --heavy`).
+- [x] Hermetic tests for the move from two package-store fixtures, a
+      conflicting budget, the fallback and the AppData refusal — evidence:
+      `tests/state-migrate.test.mjs`, 40+ tests, green on `FROSTBEBE`.
 
 ## Final Summary
 
@@ -220,6 +237,19 @@ and legacy slot reads are for one release: their removal is a follow-up.
     unlistable `Packages` should not read as "no legacy roots" for the budget
     check; (c) the owner decides whether Codex gets `~/.local/state/waypost`
     and the checkout as writable roots.
+- 2026-10-14, the Codex app again, after the owner set `sandbox_mode =
+  "workspace-write"` with `writable_roots` (`~/.local/state/waypost` and the
+  checkout) and `network_access = true` in `~/.codex/config.toml` and
+  restarted it: `CODEX_PERMISSION_PROFILE` and `CODEX_SANDBOX_NETWORK_DISABLED`
+  are gone; writing inside `~/.local/state/waypost` works and lands at the real
+  path; `%LOCALAPPDATA%\Packages` is still EPERM. The checkout is still
+  unreachable: `Y:` does not exist inside the sandbox (ENOENT — the sandbox runs
+  as its own account, without the user's mapped drives) and `\\Mac\frost\…` is
+  EPERM — the Windows sandbox grants access through ACLs, which a Parallels
+  share does not take. A local copy of Waypost (bin, scripts, registries) run
+  from inside Codex listed the terminal's holder and refused `run --heavy` with
+  exit 75. Limitation, not this story's: Codex cannot work on a checkout that
+  lives on a network share from inside its Windows sandbox.
 
 ## Dependencies
 
