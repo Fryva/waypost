@@ -98,6 +98,17 @@ TEMP's casing on win32. A test-side expectation issue; product comparison
 (`treesOverlap`) already folds case on win32. Under the owner's user session
 TEMP is normally cased and the test passes.
 
+Fixed in d349c98: the test expects `realpathSync.native(proj)` for `root`
+(git's on-disk casing) and `realpathSync(proj)` for `cwd` (what bin/waypost
+records and blockingHolder canonicalises to). The product stays on JS
+`realpathSync`: `.native` turns a mapped drive (`Y:\…`) into its UNC path, and
+holders in a network-share checkout would stop matching. Verified the same day:
+slots.test.mjs whole, macOS 67/67 and the Windows 11 VM as SYSTEM, all pass.
+
+The same commit also put the case test back at top level: the partial staging
+of 8f71a63 had landed it inside "a failing tasklist falls back to signal-0 and
+the 24h cap alone" (still valid JS, so the run stayed green).
+
 ## Technical Notes
 
 <!-- Implementation hints, constraints, gotchas. -->
