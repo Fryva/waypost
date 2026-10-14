@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-13T23:48:31.099Z
+generated_at: 2026-10-14T01:39:42.851Z
 
 ---
 
@@ -13,7 +13,6 @@ generated_at: 2026-10-13T23:48:31.099Z
 - [ ] [[epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt|WP-17: doctor and next surface build artifacts]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines|WP-17: Verified on Linux and Windows virtual machines]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains|WP-17: Detectors: superseded device support, unavailable simulators, duplicate toolchains]] #p2
-- [ ] [[epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable|WP-18: Cleanup tests prove a live holder on Windows: fixtures record the comm tasklist reports, and the fake clean tool is a real executable]] #p2
 - [ ] [[epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app|WP-18: The heavy-work slot is machine-wide on Windows, not one per packaged app]] #p2
 - [ ] [[epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share|WP-19: Project rules reach Claude sessions on a VM whose checkout is on a network share]] #p2
 - [ ] [[epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery|WP-20: Addressed messages and verified harness delivery]] #p1 #blocked
@@ -70,6 +69,7 @@ generated_at: 2026-10-13T23:48:31.099Z
 - [x] [[epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work|WP-18: The heavy-work rule in every project, and Waypost's own heavy work]] #p1 #done
 - [x] [[epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os|WP-18: waypost capacity: the machine's real free resources, measured by each OS]] #p1 #done
 - [x] [[epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work|WP-18: waypost run --heavy: a machine-wide slot for heavy work]] #p1 #done
+- [x] [[epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable|WP-18: Cleanup tests prove a live holder on Windows: fixtures record the comm tasklist reports, and the fake clean tool is a real executable]] #p2 #done
 - [x] [[epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host|WP-19: ps in the C locale, so the process table exists on any host]] #p1 #done
 
 

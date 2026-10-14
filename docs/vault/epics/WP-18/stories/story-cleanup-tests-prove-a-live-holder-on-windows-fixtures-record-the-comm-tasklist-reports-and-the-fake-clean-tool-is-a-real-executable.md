@@ -3,17 +3,17 @@ type: story
 id: "story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable"
 epic: "WP-18"
 title: "Cleanup tests prove a live holder on Windows: fixtures record the comm tasklist reports, and the fake clean tool is a real executable"
-status: planned
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-10-13
-updated: 2026-10-13
+updated: 2026-10-14
 external_refs: {}
 tags: []
 code_refs: ["tests/limit.test.mjs", "tests/cleanup.test.mjs", "scripts/capacity.mjs", "bin/waypost"]
 specs: []
 started_at: null
-closed_at: null
+closed_at: "2026-10-14T01:39:42.294Z"
 plan_updated_at: null
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-18](../epic.md) |
-| **Status** | planned |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -58,7 +58,7 @@ Root cause — the fixtures, not the product:
 
 - [x] limit fixtures record `comm: basename(process.execPath)`, as `bin/waypost` does
 - [x] AC 3's fake tool is node linked as `faketool` (`faketool.exe` on win32) running a `.cjs` script; PATH joined with `path.delimiter`
-- [ ] run the seven tests on the Windows VM
+- [x] run the seven tests on the Windows VM — 10/10 pass at 6310615
 
 ## Implementation Plan
 
@@ -71,15 +71,25 @@ Root cause — the fixtures, not the product:
 <!-- How do we know we're done? Each criterion testable. Checked only with
      evidence at close: - [x] <criterion> — evidence: <test | command | file:line> -->
 
-- [ ] The five AC8 tests and the AC12 leftover test in `tests/limit.test.mjs` pass on Windows
-- [ ] "AC 3 (apply)" in `tests/cleanup.test.mjs` passes on Windows
+- [x] The five AC8 tests and the AC12 leftover test in `tests/limit.test.mjs` pass on Windows — evidence: Windows VM FROSTBEBE at 6310615, 2026-10-13, `node --test --test-name-pattern="AC8|AC12|AC 3 \(apply\)" tests/limit.test.mjs tests/cleanup.test.mjs` — 10 pass, 0 fail
+- [x] "AC 3 (apply)" in `tests/cleanup.test.mjs` passes on Windows — evidence: Windows VM FROSTBEBE at 6310615, 2026-10-13, `node --test --test-name-pattern="AC8|AC12|AC 3 \(apply\)" tests/limit.test.mjs tests/cleanup.test.mjs` — 10 pass, 0 fail
 - [x] Both files stay green on macOS — evidence: `node --test tests/limit.test.mjs tests/cleanup.test.mjs`, 2026-10-13, all pass
-- [ ] Both files green on Linux
+- [x] Both files green on Linux — evidence: Debian 13.6 ARM64 VM (Parallels), node 20.19.2, at 6310615, 2026-10-13, `node --test tests/limit.test.mjs tests/cleanup.test.mjs` — all pass
 
 ## Final Summary
 
 <!-- Written at the done gate (waypost story close): what changed, why,
      tests executed, risks and follow-ups. -->
+
+Fixture-only fix, committed in 6310615; no product code changed. The holder
+fixtures in `tests/limit.test.mjs` now record `comm: basename(process.execPath)`,
+the value `bin/waypost` itself writes, so the win32 `tasklist` comparison sees
+them as live. AC 3 in `tests/cleanup.test.mjs` uses node linked as `faketool`
+(`.exe` on win32) running a `.cjs` script, on a PATH joined with
+`path.delimiter`. Verified the same day on all three OSes: Windows VM (10/10
+of the targeted tests), macOS and a Debian ARM64 VM (both files whole).
+Follow-up left open: the win32 `comm` comparison is case-sensitive and
+`tasklist` truncates image names to 25 characters (see Technical Notes).
 
 ## Technical Notes
 
@@ -101,4 +111,4 @@ Root cause — the fixtures, not the product:
 
 ---
 
-*Last updated: 2026-10-13*
+*Last updated: 2026-10-14*
