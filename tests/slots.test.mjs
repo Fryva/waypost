@@ -187,7 +187,6 @@ test("slotLive: win32, tasklist reports a different image name -> stale", () => 
   assert.equal(slotLive(rec, { platform: "win32", bootNow: SAME_BOOT, kill: () => true, tasklist: () => "notepad.exe" }), false);
 });
 
-test("slotLive: win32, a failing tasklist falls back to signal-0 and the 24h cap alone", () => {
 test("slotLive: win32, an image name differing only in case is the same image -> live", () => {
   // Measured 2026-10-13: node started as ...\NODE.EXE records comm NODE.EXE,
   // and tasklist reports the same process as node.exe.
@@ -200,6 +199,7 @@ test("slotLive: win32, an image name differing only in case is the same image ->
     "a record with no comm still never matches a reported image");
 });
 
+test("slotLive: win32, a failing tasklist falls back to signal-0 and the 24h cap alone", () => {
   const rec = { host: "h", proc: { pid: 1, comm: "node.exe" }, boot: SAME_BOOT, started_at: new Date().toISOString() };
   assert.equal(slotLive(rec, { platform: "win32", bootNow: SAME_BOOT, kill: () => true, tasklist: () => null }), true);
   assert.equal(slotLive(rec, { platform: "win32", bootNow: SAME_BOOT, kill: () => false, tasklist: () => null }), false);
@@ -592,9 +592,12 @@ test("run --heavy: inside a repository, the record's root is the working tree's 
     });
     assert.equal(r.status, 0, r.stderr);
     const rec = JSON.parse(r.stdout);
-    const realProj = realpathSync(proj);
-    assert.equal(rec.root, realProj);
-    assert.equal(rec.cwd, realProj);
+    // root comes from git, so it is in the on-disk casing: .native, because on
+    // win32 the JS realpathSync keeps the casing it was given (TEMP is
+    // C:\WINDOWS\TEMP under SYSTEM). cwd is the JS realpath of process.cwd(),
+    // the form blockingHolder canonicalises to as well.
+    assert.equal(rec.root, realpathSync.native(proj));
+    assert.equal(rec.cwd, realpathSync(proj));
   } finally {
     rmSync(home, { recursive: true, force: true });
     rmSync(proj, { recursive: true, force: true });
