@@ -12,9 +12,9 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, readdirSync,
-  utimesSync, symlinkSync, chmodSync,
+  utimesSync, symlinkSync, chmodSync, linkSync, copyFileSync,
 } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, delimiter } from "node:path";
 import { tmpdir, homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -1205,11 +1205,20 @@ test("AC 2: git clean -X -d -f itself never removes a tracked file, whatever els
 
 // ─── AC 3: a shipped clean_argv route, and the tracked-file refusal ────────
 
-function fakeToolScript(binDir, name, script) {
-  const p = join(binDir, name);
-  writeFileSync(p, script, "utf8");
-  chmodSync(p, 0o755);
-  return binDir;
+// A real executable named `name` on every OS — node itself, linked under
+// that name (`name.exe` on win32, where an extensionless sh script is not
+// found through PATHEXT and a .cmd shim is refused by design) — plus the
+// script it runs. Returns the script path: clean_argv is [name, script].
+function fakeTool(binDir, name, body) {
+  const script = join(binDir, `${name}.cjs`);
+  writeFileSync(script, body, "utf8");
+  if (process.platform === "win32") {
+    const exe = join(binDir, `${name}.exe`);
+    try { linkSync(process.execPath, exe); } catch { copyFileSync(process.execPath, exe); }
+  } else {
+    symlinkSync(process.execPath, join(binDir, name));
+  }
+  return script;
 }
 
 test("AC 3 (apply): a shipped artifact's own clean_argv runs (with cwd at the manifest directory) and a marker proves it; force-added tracked content refuses instead, and the marker is never written", () => {
@@ -1217,7 +1226,9 @@ test("AC 3 (apply): a shipped artifact's own clean_argv runs (with cwd at the ma
   // cwd is the manifest directory (the item's own parent, i.e. the project
   // root here) — the marker and the directory removal are both relative to
   // it, so their presence proves BOTH where it ran and that it ran at all.
-  fakeToolScript(binDir, "faketool", "#!/bin/sh\ntouch ac3-ran\nrm -rf myart\n");
+  const script = fakeTool(binDir, "faketool",
+    'const fs = require("fs"); fs.writeFileSync("ac3-ran", ""); fs.rmSync("myart", { recursive: true, force: true });\n');
+  const PATH = `${binDir}${delimiter}${process.env.PATH}`;
 
   // Clean scenario: no tracked content.
   {
@@ -1229,16 +1240,16 @@ test("AC 3 (apply): a shipped artifact's own clean_argv runs (with cwd at the ma
     const home = tmpRoot("waypost-cleanup-ac3-clean-home-");
     const fakeHome = fakeToolchainsHome([{
       id: "faketool3", name: "Fake Tool 3",
-      artifacts: [{ name: "myart", match: "sure", regenerable: true, clean: "faketool clean", clean_argv: ["faketool", "clean"] }],
+      artifacts: [{ name: "myart", match: "sure", regenerable: true, clean: "faketool clean", clean_argv: ["faketool", script] }],
     }]);
     const now = futureClock();
-    const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now, PATH: `${binDir}:${process.env.PATH}` }).stdout);
+    const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now, PATH }).stdout);
     const item = plan.items.find((i) => i.rel === "myart");
     assert.ok(item, JSON.stringify(plan.items));
-    assert.deepEqual(item.route, { kind: "tool-clean-argv", argv: ["faketool", "clean"] });
+    assert.deepEqual(item.route, { kind: "tool-clean-argv", argv: ["faketool", script] });
 
     const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC3", "--json"],
-      { WAYPOST_CLEAN_NOW: now, PATH: `${binDir}:${process.env.PATH}` });
+      { WAYPOST_CLEAN_NOW: now, PATH });
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
     assert.equal(out.items.find((i) => i.id === item.id).result, "removed");
@@ -1261,17 +1272,17 @@ test("AC 3 (apply): a shipped artifact's own clean_argv runs (with cwd at the ma
     const home = tmpRoot("waypost-cleanup-ac3-tracked-home-");
     const fakeHome = fakeToolchainsHome([{
       id: "faketool3", name: "Fake Tool 3",
-      artifacts: [{ name: "myart", match: "sure", regenerable: true, clean: "faketool clean", clean_argv: ["faketool", "clean"] }],
+      artifacts: [{ name: "myart", match: "sure", regenerable: true, clean: "faketool clean", clean_argv: ["faketool", script] }],
     }]);
     const now = futureClock();
-    const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now, PATH: `${binDir}:${process.env.PATH}` }).stdout);
+    const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now, PATH }).stdout);
     const item = plan.items.find((i) => i.rel === "myart");
     assert.ok(item, JSON.stringify(plan.items));
     assert.equal(item.class, "keep");
     assert.match(item.reason, /tracked file/);
 
     const r = runClean(root, home, fakeHome, ["--apply", item.id, "--yes", "--reason", "AC3", "--json"],
-      { WAYPOST_CLEAN_NOW: now, PATH: `${binDir}:${process.env.PATH}` });
+      { WAYPOST_CLEAN_NOW: now, PATH });
     assert.equal(r.status, 1, r.stderr);
     const out = JSON.parse(r.stdout);
     assert.equal(out.items.find((i) => i.id === item.id).result, "refused");

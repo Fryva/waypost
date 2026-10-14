@@ -15,7 +15,7 @@ import {
   mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, symlinkSync, realpathSync,
   utimesSync, statSync,
 } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { tmpdir, hostname } from "node:os";
 import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -166,13 +166,15 @@ function slotsDirFor(home) {
 // The pattern tests/slots.test.mjs's own selfRecord() uses: a record naming
 // THIS test process — genuinely alive, on this boot, on this host — the
 // cheapest way to manufacture a real LIVE holder without spawning a second
-// process.
+// process. `comm` is what bin/waypost itself records, basename(execPath): on
+// win32 slotLive() compares it with the image name tasklist reports
+// (node.exe), and any other value makes this live holder read as gone.
 function selfHolderRecord(id, extra = {}) {
   const table = process.platform === "win32" ? null : processTable();
   const self = table ? table.get(process.pid) : null;
   return {
     id, host: RAW_HOST,
-    proc: { pid: process.pid, started: self ? self.started : null, ticks: startTicks(process.pid), comm: "test" },
+    proc: { pid: process.pid, started: self ? self.started : null, ticks: startTicks(process.pid), comm: basename(process.execPath) },
     boot: bootIdentity(), uptime: 0,
     session: "limit-test", harness: "test", command: "node -e test",
     started_at: new Date().toISOString(),
@@ -480,7 +482,7 @@ test("AC12: waypost clean adopts a leftover whose marker names a dead pid, leave
   mkdirSync(join(removingDir, aliveName), { recursive: true });
   writeFileSync(join(removingDir, aliveName, "f.txt"), "x", "utf8");
   writeFileSync(join(removingDir, `${aliveName}.json`), JSON.stringify({
-    host: RAW_HOST, proc: { pid: process.pid, started: null, ticks: null, comm: "test" },
+    host: RAW_HOST, proc: { pid: process.pid, started: null, ticks: null, comm: basename(process.execPath) },
     boot: bootIdentity(), uptime: 0, started_at: new Date().toISOString(), from: "alive", id: "p-alive",
   }) + "\n", "utf8");
 
