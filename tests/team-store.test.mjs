@@ -1,3 +1,5 @@
+// Children spawned from this file never move a developer's real machine state.
+import "./env.mjs";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, realpathSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
@@ -40,6 +42,15 @@ test('authority serializes replay and stale authenticated idempotency keys', t =
   assert.throws(() => mutate(root, request('three')), { code: 'authority-stale-revision', revision: 2 });
   assert.equal(readAuthority(root, reducer).state.count, 4);
   assert.equal(readdirSync(join(root, 'events')).length, 2);
+});
+
+test('the legacy gate passes an empty authority on non-local storage, and still refuses one that holds anything', t => {
+  const root = join(fixture(t), 'Dropbox', 'authority');
+  mkdirSync(root, { recursive: true });
+  assert.equal(withAuthorityGate(root, reducer, (state) => state === null ? 'passed' : 'state'), 'passed');
+  assert.deepEqual(readdirSync(root), [], 'nothing written into it');
+  writeFileSync(join(root, 'identity.json'), '{}');
+  assert.throws(() => withAuthorityGate(root, reducer, () => 'x'), { code: 'authority-nonlocal' });
 });
 
 test('unknown locality needs explicit confirmation and known remote cannot override', t => {

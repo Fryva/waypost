@@ -5,7 +5,7 @@
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, existsSync, unlinkSync, rmSync } from "node:fs";
+import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, existsSync, unlinkSync, rmSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -546,6 +546,7 @@ test("a commit the team gate refuses for non-local storage says so in one line, 
   // Refused only where an authority already exists: one made from a machine on
   // which this disk is local, read back from one on which it is not.
   mkdirSync(join(proj, ".git", "waypost", "vault", "teams", "authority"), { recursive: true });
+  writeFileSync(join(proj, ".git", "waypost", "vault", "teams", "authority", "identity.json"), "{}\n");
   writeFileSync(join(proj, "a.txt"), "a\n");
   git(proj, ["add", "a.txt"]);
   const r = waypost(proj, ["commit", "-m", "add a"], { expectFail: true });
@@ -553,4 +554,23 @@ test("a commit the team gate refuses for non-local storage says so in one line, 
   assert.match(r.stderr, /^waypost commit: refused: the team authority must live on local storage, and this checkout is on Dropbox, cloud\./);
   assert.doesNotMatch(r.stderr, /\n\s+at /, "no stack trace");
   assert.notEqual(git(proj, ["rev-parse", "--verify", "-q", "HEAD"]).status, 0, "nothing was committed");
+});
+
+test("an EMPTY team authority on non-local storage does not block a commit — no team there to protect (WP-19)", () => {
+  // The same checkout seen over a share from a second machine: the first one
+  // created the authority directory on its local disk and nothing more.
+  const proj = join(mkdtempSync(join(tmpdir(), "waypost-c-")), "Dropbox", "p");
+  mkdirSync(proj, { recursive: true });
+  git(proj, ["init", "-q", "-b", "main"]);
+  git(proj, ["config", "user.email", "t@example.com"]);
+  git(proj, ["config", "user.name", "T"]);
+  waypost(proj, ["bind", join(proj, "vault")]);
+  const authority = join(proj, ".git", "waypost", "vault", "teams", "authority");
+  mkdirSync(authority, { recursive: true });
+  writeFileSync(join(proj, "a.txt"), "a\n");
+  git(proj, ["add", "a.txt"]);
+  const r = waypost(proj, ["commit", "-m", "add a"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(git(proj, ["rev-parse", "--verify", "-q", "HEAD"]).status, 0, "committed");
+  assert.deepEqual(readdirSync(authority), [], "and nothing was written into it");
 });

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `waypost commit`, `story plan` and `story close` work from a second machine that sees the checkout over a share (a VM on the host's disk), as long as no team was ever created: an empty team-authority directory the host left on its local disk no longer refuses as `authority-nonlocal`. One that holds a team still does.
 - On Linux under a systemd user manager, `waypost run --heavy` starts the job in a scope of its own (`systemd-run --user --scope`). An out-of-memory kill no longer takes the harness down with the job: systemd stops the unit the killed process sat in, and that used to be the harness's own. Without a user manager the job runs as before.
 
 ## [0.16.0] — 2026-10-12

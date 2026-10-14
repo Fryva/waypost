@@ -324,13 +324,19 @@ export function explainRecovery(root) {
   catch (e) { if (e.code === 'authority-symlink') throw e; corrupt = true; }
   return { locked: true, owner, corrupt, requires: 'explicit owner confirmation command and any children stopped', ttl_recovery: false };
 }
+function emptyAuthority(root){
+  try{return lstatSync(root).isDirectory()&&readdirSync(root).length===0;}catch{return false;}
+}
 // Serialize a legacy write with team creation. No event is necessary for an
 // operation which is refused while the artifact is bound to an active team.
 export function withAuthorityGate(root, reducer, callback) {
   root=safePath(root);
   // Teams cannot be created on nonlocal storage; legacy advisory workflows
-  // there remain usable when no authority exists.
-  if(!existsSync(root) && storageOf(root).kind!=='local')return callback(null);
+  // there remain usable when no authority exists — and when the one there is
+  // EMPTY: a directory another machine created on its local disk (the same
+  // checkout seen over a share) with no identity, no event and no lock holds
+  // no team to protect, and passing through it writes nothing there (WP-19).
+  if(storageOf(root).kind!=='local'&&(!existsSync(root)||emptyAuthority(root)))return callback(null);
   locality(root);
   if(!existsSync(root))mkdirSync(root,{recursive:true,mode:0o700});
   directory(root);
