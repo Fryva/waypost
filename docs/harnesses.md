@@ -214,7 +214,8 @@ existing harness session ids retain their precedence.
 
 `brief` reads roles, skills and the registry from its own executable tree even
 when an ambient `WAYPOST_HOME` points elsewhere. It checks only the running
-harness for self-install; a failed repair reports the cause on stderr and keeps
+harness for self-install, and not at all when the vault policy says
+`"self_install": "off"`; a failed repair reports the cause on stderr and keeps
 the orientation available. Partial writes may precede a failure; rerun after
 fixing the cause.
 

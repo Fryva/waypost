@@ -36,6 +36,7 @@ import {
   listOf,
   readVaultConfig,
   vaultConfigPath,
+  selfInstallOff,
   isLegacyStory,
   sectionOf,
   headingLineRe,
@@ -1070,6 +1071,12 @@ export function checkVaultPolicy(cfg, layout, artifacts, vaultCfg) {
         `${key}: ${JSON.stringify(raw)} in <vault>/.projectstore.json is not on/off/true/false — it is read as off, silently.`,
         ".projectstore.json"));
     }
+  }
+  const si = vaultCfg.self_install;
+  if (si !== undefined && si !== null && !["on", "off", "true", "false"].includes(String(si).toLowerCase())) {
+    out.push(finding("vault", "warn", "vault-policy",
+      `self_install: ${JSON.stringify(si)} in <vault>/.projectstore.json is not on/off — it is read as on: \`waypost brief\` installs roles and skills.`,
+      ".projectstore.json"));
   }
   return out;
 }
@@ -2152,7 +2159,15 @@ function main() {
 
   const findings = [];
   const groups = [];
-  if (install) { groups.push("install"); findings.push(...runInstallChecks(cfg, proj)); }
+  if (install) {
+    groups.push("install");
+    // With self-install off in the vault policy, "no roles / no skills / no
+    // block yet" is the chosen state, not advice: drop those notes (and with
+    // them `next`'s install items). Partial or stale installs still report.
+    const optedOut = cfg && cfg.vault_path && existsSync(cfg.vault_path) && selfInstallOff(cfg.vault_path);
+    findings.push(...runInstallChecks(cfg, proj).filter((f) =>
+      !(optedOut && f.level === "info" && ["agent-roles", "agent-skills", "agents-block"].includes(f.check))));
+  }
   if (vault && vaultArg && !(existsSync(cfg.vault_path) && statSync(cfg.vault_path).isDirectory())) {
     groups.push("vault");
     findings.push(finding("vault", "issue", "vault", `No vault at ${vaultArg}: the path is not a directory.`));

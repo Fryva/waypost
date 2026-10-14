@@ -1026,6 +1026,42 @@ test("brief installs the skills of the harness it runs in, next to its roles", (
   assert.doesNotMatch(second, /installed \d+ skill/, "nothing to do the second time");
 });
 
+test("self_install off in the vault policy stops brief from installing anything, in every clone (WP-23)", () => {
+  const { proj, vault } = bound();
+  const policy = join(vault, ".projectstore.json");
+  writeFileSync(policy, JSON.stringify({ acceptance_gate: "on" }) + "\n");
+  waypost(proj, ["bind", vault, "--self-install", "off"]);
+  assert.deepEqual(JSON.parse(readFileSync(policy, "utf8")), { acceptance_gate: "on", self_install: "off" }, "merged, not replaced");
+
+  const written = () => [".agents", ".codex", ".claude", "AGENTS.md", "CLAUDE.md"].filter((p) => existsSync(join(proj, p)));
+  for (const value of ["off", false, "Off", null]) {
+    writeFileSync(policy, value === null ? "{ not json" : JSON.stringify({ self_install: value }));
+    const out = waypost(proj, ["brief"], { env: { WAYPOST_HARNESS: "codex" } }).stdout;
+    assert.doesNotMatch(out, /installed \d+|routing block/, `self_install ${JSON.stringify(value)}`);
+    assert.deepEqual(written(), [], `self_install ${JSON.stringify(value)} wrote files`);
+  }
+
+  writeFileSync(policy, "{}");
+  assert.match(waypost(proj, ["next"], { env: { WAYPOST_HARNESS: "codex" } }).stdout, /agents install|skills install|agents register/, "control: without the key next advises installing");
+  writeFileSync(policy, JSON.stringify({ self_install: "off" }));
+  assert.doesNotMatch(waypost(proj, ["next"], { env: { WAYPOST_HARNESS: "codex" } }).stdout, /agents install|skills install|agents register/);
+  waypost(proj, ["agents", "install", "--harness", "codex"]);
+  assert.ok(existsSync(join(proj, ".codex")), "an explicit install still installs");
+
+  writeFileSync(policy, JSON.stringify({ self_install: "of" }));
+  const findings = JSON.parse(waypost(proj, ["doctor", "--vault", "--json"]).stdout);
+  assert.ok(findings.some((f) => f.check === "vault-policy" && /self_install/.test(f.message)), "a typo is a warning");
+
+  writeFileSync(policy, '{"spec_policy": "required",}');
+  const refused = waypost(proj, ["bind", vault, "--self-install", "off"], { expectFail: true });
+  assert.notEqual(refused.status, 0);
+  assert.equal(readFileSync(policy, "utf8"), '{"spec_policy": "required",}', "an unreadable policy is not overwritten");
+
+  writeFileSync(policy, JSON.stringify({ self_install: "off" }));
+  waypost(proj, ["bind", "--self-install", "on", vault]); // the flag before the path
+  assert.equal("self_install" in JSON.parse(readFileSync(policy, "utf8")), false, "on removes the key");
+});
+
 test("`waypost skill` prints a bundled skill by short or full name; setup installs skills for detected harnesses", () => {
   const { proj } = bound();
   assert.match(waypost(proj, ["skill", "decision-detector"]).stdout, /^name: waypost-decision-detector$/m);

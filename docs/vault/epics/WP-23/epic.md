@@ -8,7 +8,7 @@ created: 2026-10-14
 updated: 2026-10-14
 external_refs: {}
 tags: []
-code_refs: ["scripts/commit.mjs", "scripts/doctor.mjs", "scripts/lib.mjs", "bin/waypost.mjs", "tests/commits.test.mjs", "tests/scripts.test.mjs", "AGENTS.md", "CHANGELOG.md"]
+code_refs: ["scripts/commit.mjs", "scripts/doctor.mjs", "scripts/lib.mjs", "bin/waypost.mjs", "tests/commits.test.mjs", "tests/scripts.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "CHANGELOG.md", "docs/how-it-works.md", "docs/harnesses.md"]
 review_status: pending
 reviewed_at: null
 ---

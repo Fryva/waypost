@@ -243,7 +243,7 @@ One project may be driven by several sessions at the same time (ADR-0006):
   the project root when the vault lives inside it, so a checkout mounted under
   a different path on another machine keeps the same binding.
 - Vault: `<vault>/.projectstore.json` — policy (`spec_policy`, `lifecycle_gates`,
-  `acceptance_gate`), travels with the vault.
+  `acceptance_gate`, `self_install`), travels with the vault; `bind --self-install off` stops `brief` installing roles.
 - Generated role files are the opposite: commit them, so the whole team gets the
   same roles.
 - Environment: `WAYPOST_PROJECT_DIR`, `WAYPOST_HOME`, `WAYPOST_SESSION_ID`, `WAYPOST_HARNESS`,

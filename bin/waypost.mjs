@@ -18,7 +18,7 @@ import { acquireLock, releaseLock } from "../scripts/machine-lock.mjs";
 import { homedir, hostname, setPriority, uptime as osUptime, constants as osConstants } from "node:os";
 import {
   parseFrontmatter, isInsideVault, writeFileAtomic, sessionId, sessionIdFlag, storyRefOf, expandHome,
-  storedVaultPath, resolveVaultPath, bindingInfo, readConfig as readConfigLib, isLinkedWorktree, worktreeTag,
+  storedVaultPath, resolveVaultPath, bindingInfo, selfInstallOff, readVaultConfig, writeVaultConfig, readConfig as readConfigLib, isLinkedWorktree, worktreeTag,
   machineStateDir, legacyStateDirs, legacyDirsToMove, ensureMachineStateDir, accountStateDir, LIMIT_WRITER, stateWriteHint, askYesNo, readCleanupSetting, readLastAutoCleanup, REMOVING_DIR,
 } from "../scripts/lib.mjs";
 
@@ -160,7 +160,7 @@ function readConfig() {
 // boolean flag was written before it.
 const VALUED = new Set(["--harness", "--layout", "--lang", "--only", "--id",
   "--budget", "--project", "--since", "--for", "--kind", "--limit", "--message",
-  "--story", "--merge", "--session", "--provider", "--os", "--older-than", "--wait", "--release", "--reason"]);
+  "--story", "--merge", "--session", "--provider", "--os", "--older-than", "--wait", "--release", "--reason", "--self-install"]);
 
 // The literal `--` stops flag parsing, same as most POSIX CLIs: everything
 // after it is positional even if it is spelled like a flag (`waypost search --
@@ -545,7 +545,7 @@ function handleNext(args) {
   }
 
   if (!items.length) {
-    process.stdout.write("nothing needs doing: vault consistent, roles installed, no conflicting session.\n"
+    process.stdout.write(`nothing needs doing: vault consistent, ${selfInstallOff(cfg.vault_path) ? "" : "roles installed, "}no conflicting session.\n`
       + "Next feature-sized change starts with `waypost draft story <EPIC> \"<title>\" --write`.\n");
     return;
   }
@@ -586,7 +586,16 @@ function checkLayoutExists(layout) {
 
 function handleBind(args) {
   const [vault] = positionals(args);
-  if (!vault) fail('bind <vault-path> [--layout engineering] [--lang en|ru|es|de|fr|zh]');
+  if (!vault) fail('bind <vault-path> [--layout engineering] [--lang en|ru|es|de|fr|zh] [--self-install off|on]');
+  const selfInstall = opt(args, "--self-install");
+  if (selfInstall !== null && !["off", "on"].includes(selfInstall)) fail("--self-install takes off or on");
+  // An unreadable policy file would read as {} and be overwritten with one key,
+  // dropping spec_policy and the gates; refuse before anything is written.
+  const policyPath = join(resolve(expandHome(vault)), ".projectstore.json");
+  if (selfInstall !== null && existsSync(policyPath)) {
+    let v; try { v = JSON.parse(readFileSync(policyPath, "utf8")); } catch { v = null; }
+    if (!v || typeof v !== "object" || Array.isArray(v)) fail(`${policyPath} is not a JSON object — fix it before --self-install changes it`);
+  }
   const abs = resolve(expandHome(vault));
   // A re-bind keeps what the project already chose: `waypost bind <same vault>`
   // used to reset language and layout to their defaults unless both flags were
@@ -617,9 +626,16 @@ function handleBind(args) {
   process.stdout.write(`bound  ${abs}${stored !== abs ? `  (stored as ${stored}, relative to the project)` : ""}\nconfig ${cfgPath}\n`);
   process.env.WAYPOST_PROJECT_DIR = projectRoot();
   handleScaffold([]);
+  // The opt-out lives in the committed vault policy, so every clone sees it;
+  // merged, never replacing the other policy keys.
+  if (selfInstall !== null && (selfInstall === "off" || existsSync(policyPath))) {
+    const { self_install: _drop, ...rest } = readVaultConfig(abs);
+    writeVaultConfig(abs, selfInstall === "off" ? { ...rest, self_install: "off" } : rest);
+    process.stdout.write(`self_install ${selfInstall} in ${join(abs, ".projectstore.json")} — commit it\n`);
+  }
   process.stdout.write(
     "\nnext:\n" +
-    "  waypost agents install         install the roles into the harnesses this project uses\n" +
+    (selfInstallOff(abs) ? "" : "  waypost agents install         install the roles into the harnesses this project uses\n") +
     '  waypost draft adr "<title>" --write\n' +
     "  waypost doctor\n",
   );
@@ -3449,6 +3465,7 @@ START HERE
 VAULT
   bind <vault-path>        bind a vault and scaffold the layout (alias: init)
                            [--layout <name>] [--lang <en|ru|es|de|fr|zh>] [--force]
+                           [--self-install off|on: whether brief installs roles]
   scaffold                 (re)create the layout's folders and index READMEs
   status                   bound-vault summary + agent-role install state
   draft <kind> "<title>"   render an artifact; --write creates it and reconciles
@@ -3618,11 +3635,13 @@ const QUIET_COMMANDS = new Set(["help", "--help", "-h", "version", "--version", 
 // stale, makes sure that harness's own instruction file carries the routing
 // block, and says what it wrote — those files are committed by convention, and
 // git carries them to every other machine and harness. Nothing is written when
-// nothing is missing; `--no-install` (or WAYPOST_NO_INSTALL=1) reads only.
+// nothing is missing; `--no-install` (or WAYPOST_NO_INSTALL=1) reads only, and
+// `"self_install": "off"` in the vault policy does the same for every clone.
 async function selfInstall(rest) {
   if (rest.includes("--no-install") || process.env.WAYPOST_NO_INSTALL) return;
   const cfg = readConfig();
   if (!cfg || !cfg.vault_path || !existsSync(cfg.vault_path)) return;
+  if (selfInstallOff(cfg.vault_path)) return; // the vault said no, for every clone
   let current = process.env.WAYPOST_HARNESS || "unknown";
   try {
     const A = await import(SCRIPT_URL("agents"));

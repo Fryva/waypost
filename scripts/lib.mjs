@@ -757,6 +757,20 @@ export function readVaultConfig(vault) {
   }
 }
 
+// `self_install` in the vault policy (ADR solo-entry-without-a-profile-...): "off"
+// or false, in any case, stops `waypost brief` from installing roles, skills and
+// the routing block in every clone. Read raw rather than through readVaultConfig,
+// whose {} on a corrupt file would mean "install": an unreadable policy file
+// fails closed here — nothing is installed until it is fixed.
+export function selfInstallOff(vault) {
+  const p = vaultConfigPath(vault);
+  if (!existsSync(p)) return false;
+  let v;
+  try { v = JSON.parse(readFileSync(p, "utf8")); } catch { return true; }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return true;
+  return ["off", "false"].includes(String(v.self_install).toLowerCase());
+}
+
 export function writeVaultConfig(vault, cfg) {
   writeFileSync(vaultConfigPath(vault), JSON.stringify(cfg, null, 2) + "\n", "utf8");
 }

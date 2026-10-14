@@ -37,7 +37,7 @@ vault/
   kanban.md    (derived)
   graph.md     (derived)
   code-map.md  (derived)
-  .projectstore.json      vault policy (spec_policy, lifecycle_gates, acceptance_gate)
+  .projectstore.json      vault policy (spec_policy, lifecycle_gates, acceptance_gate, self_install)
   .projectstore/          runtime data: sessions, presence, leases (not committed)
 ```
 
