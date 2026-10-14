@@ -763,8 +763,9 @@ test("bin/waypost story --write refuses to write outside the vault, file left un
 
 // Simulates the race between story-section.mjs's read and bin/waypost's own
 // pre-write re-read without timing two real processes against each other: a
-// copy of bin/waypost (a real file — its ROOT comes from import.meta.url, which
-// follows a symlink to the real repo and would defeat the substitution) plus
+// copy of the entry, bin/waypost and bin/waypost.mjs (real files — ROOT comes
+// from import.meta.url, which follows a symlink to the real repo and would
+// defeat the substitution) plus
 // a story-section.mjs that delegates to the REAL script and then, using the
 // answer it got back, overwrites the story file with different bytes before
 // returning — landing bin/waypost in exactly the position "someone else wrote
@@ -773,7 +774,11 @@ function makeRaceRepo(raceContent) {
   const tmp = mkdtempSync(join(tmpdir(), "ps-race-"));
   mkdirSync(join(tmp, "bin"));
   mkdirSync(join(tmp, "scripts"));
-  writeFileSync(join(tmp, "bin", "waypost"), readFileSync(join(REPO, "bin", "waypost"), "utf8"), "utf8");
+  // Real files, not symlinks: ESM resolves a symlink to its real path, and the
+  // entry must compute ROOT from tmp so the story-section substitution applies.
+  for (const f of ["waypost", "waypost.mjs"]) {
+    writeFileSync(join(tmp, "bin", f), readFileSync(join(REPO, "bin", f), "utf8"), "utf8");
+  }
   for (const f of readdirSync(join(REPO, "scripts"))) {
     if (f === "story-section.mjs") continue;
     symlinkSync(join(REPO, "scripts", f), join(tmp, "scripts", f));

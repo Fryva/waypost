@@ -6,7 +6,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import {
-  mkdtempSync, mkdirSync, writeFileSync, symlinkSync, linkSync, rmSync, existsSync, utimesSync,
+  mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, linkSync, rmSync, existsSync, utimesSync,
 } from "node:fs";
 import { basename, join, dirname } from "node:path";
 import { tmpdir, homedir, hostname } from "node:os";
@@ -1045,11 +1045,18 @@ test("bin/waypost help lists size", () => {
 
 // ─── sanity on this exact checkout ───────────────────────────────────────
 
-test("node --check passes on scripts/sizes.mjs and bin/waypost", () => {
-  for (const f of ["scripts/sizes.mjs", "bin/waypost"]) {
+test("node --check passes on scripts/sizes.mjs, bin/waypost and bin/waypost.mjs", () => {
+  for (const f of ["scripts/sizes.mjs", "bin/waypost", "bin/waypost.mjs"]) {
     const r = spawnSync(process.execPath, ["--check", join(REPO, f)], { encoding: "utf8" });
     assert.equal(r.status, 0, `${f}: ${r.stderr}`);
   }
+});
+
+test("the CLI entry does not link the team code statically", () => {
+  // Only story --write needs it, and loads it lazily: a static import would
+  // let a syntax error in team work in progress break every command.
+  const src = readFileSync(join(REPO, "bin", "waypost.mjs"), "utf8");
+  assert.doesNotMatch(src, /^import[^;]*from\s*["']\.\.\/scripts\/team-/m);
 });
 
 test("the disk-hygiene ADR's three guards select scripts/sizes.mjs and all pass (no finding for this ADR)", () => {
