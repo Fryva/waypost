@@ -452,8 +452,10 @@ function processStillThere(rec, { table, platform, tasklist, now, kill }) {
   }
   if (!kill(rec.proc.pid)) return false;
   if (pastCap(rec, now)) return false;
+  // Case-insensitively: process.execPath keeps the casing node was started
+  // through (NODE.EXE), tasklist reports the file's own name (node.exe).
   const image = tasklist(rec.proc.pid);
-  if (image != null && image !== rec.proc.comm) return false;
+  if (image != null && !(typeof rec.proc.comm === "string" && image.toLowerCase() === rec.proc.comm.toLowerCase())) return false;
   return true;
 }
 

@@ -188,6 +188,18 @@ test("slotLive: win32, tasklist reports a different image name -> stale", () => 
 });
 
 test("slotLive: win32, a failing tasklist falls back to signal-0 and the 24h cap alone", () => {
+test("slotLive: win32, an image name differing only in case is the same image -> live", () => {
+  // Measured 2026-10-13: node started as ...\NODE.EXE records comm NODE.EXE,
+  // and tasklist reports the same process as node.exe.
+  const rec = { host: "h", proc: { pid: 1, comm: "NODE.EXE" }, boot: SAME_BOOT, started_at: new Date().toISOString() };
+  assert.equal(slotLive(rec, { platform: "win32", bootNow: SAME_BOOT, kill: () => true, tasklist: () => "node.exe" }), true);
+  assert.equal(slotLive(rec, { platform: "win32", bootNow: SAME_BOOT, kill: () => true, tasklist: () => "notepad.exe" }), false,
+    "a name differing in more than case is still another image");
+  const noComm = { host: "h", proc: { pid: 1 }, boot: SAME_BOOT, started_at: new Date().toISOString() };
+  assert.equal(slotLive(noComm, { platform: "win32", bootNow: SAME_BOOT, kill: () => true, tasklist: () => "node.exe" }), false,
+    "a record with no comm still never matches a reported image");
+});
+
   const rec = { host: "h", proc: { pid: 1, comm: "node.exe" }, boot: SAME_BOOT, started_at: new Date().toISOString() };
   assert.equal(slotLive(rec, { platform: "win32", bootNow: SAME_BOOT, kill: () => true, tasklist: () => null }), true);
   assert.equal(slotLive(rec, { platform: "win32", bootNow: SAME_BOOT, kill: () => false, tasklist: () => null }), false);
