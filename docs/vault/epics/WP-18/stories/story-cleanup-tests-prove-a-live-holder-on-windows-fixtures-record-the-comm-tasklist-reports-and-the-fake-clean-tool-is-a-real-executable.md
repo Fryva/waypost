@@ -88,8 +88,9 @@ them as live. AC 3 in `tests/cleanup.test.mjs` uses node linked as `faketool`
 (`.exe` on win32) running a `.cjs` script, on a PATH joined with
 `path.delimiter`. Verified the same day on all three OSes: Windows VM (10/10
 of the targeted tests), macOS and a Debian ARM64 VM (both files whole).
-Follow-up left open: the win32 `comm` comparison is case-sensitive and
-`tasklist` truncates image names to 25 characters (see Technical Notes).
+Follow-up left open: the win32 `comm` comparison is case-sensitive — story
+"A live holder started through a differently cased path still reads as live on
+Windows" (WP-18).
 
 ## Technical Notes
 
@@ -97,9 +98,10 @@ Follow-up left open: the win32 `comm` comparison is case-sensitive and
 
 - A holder fixture meant to be live must carry the `comm` the product would
   write; `tests/slots.test.mjs` selfRecord() already did.
-- Not changed, possible follow-up: the win32 `comm` comparison is
-  case-sensitive, and `tasklist` truncates image names to 25 characters — a
-  holder run from an executable with a longer name would read as gone.
+- Not changed, follow-up: the win32 `comm` comparison is case-sensitive
+  (reproduced 2026-10-13; its own WP-18 story). A suspected 25-character
+  `tasklist` truncation was checked the same day and does not apply: `/FO CSV`
+  returns the full image name.
 
 ## Dependencies
 

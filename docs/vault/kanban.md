@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-14T01:39:42.851Z
+generated_at: 2026-10-14T01:42:30.944Z
 
 ---
 
@@ -14,6 +14,7 @@ generated_at: 2026-10-14T01:39:42.851Z
 - [ ] [[epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines|WP-17: Verified on Linux and Windows virtual machines]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains|WP-17: Detectors: superseded device support, unavailable simulators, duplicate toolchains]] #p2
 - [ ] [[epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app|WP-18: The heavy-work slot is machine-wide on Windows, not one per packaged app]] #p2
+- [ ] [[epics/WP-18/stories/story-a-live-holder-started-through-a-differently-cased-path-still-reads-as-live-on-windows|WP-18: A live holder started through a differently cased path still reads as live on Windows]] #p2
 - [ ] [[epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share|WP-19: Project rules reach Claude sessions on a VM whose checkout is on a network share]] #p2
 - [ ] [[epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery|WP-20: Addressed messages and verified harness delivery]] #p1 #blocked
 - [ ] [[epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover|WP-20: Assignments supervision and stronger-model handover]] #p1 #blocked
