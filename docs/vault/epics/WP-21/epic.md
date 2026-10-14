@@ -2,7 +2,7 @@
 type: epic
 id: "WP-21"
 title: "Source an agent can read in one pass"
-status: planned
+status: in-progress
 priority: p2
 created: 2026-10-04
 updated: 2026-10-14
@@ -17,7 +17,7 @@ reviewed_at: null
 
 | Field | Value |
 |---|---|
-| **Status** | planned |
+| **Status** | in-progress |
 | **Priority** | p2 |
 | **Created** | 2026-10-04 |
 | **Updated** | 2026-10-14 |
@@ -51,7 +51,7 @@ per-command modules, each readable in one pass" (proposed).
 
 | Story | Status | Description |
 |-------|--------|-------------|
-| `story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees` | in-progress | Decision 0 of the ADR: lazy team import, entry renamed to `bin/waypost.mjs` behind a shim |
+| `story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees` | done | Decision 0 of the ADR: lazy team import, entry renamed to `bin/waypost.mjs` behind a shim |
 
 <!-- Planned, drafted after the ADR is accepted:
      1. the classifier of navigation turns committed to scripts/tokens.mjs, baseline recorded here
@@ -63,19 +63,19 @@ per-command modules, each readable in one pass" (proposed).
 
 ## Expected Results
 
-- [ ] Step 0: `version`, `help`, `run`, `capacity`, `size`, `clean` work with a deliberately broken team module; `story --write` still refuses a team-bound story.
-- [ ] Step 0, manual (codegraph is an external tool): `codegraph query` finds functions of `bin/waypost.mjs`.
+- [x] Step 0: `version`, `help`, `run`, `capacity`, `size`, `clean` work with a deliberately broken team module; `story --write` still refuses a team-bound story.
+- [x] Step 0, manual (codegraph is an external tool): `codegraph query` finds functions of `bin/waypost.mjs`.
 - [ ] A committed classifier (Node, in `scripts/tokens.mjs`) counts navigation turns on `bin/(waypost|cli/)` with cache weights; the baseline is recorded in this epic and a target stated.
 - [ ] Split: the entry ≤ 14 KB; every `bin/cli/*.mjs` ≤ 24 KB, pinned by a test.
 - [ ] Split: the free-identifier test and the import-every-module test pass; `node --check` covers `bin/cli`.
 - [ ] Split: `help`, `version` and an unknown command are byte-identical before and after; the suite is green on Node 20/22/24 at every step.
 - [ ] Split: a CLI test "team-bound story → refuse" exists before the gate moves.
 - [ ] Split: guards of other ADRs naming the entry are re-scoped; pointer comments updated.
-- [ ] `npm pack --dry-run` lists `bin/waypost.mjs` (and `bin/cli/` after the split).
+- [ ] `npm pack --dry-run` lists `bin/waypost.mjs` (done in step 0) and `bin/cli/` after the split.
 
 ## Dependencies
 
-- Step 0: none (adopted ahead of the ADR as its Decision 0, see the critic pass of 2026-10-14).
+- Step 0: none (adopted ahead of the ADR as its Decision 0, see the critic pass of 2026-10-14; owner approved 2026-10-14; done in 6d5f093).
 - Split: ADR "The CLI as a thin entry with per-command modules, each readable in one pass" — accepted; one freeze window of the entry agreed with WP-20.
 
 ## Open Questions

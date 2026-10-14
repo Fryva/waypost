@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-14T03:58:49.988Z
+generated_at: 2026-10-14T04:46:21.138Z
 
 ---
 
@@ -41,7 +41,6 @@ generated_at: 2026-10-14T03:58:49.988Z
 - [ ] [[epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness|WP-19: Codex keeps one session and direct installers see the running harness]] #p2
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
-- [ ] [[epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees|WP-21: The team code loads only for story --write, and the CLI entry is an .mjs the code index sees]] #p2
 
 ## Review
 
@@ -74,6 +73,7 @@ generated_at: 2026-10-14T03:58:49.988Z
 - [x] [[epics/WP-18/stories/story-a-live-holder-started-through-a-differently-cased-path-still-reads-as-live-on-windows|WP-18: A live holder started through a differently cased path still reads as live on Windows]] #p2 #done
 - [x] [[epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host|WP-19: ps in the C locale, so the process table exists on any host]] #p1 #done
 - [x] [[epics/WP-19/stories/story-an-empty-team-authority-on-a-network-share-does-not-block-commits-from-another-machine|WP-19: An empty team authority on a network share does not block commits from another machine]] #p2 #done
+- [x] [[epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees|WP-21: The team code loads only for story --write, and the CLI entry is an .mjs the code index sees]] #p2 #done
 
 
 

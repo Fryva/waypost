@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-14T03:58:50.229Z
+generated_at: 2026-10-14T04:46:42.832Z
 
 ---
 
@@ -99,8 +99,8 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely.md | Quota exhaustion redistributes leadership and independent review safely | story | in-progress |
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
-| epics/WP-21/epic.md | Source an agent can read in one pass | epic | planned |
-| epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | The team code loads only for story --write, and the CLI entry is an .mjs the code index sees | story | in-progress |
+| epics/WP-21/epic.md | Source an agent can read in one pass | epic | in-progress |
+| epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | The team code loads only for story --write, and the CLI entry is an .mjs the code index sees | story | done |
 | epics/WP-22/epic.md | The owner's global rules on every machine and harness | epic | planned |
 | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md | A source on another machine reaches each VM through a local cache | story | planned |
 | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | Each machine replies in its own user's language | story | planned |

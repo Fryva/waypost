@@ -15,7 +15,7 @@
 | [WP-18](./WP-18/epic.md) | Heavy work sized to the machine | planned | 2026-09-15 |
 | [WP-19](./WP-19/epic.md) | The process layer on any host, and honest harness detection | planned | 2026-09-30 |
 | [WP-20](./WP-20/epic.md) | One task coordinated across harnesses and AI models | planned | 2026-09-30 |
-| [WP-21](./WP-21/epic.md) | Source an agent can read in one pass | planned | 2026-10-04 |
+| [WP-21](./WP-21/epic.md) | Source an agent can read in one pass | in-progress | 2026-10-04 |
 | [WP-22](./WP-22/epic.md) | The owner's global rules on every machine and harness | planned | 2026-10-13 |
 
 ---
