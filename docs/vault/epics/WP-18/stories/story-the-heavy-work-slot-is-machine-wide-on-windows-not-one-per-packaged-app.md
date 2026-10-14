@@ -61,9 +61,12 @@ not see each other, the case the slot exists for.
       `%USERPROFILE%\.local\state` at all, and whether a packaged app can list
       `%LOCALAPPDATA%\Packages` (if not, package-store budgets are invisible
       to it); record either as a limitation. Required before close.
-- [ ] Re-check what the 2026-09-17 Windows pass of
+- [x] Re-check what the 2026-09-17 Windows pass of
       `story-capacity-verified-on-linux-and-windows-virtual-machines` measured,
-      if it ran inside one package.
+      if it ran inside one package — 2026-10-14: it did (transcript entrypoint
+      `claude-desktop` throughout); its slot-sharing result held inside the
+      Claude package only and is annotated there; CPU, liveness, priority,
+      sleep and restart results are unaffected.
 - [ ] Then re-stage the second real Windows restart from the owner's terminal.
 
 ## Implementation Plan

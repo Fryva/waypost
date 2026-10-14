@@ -148,6 +148,15 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
         third reader listed the holder with its session, harness and command;
         the record was gone from `%LOCALAPPDATA%\Waypost\slots.FROSTBEBE\`
         the moment the holder exited.
+        **Re-checked 2026-10-14:** that session ran inside the Claude desktop
+        app (its transcript: every entry `"entrypoint":"claude-desktop"`), an
+        MSIX package that virtualizes AppData — the PowerShell and Git Bash
+        it used were its own children, so both saw the Claude package's
+        private copy of `%LOCALAPPDATA%\Waypost`. This proved one slot inside
+        one package, not across harnesses or with a terminal. The machine-wide
+        claim was proven on 2026-10-13/14 by
+        `story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app`
+        (terminal ↔ Claude app ↔ Codex app, exit 75 each way measured).
       - [ ] Windows, after a restart — **by a real restart, 2026-09-17, and
         not yet a pass.** A running holder's record survived the restart
         (unlike Linux, a clean Windows restart does not let the wrapper
@@ -218,6 +227,14 @@ whatever breaks is fixed with a hermetic test before the next OS is started.
 
 ## Technical Notes
 
+- 2026-10-14 re-check of the 2026-09-17 Windows pass (from
+  `story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app`):
+  the pass ran inside the Claude desktop app's MSIX package. Unaffected by
+  that: the CPU sample against the processor counters, `tasklist` liveness,
+  the lowered priority, the sleep and restart results (they concern liveness
+  and boot identity, not where the state lives). Affected: "two sessions
+  share one slot" held only inside that one package; superseded by the
+  2026-10-13/14 cross-harness measurement.
 - One heavy job at a time on each machine, including the verification runs
   themselves.
 
