@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-14T04:46:42.832Z
+generated_at: 2026-10-14T22:50:56.253Z
 
 ---
 
@@ -42,6 +42,7 @@ full typed neighborhood, both directions, in one call.
 | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md | Owner's global rules: one harness-neutral source, reaching every installed harness on every machine | adr | accepted |
 | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | Record the operating system of a commit in a Waypost-OS trailer | adr | accepted |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
+| adr/solo-entry-without-a-profile-an-external-task-trailer-doctor-on-a-vault-path-a-vault-level-opt-out-from-self-install.md | Solo entry without a profile: an external task trailer, doctor on a vault path, a vault-level opt-out from self-install | adr | accepted |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | Subscription CLI token accounting with separate strict billing enforcement | adr | accepted |
 | adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md | The CLI as a thin entry with per-command modules, each readable in one pass | adr | proposed |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
@@ -106,6 +107,11 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | Each machine replies in its own user's language | story | planned |
 | epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md | Global rules reach every installed harness, and doctor refuses a machine where they do not | story | planned |
 | epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md | The owner's global files on every machine migrate into the one source | story | planned |
+| epics/WP-23/epic.md | Solo entry: one person, one harness | epic | planned |
+| epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone.md | A vault turns brief's self-install off for every clone | story | planned |
+| epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer.md | Commit carries an external task id in a Waypost-Task trailer | story | planned |
+| epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md | doctor --vault <path> checks a vault on a fresh clone without a binding | story | planned |
+| epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | README opens a path for working alone, in one tool | story | planned |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
 | ops/run-waypost-from-a-checkout-another-operating-system-edits.md | Run waypost from a checkout another operating system edits | runbook | active |
@@ -321,6 +327,14 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md | mdlink | epics/WP-22/epic.md |
 | epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
 | epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md | mdlink | epics/WP-22/epic.md |
+| epics/WP-23/epic.md | epic-contains | epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone.md |
+| epics/WP-23/epic.md | epic-contains | epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer.md |
+| epics/WP-23/epic.md | epic-contains | epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md |
+| epics/WP-23/epic.md | epic-contains | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md |
+| epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone.md | mdlink | epics/WP-23/epic.md |
+| epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer.md | mdlink | epics/WP-23/epic.md |
+| epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md | mdlink | epics/WP-23/epic.md |
+| epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | mdlink | epics/WP-23/epic.md |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | specs/cross-harness-team-coordination-protocol.md | mdlink | epics/WP-20/epic.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md |

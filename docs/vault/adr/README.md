@@ -47,6 +47,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [record-the-operating-system-of-a-commit-in-a-waypost-os-trailer](./record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md) | Record the operating system of a commit in a Waypost-OS trailer | accepted | 2026-10-11 |
 | [enforce-the-owners-token-budget-for-live-runs-across-teams](./enforce-the-owners-token-budget-for-live-runs-across-teams.md) | Enforce the owner's token budget for live runs across teams | accepted | 2026-10-12 |
 | [owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine](./owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md) | Owner's global rules: one harness-neutral source, reaching every installed harness on every machine | accepted | 2026-10-13 |
+| [solo-entry-without-a-profile-an-external-task-trailer-doctor-on-a-vault-path-a-vault-level-opt-out-from-self-install](./solo-entry-without-a-profile-an-external-task-trailer-doctor-on-a-vault-path-a-vault-level-opt-out-from-self-install.md) | Solo entry without a profile: an external task trailer, doctor on a vault path, a vault-level opt-out from self-install | accepted | 2026-10-14 |
 
 ---
 

@@ -17,6 +17,7 @@
 | [WP-20](./WP-20/epic.md) | One task coordinated across harnesses and AI models | planned | 2026-09-30 |
 | [WP-21](./WP-21/epic.md) | Source an agent can read in one pass | in-progress | 2026-10-04 |
 | [WP-22](./WP-22/epic.md) | The owner's global rules on every machine and harness | planned | 2026-10-13 |
+| [WP-23](./WP-23/epic.md) | Solo entry: one person, one harness | planned | 2026-10-14 |
 
 ---
 
