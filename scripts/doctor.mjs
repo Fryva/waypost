@@ -15,7 +15,8 @@
 //            check: "<id>", message: "...", file?: "<path>" }
 // The SessionStart line counts level==="issue" only.
 //
-// CLI: node doctor.mjs [--install] [--vault] [--startup] [--json]
+// CLI: node doctor.mjs [--install] [--vault [<path>]] [--startup] [--json]
+//      --vault <path> checks that directory with no binding (CI on a fresh clone).
 //      default = --install --vault. --json (and --startup) always exit 0 (a
 //      reporting tool); the plain-text report exits 1 when an issue-level
 //      finding exists, so `waypost doctor && ...` sees failures.
@@ -2113,6 +2114,14 @@ export function applyFixes(cfg, proj, findings) {
   return done;
 }
 
+// Whether a directory looks like a vault of its layout at all: an empty or
+// unrelated directory would otherwise pass every check vacuously.
+function layoutFolderIn(cfg) {
+  let layout;
+  try { layout = loadLayout(cfg.layout); } catch { return true; } // runVaultChecks reports it
+  return layout.folders.some((f) => existsSync(join(cfg.vault_path, f.path)));
+}
+
 function main() {
   ignoreEpipe();
   const args = process.argv.slice(2);
@@ -2122,6 +2131,15 @@ function main() {
   let install = args.includes("--install");
   let vault = args.includes("--vault");
   if (!install && !vault && !startup) { install = true; vault = true; }
+  // `--vault <path>`: check that directory with no binding (a fresh clone, CI).
+  // Through the environment, so the generators spawned below see the same vault.
+  if (args.some((a) => a.startsWith("--vault="))) {
+    process.stderr.write("waypost doctor: --vault takes its path as the next argument: --vault <path>\n");
+    process.exit(2);
+  }
+  const vi = args.indexOf("--vault");
+  const vaultArg = vi !== -1 && args[vi + 1] && !args[vi + 1].startsWith("-") ? args[vi + 1] : null;
+  if (vaultArg) process.env.WAYPOST_VAULT = resolve(vaultArg);
 
   const cfg = readConfig();
   const proj = projectRoot();
@@ -2135,7 +2153,14 @@ function main() {
   const findings = [];
   const groups = [];
   if (install) { groups.push("install"); findings.push(...runInstallChecks(cfg, proj)); }
-  if (vault && cfg && cfg.vault_path && existsSync(cfg.vault_path)) {
+  if (vault && vaultArg && !(existsSync(cfg.vault_path) && statSync(cfg.vault_path).isDirectory())) {
+    groups.push("vault");
+    findings.push(finding("vault", "issue", "vault", `No vault at ${vaultArg}: the path is not a directory.`));
+  } else if (vault && vaultArg && !layoutFolderIn(cfg)) {
+    groups.push("vault");
+    findings.push(finding("vault", "issue", "vault",
+      `${vaultArg} holds none of the ${cfg.layout} layout's folders — not a vault, or the wrong path.`));
+  } else if (vault && cfg && cfg.vault_path && existsSync(cfg.vault_path)) {
     groups.push("vault");
     findings.push(...runVaultChecks(cfg));
   } else if (vault) {

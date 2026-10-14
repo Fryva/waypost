@@ -409,12 +409,22 @@ export function bindingInfo() {
   return { path: own, inherited_from: null };
 }
 
+// WAYPOST_VAULT names a vault directly, with no binding needed. Internal:
+// `doctor --vault <path>` sets it in its own process so every generator it
+// spawns compares against the same vault. It wins over a binding's vault_path;
+// layout and language come from the binding when there is one, else
+// engineering / en (a non-English vault checked with no binding reads as stale
+// views — red, never a false green).
 export function readConfig() {
   const p = bindingInfo().path;
-  if (!existsSync(p)) return null;
+  const direct = process.env.WAYPOST_VAULT;
+  if (!existsSync(p)) return direct ? { layout: "engineering", vault_path: resolve(direct) } : null;
   try {
     const cfg = JSON.parse(readFileSync(p, "utf8"));
-    if (cfg && typeof cfg === "object") cfg.vault_path = resolveVaultPath(cfg.vault_path);
+    if (cfg && typeof cfg === "object") {
+      cfg.vault_path = direct ? resolve(direct) : resolveVaultPath(cfg.vault_path);
+      if (direct && !cfg.layout) cfg.layout = "engineering";
+    }
     return cfg;
   } catch (e) {
     process.stderr.write(`waypost: config exists but is unreadable: ${p}: ${e.message}\n`);
@@ -423,6 +433,9 @@ export function readConfig() {
 }
 
 export function writeConfig(cfg) {
+  // A config read under WAYPOST_VAULT carries that vault, not the binding's:
+  // writing it back would silently rebind the project.
+  if (process.env.WAYPOST_VAULT) throw new Error("WAYPOST_VAULT is set: refusing to write the project binding through a borrowed vault path");
   // A linked worktree that inherits its binding writes back to the binding
   // it inherited: one repository, one binding.
   const p = bindingInfo().path;

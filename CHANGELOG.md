@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `waypost commit --task <id>` writes a `Waypost-Task: <id>` trailer for an external tracker's task id (YouTrack, Jira, Linear…), with or without a vault; it is never looked up, only checked for shape, and may repeat. `waypost log --task <id>` matches it exactly and shows it; `--json` carries `tasks`. `--story` still rejects an id the vault does not know (ADR-0006). An older CLI ignores `--task` silently.
+- `waypost doctor --vault <path>` checks a vault with no binding, so CI on a fresh clone needs no `waypost bind`; the generators behind the kanban, graph and code-map checks see the same vault, so a stale view still fails. A path that is not a directory, or holds none of the layout's folders, is an issue. The layout is `engineering` and the language English unless a binding says otherwise, so a non-English vault checked with no binding reports its views as stale (red, not a false green).
 
 ### Changed
 

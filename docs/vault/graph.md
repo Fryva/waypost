@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-14T23:03:08.664Z
+generated_at: 2026-10-14T23:20:56.109Z
 
 ---
 
@@ -110,7 +110,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/epic.md | Solo entry: one person, one harness | epic | planned |
 | epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone.md | A vault turns brief's self-install off for every clone | story | planned |
 | epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer.md | Commit carries an external task id in a Waypost-Task trailer | story | done |
-| epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md | doctor --vault <path> checks a vault on a fresh clone without a binding | story | planned |
+| epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md | doctor --vault <path> checks a vault on a fresh clone without a binding | story | done |
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | README opens a path for working alone, in one tool | story | planned |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |

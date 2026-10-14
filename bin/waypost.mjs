@@ -3464,7 +3464,8 @@ VAULT
   reconcile [--write]      re-derive every view (indexes, kanban, code-map, graph)
   brief                    session-start orientation packet (run it when you
                            start work: where things live, what is in flight)
-  doctor [flags]           deterministic diagnostics (--install|--vault|--fix)
+  doctor [flags]           deterministic diagnostics (--install|--vault [<path>]|--fix);
+                           --vault <path> needs no binding (CI on a fresh clone)
   diff-refs [flags]        changed-file evidence for code_refs
 
 WORKING IN SEVERAL HARNESSES AT ONCE

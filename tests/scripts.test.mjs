@@ -1698,6 +1698,41 @@ test("draft: a command-less folder kind (diagram) dies cleanly, not with a raw s
   assert.doesNotMatch(declared, /\bdiagram\b/, "diagram must not be offered as a valid kind either");
 });
 
+test("doctor --vault <path> checks a vault with no binding, generators included, so CI on a fresh clone needs no setup (WP-23)", () => {
+  const { proj, vault } = makeVaultProject();
+  const env = { ...ENV, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_NO_BEAT: "1" };
+  const cli = (...args) => spawnSync(process.execPath, [join(REPO, "bin", "waypost"), ...args], { encoding: "utf8", env, cwd: proj, timeout: 30000 });
+  assert.equal(cli("draft", "epic", "PS-X", "Epic", "--write").status, 0);
+  assert.equal(cli("draft", "story", "PS-X", "First", "--write").status, 0);
+  for (const step of [["graph", "--write"], ["codemap", "--write"], ["reconcile", "--write"]]) assert.equal(cli(...step).status, 0, step.join(" "));
+  rmSync(join(proj, ".waypost"), { recursive: true, force: true }); // the fresh clone: no binding
+  const doctor = (...args) => spawnSync(process.execPath, [join(REPO, "scripts", "doctor.mjs"), ...args], { encoding: "utf8", env, cwd: proj, timeout: 30000 });
+
+  const healthy = doctor("--vault", "vault");
+  assert.equal(healthy.status, 0, healthy.stdout);
+  assert.doesNotMatch(healthy.stdout, /generator failed|No projectstore config/);
+
+  for (const view of ["kanban.md", "graph.md", "code-map.md"]) {
+    const p = join(vault, view);
+    assert.ok(existsSync(p), `${view} must exist for the stale check to mean anything`);
+    const before = readFileSync(p, "utf8");
+    writeFileSync(p, before + "\nstale\n");
+    const stale = doctor("--vault", "vault");
+    assert.equal(stale.status, 1, `${view} stale must fail the gate:\n${stale.stdout}`);
+    assert.match(stale.stdout, new RegExp(view.replace(".", "\\.")));
+    writeFileSync(p, before);
+  }
+
+  assert.equal(doctor("--vault=vault").status, 2, "the = form is refused, not read as a bound-vault check");
+
+  mkdirSync(join(proj, "empty"));
+  for (const bad of ["empty", "nope"]) {
+    const r = doctor("--vault", bad);
+    assert.equal(r.status, 1, `${bad}: ${r.stdout}`);
+    assert.doesNotMatch(r.stdout, /look healthy/);
+  }
+});
+
 test("doctor --vault without a usable vault is an issue and exits 1, not a healthy pass", () => {
   const proj = mkdtempSync(join(tmpdir(), "waypost-novault-"));
   spawnSync("git", ["init", "-q"], { cwd: proj });

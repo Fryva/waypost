@@ -55,7 +55,7 @@ Before analysing a task, planning, editing or running checks:
 | `waypost graph --for <path>` | one artifact's neighbourhood instead of the whole graph |
 | `waypost search "<text>"` | vault-wide search returning pointers, not documents |
 | `waypost reconcile [--write]` | rebuild every view and index |
-| `waypost doctor [--install\|--vault] [--fix]` | consistency diagnostics |
+| `waypost doctor [--install\|--vault [<path>]] [--fix]` | consistency diagnostics; `--vault <path>` checks a vault with no binding (CI on a fresh clone) |
 | `waypost diff-refs` | changed files as evidence for `code_refs` |
 | `waypost agents …` | roles: `list`/`show`/`install`/`uninstall`/`register`/`model` |
 | `waypost skills …` | Agent Skills: `install`/`list`/`uninstall`/`validate` — the bundled procedures as standard `SKILL.md`, in the directory each harness discovers |
