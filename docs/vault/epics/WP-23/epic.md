@@ -2,7 +2,7 @@
 type: epic
 id: "WP-23"
 title: "Solo entry: one person, one harness"
-status: planned
+status: done
 priority: p2
 created: 2026-10-14
 updated: 2026-10-14
@@ -17,7 +17,7 @@ reviewed_at: null
 
 | Field | Value |
 |---|---|
-| **Status** | planned |
+| **Status** | done |
 | **Priority** | p2 |
 | **Created** | 2026-10-14 |
 | **Updated** | 2026-10-14 |
@@ -47,10 +47,10 @@ covers the minimal answer; the profile is deferred.
 
 | Story | Status | Description |
 |-------|--------|-------------|
-| `story-commit-carries-an-external-task-id-in-a-waypost-task-trailer` | planned | `commit --task`, `Waypost-Task`, `log --task` |
-| `story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding` | planned | `doctor --vault <path>` for CI on a fresh clone |
-| `story-a-vault-turns-briefs-self-install-off-for-every-clone` | planned | `"self_install": "off"` in the vault config |
-| `story-readme-opens-a-path-for-working-alone-in-one-tool` | planned | the solo path in the README |
+| `story-commit-carries-an-external-task-id-in-a-waypost-task-trailer` | done | `commit --task`, `Waypost-Task`, `log --task` |
+| `story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding` | done | `doctor --vault <path>` for CI on a fresh clone |
+| `story-a-vault-turns-briefs-self-install-off-for-every-clone` | done | `"self_install": "off"` in the vault config |
+| `story-readme-opens-a-path-for-working-alone-in-one-tool` | done | the solo path in the README |
 
 ## Expected Results
 

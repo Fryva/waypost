@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-15T00:13:07.644Z
+generated_at: 2026-10-15T00:42:10.399Z
 
 ---
 
@@ -107,7 +107,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | Each machine replies in its own user's language | story | planned |
 | epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md | Global rules reach every installed harness, and doctor refuses a machine where they do not | story | planned |
 | epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md | The owner's global files on every machine migrate into the one source | story | planned |
-| epics/WP-23/epic.md | Solo entry: one person, one harness | epic | planned |
+| epics/WP-23/epic.md | Solo entry: one person, one harness | epic | done |
 | epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone.md | A vault turns brief's self-install off for every clone | story | done |
 | epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer.md | Commit carries an external task id in a Waypost-Task trailer | story | done |
 | epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md | doctor --vault <path> checks a vault on a fresh clone without a binding | story | done |
