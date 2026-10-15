@@ -180,13 +180,59 @@ so nothing in an artifact may run a command. `draft adr --write` records
 
 ## Context spend (ADR-0008)
 
-Standing in the context: the routing block (197 tokens), the role descriptions a
+Historical measurements for the ADR-0008 fixture: the routing block (197 tokens), the role descriptions a
 harness injects (92), and `waypost brief` (409) — about 700 tokens, and that number
 does not grow with the vault. Only derived views grow, which is why they are
 never read whole: `waypost graph --for <path>` (44 against 1119) and
 `waypost search "<text>"` (91 against 1516 for one index). Detail is behind a flag:
 `brief --full`, `harnesses --all`, `agents list -v`, `draft --json`. The budgets
 are pinned by tests.
+
+### Measure before optimizing
+
+`waypost tokens --summary --since 2026-10-08 --until 2026-10-15` is the compact
+offline report. Dates are UTC: `--since` is inclusive and `--until` exclusive.
+Requests are assigned by their first observed assistant-block timestamp, after
+deduplication; all usage blocks of that request are included even if cumulative
+output finishes across midnight. Navigation events use the timestamp window, so
+out-of-period tool results can remain missing evidence. Unknown inline-subagent
+identity never establishes shared retained context with the main thread.
+Use `--json --navigation` for reproducible evidence and file hotspots; redirect
+that JSON to a local scratch file rather than feeding every field back into an
+agent's context. These commands do not invoke a model.
+
+The analyzer currently reads retained **Claude Code** history, including
+subagent transcripts whose metadata is missing (their attribution stays unknown).
+It does not import Codex/OpenCode history or measure the subscription's weekly
+quota. Native totals include input, cache creation, cache reads and output once;
+cache lifetime breakdowns are not extra tokens. `native_totals` and `token_shares`
+are nullable when usage or source coverage is incomplete. Legacy numeric columns
+remain for compatibility; an unpriced model's legacy `$0` is a placeholder,
+while the authoritative API-price estimate is unknown. API prices do not convert
+to subscription billing or quota percentages.
+
+The JSON records the requested/observed period, project and analyzer revisions,
+analyzer hashes, input-file hashes, contexts and parse/coverage diagnostics.
+Files are read sequentially: this is not an atomic snapshot of a live session.
+Keep reports locally; fingerprints and paths identify their inputs, and raw
+transcript contents are never included in the report.
+
+Navigation evidence counts requests **issuing** recognized navigation calls.
+Their usage precedes the returned tool text, and does not measure that text's
+cost or its reuse in later contexts. These counters overlap native totals and
+must not be added to them. Unbounded `Read` is a request shape, not proof that
+the entire file was returned. Identical successful returned text in one context
+is a repeated-result signal; edits and compaction invalidate tracking. Missing,
+failed, truncated and unsupported calls remain explicit gaps. The evidence alone
+never authorizes skipping a freshness check or independent review.
+
+To reduce unnecessary context: reuse already obtained symbols/ranges while their
+source is unchanged, read the diff after editing, and expand to dependencies when
+needed. A role handoff needs the task, acceptance criteria, source locations and
+diff; the independent reviewer still gets a fresh context and access to original
+requirements. Keep full successful test logs on disk and return results/errors
+with a log pointer. Compare total tokens for a fixed task cohort including failed
+attempts, with independent quality checks, before claiming any savings.
 
 ## Doctor
 

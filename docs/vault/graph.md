@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-15T00:42:10.399Z
+generated_at: 2026-10-15T22:21:34.423Z
 
 ---
 
@@ -101,6 +101,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
 | epics/WP-21/epic.md | Source an agent can read in one pass | epic | in-progress |
+| epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | Reproducible token accounting and repeated-read evidence | story | done |
 | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | The team code loads only for story --write, and the CLI entry is an .mjs the code index sees | story | done |
 | epics/WP-22/epic.md | The owner's global rules on every machine and harness | epic | planned |
 | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md | A source on another machine reaches each VM through a local cache | story | planned |
@@ -312,7 +313,10 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
+| epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md |
 | epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md |

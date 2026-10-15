@@ -8,7 +8,7 @@ created: 2026-10-04
 updated: 2026-10-14
 external_refs: {}
 tags: []
-code_refs: ["bin/", "package.json", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "docs/how-it-works.md", "CHANGELOG.md"]
+code_refs: ["bin/", "package.json", "scripts/tokens.mjs", "scripts/token-navigation.mjs", "tests/tokens.test.mjs", "tests/token-navigation.test.mjs", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "docs/how-it-works.md", "CHANGELOG.md"]
 review_status: pending
 reviewed_at: null
 ---
@@ -49,6 +49,9 @@ per-command modules, each readable in one pass" (proposed).
 
 ## Stories
 
+The measurement increment is tracked by
+[[story-reproducible-token-accounting-and-repeated-read-evidence|Reproducible token accounting and repeated-read evidence]].
+
 | Story | Status | Description |
 |-------|--------|-------------|
 | `story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees` | done | Decision 0 of the ADR: lazy team import, entry renamed to `bin/waypost.mjs` behind a shim |
@@ -72,6 +75,39 @@ per-command modules, each readable in one pass" (proposed).
 - [ ] Split: a CLI test "team-bound story → refuse" exists before the gate moves.
 - [ ] Split: guards of other ADRs naming the entry are re-scoped; pointer comments updated.
 - [ ] `npm pack --dry-run` lists `bin/waypost.mjs` (done in step 0) and `bin/cli/` after the split.
+
+## Offline measurement baseline (2026-10-15)
+
+Command: `waypost tokens --json --navigation --since 2026-10-08 --until 2026-10-15`.
+The interval assigns each request by its first observed assistant timestamp (UTC)
+and includes all cumulative usage blocks of that request. Retained Claude-only
+history: 247 fingerprinted source files, 2,661 requests, 744,710,130 native tokens;
+109,405,665 tokens (14.6910%) explicitly attributed to Waypost roles/skills. This
+includes useful role work, not just overhead, and does not measure subscription
+quota. Source/usage coverage was complete within the discovered files; no
+request crossed a requested boundary in this sample.
+
+Recognized navigation: 269 calls in 186 initiating requests; returned read text
+3,076,145 JavaScript characters. Zero identical repeats were confirmed in this
+conservative subset. There were 2,396 unsupported shell calls, so zero is not
+evidence that the full workflow had no duplicate reads. Initiating-request input
+is not the cost of returned text or an upper bound on later context reuse. The
+report preserves input/cache counters and a separately labelled API-price proxy.
+
+Actual output reduction for the same period: `--summary` returned 241 characters,
+versus 2,188 for the detailed text report (88.99% fewer characters). This proves
+shorter tool output only, not an 88.99% reduction in tokens or task cost.
+
+Analyzer source hashes (working tree based on `7255443`, tracked changes present):
+
+- `scripts/tokens.mjs`: `44abfa7b4e591fd0d9a16adcf6bcc3eb5eceef0d78c3f20548625203829ec9ee`
+- `scripts/token-navigation.mjs`: `70ed200d00cc1c0e735d3e876763983c607bf7f86daf7fdb22575e2089a43023`
+
+The full fingerprint manifest is a local scratch report, not committed transcript
+contents. Retention and new sessions can change later results. Next target:
+improve measured navigation coverage, then compare fixed tasks with independent
+acceptance and all failed attempts counted. Do not approve the proposed split or
+claim a percentage saving from this observational baseline alone.
 
 ## Dependencies
 
