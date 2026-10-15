@@ -61,16 +61,16 @@ a generator and compare the result with what is on disk.
 |---|---|
 | `waypost setup` | the whole install in one command |
 | `waypost next` | what the project needs now, ranked |
-| `waypost bind <vault>` | bind a vault and scaffold the layout (`--layout`, `--lang`, `--force`) |
+| `waypost bind <vault>` | bind a vault and scaffold the layout (`--layout`, `--lang`, `--force`, `--self-install off\|on`) |
 | `waypost scaffold` | create any missing layout folders and index READMEs |
-| `waypost brief` | session-start orientation packet (`--full` for the descent tutorial); installs the running harness's roles when they are missing (`--no-install` to only read) |
+| `waypost brief` | session-start orientation packet (`--full` for the descent tutorial); installs the running harness's roles when they are missing (`--no-install` to only read; `"self_install": "off"` in the vault policy for every clone) |
 | `waypost draft <kind> "<title>" [--write]` | draft an artifact; `--write` creates and reconciles |
 | `waypost story plan\|close <path> [--write]` | story lifecycle gates |
 | `waypost kanban` / `graph` / `codemap` | regenerate one derived view |
 | `waypost graph --for <path>` | one artifact's neighbourhood instead of the whole graph |
 | `waypost search "<text>"` | vault-wide search returning pointers |
 | `waypost reconcile [--write]` | rebuild every view and index |
-| `waypost doctor [--install\|--vault] [--fix]` | deterministic diagnostics |
+| `waypost doctor [--install\|--vault [<path>]] [--fix]` | deterministic diagnostics; `--vault <path>` needs no binding |
 | `waypost diff-refs` | changed files as evidence for `code_refs` |
 | `waypost agents …` | roles: list / show / install / register / model |
 | `waypost harnesses` | the registry: where roles land and how to invoke them |
@@ -122,14 +122,15 @@ copy there serves them all; the rest get their brand directory
 `metadata.waypost-source` and `waypost-hash`, which is how `doctor` tells a
 current copy from a stale or hand-edited one and how install knows a file is
 ours before touching it. `waypost brief` installs the running harness's skills
-when they are missing, as it does roles; `waypost skill <name>` prints one.
+when they are missing, as it does roles (not when the vault policy says
+`"self_install": "off"`); `waypost skill <name>` prints one.
 
 ## Parallel sessions (ADR-0006)
 
-- `waypost commit -m "…" [--story <id>]` — reconciles the views, checks other
+- `waypost commit -m "…" [--story <id>] [--task <id>]` — reconciles the views, checks other
   sessions' claims, and writes `Waypost-Harness` / `Waypost-Session` / `Waypost-OS` / `Waypost-Provider` /
-  `Waypost-Story` trailers.
-- `waypost log [--story|--harness|--provider|--session|--os <v>]` — reads that back.
+  `Waypost-Story` trailers, plus `Waypost-Task` for an external tracker's id (never looked up).
+- `waypost log [--story|--task|--harness|--provider|--session|--os <v>]` — reads that back.
 - `waypost merge <ref>` — merge without auto-commit, reconcile, then commit, so the
   board in the merge commit matches the merged vault.
 - `waypost merge-derived` — the git merge driver: a conflict in a generated file is

@@ -101,19 +101,42 @@ waypost setup
 That one command does the whole install: it creates (or adopts) a `vault/`
 folder for your project's notes, sets up the folder layout, installs the agent
 roles for whatever tools your project uses, and fixes anything mechanical. It is
-safe to re-run; add `--dry-run` to see what it would do first.
+safe to re-run; add `--dry-run` to see what it would do first. Working alone
+in one tool? Skip `setup` and take the shorter path below.
 
 Then, day to day:
 
 ```bash
 waypost                 # is this set up, and what does it need right now?
 waypost next            # the same, ranked, with the exact command for each
-waypost brief           # orientation for the session; installs this tool's roles if missing
+waypost brief           # orientation for the session; installs this tool's roles if missing (unless the vault opts out)
 waypost draft adr "Use Postgres for primary storage" --write
 ```
 
 The last command creates a decision record and wires it into the board and the
 link graph. Every file it makes is plain markdown you can read and edit by hand.
+
+## Working alone, in one tool
+
+You do not need the roles, the coordination or the teams to get the two parts
+that stand on their own: a deterministic vault check and commits that carry
+your tracker's task id (needs a Waypost newer than 0.16.0):
+
+```bash
+waypost bind vault --self-install off     # a vault; no roles or skills unless you ask
+printf '\n.waypost/\n' >> .gitignore      # the binding is per checkout
+git add vault .gitignore && git commit -m "Add the project vault"
+waypost doctor --vault vault              # in CI too: no AI, no setup, exit 1 on an issue
+waypost commit -m "Fix the login timeout" --task PROJ-123 --all
+waypost log --task PROJ-123
+```
+
+`--task` takes a tracker's id (YouTrack, Jira, Linear) and is never looked up;
+the trailer is plain git: `git log --grep '^Waypost-Task: PROJ-123$'` finds the
+whole history without this tool. `--self-install off` lives in the committed vault
+policy, so no clone gains role files; on another clone run `waypost bind vault`,
+not `setup`. If your agent runs builds, `waypost agents register` once writes the
+routing block with its heavy-work rule into your instruction file.
 
 ## What you get
 
@@ -154,7 +177,7 @@ honest.
 | `waypost doctor [--fix]` | consistency check (and mechanical repairs) |
 | `waypost agents …` | manage roles: `list` / `install` / `uninstall` / `model` |
 | `waypost harnesses` | which agent tools are supported |
-| `waypost commit -m "…" [--story <id>]` | commit with harness/session/story trailers |
+| `waypost commit -m "…" [--story <id>] [--task <id>]` | commit with harness/session/story/task trailers |
 | `waypost skills install` | the bundled procedures as Agent Skills, in the directory your tool reads |
 | `waypost ready` | stories that are planned, unblocked (by other stories, a draft spec or a proposed ADR) and unclaimed, with the command that claims each |
 | `waypost sessions` / `lease` / `watch` | see and coordinate who is working |
@@ -213,7 +236,7 @@ waypost log --story PS-1/story-codex-adapter     # or --harness codex
 ```
 
 Every commit carries git trailers (`Waypost-Harness`, `Waypost-Session`,
-`Waypost-OS`, `Waypost-Provider`, `Waypost-Story`) that git itself can read, so the record survives without this
+`Waypost-OS`, `Waypost-Provider`, `Waypost-Story`, `Waypost-Task`) that git itself can read, so the record survives without this
 tool. Generated views regenerate on merge instead of conflicting line by line.
 See [ADR-0006](docs/vault/adr/0006-commit-protocol.md).
 

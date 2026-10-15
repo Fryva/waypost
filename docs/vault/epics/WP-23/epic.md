@@ -8,7 +8,7 @@ created: 2026-10-14
 updated: 2026-10-14
 external_refs: {}
 tags: []
-code_refs: ["scripts/commit.mjs", "scripts/doctor.mjs", "scripts/lib.mjs", "bin/waypost.mjs", "tests/commits.test.mjs", "tests/scripts.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "CHANGELOG.md", "docs/how-it-works.md", "docs/harnesses.md"]
+code_refs: ["scripts/commit.mjs", "scripts/doctor.mjs", "scripts/lib.mjs", "bin/waypost.mjs", "tests/commits.test.mjs", "tests/scripts.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "CHANGELOG.md", "docs/how-it-works.md", "docs/harnesses.md", "README.md", "tests/readme-solo.test.mjs"]
 review_status: pending
 reviewed_at: null
 ---
@@ -54,10 +54,10 @@ covers the minimal answer; the profile is deferred.
 
 ## Expected Results
 
-- [ ] `commit --task PROJ-123` works with and without a vault
-- [ ] CI checks a vault with `doctor --vault <path>` and no setup step
-- [ ] a vault with self-install off gains no role or skill files from `brief` in any clone
-- [ ] the README shows this path before the team material
+- [x] `commit --task PROJ-123` works with and without a vault
+- [x] CI checks a vault with `doctor --vault <path>` and no setup step
+- [x] a vault with self-install off gains no role or skill files from `brief` in any clone
+- [x] the README shows this path before the team material
 
 ## Dependencies
 
