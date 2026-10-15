@@ -6,6 +6,11 @@ import {randomUUID} from 'node:crypto';
 import {realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {createNativeEndpoint} from '../scripts/team-transport.mjs';
+// The endpoint reads the route from process.env, and a suite run from inside a
+// Claude Code session inherits that session's route (the desktop app sets
+// ANTHROPIC_BASE_URL), which refuses every preflight as "route unverified".
+// Each test starts from a first-party route; the route test sets its own.
+for(const name of ['ANTHROPIC_BASE_URL','ANTHROPIC_API_KEY','ANTHROPIC_AUTH_TOKEN','CLAUDE_CODE_USE_BEDROCK','CLAUDE_CODE_USE_VERTEX','CLAUDE_CODE_USE_FOUNDRY','CLAUDE_CODE_ENVIRONMENT_KIND'])delete process.env[name];
 const cwd=realpathSync(tmpdir()),schema='claude-native-first-turn-total-v1';
 const snake=['input_tokens','output_tokens','cache_creation_input_tokens','cache_read_input_tokens'],camel=['inputTokens','outputTokens','cacheCreationInputTokens','cacheReadInputTokens'];
 function terminal(session,values=[10,5,3,7]){return {type:'result',session_id:session,uuid:randomUUID(),num_turns:1,is_error:false,result:'answer',usage:Object.fromEntries(snake.map((key,i)=>[key,values[i]])),modelUsage:{'claude-sonnet-4':Object.fromEntries(camel.map((key,i)=>[key,values[i]]))}};}
