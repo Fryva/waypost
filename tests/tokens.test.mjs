@@ -160,3 +160,81 @@ test("tokens: Claude Fable 5.1 is priced by its own id and alias, with cache rea
   assert.equal(rowCost({ model: "claude-sonnet-5", input: 1e6, cw5m: 0, cw1h: 0, cacheRead: 0, output: 1e6 }), 12,
     "$2 in, $10 out is the base price now, not an introductory one");
 });
+
+// A model Claude Code writes but PRICING lacks prices at $0 — that is how the
+// whole cost column went to zero once the 5.5 generation landed and the table
+// still held 2026-09-03 prices.
+test("tokens: the 5.5 generation is priced by its own ids, with cache reads at 5% of input", () => {
+  const read = (model) => rowCost({ model, input: 0, cw5m: 0, cw1h: 0, cacheRead: 1e6, output: 0 });
+  assert.equal(read("claude-opus-5-5"), 0.2, "$0.20/MTok: 5% of $4, not the 10% default (platform.claude.com pricing, 2026-10-15)");
+  assert.equal(read("claude-sonnet-5-5"), 0.1, "5% of $2");
+  assert.equal(rowCost({ model: "claude-opus-5-5", input: 1e6, cw5m: 0, cw1h: 0, cacheRead: 0, output: 1e6 }), 24, "$4 in, $20 out");
+  assert.equal(rowCost({ model: "claude-opus-5-5", input: 0, cw5m: 1e6, cw1h: 1e6, cacheRead: 0, output: 0 }), 13, "the model-independent write multipliers hold: 5m $5 + 1h $8");
+  assert.equal(rowCost({ model: "claude-sonnet-5-5-20261001", input: 1e6, cw5m: 0, cw1h: 0, cacheRead: 0, output: 0 }), 2, "a dated variant normalizes onto the same price");
+  assert.equal(rowCost({ model: "claude-haiku-5-5", input: 1e6, cw5m: 0, cw1h: 0, cacheRead: 0, output: 1e6 }), 0.6, "$0.10 in, $0.50 out — the ≤100k-prompt tier, the only one PRICING models");
+  assert.equal(rowCost({ model: "claude-astra-9", input: 1e6, cw5m: 1e6, cw1h: 1e6, cacheRead: 1e6, output: 1e6 }), 0, "an unknown model stays $0 and is reported, never guessed at");
+});
+
+// One transcript, one model: the minimal shape that decides whether the cost
+// column holds a number or a column of zeros.
+function singleModelHome(model) {
+  const home = mkdtempSync(join(tmpdir(), "waypost-tok-home-"));
+  const project = join(tmpdir(), "waypost-tok-project-price-check");
+  const dir = join(home, ".claude", "projects", slugOf(project));
+  mkdirSync(dir, { recursive: true });
+  const rec = {
+    type: "assistant", requestId: "r1", timestamp: "2026-10-14T10:00:00Z",
+    message: {
+      model,
+      usage: { input_tokens: 1e6, output_tokens: 1e6, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      content: [{ type: "text", text: "x" }],
+    },
+  };
+  writeFileSync(join(dir, "s.jsonl"), JSON.stringify(rec) + "\n", "utf8");
+  return { home, project };
+}
+
+test("tokens: a transcript on a priced model costs something and warns about nothing", () => {
+  const { home, project } = singleModelHome("claude-opus-5-5");
+  const r = run(home, ["--project", project, "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.totals.all.cost_usd, 24);
+  assert.equal(out.buckets[0].unpriced_models, undefined);
+  assert.doesNotMatch(run(home, ["--project", project]).stdout, /unpriced/);
+});
+
+test("tokens: a model PRICING does not know is $0 and says so, rather than looking free", () => {
+  const { home, project } = singleModelHome("claude-astra-9");
+  const r = run(home, ["--project", project, "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.totals.all.cost_usd, 0);
+  assert.deepEqual(out.buckets[0].unpriced_models, ["claude-astra-9"]);
+  const text = run(home, ["--project", project]);
+  assert.match(text.stdout, /unpriced models \(cost counted as \$0\): claude-astra-9/);
+});
+
+test("tokens: a locally-synthesized assistant message is no API request — no row, no unpriced warning", () => {
+  const { home, project } = fixture();
+  const dir = join(home, ".claude", "projects", slugOf(project));
+  // The shape Claude Code writes when it composes a message itself (an
+  // interrupt, an error): a real requestId, model "<synthetic>", every counter 0.
+  const rec = {
+    type: "assistant", requestId: "req9", timestamp: "2026-10-14T11:00:00Z",
+    message: {
+      model: "<synthetic>",
+      usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      content: [{ type: "text", text: "[Request interrupted by user]" }],
+    },
+  };
+  writeFileSync(join(dir, "session2.jsonl"), JSON.stringify(rec) + "\n", "utf8");
+  const r = run(home, ["--project", project, "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.totals.all.requests, 2, "the fixture's two real requests; the synthetic one is not a row");
+  assert.equal(out.sessions, 1, "a session holding only a synthetic record contributes no session of its own");
+  assert.ok(out.buckets.every((b) => b.unpriced_models === undefined),
+    "it is not a model, so it must not trip the warning that a real price gap relies on");
+  assert.doesNotMatch(run(home, ["--project", project]).stdout, /unpriced/);
+});

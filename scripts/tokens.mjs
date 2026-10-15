@@ -31,11 +31,12 @@
 //     false "1 call/turn" for every turn (each record holds ≤1 tool_use).
 //
 // COST is computed at current API list prices (PRICING below) with the cache
-// multipliers: read 0.1× input (0.025× on Fable 5.1), 5m write 1.25×, 1h write 2× (the usage records
-// carry the 5m/1h split). Under a subscription plan these dollars are a proxy
-// for rate-limit consumption, not an invoice — the RATIOS hold either way.
-// Historical price changes are not modeled; everything is priced at today's
-// list. Unknown models are priced at 0 and reported.
+// multipliers: read 0.1× input (0.05× on Opus/Sonnet 5.5, 0.025× on Fable 5.1),
+// 5m write 1.25×, 1h write 2× (the usage records carry the 5m/1h split). Under
+// a subscription plan these dollars are a proxy for rate-limit consumption, not
+// an invoice — the RATIOS hold either way. Historical price changes are not
+// modeled; everything is priced at today's list. Unknown models are priced at 0
+// and reported.
 //
 // KNOWN BLIND SPOTS (deliberate, documented rather than silently skewed):
 //   • Vault edits made in the main thread without an attributed command
@@ -43,6 +44,11 @@
 //   • The SessionStart vault injection is re-read as cache_read on EVERY
 //     request of a session, including pure-code ones. That is real vault cost
 //     smeared across the main thread; this script does not try to carve it out.
+//   • Haiku 5.5 is priced by prompt length (5× the rate above 100k tokens,
+//     counted per request over input + cache write + cache read). PRICING
+//     carries only the ≤100k tier, so a long Haiku request is under-priced.
+//   • Fast mode (2× on Opus 5.5/5/4.8) and US-only inference (1.1×) are not
+//     modeled: every request is priced at the standard global rate.
 //   • Transcripts are pruned on Claude Code's retention schedule
 //     (cleanupPeriodDays, 30 by default), so this is "what's left on disk",
 //     not all time. Persisting a per-session roll-up is a separate concern.
@@ -82,24 +88,30 @@ const STAGE_OF = {
 const STAGE_ORDER = ["authoring", "critique", "planning", "code-review", "curation", "upkeep", "other"];
 
 // USD per MTok [input, output, cache-read fraction of input], API list prices
-// as of 2026-09-03 (platform.claude.com models overview). Cache reads are 10%
-// of the input rate on every model except Claude Fable 5.1, where they are
-// 2.5%; the write multipliers (5m 1.25×, 1h 2×) are model-independent.
+// as of 2026-10-15 (platform.claude.com/docs/en/about-claude/pricing). Cache
+// reads are 10% of the input rate except on Opus 5.5 and Sonnet 5.5, where they
+// are 5%, and on Fable 5.1, where they are 2.5%; the write multipliers
+// (5m 1.25×, 1h 2×) are model-independent. A model missing here prices at $0 and
+// is reported as unpriced — when Claude Code starts writing a new id, add it.
 export const PRICING = {
   "claude-fable-5-1": [10, 50, 0.025],
   "claude-fable-5": [10, 50],
+  "claude-opus-5-5": [4, 20, 0.05],
   "claude-opus-5": [5, 25],
   "claude-opus-4-8": [5, 25],
   "claude-opus-4-7": [5, 25],
   "claude-opus-4-6": [5, 25],
+  "claude-sonnet-5-5": [2, 10, 0.05],
   "claude-sonnet-5": [2, 10],
   "claude-sonnet-4-6": [3, 15],
+  "claude-haiku-5-5": [0.1, 0.5],
   "claude-haiku-4-5": [1, 5],
 };
 
 // Transcripts carry variant ids ("claude-haiku-4-5-20251001", "opus",
 // "claude-opus-5[1m]") — normalize before the PRICING lookup so they don't
-// silently price at $0.
+// silently price at $0. A bare tier name carries no generation, so it lands on
+// the 5-series below: a record from a newer default is off by one generation.
 const MODEL_ALIASES = { fable: "claude-fable-5-1", opus: "claude-opus-5", sonnet: "claude-sonnet-5", haiku: "claude-haiku-4-5" };
 
 export function normModel(model) {
@@ -145,6 +157,11 @@ function parseArgs(argv) {
 export function ingest(rows, rec, meta) {
   const u = rec.message && rec.message.usage;
   if (!u) return;
+  // Claude Code also writes locally-synthesized assistant messages (an interrupt
+  // or an error it composed itself) under the model "<synthetic>" with a real
+  // requestId and every usage counter at zero. Not an API request, so no row —
+  // and not an unpriced model either, which is what the warning is for.
+  if ((rec.message.model || "") === "<synthetic>") return;
   const id = rec.requestId;
   let row = rows.get(id);
   if (!row) {
@@ -326,8 +343,8 @@ export function aggregate(rows, keyFn, calls) {
 const n = (v) => v.toLocaleString("en-US");
 
 // `t/turn` — avg distinct tool calls per tool-using turn (batching level; 1.0
-// means fully sequential). `cost` — USD at current list prices; cache reads
-// bill at 0.1× input, so token counts and dollars rank differently.
+// means fully sequential). `cost` — USD at current list prices; cache reads bill
+// at 0.025-0.1× input by model, so token counts and dollars rank differently.
 const usd = (v) => `$${v.toFixed(2)}`;
 
 function table(groups, label, { runs = false } = {}) {

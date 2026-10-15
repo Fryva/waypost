@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `waypost commit`, `story plan` and `story close` work from a second machine that sees the checkout over a share (a VM on the host's disk), as long as no team was ever created: an empty team-authority directory the host left on its local disk no longer refuses as `authority-nonlocal`. One that holds a team still does.
 - On Linux under a systemd user manager, `waypost run --heavy` starts the job in a scope of its own (`systemd-run --user --scope`). An out-of-memory kill no longer takes the harness down with the job: systemd stops the unit the killed process sat in, and that used to be the harness's own. Without a user manager the job runs as before.
+- `waypost tokens` prices the Claude 5.5 generation (`claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`), including the 5% cache-read fraction Opus and Sonnet 5.5 use. The table was a 2026-09-03 snapshot, and a model it does not know prices at $0 behind a `⚠ unpriced models` warning — so once a machine's transcripts moved to 5.5, the cost column, `cost/run`, the cost-ordered bucket list and `vault share: cost …%` all read zero. Haiku 5.5's higher >100k-prompt tier, Fast mode and US-only inference are documented blind spots, priced at the standard global rate. A message Claude Code synthesizes itself (`"model": "<synthetic>"`, every usage counter zero) is no longer counted as a request nor reported as an unpriced model, so that warning now means a real price gap.
 
 ## [0.16.0] — 2026-10-12
 
