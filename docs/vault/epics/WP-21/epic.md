@@ -8,7 +8,7 @@ created: 2026-10-04
 updated: 2026-10-14
 external_refs: {}
 tags: []
-code_refs: ["bin/", "package.json", "scripts/tokens.mjs", "scripts/token-navigation.mjs", "tests/tokens.test.mjs", "tests/token-navigation.test.mjs", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "docs/how-it-works.md", "CHANGELOG.md"]
+code_refs: ["bin/", "package.json", "scripts/tokens.mjs", "scripts/token-navigation.mjs", "scripts/token-codex.mjs", "tests/tokens.test.mjs", "tests/token-navigation.test.mjs", "tests/token-codex.test.mjs", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "docs/how-it-works.md", "CHANGELOG.md"]
 review_status: pending
 reviewed_at: null
 ---
@@ -108,6 +108,34 @@ contents. Retention and new sessions can change later results. Next target:
 improve measured navigation coverage, then compare fixed tasks with independent
 acceptance and all failed attempts counted. Do not approve the proposed split or
 claim a percentage saving from this observational baseline alone.
+
+## Codex observed-span baseline (2026-10-16)
+
+Command: `waypost tokens --harness codex --json --since 2026-10-08 --until 2026-10-16`,
+run offline through `waypost run --heavy` after a resource slot became available.
+No model was invoked. Discovery inspected 254 plain rollout headers and selected
+22 matching files/contexts by exact metadata cwd; 232 files belonged elsewhere.
+The Desktop native `id`, not the shared `session_id` label, owns each counter.
+
+The selected observed spans contain **18,949,185 native tokens** across 187 spans;
+4,076,805 tokens (21.5144%) have explicit Waypost role attribution. Cached input
+(18,090,624) and reasoning output (23,179) are subsets, not extra tokens. These
+counts are independent of the earlier Claude baseline and must not be combined
+or treated as subscription quota percentages.
+
+Coverage is incomplete: 337 compressed candidate files were not decoded, 20
+contexts had uncharged nonzero initial snapshots, and one conflicting context
+was quarantined. Full retained-source totals/shares are null. The 21.5144% figure
+describes covered spans only; it is not the entire overhead or a measured saving.
+Files were read sequentially and native history can expire or grow.
+
+Analyzer hashes (working tree based on `f485cc2`, tracked changes present):
+
+- `scripts/tokens.mjs`: `3fa18bbee62942fb3ebcaa568d3046849600e287139fcd2937204a2cb71a1a53`
+- `scripts/token-codex.mjs`: `8f964e022e154e12b8a247646bbbe6d458dd4f474536c9feb5ba80dfa21cac09`
+
+Full source fingerprints remain in a local scratch report; transcript bodies are
+not committed. The story is [[story-offline-codex-token-accounting-with-explicit-coverage|Offline Codex token accounting with explicit coverage]].
 
 ## Dependencies
 

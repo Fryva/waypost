@@ -1,0 +1,334 @@
+import { test, after } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { collectCodexReport } from "../scripts/token-codex.mjs";
+import { ambientEnv } from "./env.mjs";
+
+const scratch = [];
+after(() => { for (const dir of scratch) rmSync(dir, { recursive: true, force: true }); });
+const CLI = join(dirname(dirname(fileURLToPath(import.meta.url))), "scripts/tokens.mjs");
+const created = "2026-10-14T00:00:00Z";
+const at = hour => `2026-10-14T${String(hour).padStart(2, "0")}:00:00Z`;
+const usage = (input = 0, output = 0, cache = 0, reasoning = 0, write) => ({ input_tokens: input, cached_input_tokens: cache, output_tokens: output, reasoning_output_tokens: reasoning, total_tokens: input + output, ...(write === undefined ? {} : { cache_write_input_tokens: write }) });
+const event = (time, value, last = value) => ({ timestamp: time, type: "event_msg", payload: { type: "token_count", info: value === null ? null : { total_token_usage: value, last_token_usage: last } } });
+
+function fixture() {
+  const dir = mkdtempSync(join(tmpdir(), "waypost-codex-tokens-")); scratch.push(dir);
+  const home = join(dir, "codex"), project = join(dir, "project"), sessions = join(home, "sessions");
+  mkdirSync(sessions, { recursive: true }); mkdirSync(project);
+  const write = (id, frames, options = {}) => {
+    const path = join(sessions, options.name ?? `${id}.jsonl`);
+    const meta = { id, session_id: id, timestamp: created, cwd: project, model_provider: "openai", cli_version: "fixture", ...options.meta };
+    const records = [{ type: "session_meta", payload: meta }, ...frames];
+    writeFileSync(path, records.map(record => typeof record === "string" ? record : JSON.stringify(record)).join("\n") + "\n");
+    return path;
+  };
+  return { dir, home, project, sessions, write, report: opts => collectCodexReport({ project, codexHome: home, ...opts }) };
+}
+
+function cli(f, args = []) {
+  return spawnSync(process.execPath, [CLI, "--project", f.project, "--harness", "codex", ...args], { encoding: "utf8", env: { ...ambientEnv(), CODEX_HOME: f.home }, timeout: 15000 });
+}
+
+test("Codex deltas use native total once; cache and reasoning remain subsets", async () => {
+  const f = fixture();
+  f.write("critic", [event(at(0), usage()), event(at(1), usage(100, 20, 40, 10))], { meta: { agent_role: "waypost-critic" } });
+  const r = await f.report();
+  assert.equal(r.native_totals.all.total_tokens, 120);
+  assert.equal(r.native_totals.all.observed_spans, 1);
+  assert.equal(r.native_totals.all.observed_cached_input_tokens, 40);
+  assert.equal(r.native_totals.all.observed_reasoning_output_tokens, 10);
+  assert.equal(r.token_shares.observed_waypost_percent, 100);
+  assert.equal(r.token_shares.full_retained_source_waypost_percent, 100);
+  assert.equal(r.measurement.subscription_quota_percent, null);
+  assert.equal(r.pricing_usd_per_mtok, undefined);
+  assert.equal(r.native_totals.all.requests, undefined);
+});
+
+test("Codex never charges a first nonzero snapshot, even when cumulative equals last", async () => {
+  const f = fixture();
+  f.write("fresh", [event(at(1), usage(100, 20)), event(at(2), usage(150, 30))]);
+  const r = await f.report();
+  assert.equal(r.native_totals.all.observed_total_tokens, 60);
+  assert.equal(r.native_totals.all.total_tokens, null);
+  assert.equal(r.contexts[0].coverage.unknown_prefixes, 1);
+});
+
+test("Codex inherited snapshots are skipped; parent identity alone does not invalidate a zero anchor", async () => {
+  const f = fixture();
+  f.write("child", [event("2026-10-13T23:00:00Z", usage(500)), event(at(1), usage(500)), event(at(2), usage(550))], { meta: { parent_thread_id: "parent" } });
+  f.write("normal-child", [event(at(0), usage()), event(at(1), usage(20))], { meta: { parent_thread_id: "parent" } });
+  const r = await f.report();
+  assert.equal(r.native_totals.all.observed_total_tokens, 70);
+  assert.equal(r.contexts.find(c => c.id === "child").coverage.historical_snapshots, 1);
+  assert.equal(r.contexts.find(c => c.id === "normal-child").total_tokens, 20);
+});
+
+test("Codex duplicate snapshots and prefix replay files cannot duplicate usage", async () => {
+  const f = fixture(), base = [event(at(0), usage()), event(at(1), usage(100))];
+  f.write("same", base, { name: "a.jsonl" });
+  f.write("same", [...base, event(at(2), usage(100)), event(at(3), usage(120))], { name: "b.jsonl" });
+  const r = await f.report();
+  assert.equal(r.native_totals.all.total_tokens, 120);
+  assert.equal(r.native_totals.all.observed_spans, 2);
+  assert.equal(r.coverage.replay_files, 1);
+  assert.equal(r.contexts[0].coverage.duplicates, 1);
+});
+
+test("Codex divergent same-id histories are quarantined rather than sorted into fabricated spans", async () => {
+  const f = fixture();
+  f.write("same", [event(at(0), usage()), event(at(1), usage(100))], { name: "a.jsonl" });
+  f.write("same", [event(at(0), usage()), event(at(1), usage(200))], { name: "b.jsonl" });
+  const r = await f.report();
+  assert.equal(r.coverage.conflicting_contexts, 1);
+  assert.equal(r.native_totals.all.total_tokens, null);
+  assert.equal(r.native_totals.all.observed_total_tokens, 0);
+});
+
+test("Codex malformed/null observations break continuity and the next snapshot only rebases", async () => {
+  for (const broken of ["{broken", event(at(2), null)]) {
+    const f = fixture();
+    f.write("gap", [event(at(0), usage()), event(at(1), usage(100)), broken, event(at(3), usage(200)), event(at(4), usage(250))]);
+    const r = await f.report();
+    assert.equal(r.native_totals.all.observed_total_tokens, 150);
+    assert.equal(r.native_totals.all.total_tokens, null);
+    assert.equal(r.contexts[0].coverage.chain_gaps, 1);
+  }
+});
+
+test("Codex decrease, same-total conflict and optional schema drift cannot bridge counter epochs", async () => {
+  for (const values of [
+    [usage(100), usage(50), usage(60), usage(70)],
+    [usage(100), usage(100, 0, 10), usage(110, 0, 10), usage(120, 0, 10)],
+    [usage(100), usage(110, 0, 0, 0, 0), usage(120, 0, 0, 0, 0), usage(130, 0, 0, 0, 0)],
+  ]) {
+    const f = fixture();
+    f.write("reset", [event(at(0), usage()), ...values.map((value, i) => event(at(i + 1), value))]);
+    const r = await f.report();
+    assert.equal(r.native_totals.all.observed_total_tokens, 110);
+    assert.equal(r.native_totals.all.total_tokens, null);
+  }
+});
+
+test("Codex validates timestamps independently of monotonic counters", async () => {
+  for (const time of [undefined, "not-a-date", "2026-10-14T02:00:00", "2026-02-30T00:00:00Z", "2026-10-13T23:59:59Z"]) {
+    const f = fixture();
+    f.write("bad-time", [event(at(0), usage()), event(at(1), usage(100)), event(time, usage(150)), event(at(3), usage(200)), event(at(4), usage(210))]);
+    const r = await f.report();
+    assert.equal(r.native_totals.all.observed_total_tokens, 110);
+    assert.equal(r.contexts[0].coverage.invalid_timestamps, 1);
+    assert.equal(r.native_totals.all.total_tokens, null);
+  }
+});
+
+test("Codex rejects unsafe, negative, incomplete and contradictory native counters", async () => {
+  for (const bad of [
+    { ...usage(1), input_tokens: -1 }, { ...usage(1), output_tokens: undefined },
+    { ...usage(1), total_tokens: Number.MAX_SAFE_INTEGER + 1 },
+    { ...usage(1), cached_input_tokens: 2 }, { ...usage(1), reasoning_output_tokens: 1 },
+    { ...usage(1), total_tokens: 2 }, { ...usage(1), cache_write_input_tokens: "0" },
+  ]) {
+    const f = fixture(); f.write("bad", [event(at(0), usage()), event(at(1), bad)]);
+    const r = await f.report();
+    assert.equal(r.native_totals.all.total_tokens, null);
+    assert.equal(r.native_totals.all.observed_total_tokens, 0);
+  }
+});
+
+test("Codex period selection constructs pre-period baselines and assigns whole deltas by endpoint", async () => {
+  const f = fixture();
+  f.write("period", [event(at(0), usage()), event(at(23), usage(100)), event("2026-10-15T00:00:01Z", usage(150))]);
+  const old = await f.report({ until: "2026-10-15" }), next = await f.report({ since: "2026-10-15" });
+  assert.equal(old.native_totals.all.total_tokens, 100);
+  assert.equal(next.native_totals.all.total_tokens, 50);
+  assert.equal(next.contexts[0].coverage.boundary_crossing_spans, 1);
+});
+
+test("Codex offsets and cache subsets cannot move or inflate a UTC endpoint", async () => {
+  const f = fixture();
+  f.write("offset", [event(at(0), usage()), event("2026-10-15T00:30:00+01:00", usage(100, 20, 50, 10)), event("2026-10-15T01:30:00+01:00", usage(200, 40, 100, 20))]);
+  const before = await f.report({ until: "2026-10-15" });
+  const after = await f.report({ since: "2026-10-15" });
+  assert.equal(before.native_totals.all.total_tokens, 120);
+  assert.equal(after.native_totals.all.total_tokens, 120);
+  assert.equal(after.native_totals.all.observed_cached_input_tokens, 50);
+  assert.equal(after.native_totals.all.observed_reasoning_output_tokens, 10);
+});
+
+test("Codex unknown prefix before the period is not charged into a later interval", async () => {
+  const f = fixture();
+  f.write("prefix", [event(at(1), usage(100)), event("2026-10-15T00:00:00Z", usage(150))]);
+  const r = await f.report({ since: "2026-10-15" });
+  assert.equal(r.native_totals.all.total_tokens, 50);
+  assert.equal(r.native_totals.all.observed_total_tokens, 50);
+});
+
+test("Codex a first snapshot after the window cannot turn an overlapping unknown prefix into zero", async () => {
+  const f = fixture();
+  f.write("late", [event("2026-10-16T00:00:00Z", usage(100))]);
+  const r = await f.report({ since: "2026-10-14", until: "2026-10-15" });
+  assert.equal(r.native_totals.all.observed_total_tokens, 0);
+  assert.equal(r.native_totals.all.total_tokens, null);
+  const later = fixture();
+  later.write("unborn", [event("2026-10-16T01:00:00Z", usage(100))], { meta: { timestamp: "2026-10-16T00:00:00Z" } });
+  const outside = await later.report({ since: "2026-10-14", until: "2026-10-15" });
+  assert.equal(outside.native_totals.all.total_tokens, 0);
+});
+
+test("Codex exact cwd selects project metadata, not prompt text or a similar project prefix", async () => {
+  const f = fixture();
+  f.write("ours", [event(at(0), usage()), event(at(1), usage(10))]);
+  f.write("foreign", [{ type: "response_item", payload: { text: f.project } }, event(at(0), usage()), event(at(1), usage(1000))], { meta: { cwd: f.project + "-other" } });
+  const r = await f.report();
+  assert.equal(r.native_totals.all.total_tokens, 10);
+  assert.equal(r.coverage.other_project_files, 1);
+  assert.equal(r.provenance.input_files.length, 1);
+});
+
+test("Codex role attribution requires consistent explicit metadata and preserves unknown attribution", async () => {
+  const f = fixture(), frames = [event(at(0), usage()), event(at(1), usage(100))];
+  f.write("role", frames, { meta: { source: { subagent: { thread_spawn: { agent_role: "waypost-reviewer" } } } } });
+  f.write("main", frames);
+  f.write("other", frames, { meta: { agent_role: "explorer" } });
+  const r = await f.report();
+  assert.equal(r.native_totals.waypost.observed_total_tokens, 100);
+  assert.equal(r.native_totals.unattributed.observed_total_tokens, 100);
+  assert.equal(r.native_totals.other_explicit_roles.observed_total_tokens, 100);
+  assert.equal(r.token_shares.observed_waypost_percent, 100 / 3);
+});
+
+test("Codex invalid or changing metadata never silently merges contexts", async () => {
+  for (const bad of [{ id: null }, { agent_role: "waypost-critic", source: { subagent: { thread_spawn: { agent_role: "worker" } } } }]) {
+    const f = fixture(); f.write("bad", [event(at(0), usage()), event(at(1), usage(100))], { meta: bad });
+    const r = await f.report();
+    assert.equal(r.coverage.unidentifiable_headers, 1);
+    assert.equal(r.native_totals.all.total_tokens, null);
+  }
+  const f = fixture();
+  f.write("same", [event(at(0), usage()), event(at(1), usage(100))], { name: "a.jsonl", meta: { agent_role: "waypost-critic" } });
+  f.write("same", [event(at(0), usage()), event(at(1), usage(100))], { name: "b.jsonl", meta: { agent_role: "waypost-planner" } });
+  const r = await f.report();
+  assert.equal(r.coverage.conflicting_contexts, 1);
+  assert.equal(r.native_totals.all.total_tokens, null);
+});
+
+test("Codex native id isolates subagents sharing the Desktop session label", async () => {
+  const f = fixture(), frames = [event(at(0), usage()), event(at(1), usage(100))];
+  f.write("first-native", frames, { meta: { session_id: "same-chat", agent_role: "waypost-critic" } });
+  f.write("second-native", frames, { meta: { session_id: "same-chat", agent_role: "waypost-reviewer" } });
+  const r = await f.report();
+  assert.equal(r.coverage.unidentifiable_headers, 0);
+  assert.equal(r.coverage.matched_contexts, 2);
+  assert.equal(r.native_totals.all.total_tokens, 200);
+  assert.equal(r.native_totals.waypost.total_tokens, 200);
+  assert.ok(r.contexts.every(context => context.session_label === "same-chat"));
+});
+
+test("Codex same-id metadata conflicts are detected before project filtering", async () => {
+  for (const foreign of [{ cwd: "/another/project" }, { cwd: "/another/project", source: { subagent: { thread_spawn: { agent_role: "different" } } }, agent_role: "waypost-critic" }]) {
+    const f = fixture(), frames = [event(at(0), usage()), event(at(1), usage(100))];
+    f.write("same-native", frames, { name: "our.jsonl" });
+    f.write("same-native", frames, { name: "foreign.jsonl", meta: foreign });
+    const r = await f.report();
+    assert.equal(r.coverage.conflicting_contexts, 1);
+    assert.equal(r.native_totals.all.observed_total_tokens, 0);
+    assert.equal(r.native_totals.all.total_tokens, null);
+  }
+});
+
+test("Codex archive/header/discovery gaps are explicit and cannot become a full-history zero", async () => {
+  const f = fixture();
+  writeFileSync(join(f.sessions, "old.jsonl.zst"), "not decoded");
+  writeFileSync(join(f.sessions, "bad.jsonl"), "{bad header}\n");
+  const r = await f.report();
+  assert.equal(r.coverage.compressed_files_skipped, 1);
+  assert.equal(r.coverage.unidentifiable_headers, 1);
+  assert.equal(r.measurement.source_discovery_complete, false);
+  assert.equal(r.native_totals.all.total_tokens, null);
+  assert.equal(r.token_shares.observed_waypost_percent, null);
+  const missing = await collectCodexReport({ project: f.project, codexHome: join(f.dir, "absent") });
+  assert.equal(missing.coverage.discovery_errors, 1);
+  assert.equal(missing.native_totals.all.total_tokens, null);
+});
+
+test("Codex metadata without native observations does not prove zero consumption", async () => {
+  const f = fixture(); f.write("empty", []);
+  const r = await f.report();
+  assert.equal(r.native_totals.all.observed_total_tokens, 0);
+  assert.equal(r.native_totals.all.total_tokens, null);
+  assert.equal(r.contexts[0].coverage.current_snapshots, 0);
+});
+
+test("Codex bounds line storage, hashes exact source bytes and emits no prompt/tool bodies", async () => {
+  const f = fixture();
+  const path = f.write("bounded", [event(at(0), usage()), { type: "response_item", payload: "SECRET-BODY-" + "x".repeat(1024 * 1024) }, event(at(1), usage(100)), event(at(2), usage(110))]);
+  const r = await f.report();
+  assert.equal(r.coverage.malformed_or_oversized_lines, 1);
+  assert.equal(r.native_totals.all.observed_total_tokens, 10);
+  assert.equal(r.provenance.input_files[0].sha256, createHash("sha256").update(readFileSync(path)).digest("hex"));
+  assert.doesNotMatch(JSON.stringify(r), /SECRET-BODY|xxxxxx/);
+});
+
+test("Codex aggregate overflow is unknown rather than a rounded authoritative number", async () => {
+  const f = fixture();
+  for (const id of ["one", "two"]) f.write(id, [event(at(0), usage()), event(at(1), usage(Number.MAX_SAFE_INTEGER))]);
+  const r = await f.report();
+  assert.equal(r.native_totals.all.observed_total_tokens, null);
+  assert.equal(r.native_totals.all.total_tokens, null);
+});
+
+test("Codex optional cache-write counters remain unknown when absent and never inflate native totals", async () => {
+  const f = fixture();
+  f.write("known", [event(at(0), usage(0, 0, 0, 0, 0)), event(at(1), usage(100, 20, 30, 10, 40))]);
+  let r = await f.report();
+  assert.equal(r.native_totals.all.total_tokens, 120);
+  assert.equal(r.native_totals.all.observed_cache_write_input_tokens, 40);
+  f.write("absent", [event(at(0), usage()), event(at(1), usage(100))]);
+  r = await f.report();
+  assert.equal(r.native_totals.all.total_tokens, 220);
+  assert.equal(r.native_totals.all.observed_cache_write_input_tokens, null);
+  assert.equal(r.native_totals.all.cache_write_counter_spans, 1);
+});
+
+test("Codex CLI is explicit, compact, fingerprinted and rejects unsupported or unknown modes", () => {
+  const f = fixture(); f.write("cli", [event(at(0), usage()), event(at(1), usage(100))]);
+  const result = cli(f, ["--json"]);
+  assert.equal(result.status, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.measurement.source_harness, "codex");
+  assert.equal(report.provenance.analyzer_sources.length, 2);
+  assert.equal(report.native_totals.all.total_tokens, 100);
+  const short = cli(f, ["--summary"]);
+  assert.equal(short.status, 0, short.stderr);
+  assert.match(short.stdout, /100 observed native tokens in 1 spans/);
+  assert.doesNotMatch(short.stdout, /\$|cost_usd/);
+  assert.ok(short.stdout.length < 600);
+  assert.match(cli(f, ["--navigation"]).stderr, /does not support/);
+  assert.match(cli(f, ["--runs"]).stderr, /does not support/);
+  assert.match(cli(f, ["--harness", "unknown"]).stderr, /expects claude or codex/);
+  assert.match(cli(f, ["--harness"]).stderr, /expects a value/);
+});
+
+test("explicit Claude mode preserves the default report schema and totals", () => {
+  const f = fixture(), home = join(f.dir, "claude-home");
+  const transcripts = join(home, ".claude", "projects", f.project.replace(/[^a-zA-Z0-9]/g, "-"));
+  mkdirSync(transcripts, { recursive: true });
+  writeFileSync(join(transcripts, "main.jsonl"), JSON.stringify({
+    type: "assistant", requestId: "claude-request", timestamp: at(1),
+    message: { model: "claude-sonnet-5", usage: { input_tokens: 100, cache_creation_input_tokens: 20, cache_read_input_tokens: 30, output_tokens: 10 }, content: [] },
+  }) + "\n");
+  const run = flags => spawnSync(process.execPath, [CLI, "--project", f.project, "--json", ...flags], {
+    encoding: "utf8", env: { ...ambientEnv(), HOME: home, USERPROFILE: home }, timeout: 15000,
+  });
+  const implicit = run([]), explicit = run(["--harness", "claude"]);
+  assert.equal(implicit.status, 0, implicit.stderr); assert.equal(explicit.status, 0, explicit.stderr);
+  const a = JSON.parse(implicit.stdout), b = JSON.parse(explicit.stdout);
+  assert.deepEqual(a.totals, b.totals);
+  assert.equal(b.measurement.source_harness, "claude-code");
+  assert.equal(b.native_totals.all.total_tokens, 160);
+});

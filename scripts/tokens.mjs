@@ -6,9 +6,9 @@
 // already produces. Nothing needs to be enabled ahead of time; it works on
 // whatever history is still on disk.
 //
-// HARNESS-SPECIFIC BY NATURE, and the only such script here: it reads Claude
-// Code's own transcript format. Under Codex or OpenCode it has nothing to read
-// and says so. Attribution matches the role prefix this fork installs
+// Claude Code is the default source. --harness codex selects a separate offline
+// cumulative-counter report; schemas are never combined. OpenCode history is not
+// imported. Attribution matches the role prefix this fork installs
 // ("waypost-critic", …); upstream's slash-command attribution no longer exists, so
 // vault work done from the main thread lands in the unattributed bucket.
 //
@@ -139,7 +139,7 @@ function transcriptDir(dir) {
 }
 
 function parseArgs(argv) {
-  const opts = { json: false, sessions: false, runs: false, summary: false, navigation: false, since: null, until: null, project: null };
+  const opts = { json: false, sessions: false, runs: false, summary: false, navigation: false, harness: "claude", since: null, until: null, project: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--json") opts.json = true;
@@ -147,7 +147,7 @@ function parseArgs(argv) {
     else if (a === "--navigation") opts.navigation = true;
     else if (a === "--runs") opts.runs = true;
     else if (a === "--sessions") opts.sessions = true;
-    else if (["--since", "--until", "--project"].includes(a)) {
+    else if (["--since", "--until", "--project", "--harness"].includes(a)) {
       const value = argv[++i];
       if (!value || value.startsWith("--")) die(`${a} expects a value`);
       opts[a.slice(2)] = value;
@@ -160,6 +160,7 @@ function parseArgs(argv) {
     if (value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value)) die(`--${key} expects a real YYYY-MM-DD date`);
   }
   if (opts.since && opts.until && opts.since >= opts.until) die("--until must be later than --since (exclusive UTC boundary)");
+  if (!["claude", "codex"].includes(opts.harness)) die("--harness expects claude or codex; histories use separate counter schemas");
   return opts;
 }
 
@@ -529,6 +530,7 @@ function measurementReport(rows, audit, opts, project) {
       total_formula: "input_tokens + cache_creation_input_tokens + cache_read_input_tokens + output_tokens",
       scope: "retained local transcripts; attributed role usage, not total Waypost overhead",
       unsupported_harnesses: ["codex", "opencode"],
+      other_harness_modes: ["codex"],
       subscription_quota_percent: null,
       api_price_estimate_is_subscription_quota: false,
       api_price_estimate_limitations: ["configured standard global prices, not historical prices, fast mode or regional premiums", "Haiku prompt-size tiers are not modeled", "missing cache lifetime split assumes the cheaper 5-minute write tier"],
@@ -557,16 +559,27 @@ function measurementReport(rows, audit, opts, project) {
   };
 }
 
-function main() {
+async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) {
     process.stdout.write(
-      "Usage: node scripts/tokens.mjs [--summary] [--runs] [--sessions] [--navigation] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json] [--project <dir>]\nDates use UTC; --since is inclusive, --until exclusive. This report does not measure subscription quota.\n",
+      "Usage: node scripts/tokens.mjs [--harness claude|codex] [--summary] [--runs] [--sessions] [--navigation] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--json] [--project <dir>]\nDates use UTC; --since is inclusive, --until exclusive. Claude is the default; Codex is a separate native-span report (--runs/--navigation unsupported). This report does not measure subscription quota.\n",
     );
     return;
   }
 
   const project = resolve(opts.project || projectRoot());
+  if (opts.harness === "codex") {
+    if (opts.navigation || opts.runs) die("Codex offline history does not support --navigation or --runs; native spans are not requests or verified spawns");
+    const { collectCodexReport, formatCodexReport } = await import("./token-codex.mjs");
+    const report = await collectCodexReport({ project, since: opts.since, until: opts.until });
+    const analyzerRoot = fileURLToPath(new URL("../", import.meta.url));
+    report.provenance.project_git = gitState(project);
+    report.provenance.analyzer_git = gitState(analyzerRoot);
+    report.provenance.analyzer_sources = ["scripts/tokens.mjs", "scripts/token-codex.mjs"].map(path => ({ path, sha256: createHash("sha256").update(readFileSync(join(analyzerRoot, path))).digest("hex") }));
+    process.stdout.write(opts.json ? JSON.stringify(report, null, 2) + "\n" : formatCodexReport(report, opts));
+    return;
+  }
   const dir = transcriptDir(project);
   if (!existsSync(dir)) die(`no transcripts for this project (looked in ${dir})`);
 
@@ -677,4 +690,4 @@ function main() {
   process.stdout.write(out.join("\n") + "\n");
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => die(error.message));

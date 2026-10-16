@@ -80,7 +80,7 @@ a generator and compare the result with what is on disk.
 | `waypost sessions` / `watch` / `lease` / `storage` | presence and leases (ADR-0007) |
 | `waypost prompt [name]` / `waypost skill [name]` | loop procedures and skills |
 | `waypost status` | bind summary, live sessions, role state |
-| `waypost tokens` | what the loop cost, from Claude Code transcripts (the one harness-specific command) |
+| `waypost tokens` | offline token evidence: Claude by default, separate native Codex spans with `--harness codex` |
 
 ## Agent roles across harnesses
 
@@ -201,10 +201,11 @@ Use `--json --navigation` for reproducible evidence and file hotspots; redirect
 that JSON to a local scratch file rather than feeding every field back into an
 agent's context. These commands do not invoke a model.
 
-The analyzer currently reads retained **Claude Code** history, including
+The default report reads retained **Claude Code** history, including
 subagent transcripts whose metadata is missing (their attribution stays unknown).
-It does not import Codex/OpenCode history or measure the subscription's weekly
-quota. Native totals include input, cache creation, cache reads and output once;
+Use `--harness codex` for the separate Codex report below; OpenCode history is
+not imported. Neither mode measures the subscription's weekly quota.
+Claude native totals include input, cache creation, cache reads and output once;
 cache lifetime breakdowns are not extra tokens. `native_totals` and `token_shares`
 are nullable when usage or source coverage is incomplete. Legacy numeric columns
 remain for compatibility; an unpriced model's legacy `$0` is a placeholder,
@@ -233,6 +234,44 @@ diff; the independent reviewer still gets a fresh context and access to original
 requirements. Keep full successful test logs on disk and return results/errors
 with a log pointer. Compare total tokens for a fixed task cohort including failed
 attempts, with independent quality checks, before claiming any savings.
+
+### Codex offline counters
+
+`waypost tokens --harness codex --summary --since 2026-10-08` reads plain rollouts
+under `CODEX_HOME/sessions` (default `~/.codex/sessions`), without starting a model.
+Exact normalized `session_meta.cwd` selects the project; worktrees and aliases
+are not guessed. `--json` includes source/analyzer hashes, context identity,
+explicit roles, discovery gaps and native-span diagnostics. `--sessions` shows
+context totals in text. `--runs` and `--navigation` are explicitly unsupported
+in this mode. The Claude report and its counter schema remain separate.
+`session_meta.id` identifies a native context; the Desktop's `session_id` may be
+shared by parent/subagent rollouts and is only an opaque label, not a dedup key.
+
+A Codex snapshot is cumulative, not a request. The analyzer subtracts consecutive
+monotonic snapshots, using native `total_tokens` once. Cached input and reasoning
+are subsets of input/output; adding them again would inflate consumption. A first
+nonzero snapshot is an **uncharged baseline**, even when it equals `last_token_usage`:
+it may contain inherited history. Only an explicit zero establishes a zero anchor.
+Copied events before session creation are skipped. Parent identity alone does not
+prove a fork. Missing/malformed events, invalid or decreasing timestamps, reset
+counters, conflicting snapshots and optional-schema changes break continuity;
+the next valid snapshot only rebases. Divergent same-id histories are quarantined.
+Duplicate files must have compatible prefix token histories to merge.
+
+UTC periods select spans by the **endpoint snapshot** after constructing the chain
+with pre-period baselines. This is an accounting assignment, not exact per-call
+timing; spans crossing a requested boundary are counted explicitly. Missing first
+responses are not reconstructed or assigned estimated tokens.
+
+`observed_waypost_percent` describes explicitly labelled `waypost-*` roles over
+covered spans only. Unlabelled contexts stay unattributed. Full retained-source
+totals/shares remain null when discovery/history is incomplete; even complete
+retained sources cannot prove provider-exhaustive history. `.jsonl.zst` and other
+archives are counted as skipped without decompression or a required dependency.
+Unidentifiable headers, unreadable files and oversized lines also stay visible.
+The reader bounds line storage to 1 MiB and never emits prompt/tool bodies.
+No API prices, combined Claude/Codex total or subscription-quota percentage is
+calculated. Observed spans omit unknown prefixes and are not a complete invoice.
 
 ## Doctor
 
