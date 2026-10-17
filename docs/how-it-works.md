@@ -227,13 +227,28 @@ is a repeated-result signal; edits and compaction invalidate tracking. Missing,
 failed, truncated and unsupported calls remain explicit gaps. The evidence alone
 never authorizes skipping a freshness check or independent review.
 
-To reduce unnecessary context: reuse already obtained symbols/ranges while their
-source is unchanged, read the diff after editing, and expand to dependencies when
-needed. A role handoff needs the task, acceptance criteria, source locations and
-diff; the independent reviewer still gets a fresh context and access to original
-requirements. Keep full successful test logs on disk and return results/errors
-with a log pointer. Compare total tokens for a fixed task cohort including failed
-attempts, with independent quality checks, before claiming any savings.
+Planner, critic and reviewer start with an available index or scoped search,
+then relevant symbols/ranges, expanding to contracts, callers, dependencies and
+full files as needed. Stale or missing indexes fall back to direct reads/search.
+Use `waypost search` / `graph --for` for vault orientation. Reuse evidence within
+one context only while source identity is unchanged; branch/revision/file changes
+or uncertainty require refresh. After editing, inspect the diff and affected
+dependencies rather than automatically re-reading unchanged files.
+
+The review skill carries a compact handoff: task/artifact and original AC/spec
+links, base/head and dirty state, exact diff scope including untracked files,
+paths/symbols, and validation command/status/counts/log path. Identify dirty and
+untracked inputs with content hashes or a retained patch/manifest and bind logs
+to the checked snapshot. A dirty flag alone is not reproducible. Missing fields
+remain explicit gaps or are discovered independently; caller conclusions and
+logs from an unidentified snapshot are not proof. The reviewer starts fresh and
+can expand beyond the handoff to original requirements and related contracts.
+
+Keep full successful test logs locally and return results/errors with a log
+pointer. Renderer/installation checks verify delivery of this policy, not agent
+compliance or token savings. Compare total tokens for a fixed task cohort,
+including failed attempts and independent quality checks, before claiming savings.
+Live comparisons need an owner-set numeric token allocation.
 
 ### Codex offline counters
 

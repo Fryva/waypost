@@ -8,7 +8,7 @@ created: 2026-10-04
 updated: 2026-10-14
 external_refs: {}
 tags: []
-code_refs: ["bin/", "package.json", "scripts/tokens.mjs", "scripts/token-navigation.mjs", "scripts/token-codex.mjs", "tests/tokens.test.mjs", "tests/token-navigation.test.mjs", "tests/token-codex.test.mjs", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "docs/how-it-works.md", "CHANGELOG.md"]
+code_refs: ["agents/planner.md", "agents/critic.md", "agents/reviewer.md", "skills/waypost-review/SKILL.md", "bin/", "package.json", "scripts/tokens.mjs", "scripts/token-navigation.mjs", "scripts/token-codex.mjs", "tests/tokens.test.mjs", "tests/token-navigation.test.mjs", "tests/token-codex.test.mjs", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "docs/how-it-works.md", "CHANGELOG.md"]
 review_status: pending
 reviewed_at: null
 ---
@@ -136,6 +136,12 @@ Analyzer hashes (working tree based on `f485cc2`, tracked changes present):
 
 Full source fingerprints remain in a local scratch report; transcript bodies are
 not committed. The story is [[story-offline-codex-token-accounting-with-explicit-coverage|Offline Codex token accounting with explicit coverage]].
+
+## Targeted evidence procedures (2026-10-17)
+
+[[story-targeted-evidence-reads-and-reproducible-role-handoffs|Targeted evidence reads and reproducible role handoffs]] applies the existing ADR-0008 pull-context policy to planner, critic and reviewer. The reviewer now inspects sufficient surrounding contracts/dependencies instead of unconditionally reading every changed file in full; full reads remain available when needed. Original acceptance/spec checks and independent verification remain mandatory. The review skill identifies dirty/untracked inputs and binds validation evidence to its checked snapshot.
+
+`waypost run --heavy -- node --test tests/harness.test.mjs`: 112 passed, 0 failed. Complete role bodies are checked across every role-file renderer and CLI show; full review-skill installation and existing standing-context budgets pass. Existing Claude/Codex/OpenCode copies were regenerated. This confirms policy delivery, not measured agent compliance, quality parity or token savings. A fixed-cohort live comparison still needs an owner-set numeric allocation; the module-split ADR remains proposed.
 
 ## Dependencies
 

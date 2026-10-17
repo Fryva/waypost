@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-16T03:39:39.113Z
+generated_at: 2026-10-17T22:33:49.123Z
 
 ---
 
@@ -76,6 +76,7 @@ generated_at: 2026-10-16T03:39:39.113Z
 - [x] [[epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees|WP-21: The team code loads only for story --write, and the CLI entry is an .mjs the code index sees]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence|WP-21: Reproducible token accounting and repeated-read evidence]] #p2 #done
 - [x] [[epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage|WP-21: Offline Codex token accounting with explicit coverage]] #p2 #done
+- [x] [[epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs|WP-21: Targeted evidence reads and reproducible role handoffs]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

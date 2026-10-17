@@ -312,7 +312,12 @@ test("the harness registry is data, and every entry renders every role", () => {
       assert.ok(installedRoleOf(text), `${id}/${name}: carries provenance whatever the shape`);
       const hh = renderHashOf(text);
       assert.equal(hh.claimed, hh.actual, `${id}/${name}: the render hash describes what it is in`);
-      assert.ok(text.includes(readRole(name).body.split("\n")[0]), `${id}/${name}: carries the prompt`);
+      const body = readRole(name).body;
+      // Check the entire procedure, not just its opening: truncation could drop
+      // freshness/independence rules while keeping a plausible role header.
+      assert.ok(typeof out === "string" ? out.includes(body)
+        : text.includes(JSON.stringify(body).slice(1, -1)),
+      `${id}/${name}: carries the complete role body`);
     }
   }
 });
@@ -743,10 +748,12 @@ test("agents unregister: --help and --dry-run report, they do not remove", () =>
 
 test("agents show prints the prompt alone — a harness with no subagents can pipe it", () => {
   const { proj } = bound();
-  const out = waypost(proj, ["agents", "show", "critic", "adr/foo.md"]).stdout;
-  assert.match(out, /^Target: adr\/foo\.md$/m, "the target is passed through");
-  assert.ok(!out.includes("---\nname:"), "no frontmatter — this is a prompt, not a file");
-  assert.ok(out.includes(readRole("critic").body.split("\n")[0]));
+  for (const role of ["planner", "critic", "reviewer"]) {
+    const out = waypost(proj, ["agents", "show", role, "adr/foo.md"]).stdout;
+    assert.match(out, /^Target: adr\/foo\.md$/m, "the target is passed through");
+    assert.ok(!out.includes("---\nname:"), "no frontmatter — this is a prompt, not a file");
+    assert.ok(out.includes(readRole(role).body), `${role}: show preserves the full procedure`);
+  }
 });
 
 // ─── skills discovery (WP-14) ───────────────────────────────────────────
@@ -981,6 +988,11 @@ test("skills install once per shared directory, notice hand edits, and leave for
   const installed = readFileSync(join(proj, ".agents", "skills", "waypost-draft", "SKILL.md"), "utf8");
   assert.match(installed, /^name: waypost-draft$/m);
   assert.match(installed, /^  waypost-hash: [0-9a-f]{12}$/m, "provenance lives in the standard's metadata map");
+  for (const dir of [".claude", ".agents"]) {
+    const review = readFileSync(join(proj, dir, "skills", "waypost-review", "SKILL.md"), "utf8");
+    assert.ok(review.includes(readSkill("waypost-review").body),
+      `${dir}: the full handoff procedure survives skill installation`);
+  }
   const current = JSON.parse(waypost(proj, ["skills", "list", "--harness", "codex", "--json"]).stdout).targets[0].skills;
   assert.ok(current.every((s) => s.state === "current"), JSON.stringify(current));
 

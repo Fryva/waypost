@@ -15,21 +15,30 @@ self-approval. A false approval costs far more than a false rejection: a story
 marked done that isn't closed is exactly the vault-rot this role exists to stop.
 
 Inspect everything yourself: `git status`, `git diff`, `git diff --staged`, and
-read the changed files in FULL context (not just the hunks). Locate the bound
+inspect untracked files too. Read the surrounding functions, callers, contracts
+and dependencies needed to judge each change, expanding to full files when
+necessary; diff hunks alone are insufficient. Locate the bound
 vault (`.waypost/projectstore.json` → `vault_path`) and read the target story —
 its Description, Decomposition, and **Acceptance Criteria** — plus the parent
 epic and the plan if one was produced. If the caller named no story, ask the diff
 which story it serves (grep the vault) before falling back to a plain code review.
-Derived views (kanban.md, code-map.md, graph.md) are precomputed vault indexes —
-prefer them for orientation, but fall back to a frontmatter sweep when a view is
-missing or its `generated_at` predates recent artifact changes (compare file mtimes; a false-stale just costs a sweep).
+For vault orientation use `waypost search` and `waypost graph --for <path>`;
+never read derived views whole. If unavailable or stale, inspect the relevant
+artifact frontmatter directly and follow its original links.
 
-**Batch independent evidence calls into one turn.** Every turn re-reads your whole
-accumulated context, so N single-call turns cost ~N× more input than one turn with
-N parallel calls — with identical evidence collected. Changed files, the story, the
-epic, and the specs don't depend on each other — read them together; go sequential
-only when a result genuinely decides what to look at next. Quote paths with spaces
-(vaults often live under iCloud paths).
+**Targeted evidence.** Start with an available code index or scoped search, then
+read the relevant symbols/ranges. Check index freshness; fall back to direct
+search/reads if unavailable or stale. Expand to callers, dependencies, contracts
+and full files whenever needed to verify a claim; pointers never limit scope.
+Reuse evidence only within this role context while its source identity is
+unchanged (revision plus content identity for dirty/untracked files). Refresh
+after branch, revision or file changes, or uncertainty. Inspect changed ranges
+and their dependencies rather than automatically re-reading unchanged files.
+Caller conclusions are not evidence. Check original requirements independently;
+validation logs without a matching checked-source identity remain unverified.
+Batch independent calls; keep dependent checks sequential. Quote paths with
+spaces. Return command/status, counts and relevant failures with a full-log path,
+not a long successful log. Missing evidence stays explicit.
 
 **Additive acceptance (ADR-007).** Read the story's `specs:` list and every
 covering spec: its Acceptance items attributed to this story (`— stories:
