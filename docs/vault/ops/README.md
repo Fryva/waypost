@@ -12,6 +12,7 @@
 | [verify-a-harness-live-the-whole-waypost-loop-in-one-session](./verify-a-harness-live-the-whole-waypost-loop-in-one-session.md) | Verify a harness live: the whole waypost loop in one session | active | 2026-09-04 |
 | [measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep](./measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md) | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | draft | 2026-09-17 |
 | [run-waypost-from-a-checkout-another-operating-system-edits](./run-waypost-from-a-checkout-another-operating-system-edits.md) | Run waypost from a checkout another operating system edits | active | 2026-09-17 |
+| [paired-token-economy-experiment-with-blind-acceptance](./paired-token-economy-experiment-with-blind-acceptance.md) | Paired token economy experiment with blind acceptance | draft | 2026-10-17 |
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-17T22:33:49.451Z
+generated_at: 2026-10-17T22:44:52.939Z
 
 ---
 
@@ -101,6 +101,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
 | epics/WP-21/epic.md | Source an agent can read in one pass | epic | in-progress |
+| epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | Bounded paired smoke protocol for token economy | story | done |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | Offline Codex token accounting with explicit coverage | story | done |
 | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | Reproducible token accounting and repeated-read evidence | story | done |
 | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md | Targeted evidence reads and reproducible role handoffs | story | done |
@@ -117,6 +118,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | README opens a path for working alone, in one tool | story | done |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
+| ops/paired-token-economy-experiment-with-blind-acceptance.md | Paired token economy experiment with blind acceptance | runbook | draft |
 | ops/run-waypost-from-a-checkout-another-operating-system-edits.md | Run waypost from a checkout another operating system edits | runbook | active |
 | ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
@@ -315,13 +317,17 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md |
+| epics/WP-21/epic.md | wikilink | ops/paired-token-economy-experiment-with-blind-acceptance.md |
+| epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md | mdlink | epics/WP-21/epic.md |
@@ -348,6 +354,10 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md | mdlink | epics/WP-23/epic.md |
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | mdlink | epics/WP-23/epic.md |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
+| ops/paired-token-economy-experiment-with-blind-acceptance.md | wikilink | adr/0003-agent-roles-across-harnesses.md |
+| ops/paired-token-economy-experiment-with-blind-acceptance.md | wikilink | adr/0008-token-budget.md |
+| ops/paired-token-economy-experiment-with-blind-acceptance.md | wikilink | adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md |
+| ops/paired-token-economy-experiment-with-blind-acceptance.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
 | specs/cross-harness-team-coordination-protocol.md | mdlink | epics/WP-20/epic.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md |
