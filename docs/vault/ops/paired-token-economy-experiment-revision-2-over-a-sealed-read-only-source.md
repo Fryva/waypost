@@ -72,7 +72,13 @@ Prepare independent disposable copies with baseline-only history, never linked
 worktrees. Keep an empty native cwd and seal a distinct declared source directory
 into verified immutable buffers before launch. The complete manifest is a sorted
 array of `{path,sha256}` relative paths, identical across arms for common data;
-record omitted paths and index absence identically. The broker alone exposes
+record omitted paths and index absence identically. Include every baseline
+UTF-8 tracked file except role/skill sources and disabled harness integration
+directories (`agents/`, `skills/`, `.agents/`, `.claude/`, `.codex/`,
+`.opencode/`); these approved role inputs are rendered and hashed separately.
+Record omitted binary files explicitly. The preregistered 1024-file ceiling
+holds this full text snapshot without excluding regression tests or production
+data to meet a smaller arbitrary file-count cap. The broker alone exposes
 manifest bytes. Roles/skills are separately hashed approved instructions, not an
 excuse to expose treatment history. Ensure all production files and regression
 tests needed for N1/A1 and independent judgement are available; a smaller surface
@@ -123,7 +129,7 @@ C0 must freeze **actual**, supported fields, not fill invented configuration:
 Supported broker limits, explicit in every launch request (no silent defaults):
 
 ```json
-{"maxFiles":256,"maxFileBytes":1048576,"maxTotalBytes":8388608,"maxCallbacks":64,"maxInputBytes":4096,"maxOutputBytes":32768,"totalInputBytes":65536,"totalOutputBytes":262144,"maxReadLines":200,"maxQueryBytes":256,"maxSearchResults":100}
+{"maxFiles":1024,"maxFileBytes":1048576,"maxTotalBytes":8388608,"maxCallbacks":64,"maxInputBytes":4096,"maxOutputBytes":32768,"totalInputBytes":65536,"totalOutputBytes":262144,"maxReadLines":200,"maxQueryBytes":256,"maxSearchResults":100}
 ```
 
 Controls use the same limits except `maxCallbacks:16`, `maxReadLines:20`,
