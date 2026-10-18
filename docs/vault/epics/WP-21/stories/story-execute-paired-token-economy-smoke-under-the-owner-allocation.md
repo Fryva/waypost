@@ -30,7 +30,7 @@ plan_updated_at: "2026-10-18T03:24:43.347Z"
 
 ## Description
 
-The owner approved the prepared 250,000 Codex-native-token pilot on 2026-10-18. Execute the frozen two-task protocol only after all gates pass; retain blocked preflight and unknown costs as outcomes, never bypass them. Initial launch failed before inference on CLI version and missing budgeted source navigation. The owner accepted the separate route, implemented/reviewed in 2efc42f. Revision 2 and C0 preparation below supersede those initial blockers; counted controls, tasks and judges remain pending. This story is not done.
+The owner approved the prepared 250,000 Codex-native-token pilot on 2026-10-18. Execute the frozen two-task protocol only after all gates pass; retain blocked preflight and unknown costs as outcomes, never bypass them. Initial launch failed before inference on CLI version and missing budgeted source navigation. The owner accepted the separate route, implemented/reviewed in 2efc42f. Revision 2 and C0 preparation below supersede those initial blockers; C1 subsequently ran and failed the event-surface gate; C2/C3 and all tasks/judges were stopped under the frozen protocol. This story is not done.
 
 ## Decomposition
 
@@ -52,11 +52,11 @@ Initial preflight followed the frozen runbook SHA256 `1367c5ece03fe81815b563fd44
 - [x] Numeric consent and machine budget are recorded; native version gate is checked without inference. — evidence: /tmp/waypost-token-smoke-20261018/budget-before.json; /tmp/waypost-token-smoke-20261018/preflight.json
 - [ ] Runtime version/catalog, original task/role delivery, snapshot read boundary, identity, accounting and stop/drain are independently verified before tasks.
 - [ ] All fixed tasks/judges and failed/unknown attempts are retained with receipts, blind acceptance and counter/source identities; no replacement or cap raise.
-- [ ] Result distinguishes scoped comparison from unknown preparation cost and whole-week quota; no saving claim when required coverage or quality is missing.
+- [x] Result distinguishes scoped comparison from unknown preparation cost and whole-week quota; no saving claim when required coverage or quality is missing. — evidence: retained C1 stop report and controlled-stop record below.
 
 ## Final Summary
 
-Not complete: launch preflight failed before experiment inference. No task/judge pair or savings result exists.
+Not complete: revision 2 stopped after its single C1 inference. The model returned C1_READY, but an unregistered turn/moderationMetadata notification withdrew verified coverage. The observed terminal total is 7520; full verified usage remains unknown. No C2, C3, task or judge was started, and no savings result exists.
 
 ## Technical Notes
 
@@ -71,6 +71,30 @@ C0 non-inference inspection on installed Codex CLI 0.163.0-alpha.10.2 verified e
 Three separate shallow baseline-only copies contain 562 identical UTF-8 source files (5857827 bytes), with 56 recorded identical omissions; roles/skills are explicit separately rendered inputs and only the four allowed files differ in treatment. Broker seals all copies with manifest digest `c9d9485f229d2f54078c12a280a3c0a37a781c9980a98200580755d1f19c83d9`. Source count ceiling 1024, total 8 MiB, per-file 1 MiB, all other callback caps frozen before inference. Source/renders/substitution rules, original prompts/rubrics, AB/BA, four tasks/four blinded judges and protected future-judge reserve 125000 are frozen in `/private/tmp/waypost-evaluation-20261018/pilot/launch-manifest.json`, SHA256 `2b1736327ed3c82d28a8f21cbe535e5c0f4a858ade928fa67394a3d9e3b5b9f6`.
 
 At this registration: native pilot inference calls 0, machine budget spent/reserved 0, cap unchanged 250000. Existing authoring/review costs remain unknown outside that pilot counter. Any failed control or unknown counter/stop stops further calls; runtime conditions remain unsatisfied until C1–C3 proof is retained.
+
+### Revision 2 controlled stop after C1 (2026-10-18)
+
+Preregistration commit `9c24c43`, code implementation `2efc42f`. C1 admission verified all source hashes, request hash and machine allowance: remaining 250000 >= estimate 5000 + future-judge reserve 125000 + remaining control estimates 25000. Frozen launch SHA256 remains `2b1736327ed3c82d28a8f21cbe535e5c0f4a858ade928fa67394a3d9e3b5b9f6`; protocol SHA256 remains `8df690fa0080a26e669508b88f2df4f63887f737bbedeebb2b2395973142836e`.
+
+Exactly one native inference was started: `subscription-wp21-c1-20261018`, gpt-6.1-sol/low. Output was exactly `C1_READY`. However the pinned guard observed `turn/moderationMetadata`, absent from the accepted frame list, and correctly failed closed. CLI exit 0 means the Host returned a recorded uncertain result, not that C1 passed. Its early zero anchor and terminal counter report 0 → 7520; coverage is partial, actual_tokens null, accounting_valid false, context quarantined, broker calls 0. Do not relabel that observed counter as verified full usage or retroactively pass C1 after changing code.
+
+Owned closure and callback drain are confirmed by ledger-bound completion. At the controlled stop the authority invocation remained `uncertain`; the original 5000-token reservation was retained, with no owner acceptance or manual settlement/release. Machine budget after stop: cap 250000, spent 0, reserved 5000, displayed remaining 245000; that displayed balance is not permission to bypass the uncertainty latch. The observed total exceeds the soft estimate, demonstrating that an admission estimate is not a provider cap. Reforecast controls before any proposed new run; never auto-raise policy/allocation or silently reduce estimates.
+
+C2/C3 calls 0, task roles 0, judges 0; no retry or fourth setup slot. Stop applies to the entire registered revision. Local generated version-specific schema names this notification and requires metadata/threadId/turnId, but schema presence alone does not authorize adding a frame and rerunning a failed control under the frozen protocol. A future proposal needs bounded thread/turn/schema checks, regression tests and a separately registered control schedule; accepting unknown C1 usage is an explicit owner action. No new inference is authorized by this outcome record.
+
+Private raw evidence (ignored by Git, local permissions only) is retained under `.waypost/experiments/wp21-smoke-20261018/`; earlier temporary paths are historical input identities. Important files: `pilot/C1-result.json` SHA256 `fe867b3148cb037e3f0726bf7dcde5a45fe2308436a7dcf116849fdd0941f94f`, `pilot/C1-stop-report.json` SHA256 `5847c7f8890310af078dd8ba2e374e595c27605ee2461b74ad8d44cd90dadadf`, and `pilot/C1-owned-completion.json` SHA256 `40f6411a05a0faa17481511170fe52a408f4837d1fc80b356274f871b28e6483`. Source manifests, role renders, templates, budget snapshots, reviewed-source/test logs and ABI excerpts remain with them. Only our disposable source copies and regenerable full schema were removed (31877750 bytes); original Git refs and exact manifests reconstruct source data.
+
+After C1, `waypost doctor` reports 0 issues and 4 warnings: three existing unrelated warnings plus the intentionally retained partial-receipt admission blocker. Mechanical repair cannot authorize a charge or retry.
+
+This is a launch/compatibility stop, not a quality comparison of the optimized roles. Preparation/driving/review costs and full C1 cost remain unknown, and native totals have no weekly subscription-quota denominator. Neither token savings nor whole-workflow overhead can be inferred from this failed pilot.
+
+### Owner-authorized accounting resolution (2026-10-18)
+
+The owner explicitly accepted the recommendation to count 7520 as an assumed C1 charge, close the stopped team and commit this report; this consent authorizes no new pilot. The Host reconciled the exact owned completion, then recorded `unknown-usage-accept` with charged_tokens 7520. `close-v1` closed only `wp21-smoke-20261018` and released its artifact binding, allowing the ordinary Waypost report commit.
+
+Verified final state: invocation `reconciled`, usage `unknown`, unknown_usage_accepted true, partial receipt retained with coverage partial and actual_tokens null; team closed, task binding absent. C1 remains failed/quarantined and never becomes a settled identity or successful control. Machine budget now counts the owner-assumed 7520, reserved 0, remaining 242480 of unchanged 250000. This is an experimental admission-budget charge, not verified provider billing or a weekly quota percentage. Authoring/review cost remains unknown.
+
+Durable verification: `.waypost/experiments/wp21-smoke-20261018/owner-resolution.json`. The earlier C1 stop report and hashes are unchanged; the 5000 reservation/245000 balance above describe the pre-resolution snapshot. No new inference, C2/C3, worker, judge or retry occurred during reconciliation/closure. Execution remains incomplete pending a separately registered future protocol.
 
 ## Dependencies
 

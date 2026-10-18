@@ -157,6 +157,12 @@ The owner approved the 250,000 Codex-native-token allowance. Budget
 
 [[budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot|Budgeted read-only role evaluation over a sealed source snapshot]] proposes a separate evaluation contract/surface; it is not yet accepted or implemented at that point. The owner subsequently accepted it on 2026-10-18; the evaluation-route story carries implementation and fixture evidence. Live C1–C3 and paired savings remain unverified. The approved budget does not authorize silently changing the frozen protocol or relaxing existing guards. Preparation/driving cost remains unknown.
 
+## Revision 2: one counted control, then fail-closed stop (2026-10-18)
+
+Owner-accepted evaluation route implemented/reviewed in `2efc42f`; launch inputs preregistered in `9c24c43`, protocol SHA256 `8df690fa0080a26e669508b88f2df4f63887f737bbedeebb2b2395973142836e`. C0 passed without inference. C1 returned C1_READY but encountered the unregistered `turn/moderationMetadata` notification. Observed counter total 7520 is partial coverage, not verified full usage. Invocation remains uncertain, with reservation 5000 retained; no C2/C3, workers, judges or retries. Source reads 0, owned closure/drain confirmed. The execution story records immutable evidence hashes and the local ignored evidence directory `.waypost/experiments/wp21-smoke-20261018/`.
+
+The optimized-role policy has no live quality/savings result yet. Do not treat CLI exit 0, an expected answer, a counter observation or the displayed remaining allowance as a passed control. The owner subsequently accepted 7520 as an assumed budget charge; the Host reconciled C1 and closed the stopped team while preserving its partial receipt. Final budget: counted 7520, reserved 0, remaining 242480; no new inference. Further inference requires a separately registered protocol; this stop does not authorize changing a definition and replaying C1.
+
 ## Dependencies
 
 - Step 0: none (adopted ahead of the ADR as its Decision 0, see the critic pass of 2026-10-14; owner approved 2026-10-14; done in 6d5f093).
