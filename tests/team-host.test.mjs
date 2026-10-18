@@ -46,11 +46,11 @@ function fixture(t,options={}) {
   const result={type:c.type};accepted.set(request.key,{command:structuredClone(c),result});return {result,revision};
  };
  let metadataReads=0,nativeCreated=0;
- const native=async()=>{
-  const nativeId=options.freshNativeEachCall?'owned-native-'+(++nativeCreated):'owned-native';let endpointMetadataReads=0;
+ const native=async(_descriptor,nativeOptions={})=>{
+  const nativeId=options.freshNativeEachCall?'owned-native-'+(++nativeCreated):'owned-native';let endpointMetadataReads=0,endpointClosed=false;
   calls.push('native-create');
-  return {native_id:nativeId,usage_counter_schema:options.openCodeProbe?'opencode-native-normalized-step-total-v1':'codex-thread-cumulative-total-v1',owns_process:true,async inspectContext(){return {verified:options.nativeProbe===true};},async captureAccountingMetadata(){calls.push('metadata-read');const readIndex=options.freshNativeEachCall?endpointMetadataReads++:metadataReads++;if(options.metadataPostFailure&&readIndex>0)throw new Error('not-a-public-error');return {provider:'openai',origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'native-runtime',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:options.initialMetadataUnstable?1:0,consistent:!options.initialMetadataUnstable||readIndex>0};},async send(prompt,invocation){calls.push('native-send');if(options.failure)throw new Error('timeout');const result={invocation_id:invocation.id,output:invocation.purpose==='calibration'&&typeof options.trialAnswer==='function'?await options.trialAnswer(prompt,invocation):options.nativeProbe?prompt.split(' ').at(-1):invocation.id,usage_span:options.nativeProbe?{schema:options.openCodeProbe?'opencode-native-normalized-step-total-v1':'codex-thread-cumulative-total-v1',native_id:nativeId,turn_id:'probe-turn',coverage:options.partialUsage?'partial':'complete',before:'0',after:'30',actual_tokens:'30'}:undefined,native_id:nativeId,actualModel:{provider:options.provider||'openai',model_id:'model',reasoning:'low'},context_manifest:{id:options.freshNativeEachCall?'ctx-'+nativeCreated:'ctx',native_id:nativeId,fresh:true,read_only:true,fresh_review_verified:!options.isolationFailure,model_provider_is_billing_route:options.billingRoute||false}};if(options.nativeProfile){result.actualModel.observed_at=new Date().toISOString();Object.assign(result.context_manifest,{harness:options.openCodeProbe?'opencode':'codex',version:options.openCodeProbe?'1.18.33':'unknown',version_provenance:options.openCodeProbe?'native-health':'unverified',cwd:root,mode:'read-only',isolation:'read-only',tools:[],author_contexts:[],author_history_inherited:false,provenance:'adapter-isolated',initial_instructions_digest:'a'.repeat(64)});}
-    if(options.nativeReceiptFailure){const {output,...receipt}=result;throw Object.assign(new Error('private output is not a public receipt'),{code:'native-answer-budget',native_receipt:receipt});}return result;},close(){calls.push('native-close');},...(options.stopWait?{async stopAndWait(){calls.push('native-stop-wait');await options.stopWait();calls.push('native-stopped');}}:{})};
+  return {native_id:nativeId,usage_counter_schema:options.openCodeProbe?'opencode-native-normalized-step-total-v1':'codex-thread-cumulative-total-v1',owns_process:true,async inspectContext(){return {verified:options.nativeProbe===true,...(options.evaluation?{observed_model:{provider:'openai',model_id:'model',reasoning:'low'},effective_surface_digest:options.surfaceDigest?.()||'c'.repeat(64)}:{})};},async captureAccountingMetadata(){calls.push('metadata-read');const readIndex=options.freshNativeEachCall?endpointMetadataReads++:metadataReads++;if(options.metadataPostFailure&&readIndex>0)throw new Error('not-a-public-error');return {provider:'openai',origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'native-runtime',auth_method:null,credit_availability:'unknown',observed_at:new Date().toISOString(),account_generation:options.initialMetadataUnstable?1:0,consistent:!options.initialMetadataUnstable||readIndex>0};},async send(prompt,invocation){calls.push('native-send');if(options.failure)throw new Error('timeout');const result={invocation_id:invocation.id,output:invocation.purpose==='calibration'&&typeof options.trialAnswer==='function'?await options.trialAnswer(prompt,invocation):options.nativeProbe?prompt.split(' ').at(-1):invocation.id,usage_span:options.nativeProbe?{schema:options.openCodeProbe?'opencode-native-normalized-step-total-v1':'codex-thread-cumulative-total-v1',native_id:nativeId,turn_id:'probe-turn',coverage:options.partialUsage?'partial':'complete',before:'0',after:'30',actual_tokens:'30'}:undefined,native_id:nativeId,actualModel:{provider:options.actualProvider?.()||options.provider||'openai',model_id:'model',reasoning:'low'},context_manifest:{id:options.freshNativeEachCall?'ctx-'+nativeCreated:'ctx',native_id:nativeId,fresh:true,read_only:true,fresh_review_verified:options.evaluation?false:!options.isolationFailure,...(options.evaluation?{evaluation_isolation_verified:!options.isolationFailure}:{}),model_provider_is_billing_route:options.billingRoute||false}};if(options.nativeProfile){result.actualModel.observed_at=new Date().toISOString();Object.assign(result.context_manifest,{harness:options.openCodeProbe?'opencode':'codex',version:options.openCodeProbe?'1.18.33':'unknown',version_provenance:options.openCodeProbe?'native-health':'unverified',cwd:root,mode:'read-only',isolation:'read-only',tools:[],author_contexts:[],author_history_inherited:false,provenance:'adapter-isolated',initial_instructions_digest:'a'.repeat(64)});}
+    if(options.nativeReceiptFailure){const {output,...receipt}=result;throw Object.assign(new Error('private output is not a public receipt'),{code:'native-answer-budget',native_receipt:receipt});}return result;},evaluationEvidence(){return {closed:endpointClosed,violation:options.lateEvaluationViolation?'native-evaluation-late-callback':null,binding:nativeOptions.evaluation?.binding};},close(){calls.push('native-close');},...(options.stopWait||options.evaluation?{async stopAndWait(){calls.push('native-stop-wait');await options.stopWait?.();endpointClosed=true;calls.push('native-stopped');return {stopped:true,native_id:nativeId,owned_processes:1,process_group_closed:true};}}:{})};
  };
  const dependencies={load,mutate,createNativeEndpoint:native,runBudgetPath:join(root,'no-run-budget.json'),...options.dependencies};
  const host=createTeamHost({authorityRoot:root,projectRoot:root,vaultPath:options.vaultPath?root:undefined,team:'team',ownerCredential:owner,collectorPath:collector,endpointPath:endpoint,leaderEndpointPath:endpoint,participant:'participant',participantCredential},dependencies);
@@ -699,4 +699,83 @@ test('the Host uses the built-in observer only for Codex and an installed one ot
  assert.equal(typeof observe,'function');
  await assert.rejects(observe({binding:{billing:{provider:'openai',origin:'https://chatgpt.com',auth_method:'chatgpt',account:'a'.repeat(64),sku:'plus',mode:'subscription'}},descriptor:{harness:'codex',managed:true,cwd:realpathSync(tmpdir()),timeout_ms:100}}));
  assert.equal(spawned,1,'the built-in observer runs through the Host-supplied spawn');
+});
+
+async function evaluationFixture(t,options={}) {
+ const f=fixture(t,{nativeProbe:true,evaluation:true,...options});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'codex',cwd:f.root,mode:'read-only',executable:process.execPath,model_id:'model',reasoning:'low',tool_surface:'codex-read-snapshot-r1'}});
+ const event=(type,fields)=>f.dependencies.mutate(f.root,{actor:'owner:'+f.state.owner_hash,key:'eval-'+type,expected_revision:f.dependencies.load().revision,command:{type,team:'team',actor:'owner:'+f.state.owner_hash,at:new Date().toISOString(),...fields}},reduceTeamEvent,{authorize:()=>{}});
+ event('subscription-accounting-enable-v2',{policy:{bootstrap:true,billing_policy:'inherited-native'},revision:1});
+ if(!options.noAllocation)event('subscription-allocation-update-v2',{unit_scope:{scope:'team-native-counter',team:'team',counter_schema:'codex-thread-cumulative-total-v1'},max_tokens:'1000',revision:1});
+ if(!options.noBudget)await setRunBudget({path:f.dependencies.runBudgetPath,name:'eval-fixture',caps:{'codex-thread-cumulative-total-v1':'1000'},reason:'fixture'});
+ writeFileSync(join(f.root,'sample.mjs'),'sample source\n');
+ const request={nonce:'eval-one',task:'Trace source without editing.',role:'Read-only planner role.',source:{root:f.root,manifest:[{path:'sample.mjs',sha256:sha('sample source\n')}]},control:true,expectedSurfaceDigest:'c'.repeat(64),estimateTokens:'100',protocol_revision:'a'.repeat(64),owner_reason:'owner approved fixture'};
+ return {...f,request};
+}
+test('evaluation settles only after owned closure and pins binding without promotion or allocation raise',async t=>{
+ const f=await evaluationFixture(t),model=structuredClone(f.team.participants.participant.model),alloc=structuredClone(f.state.subscription_allocations);
+ const result=await f.host.evaluateReadOnly(f.request);
+ assert.equal(result.context_quarantined,false);
+ assert.equal(result.actual_tokens,'30');assert.equal(result.protected_roles_granted,false);
+ assert.equal(result.evaluation.source_digest.length,64);assert.equal(result.evaluation_evidence.closed,true);
+ const call=f.state.subscription_invocations['subscription-eval-one'];assert.equal(call.purpose,'evaluation');assert.deepEqual(call.evaluation,result.evaluation);
+ assert.ok(f.calls.indexOf('native-stopped')<f.calls.indexOf('subscription-usage-v2'));
+ assert.deepEqual(f.team.participants.participant.model,model);assert.deepEqual(f.state.subscription_allocations,alloc);assert.equal(f.team.subscription_native_identity,undefined);
+ assert.equal(f.requests.some(r=>r.command.type==='native-identity-capture-v2'),false);
+ await assert.rejects(f.host.evaluateReadOnly(f.request),/already-recorded-no-replay/);
+});
+test('evaluation requires budget and explicit allocation before native creation',async t=>{
+ for(const options of [{noBudget:true},{noAllocation:true}]){const f=await evaluationFixture(t,options),before=f.calls.filter(x=>x==='native-create').length;await assert.rejects(f.host.evaluateReadOnly(f.request),/evaluation-(run-budget|allocation)-required/);assert.equal(f.calls.filter(x=>x==='native-create').length,before);}
+});
+test('evaluation stop failure retains consumed reservation and never settles prematurely',async t=>{
+ const f=await evaluationFixture(t,{stopWait:async()=>{throw new Error('stop-unverified');}});
+ await assert.rejects(f.host.evaluateReadOnly(f.request),/stop-unverified/);
+ assert.equal(f.state.subscription_invocations['subscription-eval-one'].state,'uncertain');assert.equal(f.calls.includes('subscription-usage-v2'),false);
+ assert.equal(runBudgetStatus({path:f.dependencies.runBudgetPath,deps:{readState:()=>f.state}}).schemas['codex-thread-cumulative-total-v1'].reserved,'100');
+});
+test('evaluation late callback retains unknown usage and its reservation after closure',async t=>{
+ const f=await evaluationFixture(t,{lateEvaluationViolation:true});const result=await f.host.evaluateReadOnly(f.request);
+ assert.equal(result.actual_tokens,undefined);assert.equal(result.context_quarantined,true);assert.equal(result.evaluation_evidence.violation,'native-evaluation-late-callback');
+ const x=f.state.subscription_invocations['subscription-eval-one'];assert.equal(x.state,'uncertain');assert.equal(x.partial_receipt.coverage,'partial');
+ assert.equal(runBudgetStatus({path:f.dependencies.runBudgetPath,deps:{readState:()=>f.state}}).schemas['codex-thread-cumulative-total-v1'].reserved,'100');
+});
+test('evaluation task phase requires bound observed identity and rejects unsafe request before dispatch',async t=>{
+ const f=await evaluationFixture(t);await assert.rejects(f.host.evaluateReadOnly({...f.request,control:false}),/observed-identity-required/);
+ await assert.rejects(f.host.evaluateReadOnly({...f.request,probeTool:true,control:false}),/input-required/);
+ await assert.rejects(f.host.evaluateReadOnly({...f.request,extra:'smuggled'}),/request-required/);
+ assert.equal(f.calls.includes('native-send'),false);
+});
+
+test('lost evaluation reconciles only its exact owned closure and retains the unknown charge',async t=>{
+ const f=await evaluationFixture(t,{failure:true,freshNativeEachCall:true,dependencies:{ownedSubscriptionCalls:true}});
+ await assert.rejects(f.host.evaluateReadOnly(f.request),/timeout/);
+ const x=f.state.subscription_invocations['subscription-eval-one'];assert.equal(x.state,'uncertain');assert.ok(x.operation_id);
+ const {collectOwnedRuntimeCompletion,serializeOwnedRuntimeCompletion}=await import('../scripts/team-owned-runtime.mjs');
+ const completion=serializeOwnedRuntimeCompletion(collectOwnedRuntimeCompletion({directory:join(f.root,'host','team','runtime'),team:'team',participant:x.participant,incarnation:x.incarnation,epoch:x.epoch,descriptorDigest:x.descriptor_digest,operation:x.operation_id,invocation_id:x.id,nonce:x.nonce,native_id:x.context.native_id}));
+ assert.equal(completion.kind,'evaluation');
+ const command=patch=>reduceTeamEvent(structuredClone(f.state),{type:'subscription-reconcile-v2',team:'team',actor:x.collector,at:new Date().toISOString(),request_key:'evaluation-reconcile',invocation_id:x.id,nonce:x.nonce,completion,...patch});
+ for(const patch of [{completion:{...completion,kind:'subscription-bootstrap'}},{completion:{...completion,operation:'foreign-operation'}},{completion:{...completion,callback_drained:false}}])assert.throws(()=>command(patch),/exact-owned-operation-completion/);
+ const result=f.host.reconcileProtocolControl({invocationId:x.id});assert.equal(result.reconciled,x.id);assert.equal(result.usage,'unknown');assert.equal(result.charged_tokens,'100');assert.equal(result.slot_released,false);assert.equal(result.protected_actions_granted,false);
+ assert.equal(f.state.subscription_invocations[x.id].unknown_usage_accepted,false);
+ await assert.rejects(f.host.evaluateReadOnly({...f.request,nonce:'after-lost-eval'}),/uncertain|overshoot/);
+});
+
+test('evaluation admits tasks from clean observed identity and quarantines runtime model drift',async t=>{
+ let provider='openai';const f=await evaluationFixture(t,{freshNativeEachCall:true,actualProvider:()=>provider});
+ const identity=await f.host.evaluateReadOnly(f.request);assert.equal(identity.context_quarantined,false);
+ const request={...f.request,nonce:'eval-task',control:false,identityInvocation:identity.invocation_id};
+ const task=await f.host.evaluateReadOnly(request);assert.equal(task.context_quarantined,false);assert.equal(task.actual_tokens,'30');
+ provider='other';const drift=await f.host.evaluateReadOnly({...request,nonce:'eval-drift'});assert.equal(drift.context_quarantined,true);assert.equal(drift.actual_tokens,'30');
+ assert.equal(f.state.subscription_invocations[drift.invocation_id].binding_changes.observed_model,true);
+ await assert.rejects(f.host.evaluateReadOnly({...request,nonce:'eval-drift-identity',identityInvocation:drift.invocation_id}),/model-drift-latched/);
+ await assert.rejects(f.host.evaluateReadOnly({...request,nonce:'after-model-drift'}),/model-drift-latched/);
+});
+
+test('evaluation rejects changed effective global/configuration inputs before inference',async t=>{
+ let pin='c'.repeat(64);const f=await evaluationFixture(t,{freshNativeEachCall:true,surfaceDigest:()=>pin});
+ const identity=await f.host.evaluateReadOnly(f.request);const count=f.calls.filter(x=>x==='native-send').length;
+ pin='d'.repeat(64);
+ await assert.rejects(f.host.evaluateReadOnly({...f.request,nonce:'changed-config',control:false,identityInvocation:identity.invocation_id}),/effective-surface-mismatch/);
+ assert.equal(f.calls.filter(x=>x==='native-send').length,count);
+ await assert.rejects(f.host.evaluateReadOnly({...f.request,nonce:'changed-config-pin',control:false,expectedSurfaceDigest:pin,identityInvocation:identity.invocation_id}),/observed-identity-required/);
 });

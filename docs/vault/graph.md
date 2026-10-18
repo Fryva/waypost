@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-18T03:24:44.448Z
+generated_at: 2026-10-18T18:28:27.207Z
 
 ---
 
@@ -30,7 +30,7 @@ full typed neighborhood, both directions, in one call.
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | Automatic model strength discovery with expiring evidence and periodic revalidation | adr | accepted |
 | adr/automatic-role-redistribution-on-verified-model-quota-exhaustion.md | Automatic role redistribution on verified model quota exhaustion | adr | proposed |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | Automatic task-aware model routing with capability floors and cost budgets | adr | accepted |
-| adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md | Budgeted read-only role evaluation over a sealed source snapshot | adr | proposed |
+| adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md | Budgeted read-only role evaluation over a sealed source snapshot | adr | accepted |
 | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md | Cleanup to a machine-wide limit: set by the owner, idle artifacts oldest first | adr | accepted |
 | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | adr | accepted |
 | adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md | Enforce the owner's token budget for live runs across teams | adr | accepted |
@@ -102,6 +102,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
 | epics/WP-21/epic.md | Source an agent can read in one pass | epic | in-progress |
+| epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | Budgeted sealed-source evaluation route | story | done |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | Execute paired token economy smoke under the owner allocation | story | in-progress |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | Bounded paired smoke protocol for token economy | story | done |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | Offline Codex token accounting with explicit coverage | story | done |
@@ -120,6 +121,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | README opens a path for working alone, in one tool | story | done |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
+| ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | Paired token economy experiment revision 2 over a sealed read-only source | runbook | draft |
 | ops/paired-token-economy-experiment-with-blind-acceptance.md | Paired token economy experiment with blind acceptance | runbook | draft |
 | ops/run-waypost-from-a-checkout-another-operating-system-edits.md | Run waypost from a checkout another operating system edits | runbook | active |
 | ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
@@ -323,6 +325,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
@@ -336,6 +339,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md |
 | epics/WP-21/epic.md | wikilink | ops/paired-token-economy-experiment-with-blind-acceptance.md |
+| epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | mdlink | epics/WP-21/epic.md |
@@ -365,6 +369,10 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md | mdlink | epics/WP-23/epic.md |
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | mdlink | epics/WP-23/epic.md |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
+| ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
+| ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | wikilink | adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md |
+| ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | wikilink | adr/harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list.md |
+| ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | wikilink | ops/paired-token-economy-experiment-with-blind-acceptance.md |
 | ops/paired-token-economy-experiment-with-blind-acceptance.md | wikilink | adr/0003-agent-roles-across-harnesses.md |
 | ops/paired-token-economy-experiment-with-blind-acceptance.md | wikilink | adr/0008-token-budget.md |
 | ops/paired-token-economy-experiment-with-blind-acceptance.md | wikilink | adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md |

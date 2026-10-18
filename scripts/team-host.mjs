@@ -5,7 +5,7 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { readAuthority, mutateAuthority } from './team-store.mjs';
 import { reduceTeamEvent, authorizeActor } from './team-state.mjs';
-import { validateBillingObservation } from './team-subscription.mjs';
+import { validateBillingObservation, validateEvaluationBinding } from './team-subscription.mjs';
 import { routingDigest } from './model-routing.mjs';
 import { createProtocolRoleSuite } from './team-role-suite.mjs';
 import { createImplementSuite } from './team-implement-suite.mjs';
@@ -16,6 +16,8 @@ import { collectNativeProtocolQuota, serializeNativeProtocolQuota, renewNativeQu
 import { formatDeliveryPrompt, deliverySuiteDigest, deliveryAnswerPayload, DELIVERY_MAX_ANSWER_BYTES } from './team-native-delivery.mjs';
 import { observeNativeProviderQuota, observeCodexProtocolAccountQuota } from './team-quota-native.mjs';
 import { CODEX_SURFACE_R1 } from './codex-surface.mjs';
+import { CODEX_EVALUATION_SURFACE } from './codex-evaluation-surface.mjs';
+import { sealEvaluationSource } from './evaluation-source.mjs';
 import { createNativeEndpoint, createNativeModelInventoryEndpoint, nativeInventoryFailureClosure, validateNativeDescriptor } from './team-transport.mjs';
 import { harness as harnessDefinition } from './agents.mjs';
 import { collectModelInventory, metadataDescriptor } from './team-model-inventory.mjs';
@@ -66,7 +68,7 @@ export function createTeamHost(config, dependencies={}) {
  const now=dependencies.now||(()=>new Date().toISOString());
  let activeOperation=null,operationBusy=false;
  const runBudgetPath=()=>dependencies.runBudgetPath||defaultRunBudgetPath();
- const native=descriptor=>activeOperation?activeOperation.native(()=>(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor)):(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor);
+ const native=(descriptor,options={})=>activeOperation?activeOperation.native(()=>(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor,options)):(dependencies.createNativeEndpoint||createNativeEndpoint)(descriptor,options);
  const integration={createIntegrationCheckout,collectCandidate,publishCandidate,reconcilePublication,publicationMessageDigest,readWorkInputs,workInputsDigest,validateWorkPatch,writeSealedPatch,readSealedPatch,applySealedPatch,pinCandidateTree,resetWorkPaths,treeDiff,syncCheckoutIndex,workCommitText,workCommitMessageDigest,workCommit,publishWorkCommit,workPublicationState,addsHiddenControls,...dependencies.integration};
  async function closeNative(transport){if(transport?.stopAndWait&&transport.owns_process!==false)await transport.stopAndWait();else transport?.close();}
  function getTeam(){const v=load();const t=v.state?.teams[team];if(!t)fail('team-not-found');return {v,t};}
@@ -114,7 +116,7 @@ export function createTeamHost(config, dependencies={}) {
   // External OpenCode sessions have no owned process to supervise.
   if(dependencies.createNativeEndpoint&&!forceOwned)return await fn();
   const d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
-  if(d.descriptor.mode==='workspace-write'||(d.descriptor.executable&&!['codex','claude','opencode'].includes(d.descriptor.executable)&&d.descriptor.tool_surface!==CODEX_SURFACE_R1.id))fail('host-owned-supervision-verified-read-only-adapter-required');
+  if(d.descriptor.mode==='workspace-write'||(d.descriptor.executable&&!['codex','claude','opencode'].includes(d.descriptor.executable)&&![CODEX_SURFACE_R1.id,CODEX_EVALUATION_SURFACE.id].includes(d.descriptor.tool_surface)))fail('host-owned-supervision-verified-read-only-adapter-required');
   if(d.descriptor.harness==='opencode'&&!d.descriptor.spawn_server){if(forceOwned)fail('host-owned-control-endpoint-required');return await fn();}
   let epoch=t.epoch;
   if(nativeHandoverControl){
@@ -135,6 +137,32 @@ export function createTeamHost(config, dependencies={}) {
  }
  async function subscriptionBootstrap({nonce,estimateTokens='16000',maxTokens='20000',operationId=null}={}) {
   return subscriptionSingleCall({nonce,estimateTokens,maxTokens,operationId});
+ }
+ async function evaluateReadOnly(request) {
+  owner();
+  const allowed=['nonce','task','role','skill','source','limits','estimateTokens','maxOutputBytes','control','probeTool','protocol_revision','owner_reason','identityInvocation','expectedSurfaceDigest'];
+  if(!request||typeof request!=='object'||Array.isArray(request)||Object.keys(request).some(k=>!allowed.includes(k))||Buffer.byteLength(JSON.stringify(request))>262144)fail('host-evaluation-request-required');
+  const {nonce,task,role,skill='',source,limits,estimateTokens='16000',maxOutputBytes=16384,control=false,probeTool=false,protocol_revision,owner_reason,identityInvocation,expectedSurfaceDigest}=request;
+  const text=(value,max)=>typeof value==='string'&&value.length>0&&Buffer.byteLength(value)<=max&&!value.includes('\0');
+  if(!text(task,32768)||!text(role,32768)||typeof skill!=='string'||Buffer.byteLength(skill)>16384||skill.includes('\0')||!text(owner_reason,1024)||! /^[a-f0-9]{64}$/.test(protocol_revision||'')||typeof control!=='boolean'||typeof probeTool!=='boolean'||probeTool&&!control||!Number.isSafeInteger(maxOutputBytes)||maxOutputBytes<1||maxOutputBytes>65536)fail('host-evaluation-input-required');
+  if(!/^[a-f0-9]{64}$/.test(expectedSurfaceDigest||''))fail('host-evaluation-surface-pin-required');
+  if(!source||typeof source!=='object'||Array.isArray(source)||Object.keys(source).some(k=>!['root','manifest'].includes(k)))fail('host-evaluation-source-required');
+  const d=endpoint();
+  const configDigest=routingDigest({descriptor:d.descriptor,effective_surface_digest:expectedSurfaceDigest});
+  if(d.descriptor.harness!=='codex'||d.descriptor.mode!=='read-only'||d.descriptor.tool_surface!==CODEX_EVALUATION_SURFACE.id)fail('host-evaluation-surface-required');
+  if(!runBudgetActive(runBudgetPath()))fail('host-evaluation-run-budget-required');
+  const allocation=load().state.subscription_allocations?.[routingDigest({scope:'team-native-counter',team,counter_schema:'codex-thread-cumulative-total-v1'})];
+  if(allocation?.protocol!==2)fail('host-evaluation-allocation-required');
+  let observedIdentity=null;
+  if(!control&&Object.values(load().state.subscription_invocations||{}).some(x=>x.team===team&&x.purpose==='evaluation'&&x.evaluation?.config_digest===configDigest&&x.binding_changes?.observed_model===true))fail('host-evaluation-model-drift-latched');
+  if(!control){const identity=load().state.subscription_invocations?.[identityInvocation];if(!identity||identity.team!==team||identity.purpose!=='evaluation'||identity.state!=='settled'||identity.evaluation?.config_digest!==configDigest||identity.binding_changes&&Object.values(identity.binding_changes).some(Boolean)||!identity.receipt?.observed_model||Object.values(identity.receipt.observed_model).some(v=>typeof v!=='string'||v==='unknown'))fail('host-evaluation-observed-identity-required');observedIdentity=identity.receipt.observed_model;}
+  const broker=sealEvaluationSource({root:source.root,manifest:source.manifest,limits});
+  const policy={protocol:1,surface:CODEX_EVALUATION_SURFACE.id,protocol_revision,control,probeTool,maxOutputBytes,owner_reason};
+  const binding=validateEvaluationBinding({protocol:1,task_digest:routingDigest(task),role_digest:routingDigest({role,skill}),source_digest:broker.manifestDigest,policy_digest:routingDigest(policy),config_digest:configDigest,limits_digest:routingDigest(broker.limits)});
+  const evaluationCall={prompt:task,binding,broker,observedIdentity,expectedSurfaceDigest,instructions:role+(skill?'\n\n'+skill:''),control,probeTool,maxOutputBytes};
+  const operationId=randomUUID();
+  try{return await managedOperation('evaluation',()=>subscriptionSingleCall({nonce,estimateTokens,evaluationCall,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});}
+  finally{broker.close('host-complete');}
  }
  function calibrationCohort(cohortId) {
   const {t}=getTeam();
@@ -585,7 +613,7 @@ export function createTeamHost(config, dependencies={}) {
  function reconcileProtocolControl({invocationId}={}){
   owner();const {v}=getTeam(),x=v.state.subscription_invocations?.[invocationId];
   const operation=x?.purpose==='protocol-control'?x.action?.operation_id:x?.operation_id;
-  if(!['protocol-control','identity','calibration','delivery','work'].includes(x?.purpose)||x.team!==team||!operation)fail('host-control-reconcile-source-required');
+  if(!['protocol-control','identity','calibration','delivery','work','evaluation'].includes(x?.purpose)||x.team!==team||!operation)fail('host-control-reconcile-source-required');
   if(!['consumed','uncertain','reconciled'].includes(x.state))fail('host-control-reconcile-unsettled-call-required');
   let directory=hostDir;
   const p=v.state.teams[team].participants[x.participant];
@@ -721,7 +749,7 @@ export function createTeamHost(config, dependencies={}) {
    catch(e){return {...base,redistribution_required:true,redistribution_blocker:typeof e.code==='string'&&/^[a-z0-9-]{1,128}$/.test(e.code)?e.code:'host-native-handover-blocked'};}
   }
  }
- async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null,operationId=null,deliveryMessage=null,workCall=null,promptSuffix=''}={}) {
+ async function subscriptionSingleCall({nonce,estimateTokens='16000',maxTokens='20000',trialBinding=null,controlAction=null,operationId=null,deliveryMessage=null,workCall=null,promptSuffix='',evaluationCall=null}={}) {
   const o=owner(),d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
   if(t.accounting?.protocol!==2||t.accounting.billing_policy!=='inherited-native')fail('host-subscription-v2-owner-opt-in-required');
   if(!['codex','opencode','claude'].includes(d.descriptor.harness)||d.descriptor.mode!=='read-only'||d.descriptor.harness==='opencode'&&d.descriptor.spawn_server!==true)fail('host-subscription-bootstrap-counter-adapter-unsupported');
@@ -736,21 +764,32 @@ export function createTeamHost(config, dependencies={}) {
   if(promptSuffix&&controlAction?.kind!==WORK_REVIEW_KIND&&controlAction?.kind!==WORK_PLAN_KIND&&controlAction?.kind!==WORK_PLAN_REVIEW_KIND)fail('host-prompt-suffix-work-review-only');
   const token='WAYPOST_PROBE_'+nonce;
   // Owner-assigned teams admit identity from this one call: only a native-policy-bootstrap team that has no protocol-2 policy yet records it.
-  const identityCall=!controlAction&&!trialBinding&&!deliveryMessage&&!workCall&&t.native_policy_bootstrap===true&&t.policy?.protocol!==2;
-  const prompt=controlAction?formatProtocolAction(controlAction)+promptSuffix:trialBinding?trialBinding.prompt:workCall?workCall.prompt:deliveryMessage?formatDeliveryPrompt(deliveryMessage):'Synthetic protocol check. Return exactly this token and nothing else: '+token;
+  const identityCall=!evaluationCall&&!controlAction&&!trialBinding&&!deliveryMessage&&!workCall&&t.native_policy_bootstrap===true&&t.policy?.protocol!==2;
+  const prompt=evaluationCall?evaluationCall.prompt:controlAction?formatProtocolAction(controlAction)+promptSuffix:trialBinding?trialBinding.prompt:workCall?workCall.prompt:deliveryMessage?formatDeliveryPrompt(deliveryMessage):'Synthetic protocol check. Return exactly this token and nothing else: '+token;
   const deliveryBinding=deliveryMessage?{message_id:deliveryMessage.id,prompt_digest:routingDigest(prompt)}:null;
-  const suiteDigest=controlAction?controlAction.prompt_digest:trialBinding?trialBinding.measurement.suite_digest:workCall?workSuiteDigest():deliveryMessage?deliverySuiteDigest():routingDigest({id:'waypost-identity-token',revision:1,template:'Return exactly WAYPOST_PROBE_<nonce>',read_only:true});
+  const suiteDigest=evaluationCall?routingDigest(evaluationCall.binding):controlAction?controlAction.prompt_digest:trialBinding?trialBinding.measurement.suite_digest:workCall?workSuiteDigest():deliveryMessage?deliverySuiteDigest():routingDigest({id:'waypost-identity-token',revision:1,template:'Return exactly WAYPOST_PROBE_<nonce>',read_only:true});
   // The owner's run budget admits the call before the native endpoint starts; its entry is taken back if the ledger never records the reservation.
   const budgetEntry=await admitRunBudget({path:runBudgetPath(),authority:authorityRoot,team,invocation:invocationId,schema:COUNTER_SCHEMA[d.descriptor.harness],estimate:estimateTokens,deps:{readState:a=>a===realpathSync(authorityRoot)?load().state:readAuthorityState(a)}});
   const dropBudget=async()=>{if(budgetEntry)try{await removeRunBudgetEntry({path:budgetEntry.path,authority:authorityRoot,invocation:invocationId});}catch{}};
   let transport;
-  try{transport=await native(d.descriptor);}catch(error){await dropBudget();throw error;}
+  try{transport=await native(d.descriptor,evaluationCall?{evaluation:{broker:evaluationCall.broker,binding:evaluationCall.binding,instructions:evaluationCall.instructions,control:evaluationCall.control,probeTool:evaluationCall.probeTool?'evaluation_probe_forbidden':undefined,max_output_chars:evaluationCall.maxOutputBytes}}:{});}catch(error){await dropBudget();throw error;}
   let consumed=false,binding=null;
   async function accountReceipt(receipt,nativeFailure=null){
    const {before,contextId,unit}=binding;
    if(receipt.invocation_id!==nonce||receipt.native_id!==transport.native_id)fail('host-subscription-native-receipt-binding-mismatch');
    let after,metadataBlocker=null;
    try{after=await transport.captureAccountingMetadata();validateBillingObservation(after);}catch(error){metadataBlocker=error.code||'native-accounting-metadata-unavailable';after={provider:null,origin:null,account:null,sku:null,mode:'unknown',paid_fallback:'unknown',provenance:'unavailable',auth_method:null,credit_availability:'unknown',observed_at:now(),account_generation:before.account_generation,consistent:false};}
+   if(evaluationCall){
+    await closeNative(transport);
+    const evidence=transport.evaluationEvidence?.();
+    if(!evidence||evidence.closed!==true)fail('host-evaluation-closure-unverified');
+    if(evidence.violation||evidence.accounting_valid===false){
+     receipt={...receipt,context_manifest:{...receipt.context_manifest,fresh_review_verified:false,evaluation_isolation_verified:false}};
+     // A deliberately denied C3 tool can retain a complete terminal span. Late
+     // traffic or a broken stream cannot prove that the frozen total covers it.
+     if(evidence.accounting_valid===false||evidence.violation!=='native-evaluation-tool-call')receipt={...receipt,usage_span:{...receipt.usage_span,coverage:'partial',actual_tokens:null,blockers:[...(receipt.usage_span?.blockers||[]),evidence.violation]}};
+    }
+   }
    const span=receipt.usage_span;
    const coverage=span?.schema===unit.counter_schema&&span.native_id===transport.native_id?span.coverage:'absent';
    const observed={provider:receipt.actualModel?.provider||'unknown',model_id:receipt.actualModel?.model_id||'unknown',reasoning:receipt.actualModel?.reasoning||'unknown'};
@@ -761,10 +800,10 @@ export function createTeamHost(config, dependencies={}) {
    const measurementSeal=trialBinding&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=8192?{...trialBinding.measurement,observed_at:receipt.actualModel?.observed_at??now(),original_output:rawOutput,output_digest:routingDigest(rawOutput),native_receipt_digest:routingDigest(nativeReceipt),native_receipt:nativeReceipt,outcome:nativeFailure===null?'completed':'failed'}:null;
    // The work seal (a private Git ref) is written before settlement, so a sealed dispatch never names a missing ref.
    const workSeal=workCall?await workCall.seal(rawOutput,nativeFailure):null;
-   const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&receipt.context_manifest?.fresh_review_verified===true&&(!transport.preflight_before_consume||typeof binding.preflight==='string'&&receipt.context_manifest?.preflight?.evidence_digest===binding.preflight),billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null,...(measurementSeal?{measurement:measurementSeal}:{}),...(actionSeal?{action_seal:actionSeal}:{}),...(identitySeal?{identity_seal:identitySeal}:{}),...(workSeal?{work_seal:workSeal}:{}),...(deliveryMessage&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=DELIVERY_MAX_ANSWER_BYTES?{delivery:{output_digest:routingDigest(rawOutput),outcome:nativeFailure!==null?'failed':JSON.stringify(deliveryAnswerPayload(rawOutput,nonce)).length>16384?'too-large':'completed'}}:{})},...(deliveryMessage&&nativeFailure===null&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=DELIVERY_MAX_ANSWER_BYTES&&JSON.stringify(deliveryAnswerPayload(rawOutput,nonce)).length<=16384?{delivery_output:rawOutput}:{})},collector());
+   const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&(evaluationCall?receipt.context_manifest?.evaluation_isolation_verified===true:receipt.context_manifest?.fresh_review_verified===true)&&(!transport.preflight_before_consume||typeof binding.preflight==='string'&&receipt.context_manifest?.preflight?.evidence_digest===binding.preflight),billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null,...(evaluationCall?{evaluation:evaluationCall.binding}:{}),...(measurementSeal?{measurement:measurementSeal}:{}),...(actionSeal?{action_seal:actionSeal}:{}),...(identitySeal?{identity_seal:identitySeal}:{}),...(workSeal?{work_seal:workSeal}:{}),...(deliveryMessage&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=DELIVERY_MAX_ANSWER_BYTES?{delivery:{output_digest:routingDigest(rawOutput),outcome:nativeFailure!==null?'failed':JSON.stringify(deliveryAnswerPayload(rawOutput,nonce)).length>16384?'too-large':'completed'}}:{})},...(deliveryMessage&&nativeFailure===null&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=DELIVERY_MAX_ANSWER_BYTES&&JSON.stringify(deliveryAnswerPayload(rawOutput,nonce)).length<=16384?{delivery_output:rawOutput}:{})},collector());
    const probePassed=!trialBinding&&nativeFailure===null&&typeof receipt.output==='string'&&receipt.output.trim()===token;
    let controlPassed=false;if(controlAction&&nativeFailure===null&&rawOutput!==null)try{readProtocolActionResponse(rawOutput,controlAction);controlPassed=true;}catch{}
-   const eligibleReceipt=controlAction?controlPassed&&actionSeal!==null:trialBinding?nativeFailure===null&&measurementSeal!==null:probePassed;
+   const eligibleReceipt=evaluationCall?false:controlAction?controlPassed&&actionSeal!==null:trialBinding?nativeFailure===null&&measurementSeal!==null:probePassed;
    let nativeProfile=null,profileBlocker=null;
    if(eligibleReceipt && (settled.result.settled!==invocationId || settled.result.context_quarantined===true))profileBlocker='native-profile-accounting-not-terminal-or-context-quarantined';
    if(eligibleReceipt && profileBlocker===null){
@@ -786,11 +825,13 @@ export function createTeamHost(config, dependencies={}) {
    }
    // This detached observation is diagnostic evidence only. It is not a policy,
    // calibration, enrollment update or authority grant; the context is retired.
-   return {...settled.result,invocation_id:invocationId,probe_passed:probePassed,...(controlAction?{protocol_control_passed:controlPassed,action_capture:actionCapture}:{}),...(identityCall?{identity_capture:identityCapture}:{}),...(trialBinding?{calibration_trial:trialBinding.trial.id,trial_capture:trialCapture}:{}),native_failure:nativeFailure,observed_model:observed,observed_identity_kind:receipt.context_manifest?.model_provider_is_billing_route?'native-routing-id':'native-effective-model',usage_span:span||null,metadata_blocker:metadataBlocker,native_profile:nativeProfile,native_profile_status:nativeProfile?'retired-observation':'unavailable',native_profile_blocker:profileBlocker,billing_policy:'inherited-native',protected_roles_granted:false};
+   return {...settled.result,invocation_id:invocationId,probe_passed:probePassed,...(evaluationCall?{evaluation:evaluationCall.binding,output:rawOutput,evaluation_evidence:transport.evaluationEvidence?.()??null}:{}),...(controlAction?{protocol_control_passed:controlPassed,action_capture:actionCapture}:{}),...(identityCall?{identity_capture:identityCapture}:{}),...(trialBinding?{calibration_trial:trialBinding.trial.id,trial_capture:trialCapture}:{}),native_failure:nativeFailure,observed_model:observed,observed_identity_kind:receipt.context_manifest?.model_provider_is_billing_route?'native-routing-id':'native-effective-model',usage_span:span||null,metadata_blocker:metadataBlocker,native_profile:nativeProfile,native_profile_status:nativeProfile?'retired-observation':'unavailable',native_profile_blocker:profileBlocker,billing_policy:'inherited-native',protected_roles_granted:false};
   }
   try{
    if(d.descriptor.harness==='claude'&&transport.preflight_before_consume!==true)fail('host-subscription-owned-read-only-context-unverified');
    const isolated=await transport.inspectContext();if(isolated.verified!==true||transport.owns_process===false)fail('host-subscription-owned-read-only-context-unverified');
+   if(evaluationCall&&isolated.effective_surface_digest!==evaluationCall.expectedSurfaceDigest)fail('host-evaluation-effective-surface-mismatch');
+   if(evaluationCall?.observedIdentity&&routingDigest(isolated.observed_model)!==routingDigest(evaluationCall.observedIdentity))fail('host-evaluation-observed-identity-mismatch');
    let before=await transport.captureAccountingMetadata();
    // Native login initialization may notify during the first nonbillable read.
    // Retry once; continuing instability remains explicit in the receipt.
@@ -801,21 +842,21 @@ export function createTeamHost(config, dependencies={}) {
    const unit={scope:'team-native-counter',team:t.id,counter_schema:schema},unitDigest=routingDigest(unit);
    binding={before,contextId,unit};
    const observedAt=now();
-   const context={id:contextId,native_id:transport.native_id,descriptor_digest:routingDigest(d.descriptor),incarnation:p.incarnation,unit_scope:unit,billing_observation:before,observed_model:null,observed_at:observedAt,expires_at:new Date(Date.parse(observedAt)+300000).toISOString(),read_only:true,owned:true};
+   const context={id:contextId,native_id:transport.native_id,descriptor_digest:routingDigest(d.descriptor),incarnation:p.incarnation,unit_scope:unit,billing_observation:before,observed_model:evaluationCall?isolated.observed_model:null,observed_at:observedAt,expires_at:new Date(Date.parse(observedAt)+300000).toISOString(),read_only:true,owned:true};
    mutate('subscription-context-capture-v2',{participant_id:p.id,context,...(controlAction?.kind==='protocol-handover-ack'?{protocol_handover_digest:routingDigest(getTeam().t.native_protocol_handover)}:{})},collector());
    let allocation=load().state.subscription_allocations?.[unitDigest];
-   if((trialBinding||controlAction||deliveryMessage||workCall)&&!allocation)fail(workCall?'host-native-work-allocation-required':'host-calibration-allocation-required');
-   if(!trialBinding&&!controlAction&&!deliveryMessage&&!workCall&&(!allocation||BigInt(maxTokens)>BigInt(allocation.max_tokens))){
+   if((evaluationCall||trialBinding||controlAction||deliveryMessage||workCall)&&!allocation)fail(workCall?'host-native-work-allocation-required':'host-calibration-allocation-required');
+   if(!evaluationCall&&!trialBinding&&!controlAction&&!deliveryMessage&&!workCall&&(!allocation||BigInt(maxTokens)>BigInt(allocation.max_tokens))){
     mutate('subscription-allocation-update-v2',{unit_scope:unit,max_tokens:maxTokens,revision:(allocation?.revision||0)+1},o);
     allocation=load().state.subscription_allocations[unitDigest];
    }
    const latest=getTeam().t;
-   mutate('subscription-reserve-v2',{reservation:{id:invocationId,participant:p.id,incarnation:p.incarnation,context_id:contextId,purpose:controlAction?'protocol-control':trialBinding?'calibration':deliveryMessage?'delivery':workCall?'work':'identity',...(controlAction?{action:controlAction}:{}),...(deliveryBinding?{delivery:deliveryBinding}:{}),...(workCall?{work:workCall.binding}:{}),...(trialBinding?{measurement:trialBinding.measurement}:{}),...(operationId&&activeOperation&&!controlAction?{operation_id:operationId}:{}),requested_model:{provider:'unknown',model_id:d.descriptor.model_id||'native-default',reasoning:d.descriptor.reasoning||'native-default'},nonce,suite_digest:suiteDigest,max_calls:1,timeout_ms:d.descriptor.timeout_ms||60000,estimate_tokens:estimateTokens,epoch:latest.epoch,quota_revision:latest.quota_revision||0,mode_revision:latest.accounting.revision,allocation_revision:allocation.revision}},o);
+   mutate('subscription-reserve-v2',{reservation:{id:invocationId,participant:p.id,incarnation:p.incarnation,context_id:contextId,purpose:evaluationCall?'evaluation':controlAction?'protocol-control':trialBinding?'calibration':deliveryMessage?'delivery':workCall?'work':'identity',...(controlAction?{action:controlAction}:{}),...(deliveryBinding?{delivery:deliveryBinding}:{}),...(evaluationCall?{evaluation:evaluationCall.binding}:{}),...(workCall?{work:workCall.binding}:{}),...(trialBinding?{measurement:trialBinding.measurement}:{}),...(operationId&&activeOperation&&!controlAction?{operation_id:operationId}:{}),requested_model:{provider:'unknown',model_id:d.descriptor.model_id||'native-default',reasoning:d.descriptor.reasoning||'native-default'},nonce,suite_digest:suiteDigest,max_calls:1,timeout_ms:d.descriptor.timeout_ms||60000,estimate_tokens:estimateTokens,epoch:latest.epoch,quota_revision:latest.quota_revision||0,mode_revision:latest.accounting.revision,allocation_revision:allocation.revision}},o);
    // A transport whose isolation is only observable before its first turn is
    // inspected again here, where a refusal still aborts the reservation.
    if(transport.preflight_before_consume){const again=await transport.inspectContext();if(again.verified!==true||typeof again.evidence_digest!=='string')fail('host-subscription-owned-read-only-context-unverified');binding.preflight=again.evidence_digest;}
    mutate('subscription-consume-v2',{invocation_id:invocationId,nonce,native_id:transport.native_id,...(controlAction?{prompt_digest:controlAction.prompt_digest}:trialBinding?{prompt_digest:trialBinding.measurement.prompt_digest}:deliveryBinding?{prompt_digest:deliveryBinding.prompt_digest}:workCall?{prompt_digest:workCall.binding.prompt_digest}:{})},collector());consumed=true;
-   const receipt=await transport.send(prompt,{id:nonce,purpose:controlAction?'protocol-control':trialBinding?'calibration':deliveryMessage?'addressed-peer-message':workCall?'protocol-work':'identity',read_only:true,max_output_chars:workCall?workCall.maxOutput??WORK_MAX_OUTPUT_BYTES:deliveryMessage?DELIVERY_MAX_ANSWER_BYTES:trialBinding||controlAction?8192:256});
+   const receipt=await transport.send(prompt,{id:nonce,purpose:evaluationCall?'evaluation':controlAction?'protocol-control':trialBinding?'calibration':deliveryMessage?'addressed-peer-message':workCall?'protocol-work':'identity',read_only:true,max_output_chars:evaluationCall?evaluationCall.maxOutputBytes:workCall?workCall.maxOutput??WORK_MAX_OUTPUT_BYTES:deliveryMessage?DELIVERY_MAX_ANSWER_BYTES:trialBinding||controlAction?8192:256});
    return await accountReceipt(receipt);
   }catch(error){
    if(!load().state.subscription_invocations?.[invocationId])await dropBudget();
@@ -915,7 +956,7 @@ export function createTeamHost(config, dependencies={}) {
   // descriptor. Historical consumes without whole-operation ledgers block stop.
   const {descriptor,binding}=readParticipantHost({state:v.state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)});
   if(descriptor.harness==='opencode'&&!descriptor.spawn_server)fail('native-process-stop-unverified-external-server');
-  if(descriptor.mode==='workspace-write'||(descriptor.executable&&!['codex','claude','opencode'].includes(descriptor.executable)&&descriptor.tool_surface!==CODEX_SURFACE_R1.id))fail('host-owned-supervision-verified-read-only-adapter-required');
+  if(descriptor.mode==='workspace-write'||(descriptor.executable&&!['codex','claude','opencode'].includes(descriptor.executable)&&![CODEX_SURFACE_R1.id,CODEX_EVALUATION_SURFACE.id].includes(descriptor.tool_surface)))fail('host-owned-supervision-verified-read-only-adapter-required');
   const required=[...Object.values(t.runtime_requests||{}).filter(r=>r.participant===p.id&&r.incarnation===p.incarnation&&r.epoch===epoch&&r.consumed).map(r=>r.nonce),...Object.values(t.review_requests||{}).filter(r=>r.reviewer===p.id&&r.epoch===epoch&&r.consumed).map(r=>r.nonce),...Object.values(t.deliveries||{}).filter(r=>r.participant===p.id&&r.incarnation===p.incarnation&&r.epoch===epoch).map(r=>r.nonce)];
   for(const x of Object.values(v.state.invocations||{})){
    if(x.team!==team||x.epoch!==epoch||['prepared','aborted'].includes(x.state))continue;
@@ -1280,5 +1321,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,requestWorkPlan,planNativeWork,recoverWorkPlan,reviewNativeWorkPlan,recoverWorkPlanReview,installWorkPlan,reviseNativeWork,publishNativeWork,recoverNativePublication,abortNativePublication,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,evaluateReadOnly,requestWorkPlan,planNativeWork,recoverWorkPlan,reviewNativeWorkPlan,recoverWorkPlanReview,installWorkPlan,reviseNativeWork,publishNativeWork,recoverNativePublication,abortNativePublication,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }

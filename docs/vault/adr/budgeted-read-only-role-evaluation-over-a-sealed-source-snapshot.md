@@ -2,7 +2,7 @@
 type: adr
 id: "budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot"
 title: "Budgeted read-only role evaluation over a sealed source snapshot"
-status: proposed
+status: accepted
 date: 2026-10-18
 authors: ["Ivan Morozov", "Codex (OpenAI)"]
 tags: []
@@ -11,8 +11,9 @@ supersedes: null
 superseded_by: null
 review_status: reviewed
 reviewed_at: 2026-10-18
+deciders: "Ivan Morozov; explicit acceptance in chat 2026-10-18"
 drafted_by: {"harness":"codex","provider":null,"date":"2026-10-18"}
-code_refs: ["scripts/team-cli.mjs", "scripts/team-host.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/codex-surface.mjs", "scripts/run-budget.mjs", "tests/team-host.test.mjs", "tests/team-subscription.test.mjs", "tests/codex-surface-transport.test.mjs"]
+code_refs: ["scripts/team-cli.mjs", "scripts/team-host.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/codex-surface.mjs", "scripts/run-budget.mjs", "tests/team-host.test.mjs", "tests/team-subscription.test.mjs", "tests/codex-surface-transport.test.mjs", "scripts/evaluation-source.mjs", "scripts/codex-evaluation-surface.mjs", "scripts/team-native-action.mjs", "tests/evaluation-source.test.mjs", "tests/evaluation-transport.test.mjs"]
 guards: []
 ---
 
@@ -20,7 +21,7 @@ guards: []
 
 | Field | Value |
 |---|---|
-| **Status** | proposed |
+| **Status** | accepted |
 | **Date** | 2026-10-18 |
 | **Authors** | Ivan Morozov |
 
@@ -75,10 +76,9 @@ any tokens. The frozen protocol remains unchanged at SHA256
    measure answering from a packet, but cannot test navigation/re-read policy.
    It must be separately registered, not relabelled as N1/A1.
 
-## Proposed decision
+## Decision
 
-Option 2 is proposed for owner approval; option 1 is the default while unresolved.
-No runtime change or new authority grant is implemented by this ADR.
+The owner accepted option 2 in this chat on 2026-10-18, including the separate evaluation surface, version/catalog controls and preregistered protocol revision within the existing 250,000-token allowance. Acceptance authorizes implementation; runtime capability remains unverified until its gates pass.
 
 ### Operation and authority
 
@@ -224,8 +224,7 @@ Preparation/driving costs remain unknown until separately measured.
 
 ## Verification and follow-up
 
-Before implementation: independent critic, owner option/architecture decision,
-and explicit authorization of the version/catalog controls; status stays proposed.
+Independent critic and owner acceptance completed on 2026-10-18. Version/catalog controls and protocol revision are authorized within the unchanged pilot allowance.
 After approval, implement one slice at a time in existing modules. Required checks:
 
 - Old strict/v1/v2 replay and no-exec behavior remain unchanged; no authority
@@ -257,4 +256,4 @@ this converts the existing smoke into a completed experiment.
 - [[enforce-the-owners-token-budget-for-live-runs-across-teams]]
 - [[paired-token-economy-experiment-with-blind-acceptance]]
 
-*Proposed 2026-10-18; no implementation or native experiment inference.*
+*Accepted 2026-10-18; implementation and runtime evidence tracked by stories.*

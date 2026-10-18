@@ -6,6 +6,10 @@ import { isAbsolute, join, dirname, relative } from 'node:path';
 import { realpathSync, readFileSync, readdirSync, statSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { CODEX_SURFACE_R1, CODEX_SURFACE_R1_DIGEST, PROBED_CATALOGS } from './codex-surface.mjs';
+import { CODEX_EVALUATION_SURFACE, CODEX_EVALUATION_SURFACE_DIGEST, EVALUATION_PROBED_CATALOGS, evaluationDynamicTools, evaluationFrameGuard, evaluationToolName } from './codex-evaluation-surface.mjs';
+import { evaluationInputDigest } from './evaluation-source.mjs';
+const surfaceOf = d => d.tool_surface === CODEX_EVALUATION_SURFACE.id ? CODEX_EVALUATION_SURFACE : CODEX_SURFACE_R1;
+const probedOf = d => d.tool_surface === CODEX_EVALUATION_SURFACE.id ? EVALUATION_PROBED_CATALOGS : PROBED_CATALOGS;
 
 const LIMIT = 2 * 1024 * 1024;
 const confirmedInventoryFailures = new WeakMap();
@@ -28,6 +32,7 @@ function codexCounters(value) {
   }
   return Object.fromEntries(keys.map(key => [key,value[key]]));
 }
+const evaluationCounterSubsets = value => value && value.cachedInputTokens <= value.inputTokens && value.reasoningOutputTokens <= value.outputTokens && BigInt(value.inputTokens) + BigInt(value.outputTokens) <= BigInt(value.totalTokens) && (!Object.hasOwn(value,'cacheWriteInputTokens') || value.cacheWriteInputTokens <= value.inputTokens);
 const sameCounterSchema = (a,b) => JSON.stringify(Object.keys(a)) === JSON.stringify(Object.keys(b));
 
 const OPENCODE_COUNTER_SCHEMA = 'opencode-native-normalized-step-total-v1';
@@ -50,7 +55,7 @@ function opencodeBuckets(tokens) {
 }
 function nativeReceipt(result, invocationId) {
   if (!result || !result.usage_span || !result.context_manifest) return null;
-  const receipt = {invocation_id:invocationId,native_id:result.native_id,context_manifest:result.context_manifest,actualModel:result.actualModel,usage_span:result.usage_span};
+  const receipt = {invocation_id:invocationId,native_id:result.native_id,context_manifest:result.context_manifest,actualModel:result.actualModel,usage_span:result.usage_span,...(result.evaluation ? {evaluation:result.evaluation,output:result.output} : {})};
   return Buffer.byteLength(JSON.stringify(receipt)) <= 65536 ? receipt : null;
 }
 function opencodeMessageId() {
@@ -70,7 +75,7 @@ export function validateNativeDescriptor(d) {
   // An evidence-bound tool surface needs an owned executable and CODEX_HOME.
   // An evidence-bound tool surface runs the user's own Codex: an absolute executable,
   // the user's home unless codex_home names another, and a pinned model.
-  if (d.tool_surface !== undefined && (d.tool_surface !== CODEX_SURFACE_R1.id || d.harness !== 'codex' || !d.executable || !d.model_id || d.codex_home !== undefined && (!isAbsolute(d.codex_home) || !bounded(d.codex_home, 4096)))) throw fail('invalid-native-tool-surface');
+  if (d.tool_surface !== undefined && (![CODEX_SURFACE_R1.id,CODEX_EVALUATION_SURFACE.id].includes(d.tool_surface) || d.harness !== 'codex' || !d.executable || !d.model_id || d.codex_home !== undefined && (!isAbsolute(d.codex_home) || !bounded(d.codex_home, 4096)))) throw fail('invalid-native-tool-surface');
   if (d.tool_surface === undefined && d.codex_home !== undefined) throw fail('invalid-native-tool-surface');
   if (d.harness !== 'opencode' && d.native_id) throw fail('existing-native-session-unsupported');
   if (d.harness === 'opencode') {
@@ -217,7 +222,7 @@ const codexHomeOf = d => d.codex_home || join(homedir(), '.codex');
 // the tool-bearing keys removed and the definition's values set, written
 // content-addressed under ~/.waypost so the same entry always has the same path.
 function pinnedSurfaceCatalog(d) {
-  const S = CODEX_SURFACE_R1; let entry;
+  const S = surfaceOf(d); let entry;
   try { entry = JSON.parse(readFileSync(join(codexHomeOf(d), S.catalog_cache), 'utf8')).models?.find(m => m.slug === d.model_id); } catch { throw fail('native-surface-catalog-unavailable'); }
   if (!entry || typeof entry !== 'object') throw fail('native-surface-catalog-unavailable');
   const pinned = { ...entry, ...S.catalog.values }; for (const k of S.catalog.absent) delete pinned[k];
@@ -236,11 +241,11 @@ export function nativeVersionStatus(d, run = execFileSync) {
   let out = ''; try { out = String(run(d.executable || d.harness, ['--version'], { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] })).trim(); } catch {}
   const no = (version, blocker) => ({ version, verified: false, blocker });
   if (d.harness === 'claude') { const v = /^(\d+\.\d+\.\d+)\b/.exec(out)?.[1] ?? null; return CLAUDE_PREFLIGHT_VERSIONS.includes(v) ? { version: v, verified: true, blocker: null } : no(v, 'native-claude-preflight-version-unverified'); }
-  if (d.harness === 'codex' && d.tool_surface === CODEX_SURFACE_R1.id) {
+  if (d.harness === 'codex' && [CODEX_SURFACE_R1.id,CODEX_EVALUATION_SURFACE.id].includes(d.tool_surface)) {
     const v = /^codex-cli (\S+)$/.exec(out)?.[1] ?? null;
-    if (v !== CODEX_SURFACE_R1.version) return no(v, 'native-surface-version-unverified');
+    if (v !== surfaceOf(d).version) return no(v, 'native-surface-version-unverified');
     let body; try { body = pinnedSurfaceCatalog(d); } catch { return no(v, 'native-surface-catalog-unavailable'); }
-    return PROBED_CATALOGS.has(createHash('sha256').update(body).digest('hex')) ? { version: v, verified: true, blocker: null } : no(v, 'native-surface-catalog-unprobed');
+    return probedOf(d).has(createHash('sha256').update(body).digest('hex')) ? { version: v, verified: true, blocker: null } : no(v, 'native-surface-catalog-unprobed');
   }
   return { version: /\d+\.\d+\.\d+\S*/.exec(out)?.[0] ?? null, verified: null, blocker: null };
 }
@@ -248,7 +253,7 @@ export function nativeVersionStatus(d, run = execFileSync) {
 // home, no instruction sources, sandbox, config layers, pinned catalog, thread
 // features, skills and hooks. Anything unexpected leaves the context unverified.
 async function inspectCodexSurface(request, d, init, thread) {
-  const S = CODEX_SURFACE_R1, no = blocker => ({ verified: false, blocker }), real = p => { try { return realpathSync(p); } catch { return null; } };
+  const S = surfaceOf(d), no = blocker => ({ verified: false, blocker }), real = p => { try { return realpathSync(p); } catch { return null; } };
   const version = codexAppServerVersion(init), home = real(codexHomeOf(d));
   if (version !== S.version) return no('native-surface-version-unverified');
   if (!home || typeof init?.codexHome !== 'string' || real(init.codexHome) !== home) return no('native-surface-home-unverified');
@@ -262,7 +267,7 @@ async function inspectCodexSurface(request, d, init, thread) {
   if (!catalogPath || typeof config.config?.model_catalog_json !== 'string' || real(config.config.model_catalog_json) !== real(catalogPath)) return no('native-surface-catalog-unpinned');
   let catalog, entry; try { catalog = readFileSync(catalogPath); entry = JSON.parse(catalog).models?.find(m => m.slug === thread.model); } catch { return no('native-surface-catalog-unpinned'); }
   if (!entry || S.catalog.absent.some(k => Object.hasOwn(entry, k)) || Object.entries(S.catalog.values).some(([k, v]) => JSON.stringify(entry[k]) !== JSON.stringify(v))) return no('native-surface-catalog-tools-present');
-  if (!PROBED_CATALOGS.has(createHash('sha256').update(catalog).digest('hex'))) return no('native-surface-catalog-unprobed');
+  if (!probedOf(d).has(createHash('sha256').update(catalog).digest('hex')) && !(d.tool_surface === CODEX_EVALUATION_SURFACE.id && d._evaluationControl === true)) return no('native-surface-catalog-unprobed');
   if (Object.entries(S.config_expect).some(([k, v]) => config.config?.[k] !== v) || S.features_off.some(f => config.config?.features?.[f] !== false)) return no('native-surface-config-unverified');
   const features = await request('experimentalFeature/list', { threadId: thread.thread.id, limit: 500 });
   if (!Array.isArray(features?.data) || features.nextCursor || features.data.some(f => f.enabled === true && f.stage !== 'removed' && !S.allowed_features.includes(f.name))) return no('native-surface-features-unverified');
@@ -270,7 +275,7 @@ async function inspectCodexSurface(request, d, init, thread) {
   if (!Array.isArray(skills?.data) || skills.data.some(c => !Array.isArray(c.skills) || c.skills.some(k => k.enabled !== false))) return no('native-surface-skills-enabled');
   const hooks = await request('hooks/list', {});
   if (!Array.isArray(hooks?.data) || hooks.data.some(c => !Array.isArray(c.hooks) || c.hooks.length)) return no('native-surface-hooks-present');
-  return { verified: true, evidence: { surface: S.id, definition_digest: CODEX_SURFACE_R1_DIGEST, version, package_digest: codexPackageDigest(d.executable), catalog_digest: createHash('sha256').update(catalog).digest('hex'), config_digest: digest(Object.fromEntries(S.config_keys.map(k => [k, config.config[k] ?? null]))), instructions_digest: digest(instructions) } };
+  return { verified: true, evidence: { surface: S.id, definition_digest: S.id === CODEX_EVALUATION_SURFACE.id ? CODEX_EVALUATION_SURFACE_DIGEST : CODEX_SURFACE_R1_DIGEST, version, package_digest: codexPackageDigest(d.executable), catalog_digest: createHash('sha256').update(catalog).digest('hex'), config_digest: digest(Object.fromEntries(S.config_keys.map(k => [k, config.config[k] ?? null]))), instructions_digest: digest(instructions) } };
 }
 // Default-deny frame guard of a surface turn: the first frame outside the
 // definition withdraws isolation for the receipt.
@@ -294,13 +299,20 @@ function codexSurfaceGuard(nativeId) {
 }
 const SURFACE_DRAIN_MS = 1000;
 
-async function codexEndpoint(d, spawnProcess) {
-  const surface = d.tool_surface === CODEX_SURFACE_R1.id;
+async function codexEndpoint(d, spawnProcess, evaluation = null) {
+  const isEvaluation = d.tool_surface === CODEX_EVALUATION_SURFACE.id;
+  if (isEvaluation && (!evaluation?.broker || !evaluation.binding || !bounded(evaluation.instructions))) throw fail('native-evaluation-binding-required');
+  if (!isEvaluation && evaluation) throw fail('native-evaluation-surface-required');
+  if (isEvaluation && (d.mode !== 'read-only' || readdirSync(d.cwd).length)) throw fail('native-evaluation-empty-cwd-required');
+  if (evaluation?.probeTool !== undefined && evaluation.control !== true) throw fail('native-evaluation-control-required');
+  if (isEvaluation) d = {...d, _evaluationControl:evaluation.control === true, initial_instructions:evaluation.instructions};
+  const S = surfaceOf(d), surface = Boolean(d.tool_surface);
   const overrides=(d._disabledMcpNames||[]).flatMap(name=>['-c','mcp_servers.'+name+'.enabled=false']);
   if(d._disabledPluginNames?.length)overrides.push('-c','plugins={'+d._disabledPluginNames.map(name=>JSON.stringify(name)+'={enabled=false}').join(',')+'}');
   if (surface && !d._surfaceCatalog) d = { ...d, _surfaceCatalog: writeSurfaceCatalog(d) };
-  const surfaceFlags = surface ? [...CODEX_SURFACE_R1.overrides, 'model_catalog_json=' + JSON.stringify(d._surfaceCatalog), ...(d._disabledSkillNames?.length ? ['skills.config=[' + d._disabledSkillNames.map(n => '{name=' + JSON.stringify(n) + ',enabled=false}').join(',') + ']'] : [])].flatMap(o => ['-c', o]).concat(overrides) : null;
-  const peer = processPeer(d, surface ? [...surfaceFlags, 'app-server', '--listen', 'stdio://'] : ['-c','features.apps=false','-c','apps._default.enabled=false',...overrides,'app-server','--listen','stdio://'], spawnProcess);
+  const surfaceFlags = surface ? [...S.overrides, 'model_catalog_json=' + JSON.stringify(d._surfaceCatalog), ...(d._disabledSkillNames?.length ? ['skills.config=[' + d._disabledSkillNames.map(n => '{name=' + JSON.stringify(n) + ',enabled=false}').join(',') + ']'] : [])].flatMap(o => ['-c', o]).concat(overrides) : null;
+  let transportGuard = null;
+  const peer = processPeer(d, surface ? [...surfaceFlags, 'app-server', '--listen', 'stdio://'] : ['-c','features.apps=false','-c','apps._default.enabled=false',...overrides,'app-server','--listen','stdio://'], spawnProcess, isEvaluation ? error=>{if(!['native-endpoint-closed','native-process-ended'].includes(error.code))transportGuard?.reject(error.code);} : null);
   let seq = 0, thread, appServerVersion = null, init = null, surfaceEvidence = null;
   const request = (method, params) => {
     const id = ++seq;
@@ -322,21 +334,50 @@ async function codexEndpoint(d, spawnProcess) {
       const names=Object.keys(config?.config?.mcp_servers||{}),plugins=Object.keys(config?.config?.plugins||{});
       if(names.length>128 || names.some(n=>!/^[A-Za-z0-9_-]{1,128}$/.test(n)))throw fail('native-mcp-config-budget');
       if(plugins.length>128 || plugins.some(n=>!bounded(n,256)||/[\x00-\x1f]/.test(n)))throw fail('native-plugin-config-budget');
-      if(names.length||plugins.length){await peer.stopAndWait();return codexEndpoint({...d,_mcpConfigInspected:true,_disabledMcpNames:names,_disabledPluginNames:plugins},spawnProcess);}
+      if(names.length||plugins.length){await peer.stopAndWait();return codexEndpoint({...d,_mcpConfigInspected:true,_disabledMcpNames:names,_disabledPluginNames:plugins},spawnProcess,evaluation);}
     }
     // The user's own skills are switched off by session flag, never by editing their files.
     if(surface && !d._skillsInspected) {
       const listed=await request('skills/list',{cwds:[d.cwd],forceReload:true}),skillNames=[...new Set((listed?.data||[]).flatMap(c=>(c.skills||[]).filter(k=>k.enabled!==false).map(k=>k.name)))];
       if(skillNames.length>256 || skillNames.some(n=>!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(n)))throw fail('native-skill-config-budget');
-      if(skillNames.length){await peer.stopAndWait();return codexEndpoint({...d,_skillsInspected:true,_disabledSkillNames:[...new Set([...(d._disabledSkillNames||[]),...skillNames])]},spawnProcess);}
+      if(skillNames.length){await peer.stopAndWait();return codexEndpoint({...d,_skillsInspected:true,_disabledSkillNames:[...new Set([...(d._disabledSkillNames||[]),...skillNames])]},spawnProcess,evaluation);}
     }
     thread = await request('thread/start',{ cwd:d.cwd, approvalPolicy:'never', sandbox:d.mode === 'read-only' ? 'read-only' : 'workspace-write', ephemeral:true,
       ...(d.model_id ? {model:d.model_id}:{}), ...(d.reasoning ? {config:{model_reasoning_effort:d.reasoning}}:{}),
-      developerInstructions:effectiveInstructions(d), ...(surface ? {experimentalRawEvents:true} : {}) });
+      developerInstructions:effectiveInstructions(d), ...(surface ? {experimentalRawEvents:true} : {}), ...(isEvaluation ? {dynamicTools:evaluationDynamicTools(evaluation.probeTool)} : {}) });
     if (!bounded(thread.thread?.id,256)) throw fail('invalid-native-thread');
     if (surface) surfaceEvidence = await inspectCodexSurface(request, d, init, thread);
   } catch (e) { await peer.stopAndWait(); throw e; }
   const nativeId = thread.thread.id;
+  const evalGuard = isEvaluation ? evaluationFrameGuard(nativeId,{probeTool:evaluation.probeTool}) : null; transportGuard=evalGuard;
+  const evaluationCalls = []; let evaluationClosed = false, evaluationStarted = false, evaluationIsolationVerified = false, callbackTraffic = 0, callbackInput = 0, callbackOutput = 0;
+  const evaluationEvidence = () => ({binding:evaluation?.binding,broker:evaluation?.broker.evidence(),calls:[...evaluationCalls],closed:evaluationClosed,accounting_valid:evalGuard?.accountingValid === true,evaluation_isolation_verified:evaluationIsolationVerified && !evalGuard?.violation,violation:evalGuard?.violation || null});
+  const offEvaluation = evalGuard ? peer.listen((m,error) => {
+    if (error) { if (!['native-endpoint-closed','native-process-ended'].includes(error.code)) evalGuard.reject(error.code); return; }
+    evalGuard.check(m);
+    if (!m || !Object.hasOwn(m,'id') || !m.method) return;
+    const p = m.params || {}, name = evaluationToolName(p,evaluation.probeTool); let inputDigest = null, response, denial = null;
+    callbackTraffic++; callbackInput += Buffer.byteLength(JSON.stringify(m));
+    const caps = evaluation.broker.limits;
+    try {
+      if (callbackTraffic > caps.maxCallbacks || Buffer.byteLength(JSON.stringify(m)) > caps.maxInputBytes || callbackInput > caps.totalInputBytes) throw fail('source-callback-limit');
+      if (name) inputDigest = evaluationInputDigest(name,p.arguments);
+      if (m.method !== S.callback_method || evalGuard.blocker) throw fail(evalGuard.blocker || 'native-surface-server-request');
+      inputDigest = evaluationInputDigest(name,p.arguments);
+      const result = evaluation.broker.callback({threadId:p.threadId,turnId:p.turnId,callId:p.callId,name,arguments:p.arguments,inputDigest});
+      response = {success:true,contentItems:[{type:'inputText',text:JSON.stringify(result)}]};
+    } catch (error) {
+      denial = error.code || 'native-evaluation-callback-failed';
+      if (/limit|replay|foreign|closed|digest/.test(denial)) evalGuard.reject(denial);
+      response = {success:false,contentItems:[{type:'inputText',text:JSON.stringify({error:denial})}]};
+    }
+    let frame = {id:m.id,result:response}, size = Buffer.byteLength(JSON.stringify(frame)) + 1;
+    callbackOutput += size;
+    if (size > caps.maxOutputBytes || callbackOutput > caps.totalOutputBytes) { evalGuard.reject('native-evaluation-response-limit'); denial='native-evaluation-response-limit'; frame={id:m.id,result:{success:false,contentItems:[{type:'inputText',text:'{"error":"native-evaluation-response-limit"}'}]}}; }
+    evaluationCalls.push({request_id:m.id,thread_id:p.threadId ?? null,turn_id:p.turnId ?? null,call_id:p.callId ?? null,name,input_digest:inputDigest,response_digest:digest(frame.result),success:frame.result.success,denial});
+    try { peer.write(frame); if(name && inputDigest)evalGuard.registerResponse(p.callId,inputDigest,frame.result); } catch { evalGuard.reject('native-evaluation-callback-response-failed'); }
+    if (/limit/.test(denial || '')) {evaluation.broker.close(denial);peer.close();}
+  }) : null;
   const freshNative = thread.thread.ephemeral === true && thread.thread.sessionId === nativeId && thread.thread.forkedFromId == null && thread.thread.cwd === d.cwd && Array.isArray(thread.thread.turns) && thread.thread.turns.length === 0;
   let previousCounters = null, sentTurns = 0;
   let accountGeneration = 0;
@@ -379,6 +420,7 @@ async function codexEndpoint(d, spawnProcess) {
   const inspectIsolation = async () => {
     if (d.mode !== 'read-only' || thread.sandbox?.type !== 'readOnly' || thread.sandbox.networkAccess !== false || !freshNative) return {verified:false,blocker:'native-fresh-read-only-thread-unverified'};
     if (surface && !surfaceEvidence?.verified) return {verified:false,blocker:surfaceEvidence?.blocker||'native-surface-unverified'};
+    if (isEvaluation) {const current=await inspectCodexSurface(request,d,init,thread);if (!current.verified || !isDeepStrictEqual(current.evidence,surfaceEvidence.evidence)) return {verified:false,blocker:current.blocker||'native-evaluation-configuration-changed'};}
     try {
       let cursor = null; const seen = new Set();
       for (let page = 0; page < 10; page++) {
@@ -391,7 +433,7 @@ async function codexEndpoint(d, spawnProcess) {
       }
       const apps = await request('app/installed',{threadId:nativeId,forceRefresh:false});
       if (!Array.isArray(apps.apps) || apps.apps.some(a => a.enabled !== false || a.callable !== false)) return {verified:false,blocker:'native-app-tools-absence-unverified'};
-      return {verified:true,source:'native-thread-mcp-app-runtime',observed_at:new Date().toISOString()};
+      return {verified:true,source:'native-thread-mcp-app-runtime',observed_at:new Date().toISOString(),...(isEvaluation?{effective_surface_digest:digest(surfaceEvidence.evidence),observed_model:{provider:thread.modelProvider||thread.thread.modelProvider||'unknown',model_id:thread.model||'unknown',reasoning:thread.reasoningEffort||'unknown'}}:{})};
     } catch (e) {
       if (e.code === 'native-rpc-rejected') return {verified:false,blocker:'native-isolation-inspection-unsupported'};
       throw e;
@@ -401,7 +443,7 @@ async function codexEndpoint(d, spawnProcess) {
     const observed=await inspectIsolation(),plugins=(observed.servers||[]).filter(s=>s.status!=='disabled'&&s.plugin_id).map(s=>s.plugin_id);
     if(plugins.length){
       if(plugins.some(n=>!bounded(n,256)||/[\x00-\x1f]/.test(n)))throw fail('native-plugin-config-budget');
-      await peer.stopAndWait();return codexEndpoint({...d,_mcpConfigInspected:true,_runtimePluginsInspected:true,_disabledPluginNames:[...new Set([...(d._disabledPluginNames||[]),...plugins])]},spawnProcess);
+      await peer.stopAndWait();return codexEndpoint({...d,_mcpConfigInspected:true,_runtimePluginsInspected:true,_disabledPluginNames:[...new Set([...(d._disabledPluginNames||[]),...plugins])]},spawnProcess,evaluation);
     }
   }
   } catch(e){await peer.stopAndWait();throw e;}
@@ -410,40 +452,46 @@ async function codexEndpoint(d, spawnProcess) {
     usage_counter_schema:'codex-thread-cumulative-total-v1',
     inspectContext:inspectIsolation,
     captureAccountingMetadata,
+    ...(isEvaluation ? {evaluationEvidence} : {}),
     async send(text) {
       peer.resetBudget(); const before = await inspectIsolation();
-      const guard = surface ? codexSurfaceGuard(nativeId) : null, offGuard = guard ? peer.listen(m => guard.check(m)) : null, messages = [];
+      const guard = isEvaluation ? evalGuard : surface ? codexSurfaceGuard(nativeId) : null, offGuard = guard && !isEvaluation ? peer.listen(m => guard.check(m)) : null, messages = [];
+      if (isEvaluation && (!before.verified || evaluationStarted)) throw fail(before.blocker || 'native-evaluation-already-consumed');
+      if (isEvaluation) evaluationStarted=true;
       const startId = ++seq, baseline = previousCounters, firstTurn = sentTurns++ === 0;
-      let turnId = null, terminalCounters = null, lastCounters = null, counterProblem = false, sawCounters = false;
+      let turnId = null, terminalCounters = null, lastCounters = null, earlyInitial = null, callbackSeen = false, counterProblem = false, sawCounters = false;
+      const bindTurn = value => {if (!isEvaluation || !value) return; if (evalGuard.bind(value) && !evaluation.broker.evidence().owner) evaluation.broker.bind({threadId:nativeId,turnId:value});};
       let output = '', actual = { provider:thread.modelProvider || thread.thread.modelProvider || 'unknown', model_id:thread.model || 'unknown', reasoning:thread.reasoningEffort || 'unknown', observed_at:new Date().toISOString(),evidence_kind:'native-effective-thread-config-and-reroute-events' }, usage = null;
       const result = await waitFrame(peer,d.timeout_ms,m => {
         const p = m.params;
+        if (isEvaluation && m.method && Object.hasOwn(m,'id')) { callbackSeen=true; return; }
         if (m.method && Object.hasOwn(m,'id')) { peer.write({id:m.id,error:{code:-32601,message:'Unsupported managed-context request'}}); return; }
         if (!m.method && m.id === startId && (Object.hasOwn(m,'result') || Object.hasOwn(m,'error'))) {
           if (m.error) throw fail('native-rpc-rejected');
           if (!bounded(m.result?.turn?.id,256)) counterProblem = true;
           else if (turnId && turnId !== m.result.turn.id) counterProblem = true;
-          else turnId = m.result.turn.id;
+          else {turnId = m.result.turn.id;bindTurn(turnId);}
           return;
         }
         if (p?.threadId !== nativeId) return;
+        if (isEvaluation && m.method === 'turn/started' && p.turn?.id) {if (turnId && turnId !== p.turn.id) counterProblem=true; else {turnId=p.turn.id;bindTurn(turnId);}}
         if (m.method === 'model/rerouted') { actual = {...actual,model_id:p.toModel || 'unknown',reasoning:'unknown'}; }
         if (m.method === 'thread/tokenUsage/updated') {
-          usage = p.tokenUsage; sawCounters = true;
+          const sawCountersBefore=sawCounters; usage = p.tokenUsage; sawCounters = true;
           const total = codexCounters(usage?.total), last = codexCounters(usage?.last);
           if (!turnId || p.turnId !== turnId || !total || !last ||
-              !sameCounterSchema(total,last) || Object.keys(total).some(key => total[key] < last[key]) ||
+              !sameCounterSchema(total,last) || isEvaluation && (!evaluationCounterSubsets(total) || !evaluationCounterSubsets(last)) || Object.keys(total).some(key => total[key] < last[key]) ||
               terminalCounters && (!sameCounterSchema(total,terminalCounters) || Object.keys(total).some(key => total[key] < terminalCounters[key])) ||
               baseline && total && (!sameCounterSchema(total,baseline) || Object.keys(total).some(key => total[key] < baseline[key]))) counterProblem = true;
-          else { terminalCounters = total; lastCounters = last; }
+          else { if (isEvaluation && !sawCountersBefore && firstTurn && freshNative && !callbackSeen && Object.keys(total).every(key=>total[key]===last[key])) earlyInitial=Object.fromEntries(Object.keys(total).map(key=>[key,0])); terminalCounters = total; lastCounters = last; }
         }
         if (m.method === 'item/completed' && p.item?.type === 'agentMessage') { output += p.item.text || ''; messages.push({ phase: p.item.phase ?? null, text: p.item.text || '' }); }
         if (m.method === 'turn/completed') {
           if (p.turn?.status !== 'completed') throw fail('native-turn-failed');
           if (turnId && bounded(p.turn.id,256) && p.turn.id !== turnId) { counterProblem = true; return; }
           if (!turnId || p.turn.id !== turnId) counterProblem = true;
-          let initial = baseline, source = baseline ? 'previous-bound-terminal' : null;
-          if (!initial && firstTurn && freshNative && terminalCounters && lastCounters && Object.keys(terminalCounters).every(key => terminalCounters[key] === lastCounters[key])) {
+          let initial = baseline || earlyInitial, source = earlyInitial ? 'native-first-early-cumulative-equals-last' : baseline ? 'previous-bound-terminal' : null;
+          if (!isEvaluation && !initial && firstTurn && freshNative && terminalCounters && lastCounters && Object.keys(terminalCounters).every(key => terminalCounters[key] === lastCounters[key])) {
             initial = Object.fromEntries(Object.keys(terminalCounters).map(key => [key,0])); source = 'native-first-cumulative-equals-last';
           }
           const complete = !counterProblem && initial && terminalCounters;
@@ -456,17 +504,21 @@ async function codexEndpoint(d, spawnProcess) {
             blockers:complete ? [] : [counterProblem ? 'native-token-span-binding-or-counter-conflict' : !sawCounters ? 'native-token-counters-absent' : 'native-token-baseline-unverified']};
           // A gap invalidates the chain; never attribute later cumulative usage to it.
           previousCounters = complete ? terminalCounters : null;
+          if (isEvaluation) {evalGuard.close();evaluation.broker.close('terminal');}
           return {output,actualModel:actual,usage,native_id:nativeId,usage_span};
         }
       }, () => { peer.write({id:startId,method:'turn/start',params:{threadId:nativeId,input:[{type:'text',text}],...(d.reasoning ? {effort:d.reasoning}:{})}}); });
-      if (guard) { await new Promise(r => setTimeout(r, SURFACE_DRAIN_MS)); offGuard(); }
-      const after = await inspectIsolation(), isolated = before.verified && after.verified && !guard?.violation;
+      if (guard) { await new Promise(r => setTimeout(r, SURFACE_DRAIN_MS)); offGuard?.(); }
+      let after;try {after=await inspectIsolation();} catch(error) {if(isEvaluation)error.native_receipt=nativeReceipt({...result,evaluation:evaluationEvidence(),context_manifest:manifest(d,nativeId,freshNative,{tools:[...S.residual_tools],tool_surface:S.id,provenance:'unverified',evaluation_isolation_verified:false,evaluation:evaluationEvidence()})},null);throw error;}
+      const isolated = before.verified && after.verified && !guard?.violation;
+      if (isEvaluation) evaluationIsolationVerified = Boolean(isolated);
       // A surface turn answers with its one final_answer message (commentary is not output).
       // Exactly one final_answer (or one unphased message) is the output; anything else answers nothing.
       if (guard) { const finals = messages.filter(x => x.phase === 'final_answer'); result.output = finals.length === 1 ? finals[0].text : messages.length === 1 && messages[0].phase === null ? messages[0].text : ''; }
+      if (isEvaluation) return {...result,evaluation:evaluationEvidence(),context_manifest:manifest(d,nativeId,freshNative,{tools:[...S.residual_tools],tool_surface:S.id,evaluation:evaluationEvidence(),surface_evidence:{...(surfaceEvidence?.evidence||{}),guard:guard.violation?{blocker:guard.violation}:{window:'turn-through-owned-stop-and-drain',drain_ms:SURFACE_DRAIN_MS}},instruction_sources:thread.instructionSources||[],read_only:true,isolation:isolated?'snapshot-read-only':'managed-context',provenance:isolated?'adapter-isolated':'unverified',fresh_review_verified:false,evaluation_isolation_verified:Boolean(isolated),isolation_evidence:isolated?{before,after}:{blocker:guard.violation||before.blocker||after.blocker}})};
       if (guard) return {...result,context_manifest:manifest(d,nativeId,freshNative,{tools:isolated ? [...CODEX_SURFACE_R1.residual_tools]:null,tool_surface:CODEX_SURFACE_R1.id,surface_evidence:{...(surfaceEvidence?.evidence||{blocker:surfaceEvidence?.blocker||null}),guard:guard.violation?{blocker:guard.violation}:{window:'turn-plus-drain',drain_ms:SURFACE_DRAIN_MS}},instruction_sources:thread.instructionSources || [],sandbox:thread.sandbox || null,read_only:thread.sandbox?.type === 'readOnly',isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated,isolation_evidence:isolated ? {before,after}:{blocker:guard.violation||before.blocker||after.blocker}})};
       return {...result,context_manifest:manifest(d,nativeId,freshNative,{tools:isolated ? ['shell.read-only']:null,instruction_sources:thread.instructionSources || [],sandbox:thread.sandbox || null,read_only:thread.sandbox?.type === 'readOnly',isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated,isolation_evidence:isolated ? {before,after}:{blocker:before.blocker || after.blocker,servers:before.servers||after.servers||[]},read_only_evidence:'native-sandbox-response'})};
-    }, close:() => {offAccount();peer.close();},stopAndWait:options=>{offAccount();return peer.stopAndWait(options);},
+    }, close:() => {if(isEvaluation){evalGuard.close();evaluation.broker.close('endpoint-close');}offAccount();peer.close();},async stopAndWait(options){if(isEvaluation){evalGuard.close();evaluation.broker.close('owned-stop');}offAccount();const proof=await peer.stopAndWait(options);if(isEvaluation){await new Promise(r=>setTimeout(r,SURFACE_DRAIN_MS));evaluationClosed=true;offEvaluation();}return proof;},
   };
 }
 
@@ -729,10 +781,10 @@ export async function createNativeEndpoint(descriptor, dependencies = {}) {
   let d, endpoint;
   try {
     d = validateNativeDescriptor(server ? {...descriptor,...server.descriptor}:descriptor);
-    endpoint = d.harness === 'codex' ? await codexEndpoint(d,dependencies.spawnProcess || spawn) : d.harness === 'claude' ? await claudeEndpoint(d,dependencies.spawnProcess || spawn) : await opencodeEndpoint(d,dependencies.fetchImpl || fetch);
+    endpoint = d.harness === 'codex' ? await codexEndpoint(d,dependencies.spawnProcess || spawn,dependencies.evaluation || null) : d.harness === 'claude' ? await claudeEndpoint(d,dependencies.spawnProcess || spawn) : await opencodeEndpoint(d,dependencies.fetchImpl || fetch);
   } catch (e) { if(server)await server.stopAndWait();throw e; }
   let busy = false, poisoned = false, closed = false; const attempts = new Set();
-  return {async captureAccountingMetadata(){if(closed||poisoned)throw fail('native-endpoint-closed');if(busy)throw fail('native-endpoint-busy');if(!endpoint.captureAccountingMetadata)throw fail('native-accounting-metadata-unsupported');busy=true;try{return await endpoint.captureAccountingMetadata();}catch(error){poisoned=true;endpoint.close();server?.close();throw error;}finally{busy=false;}},native_id:endpoint.native_id,usage_counter_schema:endpoint.usage_counter_schema || null,owns_process:Boolean(server)||d.harness!=='opencode',descriptor:{harness:d.harness,cwd:d.cwd,mode:d.mode,version:d.version || 'unknown'},preflight_before_consume:endpoint.preflight_before_consume===true,async inspectContext(){if(!endpoint.inspectContext)throw fail('native-context-inspection-unsupported');if(closed||poisoned)throw fail('native-endpoint-closed');if(busy)throw fail('native-endpoint-busy');busy=true;try{return await endpoint.inspectContext();}finally{busy=false;}},async send(text,invocation) {
+  return {...(endpoint.evaluationEvidence ? {evaluationEvidence:()=>endpoint.evaluationEvidence()} : {}),async captureAccountingMetadata(){if(closed||poisoned)throw fail('native-endpoint-closed');if(busy)throw fail('native-endpoint-busy');if(!endpoint.captureAccountingMetadata)throw fail('native-accounting-metadata-unsupported');busy=true;try{return await endpoint.captureAccountingMetadata();}catch(error){poisoned=true;endpoint.close();server?.close();throw error;}finally{busy=false;}},native_id:endpoint.native_id,usage_counter_schema:endpoint.usage_counter_schema || null,owns_process:Boolean(server)||d.harness!=='opencode',descriptor:{harness:d.harness,cwd:d.cwd,mode:d.mode,version:d.version || 'unknown'},preflight_before_consume:endpoint.preflight_before_consume===true,async inspectContext(){if(!endpoint.inspectContext)throw fail('native-context-inspection-unsupported');if(closed||poisoned)throw fail('native-endpoint-closed');if(busy)throw fail('native-endpoint-busy');busy=true;try{return await endpoint.inspectContext();}finally{busy=false;}},async send(text,invocation) {
     if (text && typeof text === 'object') { const request = text; text = request.prompt; invocation = {id:request.invocation_nonce,purpose:request.purpose,max_output_chars:request.max_output_chars,read_only:request.read_only}; }
     if (closed) throw fail('native-endpoint-closed');
     if (poisoned) throw fail('native-outcome-uncertain');

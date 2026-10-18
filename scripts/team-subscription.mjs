@@ -16,6 +16,21 @@ const decimal = value => { if(typeof value !== 'string'||! /^(0|[1-9][0-9]{0,17}
 const revision = value => { if(!Number.isSafeInteger(value)||value<1)fail('subscription-revision-required'); return value; };
 const bounded = (value,max=16384) => { if(!value||typeof value!=='object'||Array.isArray(value)||Buffer.byteLength(JSON.stringify(value))>max)fail('subscription-evidence-limit'); return clone(value); };
 function fields(value,allowed) { if(Object.keys(value).some(key=>!allowed.includes(key)))fail('subscription-unknown-evidence-field'); }
+// Evaluation is accounting evidence only: these pins never grant a native role.
+export function validateEvaluationBinding(raw) {
+ const value=bounded(raw),keys=['protocol','task_digest','role_digest','source_digest','policy_digest','config_digest','limits_digest'];
+ fields(value,keys);
+ if(value.protocol!==1||Object.keys(value).length!==keys.length)fail('subscription-evaluation-binding-required');
+ for(const key of keys.slice(1))digest(value[key]);
+ return value;
+}
+function evaluationPayload(value,purpose,stored=null) {
+ if(purpose!=='evaluation') {if(value.evaluation!==undefined)fail('subscription-evaluation-purpose-required');return null;}
+ const binding=validateEvaluationBinding(value.evaluation);
+ if(['measurement','action','work','delivery','action_seal','work_seal','identity_seal'].some(key=>value[key]!==undefined))fail('subscription-evaluation-payload-forbidden');
+ if(stored&&!same(binding,stored))fail('subscription-evaluation-binding-mismatch');
+ return binding;
+}
 function tuple(value,allowUnknown=false) {
  const x=bounded(value);fields(x,['provider','model_id','reasoning']);
  for(const key of ['provider','model_id','reasoning'])if(!(allowUnknown&&x[key]===null)&&(typeof x[key]!=='string'||!x[key]||x[key].length>256||/[\x00-\x1f\x7f]/.test(x[key])))fail('subscription-model-tuple-required');
@@ -245,11 +260,13 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    t.subscription_contexts||={};t.subscription_contexts[context.id]=value;result={context:context.id,billing_policy:'inherited-native'};
   } else if(c.type==='subscription-reserve-v2') {
    H.owner(s,c);const r=bounded(c.reservation);
-   fields(r,['id','participant','incarnation','context_id','purpose','requested_model','nonce','suite_digest','max_calls','timeout_ms','estimate_tokens','epoch','quota_revision','mode_revision','allocation_revision','measurement','action','operation_id','delivery','work']);
+   fields(r,['id','participant','incarnation','context_id','purpose','requested_model','nonce','suite_digest','max_calls','timeout_ms','estimate_tokens','epoch','quota_revision','mode_revision','allocation_revision','measurement','action','operation_id','delivery','work','evaluation']);
    id(r.id);id(r.nonce);digest(r.suite_digest);tuple(r.requested_model);decimal(r.estimate_tokens);
-   // An owned identity or calibration call binds its runtime operation, so a lost one can be reconciled.
-   if(r.operation_id!==undefined&&(!['identity','calibration','delivery','work'].includes(r.purpose)||typeof r.operation_id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(r.operation_id)))fail('subscription-operation-binding-invalid');
-   if(!['identity','calibration','protocol-control','delivery','work'].includes(r.purpose)||r.max_calls!==1||!Number.isInteger(r.timeout_ms)||r.timeout_ms<100||r.timeout_ms>300000)fail('subscription-bounded-bootstrap-required');
+   evaluationPayload(r,r.purpose);
+   // An owned call binds its runtime operation, so a lost one can be reconciled.
+   if(r.operation_id!==undefined&&(!['identity','calibration','delivery','work','evaluation'].includes(r.purpose)||typeof r.operation_id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(r.operation_id)))fail('subscription-operation-binding-invalid');
+   if(!['identity','calibration','protocol-control','delivery','work','evaluation'].includes(r.purpose)||r.max_calls!==1||!Number.isInteger(r.timeout_ms)||r.timeout_ms<100||r.timeout_ms>300000)fail('subscription-bounded-bootstrap-required');
+   if(r.purpose==='evaluation'&&decimal(r.estimate_tokens)===0n)fail('subscription-evaluation-positive-estimate-required');
    const p=participant(t,r.participant),context=t.subscription_contexts?.[r.context_id],allocation=context&&s.subscription_allocations?.[context.unit_digest];
    nativeContextUsable(t,context,p,now);if(allocation?.protocol!==2)fail('subscription-team-counter-allocation-required');
    const stored={...r,protocol:2,context:clone(context),team:t.id,collector:context.collector,descriptor_digest:context.descriptor_digest,unit_digest:context.unit_digest,state:'prepared'};
@@ -280,6 +297,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    const {x,p}=invocation(s,t,c);if(x.protocol!==2)fail('subscription-versioned-invocation-required');
    if(c.type==='subscription-consume-v2') {
     if(x.state!=='prepared')fail('subscription-invocation-already-consumed');
+    if(c.evaluation!==undefined)evaluationPayload(c,x.purpose,x.evaluation);
     nativeAdmissionCurrent(t,x,p,s.subscription_allocations?.[x.unit_digest],now);
     const used=totals(s,x.unit_digest),allocation=s.subscription_allocations[x.unit_digest];
     if(used.overshoot)fail('subscription-unreconciled-token-overshoot');
@@ -294,7 +312,9 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    } else {
     if(!['consumed','uncertain','settled'].includes(x.state))fail('subscription-consumed-invocation-required');
     const receipt=bounded(c.receipt,65536);
-    fields(receipt,['nonce','context_id','native_id','incarnation','unit_scope','counter_schema','turn_id','billing_before','billing_after','observed_model','coverage','before','after','actual_tokens','isolation_verified','measurement','action_seal','delivery','work_seal','identity_seal']);
+    fields(receipt,['nonce','context_id','native_id','incarnation','unit_scope','counter_schema','turn_id','billing_before','billing_after','observed_model','coverage','before','after','actual_tokens','isolation_verified','measurement','action_seal','delivery','work_seal','identity_seal','evaluation']);
+    evaluationPayload(receipt,x.purpose,x.evaluation);
+    if(x.purpose==='evaluation'&&c.delivery_output!==undefined)fail('subscription-evaluation-payload-forbidden');
     if(receipt.work_seal!==undefined&&x.purpose!=='work')fail('native-work-purpose-required');
     if(receipt.identity_seal!==undefined&&x.purpose!=='identity')fail('native-identity-purpose-required');
     if((receipt.delivery!==undefined||c.delivery_output!==undefined)&&x.purpose!=='delivery')fail('delivery-purpose-required');
@@ -330,7 +350,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
     let identitySeal=null,identityBlocker=null;
     try{identitySeal=sealIdentityReceipt(t,x,receipt,now);}catch(error){identityBlocker=/^native-action-[a-z0-9-]{1,128}$/.test(error.message||'')?error.message:'native-identity-seal-unavailable';}
     // Validate the whole receipt before mutation; genuine billing changes remain usage.
-    if(receipt.coverage==='complete'&&!changed) {
+    if(receipt.coverage==='complete'&&!changed&&x.purpose!=='evaluation') {
      const refined={...derived};for(const key of ['provider','model_id','reasoning'])if(knownModelField(receipt.observed_model?.[key]))refined[key]=receipt.observed_model[key];
      t.subscription_native_identity||={};t.subscription_native_identity[identityKey]=refined;
     }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applySubscriptionAccounting, validateSubscriptionUnit } from '../scripts/team-subscription.mjs';
+import { applySubscriptionAccounting, validateSubscriptionUnit, validateEvaluationBinding } from '../scripts/team-subscription.mjs';
 import { reduceTeamEvent } from '../scripts/team-state.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
 const at='2026-10-02T12:00:00.000Z',now=Date.parse(at),hash='a'.repeat(64),account='b'.repeat(64);
@@ -162,7 +162,7 @@ function nativeFixture() {
  const enable=(x=f.first,rev=1)=>f.send(x.t,'subscription-accounting-enable-v2',{policy:{bootstrap:true,billing_policy:'inherited-native'},revision:rev});
  const allocate=(x=f.first,max='100',rev=1)=>f.send(x.t,'subscription-allocation-update-v2',{unit_scope:unitFor(x),max_tokens:max,revision:rev});
  const capture=(x=f.first,changes={})=>f.send(x.t,'subscription-context-capture-v2',{participant_id:x.p.id,context:{id:'native-context-'+x.t.id,native_id:'native-'+x.t.id,descriptor_digest:hash,incarnation:x.p.incarnation,unit_scope:unitFor(x),billing_observation:unknownBilling,observed_model:null,observed_at:at,expires_at:'2026-10-02T12:02:00.000Z',read_only:true,owned:true,...changes}},x.actor);
- const reserve=(x=f.first,id='v2-call-1',estimate='40',changes={})=>f.send(x.t,'subscription-reserve-v2',{reservation:{id,participant:x.p.id,incarnation:x.p.incarnation,context_id:'native-context-'+x.t.id,purpose:'identity',requested_model:model,nonce:'nonce-'+id,suite_digest:hash,max_calls:1,timeout_ms:1000,estimate_tokens:estimate,epoch:x.t.epoch,quota_revision:x.t.quota_revision,mode_revision:x.t.accounting.revision,allocation_revision:f.s.subscription_allocations[routingDigest(unitFor(x))].revision,...changes}});
+ const reserve=(x=f.first,id='v2-call-1',estimate='40',changes={})=>f.send(x.t,'subscription-reserve-v2',{reservation:{id,participant:x.p.id,incarnation:x.p.incarnation,context_id:'native-context-'+x.t.id,purpose:'identity',requested_model:model,nonce:'nonce-'+id,suite_digest:hash,max_calls:1,timeout_ms:1000,estimate_tokens:estimate,epoch:x.t.epoch,quota_revision:x.t.quota_revision,mode_revision:x.t.accounting.revision,allocation_revision:f.s.subscription_allocations[routingDigest(unitFor(x))]?.revision,...changes}});
  const consume=(x=f.first,id='v2-call-1')=>f.send(x.t,'subscription-consume-v2',{invocation_id:id,nonce:'nonce-'+id},x.actor);
  const usage=(x=f.first,id='v2-call-1',changes={})=>f.send(x.t,'subscription-usage-v2',{invocation_id:id,nonce:'nonce-'+id,receipt:{nonce:'nonce-'+id,context_id:'native-context-'+x.t.id,native_id:'native-'+x.t.id,incarnation:x.p.incarnation,unit_scope:unitFor(x),counter_schema:'codex-thread-cumulative-total-v1',turn_id:'turn-'+id,isolation_verified:true,billing_before:unknownBilling,billing_after:unknownBilling,observed_model:null,coverage:'complete',before:'0',after:'30',actual_tokens:'30',...changes}},x.actor);
  const ready=(x=f.first)=>{enable(x);allocate(x);capture(x);};
@@ -174,6 +174,64 @@ test('inherited-native v2 admits unknown billing for bounded read-only bootstrap
  assert.equal(f.t.accounting.protocol,2);assert.equal(f.t.accounting.billing_policy,'inherited-native');assert.equal(f.t.routing.protocol,4);
  assert.equal(f.s.subscription_invocations['v2-call-1'].protocol,2);assert.deepEqual(f.p.model,{resolved:false});assert.equal(f.t.leader,null);assert.equal(f.t.review_floor,null);
  assert.equal(f.s.subscription_allocations[routingDigest(f.unitFor(f.first))].unit_scope.scope,'team-native-counter');
+});
+
+const evaluationBinding={protocol:1,task_digest:'1'.repeat(64),role_digest:'2'.repeat(64),source_digest:'3'.repeat(64),policy_digest:'4'.repeat(64),config_digest:'5'.repeat(64),limits_digest:'6'.repeat(64)};
+const evaluationReservation={purpose:'evaluation',evaluation:evaluationBinding,operation_id:'evaluation-operation'};
+test('evaluation v1 binding is exact, canonical and detached',()=>{
+ const value=validateEvaluationBinding(evaluationBinding);value.task_digest=hash;
+ assert.notDeepEqual(value,evaluationBinding);
+ for(const change of [{protocol:2},{extra:hash},{task_digest:'A'.repeat(64)},{source_digest:'sha256:'+hash},{limits_digest:undefined}])assert.throws(()=>validateEvaluationBinding({...evaluationBinding,...change}));
+ for(const value of [null,[],{},'binding'])assert.throws(()=>validateEvaluationBinding(value));
+});
+test('evaluation v2 reserves and settles existing native units without capturing identity or authority',()=>{
+ const f=nativeFixture();f.nativeReady();const before=structuredClone(f.t),allocation=structuredClone(f.s.subscription_allocations);
+ const binding=structuredClone(evaluationBinding);
+ f.nativeReserve(f.first,'v2-call-1','40',{...evaluationReservation,evaluation:binding});binding.task_digest=hash;
+ assert.deepEqual(f.s.subscription_invocations['v2-call-1'].evaluation,evaluationBinding);
+ f.nativeConsume();const result=f.nativeUsage(f.first,'v2-call-1',{evaluation:evaluationBinding,observed_model:{provider:'fixture',model_id:'actual',reasoning:'low'}}).result;
+ assert.equal(result.actual_tokens,'30');assert.equal(f.s.subscription_invocations['v2-call-1'].state,'settled');
+ assert.deepEqual(f.t,before);assert.deepEqual(f.s.subscription_allocations,allocation);
+ assert.equal(f.t.subscription_native_identity,undefined);assert.equal(f.s.subscription_invocations['v2-call-1'].identity_seal,undefined);
+ assert.equal(f.nativeUsage(f.first,'v2-call-1',{evaluation:evaluationBinding,observed_model:{provider:'fixture',model_id:'actual',reasoning:'low'}}).result.unchanged,true);
+});
+test('evaluation payload cannot enter historical bootstrap or protected reservation purposes',()=>{
+ for(const purpose of ['identity','calibration','protocol-control','delivery','work','unknown']) {
+  const f=nativeFixture();f.nativeReady();assert.throws(()=>f.nativeReserve(f.first,'v2-call-1','40',{purpose,evaluation:evaluationBinding}),/evaluation-purpose/);
+  assert.equal(f.s.subscription_invocations,undefined);
+ }
+ const f=fixture();f.ready();assert.throws(()=>f.reserve(f.first,'call-1','40',evaluationReservation),/unknown-evidence/);
+});
+test('evaluation reservations reject mixed authority payloads and unknown binding fields before mutation',()=>{
+ for(const changes of [{evaluation:undefined},{evaluation:{...evaluationBinding,rank:'leader'}},{measurement:{}},{action:{}},{work:{}},{delivery:{}},{max_calls:2},{timeout_ms:300001},{estimate_tokens:'0'},{operation_id:'foreign.operation'}]) {
+  const f=nativeFixture();f.nativeReady();const before=structuredClone(f.t);
+  assert.throws(()=>f.nativeReserve(f.first,'v2-call-1','40',{...evaluationReservation,...changes}));
+  assert.equal(f.s.subscription_invocations,undefined);assert.deepEqual(f.t,before);
+ }
+});
+test('evaluation terminal binding must match the stored pins and cannot carry role seals',()=>{
+ for(const change of [{evaluation:undefined},{evaluation:{...evaluationBinding,task_digest:hash}},{evaluation:{...evaluationBinding,extra:hash}},{measurement:{}},{action_seal:{}},{work_seal:{}},{identity_seal:{}},{delivery:{}}]) {
+  const f=nativeFixture();f.nativeReady();f.nativeReserve(f.first,'v2-call-1','40',evaluationReservation);f.nativeConsume();
+  const before=structuredClone({t:f.t,x:f.s.subscription_invocations['v2-call-1']});
+  assert.throws(()=>f.nativeUsage(f.first,'v2-call-1',{evaluation:evaluationBinding,...change}));
+  assert.deepEqual({t:f.t,x:f.s.subscription_invocations['v2-call-1']},before);
+ }
+ const f=nativeFixture();f.nativeReady();f.nativeReserve();f.nativeConsume();
+ assert.throws(()=>f.nativeUsage(f.first,'v2-call-1',{evaluation:evaluationBinding}),/evaluation-purpose/);
+ const g=nativeFixture();g.nativeReady();g.nativeReserve(g.first,'v2-call-1','40',evaluationReservation);g.nativeConsume();
+ assert.throws(()=>g.send(g.t,'subscription-usage-v2',{invocation_id:'v2-call-1',nonce:'nonce-v2-call-1',receipt:{evaluation:evaluationBinding},delivery_output:'foreign-output'},g.actor),/evaluation-payload-forbidden/);
+ assert.equal(g.s.subscription_invocations['v2-call-1'].state,'consumed');
+});
+test('evaluation uses the existing allocation, consume gate and uncertainty hold',()=>{
+ const f=nativeFixture();f.nativeReady();const key=routingDigest(f.unitFor(f.first));delete f.s.subscription_allocations[key];
+ assert.throws(()=>f.nativeReserve(f.first,'v2-call-1','40',{...evaluationReservation,allocation_revision:1}),/allocation-required/);
+ f.nativeAllocate();f.nativeReserve(f.first,'v2-call-1','40',evaluationReservation);
+ assert.throws(()=>f.send(f.t,'subscription-consume-v2',{invocation_id:'v2-call-1',nonce:'nonce-v2-call-1',evaluation:{...evaluationBinding,policy_digest:hash}},f.actor),/evaluation-binding-mismatch/);
+ assert.equal(f.s.subscription_invocations['v2-call-1'].state,'prepared');
+ f.nativeConsume();const result=f.nativeUsage(f.first,'v2-call-1',{evaluation:evaluationBinding,coverage:'partial',turn_id:null,before:null,after:null,actual_tokens:null}).result;
+ assert.equal(result.reservation_retained,true);assert.equal(f.s.subscription_invocations['v2-call-1'].state,'uncertain');
+ assert.throws(()=>f.nativeReserve(f.first,'v2-call-2','1',evaluationReservation),/uncertain/);
+ assert.equal(f.s.subscription_allocations[key].max_tokens,'100');assert.equal(f.t.subscription_native_identity,undefined);
 });
 test('team-native counter budget is shared across own contexts but never pooled across teams',()=>{
  const f=nativeFixture();f.nativeReady();f.nativeCapture(f.first,{id:'second-context',native_id:'second-native'});

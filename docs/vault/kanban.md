@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-18T03:24:44.219Z
+generated_at: 2026-10-18T18:28:26.698Z
 
 ---
 
@@ -79,6 +79,7 @@ generated_at: 2026-10-18T03:24:44.219Z
 - [x] [[epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage|WP-21: Offline Codex token accounting with explicit coverage]] #p2 #done
 - [x] [[epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison|WP-21: Bounded paired smoke protocol for token economy]] #p2 #done
 - [x] [[epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs|WP-21: Targeted evidence reads and reproducible role handoffs]] #p2 #done
+- [x] [[epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route|WP-21: Budgeted sealed-source evaluation route]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

@@ -148,6 +148,7 @@ export async function main(argv = process.argv.slice(2)) {
     if (operation === 'bootstrap') print(await host.bootstrap({ participant: opt('--participant'), descriptor: opt('--descriptor-file') ? json(resolve(opt('--descriptor-file'))) : undefined }));
     else if (operation === 'subscription-bootstrap') print(await host.subscriptionBootstrap({nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000',maxTokens:opt('--max-tokens')||'20000'}));
     else if (operation === 'calibration-cohort-open') print(host.openCalibrationCohort(json(resolve(opt('--request-file') || ''))));
+    else if (operation === 'evaluation') { const c=consent({yes:flag('--yes'),reason:opt('--reason')});if(!c.ok)throw new Error('owner-consent-required: pass --yes and --reason');print(await host.evaluateReadOnly({...json(resolve(opt('--request-file')||'')),owner_reason:c.reason})); }
     else if (operation === 'calibration-trial') print(await host.subscriptionCalibrationTrial({cohortId:opt('--cohort'),caseId:opt('--case'),nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000'}));
     else if (operation === 'calibration-summary') print(host.calibrationSummary({cohortId:opt('--cohort')}));
     else if(operation==='protocol-control-enable')print(host.enableProtocolControl(json(resolve(opt('--request-file')||''))));
