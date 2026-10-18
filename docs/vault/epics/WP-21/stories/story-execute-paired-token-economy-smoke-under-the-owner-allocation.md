@@ -10,11 +10,11 @@ created: 2026-10-18
 updated: 2026-10-18
 external_refs: {}
 tags: []
-code_refs: ["docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md", "docs/vault/ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md", "scripts/team-host.mjs", "scripts/team-transport.mjs"]
+code_refs: ["docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md", "docs/vault/ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md", "scripts/team-host.mjs", "scripts/team-transport.mjs", "docs/vault/ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md"]
 specs: []
 started_at: "2026-10-18T03:24:43.347Z"
 closed_at: null
-plan_updated_at: "2026-10-18T03:24:43.347Z"
+plan_updated_at: "2026-10-18T22:52:11.793Z"
 ---
 
 # Execute paired token economy smoke under the owner allocation
@@ -95,6 +95,14 @@ The owner explicitly accepted the recommendation to count 7520 as an assumed C1 
 Verified final state: invocation `reconciled`, usage `unknown`, unknown_usage_accepted true, partial receipt retained with coverage partial and actual_tokens null; team closed, task binding absent. C1 remains failed/quarantined and never becomes a settled identity or successful control. Machine budget now counts the owner-assumed 7520, reserved 0, remaining 242480 of unchanged 250000. This is an experimental admission-budget charge, not verified provider billing or a weekly quota percentage. Authoring/review cost remains unknown.
 
 Durable verification: `.waypost/experiments/wp21-smoke-20261018/owner-resolution.json`. The earlier C1 stop report and hashes are unchanged; the 5000 reservation/245000 balance above describe the pre-resolution snapshot. No new inference, C2/C3, worker, judge or retry occurred during reconciliation/closure. Execution remains incomplete pending a separately registered future protocol.
+
+## Owner-authorized revision 3 control-only registration (2026-10-18)
+
+The owner explicitly selected only C1/C2/C3, estimates10000/40000/10000, unchanged aggregate cap250000; workers0, judges0, retries0. [[revision-3-compatibility-controls-under-the-unchanged-allowance|Revision 3 compatibility controls under the unchanged allowance]] selects option2 of the reviewed proposal, without changing its frozen bytes. The full paired comparison remains unauthorized/budget-blocked and this execution story is not done.
+
+Protocol SHA256 `0f5defbe2876fa4c72c0bc16b967e662901e83041fd26c094e837bb50acd2619`; full local launch SHA256 `b3e8d14cc5fc2bc1614b3271515567f0e43d5db765e3b85445490f8f6d6abf6f` in `.waypost/experiments/wp21-controls-r3-20261018/launch-manifest.json`. Independent critic returned ship for these exact inputs. Runtime code remains ead3ed2, all385 checked hashes unchanged, affected fixtures65/65 passed. New C0 verified installed CLI0.163.0-alpha.10.2, gpt-6.1-sol/low, effective pin `4c2ec378bc01ac85ffe366bcec379f6773b636f4c7cee5b89b8503825ccee44d` and owned close/drain without inference. Initial in-repository cwd metadata inspection failed closed; only after changing to the permanently empty external cwd was the final descriptor frozen. C0 repetitions did not start model turns. Common source562 files/5857827 bytes reconstructed and seal c9d9485f229d2f54078c12a280a3c0a37a781c9980a98200580755d1f19c83d9 verified.
+
+At registration: new phase inference calls0, new team not created yet. Existing budget counts historical assumed7520, reserved0, remaining242480. Initial admission threshold185000 includes all60000 proposed controls and125000 protected future-judge reserve. New team namespace wp21-controls-r3-20261018; unit allocation242480, no existing cap/allocation raised. Every call rechecks hashes/pin, live budget and earlier control success before consume. Any failed/uncertain control stops further calls, no retry. Old team remains closed and old C1 remains failed/partial; no cost, authority or savings is inferred from these preparations.
 
 ## Dependencies
 

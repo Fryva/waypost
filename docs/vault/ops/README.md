@@ -15,6 +15,7 @@
 | [paired-token-economy-experiment-with-blind-acceptance](./paired-token-economy-experiment-with-blind-acceptance.md) | Paired token economy experiment with blind acceptance | draft | 2026-10-17 |
 | [paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source](./paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md) | Paired token economy experiment revision 2 over a sealed read-only source | draft | 2026-10-18 |
 | [proposed-revision-3-of-the-sealed-source-token-pilot](./proposed-revision-3-of-the-sealed-source-token-pilot.md) | Proposed revision 3 of the sealed-source token pilot | draft | 2026-10-18 |
+| [revision-3-compatibility-controls-under-the-unchanged-allowance](./revision-3-compatibility-controls-under-the-unchanged-allowance.md) | Revision 3 compatibility controls under the unchanged allowance | active | 2026-10-18 |
 
 ---
 
