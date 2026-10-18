@@ -161,7 +161,8 @@ function processPeer(d, argv, spawnProcess, metadataGuard = null) {
       if (!line.trim()) continue;
       let message; try { message = JSON.parse(line); } catch { return stop(fail('invalid-native-frame')); }
       if(!message||typeof message!=='object'||Array.isArray(message))return stop(fail('invalid-native-frame'));
-      for (const f of [...listeners]) f(message, null);
+      // Preserve received UTF-8 bytes (including CR/whitespace/escapes, excluding LF).
+      for (const f of [...listeners]) f(message, null, nl);
     }
   });
   return {
@@ -352,9 +353,9 @@ async function codexEndpoint(d, spawnProcess, evaluation = null) {
   const evalGuard = isEvaluation ? evaluationFrameGuard(nativeId,{probeTool:evaluation.probeTool}) : null; transportGuard=evalGuard;
   const evaluationCalls = []; let evaluationClosed = false, evaluationStarted = false, evaluationIsolationVerified = false, callbackTraffic = 0, callbackInput = 0, callbackOutput = 0;
   const evaluationEvidence = () => ({binding:evaluation?.binding,broker:evaluation?.broker.evidence(),calls:[...evaluationCalls],closed:evaluationClosed,accounting_valid:evalGuard?.accountingValid === true,evaluation_isolation_verified:evaluationIsolationVerified && !evalGuard?.violation,violation:evalGuard?.violation || null});
-  const offEvaluation = evalGuard ? peer.listen((m,error) => {
+  const offEvaluation = evalGuard ? peer.listen((m,error,wireBytes) => {
     if (error) { if (!['native-endpoint-closed','native-process-ended'].includes(error.code)) evalGuard.reject(error.code); return; }
-    evalGuard.check(m);
+    evalGuard.check(m,wireBytes);
     if (!m || !Object.hasOwn(m,'id') || !m.method) return;
     const p = m.params || {}, name = evaluationToolName(p,evaluation.probeTool); let inputDigest = null, response, denial = null;
     callbackTraffic++; callbackInput += Buffer.byteLength(JSON.stringify(m));

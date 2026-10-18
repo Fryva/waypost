@@ -14,7 +14,7 @@ const hash = x=>createHash('sha256').update(x).digest('hex');
 const scratch = realpathSync(mkdtempSync(join(tmpdir(),'waypost-eval-home-'))); process.env.HOME=scratch;
 test.after(()=>rmSync(scratch,{recursive:true,force:true}));
 const counters = n=>({totalTokens:n,inputTokens:n-2,cachedInputTokens:0,outputTokens:2,reasoningOutputTokens:0});
-function fixture(t,{probed=true,control=false,late=false,anchor=true,foreign=false,denied=false,configChange=false,probeTool,limits={},regress=false,reroute=false,lateCounter=false,forbiddenTool=false}={}) {
+function fixture(t,{probed=true,control=false,late=false,anchor=true,foreign=false,denied=false,configChange=false,probeTool,limits={},regress=false,reroute=false,lateCounter=false,forbiddenTool=false,moderation=false,lateModeration=false,moderationWires=[],splitModeration=false}={}) {
   const root=realpathSync(mkdtempSync(join(tmpdir(),'waypost-evaluation-')));t.after(()=>rmSync(root,{recursive:true,force:true}));
   const cwd=join(root,'empty'),home=join(root,'home'),pkg=join(root,'pkg'),source=join(root,'source');
   for(const dir of [cwd,home,join(pkg,'bin'),source])mkdirSync(dir,{recursive:true});
@@ -27,6 +27,8 @@ function fixture(t,{probed=true,control=false,late=false,anchor=true,foreign=fal
   const usage=(n,last=n)=>notify('thread/tokenUsage/updated',{tokenUsage:{total:counters(n),last:counters(last)}});
   const finish=()=>{
     if(reroute)notify('model/rerouted',{toModel:'unexpected-model'});
+    if(moderation)notify('turn/moderationMetadata',{metadata:{opaque:['not a tool',{method:'item/tool/call'}]}});
+    for(const wire of moderationWires){const bytes=Buffer.from(wire+'\n');if(splitModeration){const at=bytes.indexOf(Buffer.from('ж'))+1;child.stdout.write(bytes.subarray(0,at));child.stdout.write(bytes.subarray(at));}else child.stdout.write(bytes);}
     usage(regress?5:30,regress?5:20);notify('rawResponseItem/completed',{item:{type:'message'}});
     notify('item/completed',{item:{type:'agentMessage',phase:'final_answer',text:'answer'}});
     notify('turn/completed',{turn:{id:'turn',status:'completed'}});changed=true;
@@ -58,7 +60,7 @@ function fixture(t,{probed=true,control=false,late=false,anchor=true,foreign=fal
         finish();}
       else if(Object.hasOwn(results,m.method)){const result=structuredClone(results[m.method]);if(configChange&&changed&&m.method==='config/read')result.config.model='changed';emit({id:m.id,result});}
     });}};
-    child.kill=()=>{queueMicrotask(()=>{if(late)callback('late');if(lateCounter)usage(40,10);child.emit('close',0);});return true;};return child;
+    child.kill=()=>{queueMicrotask(()=>{if(late)callback('late');if(lateCounter)usage(40,10);if(lateModeration)notify('turn/moderationMetadata',{metadata:null});child.emit('close',0);});return true;};return child;
   };
   const descriptor={harness:'codex',managed:true,mode:'read-only',cwd,executable,codex_home:home,tool_surface:S.id,model_id:'model',reasoning:'low'};
   return {descriptor,dependencies:{spawnProcess,evaluation:{broker,binding:{manifest_digest:broker.manifestDigest},instructions:'approved role instructions',control,probeTool}},requests,broker};
@@ -170,4 +172,57 @@ test('raw and completed dynamic outputs must match the emitted callback response
 });
 test('callback request ids reject objects and unsafe integers before source access',()=>{
   for(const requestId of [{id:'wrapped'},Number.MAX_SAFE_INTEGER+1,null]) {const g=evaluationFrameGuard('owned');g.bind('turn');g.check({id:requestId,method:'item/tool/call',params:{threadId:'owned',turnId:'turn',callId:'call',namespace:'snapshot',tool:'search',arguments:{query:'a'}}});assert.equal(g.blocker,'native-evaluation-request-id');assert.equal(g.accountingValid,false);}
+});
+
+
+const moderationFrame=metadata=>({method:'turn/moderationMetadata',params:{threadId:'owned',turnId:'turn',metadata}});
+const checkModeration=(g,frame)=>g.check(frame,Buffer.byteLength(JSON.stringify(frame)));
+function moderationGuard() {
+ const g=evaluationFrameGuard('owned');g.bind('turn');g.check({method:'rawResponseItem/completed',params:{threadId:'owned',turnId:'turn',item:{type:'message'}}});return g;
+}
+test('owned moderation data is opaque and does not affect native accounting or broker calls',async t=>{
+ const f=fixture(t,{moderation:true}),e=await createNativeEndpoint(f.descriptor,f.dependencies),r=await send(e);
+ assert.equal(r.usage_span.actual_tokens,'30');assert.equal(r.usage_span.coverage,'complete');assert.equal(r.context_manifest.evaluation_isolation_verified,true);assert.equal(f.broker.evidence().calls.length,1);
+ await e.stopAndWait();assert.equal(e.evaluationEvidence().accounting_valid,true);assert.equal(e.evaluationEvidence().violation,null);
+ assert.ok(!CODEX_SURFACE_R1.turn_methods.includes('turn/moderationMetadata'));assert.ok(!Object.hasOwn(CODEX_SURFACE_R1,'moderation_limits'));
+});
+test('moderation metadata accepts every JSON value without interpreting its contents',()=>{
+ for(const metadata of [null,false,1,'opaque',[1,null],{method:'item/tool/call',instructions:'untrusted data',params:{path:'outside'}}]) {
+  const g=moderationGuard();checkModeration(g,moderationFrame(metadata));assert.equal(g.blocker,null);assert.equal(g.accountingValid,true);
+ }
+});
+test('moderation rejects unbound, foreign, malformed and server-request frames',()=>{
+ const good=moderationFrame(null),cases=[{...good,params:{...good.params,threadId:'foreign'}},{...good,params:{...good.params,turnId:'foreign'}},{...good,params:{metadata:null,threadId:'owned'}},{...good,params:{threadId:'owned',turnId:'turn'}},{...good,params:{...good.params,extra:true}},{...good,params:[]},{...good,extra:true},{...good,jsonrpc:'1.0'},{...good,id:1},{...good,params:{...good.params,metadata:undefined}}];
+ for(const frame of cases){const g=moderationGuard();checkModeration(g,frame);assert.ok(g.blocker);assert.equal(g.accountingValid,false);checkModeration(g,good);assert.equal(g.accountingValid,false);}
+ const unbound=evaluationFrameGuard('owned');checkModeration(unbound,good);assert.ok(unbound.blocker);
+ const closed=moderationGuard();closed.close();checkModeration(closed,good);assert.equal(closed.blocker,'native-evaluation-late-frame');assert.equal(closed.accountingValid,false);
+});
+test('moderation limits count full UTF-8 bytes, cumulative traffic and duplicates',()=>{
+ const {maxFrameBytes,maxTotalBytes,maxFrames}=S.moderation_limits,base=Buffer.byteLength(JSON.stringify(moderationFrame(''))),available=maxFrameBytes-base;
+ const text='ж'.repeat(Math.floor(available/2))+'x'.repeat(available%2),exact=moderationFrame(text);assert.equal(Buffer.byteLength(JSON.stringify(exact)),maxFrameBytes);
+ const g=moderationGuard();checkModeration(g,exact);assert.equal(g.blocker,null);checkModeration(g,moderationFrame(text+'x'));assert.equal(g.blocker,'native-evaluation-moderation-limit');assert.equal(g.accountingValid,false);
+ const total=moderationGuard();for(let i=0;i<Math.floor(maxTotalBytes/maxFrameBytes);i++)checkModeration(total,exact);assert.equal(total.blocker,null);checkModeration(total,exact);assert.equal(total.blocker,'native-evaluation-moderation-limit');
+ const count=moderationGuard();for(let i=0;i<maxFrames;i++)checkModeration(count,moderationFrame(null));assert.equal(count.blocker,null);checkModeration(count,moderationFrame(null));assert.equal(count.blocker,'native-evaluation-moderation-limit');
+});
+for(const forbiddenTool of [false,true])test('late moderation invalidates accounting'+(forbiddenTool?' after the real C3 denial':''),async t=>{
+ const f=fixture(t,{lateModeration:true,forbiddenTool,control:forbiddenTool,probeTool:forbiddenTool?'evaluation_probe_forbidden':undefined}),e=await createNativeEndpoint(f.descriptor,f.dependencies),r=await send(e);
+ assert.equal(r.evaluation.accounting_valid,true);await e.stopAndWait();const proof=e.evaluationEvidence();assert.equal(proof.accounting_valid,false);assert.equal(proof.violation,forbiddenTool?'native-evaluation-tool-call':'native-evaluation-late-frame');assert.equal(proof.evaluation_isolation_verified,false);
+});
+
+test('moderation needs trusted parser byte evidence with no normalized fallback',()=>{
+ for(const bytes of [undefined,null,NaN,Infinity,-1,0,1.5,Number.MAX_SAFE_INTEGER+1]){const g=moderationGuard();g.check(moderationFrame(null),bytes);assert.equal(g.blocker,'native-evaluation-moderation-byte-evidence');assert.equal(g.accountingValid,false);checkModeration(g,moderationFrame(null));assert.equal(g.accountingValid,false);}
+ assert.equal(S.moderation_limits.byteMetric,'wire-json-line-bytes-excluding-lf-v1');
+});
+const paddedModeration=bytes=>{const wire=JSON.stringify(moderationFrame('ж'));return wire+' '.repeat(bytes-Buffer.byteLength(wire)-1)+'\r';};
+for(const [name,wires,split,valid] of [
+ ['exact noncompact CR boundary',[paddedModeration(65536)],false,true],
+ ['one byte above noncompact boundary',[paddedModeration(65537)],false,false],
+ ['escaped wire metadata',[JSON.stringify(moderationFrame('a'.repeat(12000))).replaceAll('a','\\u0061')],false,false],
+ ['aggregate noncompact bytes',Array.from({length:5},()=>paddedModeration(65536)),false,false],
+ ['split multibyte boundary',[paddedModeration(65536)],true,true],
+ ['split oversized multibyte frame',[paddedModeration(65537)],true,false],
+])test('moderation wire limits: '+name,async t=>{
+ const f=fixture(t,{moderationWires:wires,splitModeration:split}),e=await createNativeEndpoint(f.descriptor,f.dependencies),r=await send(e);await e.stopAndWait();const proof=e.evaluationEvidence();
+ assert.equal(proof.accounting_valid,valid);assert.equal(proof.evaluation_isolation_verified,valid);
+ if(valid){assert.equal(r.usage_span.actual_tokens,'30');assert.equal(proof.violation,null);}else assert.equal(proof.violation,'native-evaluation-moderation-limit');
 });

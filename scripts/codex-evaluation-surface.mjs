@@ -10,6 +10,8 @@ export const CODEX_EVALUATION_SURFACE = Object.freeze({
   ...CODEX_SURFACE_R1,
   id: 'codex-read-snapshot-r1', version: '0.163.0-alpha.10.2',
   callback_method: 'item/tool/call',
+  turn_methods: [...CODEX_SURFACE_R1.turn_methods, 'turn/moderationMetadata'],
+  moderation_limits: Object.freeze({byteMetric:'wire-json-line-bytes-excluding-lf-v1',maxFrameBytes:65536,maxTotalBytes:262144,maxFrames:16}),
   features_off: [...CODEX_SURFACE_R1.features_off, ...EVALUATION_FEATURES_OFF],
   overrides: [...CODEX_SURFACE_R1.overrides, ...EVALUATION_FEATURES_OFF.map(name => `features.${name}=false`)],
   turn_items: [...CODEX_SURFACE_R1.turn_items, 'dynamicToolCall'],
@@ -38,6 +40,7 @@ export function evaluationDynamicTools(probeTool) {
 export function evaluationFrameGuard(nativeId, {probeTool} = {}) {
   const S = CODEX_EVALUATION_SURFACE; let violation = null, rawMessage = false, turnId = null, terminal = false, accountingValid = true;
   const calls = new Map(), callNames = new Map(), responses = new Map();
+  let moderationFrames = 0, moderationBytes = 0;
   const reject = reason => { violation ||= reason; if (reason !== 'native-evaluation-tool-call') accountingValid = false; return false; };
   const owned = p => p.threadId === nativeId && turnId && p.turnId === turnId;
   function record(callId, name, args) {
@@ -61,7 +64,7 @@ export function evaluationFrameGuard(nativeId, {probeTool} = {}) {
     if (!matches) return reject('native-evaluation-result-content');
     return true;
   }
-  function check(m) {
+  function check(m,wireBytes) {
     if (!object(m) || !m.method) return;
     const p = m.params || {};
     if (m.method === 'thread/started') {
@@ -80,6 +83,17 @@ export function evaluationFrameGuard(nativeId, {probeTool} = {}) {
     if (terminal && /^(?:item\/|rawResponse|thread\/tokenUsage\/|turn\/)/.test(m.method)) return reject('native-evaluation-late-frame');
     if (m.method === 'model/rerouted') return reject('native-evaluation-model-rerouted');
     if (!S.turn_methods.includes(m.method)) return reject('native-surface-frame-' + m.method.replace(/[^a-z/]/gi,'').slice(0,60));
+    if (m.method === 'turn/moderationMetadata') {
+      // The native schema permits any JSON metadata. It is opaque notification
+      // data: never instructions, a callback response or a token observation.
+      if (!object(p) || Object.keys(p).length !== 3 || !['metadata','threadId','turnId'].every(key=>Object.hasOwn(p,key)) || !owned(p) || Object.keys(m).some(key=>!['method','params','jsonrpc'].includes(key)) || m.jsonrpc !== undefined && m.jsonrpc !== '2.0') return reject('native-evaluation-moderation-binding');
+      if (!Number.isSafeInteger(wireBytes) || wireBytes<=0) return reject('native-evaluation-moderation-byte-evidence');
+      try { if (typeof JSON.stringify(p.metadata) !== 'string') return reject('native-evaluation-moderation-schema'); }
+      catch { return reject('native-evaluation-moderation-schema'); }
+      moderationFrames++; moderationBytes+=wireBytes;
+      if (wireBytes>S.moderation_limits.maxFrameBytes || moderationBytes>S.moderation_limits.maxTotalBytes || moderationFrames>S.moderation_limits.maxFrames) return reject('native-evaluation-moderation-limit');
+      return;
+    }
     if (m.method === 'rawResponseItem/completed') {
       const item = p.item;
       if (!owned(p)) return reject('native-evaluation-raw-binding');
