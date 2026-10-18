@@ -86,7 +86,10 @@ export function evaluationFrameGuard(nativeId, {probeTool} = {}) {
     if (m.method === 'turn/moderationMetadata') {
       // The native schema permits any JSON metadata. It is opaque notification
       // data: never instructions, a callback response or a token observation.
-      if (!object(p) || Object.keys(p).length !== 3 || !['metadata','threadId','turnId'].every(key=>Object.hasOwn(p,key)) || !owned(p) || Object.keys(m).some(key=>!['method','params','jsonrpc'].includes(key)) || m.jsonrpc !== undefined && m.jsonrpc !== '2.0') return reject('native-evaluation-moderation-binding');
+      if (!object(p) || Object.keys(p).length !== 3 || !['metadata','threadId','turnId'].every(key=>Object.hasOwn(p,key))) return reject('native-evaluation-moderation-params');
+      if (!owned(p)) return reject(turnId ? 'native-evaluation-moderation-binding' : 'native-evaluation-moderation-unbound-turn');
+      if (Object.keys(m).some(key=>!['method','params','jsonrpc'].includes(key))) return reject('native-evaluation-moderation-envelope');
+      if (m.jsonrpc !== undefined && m.jsonrpc !== '2.0') return reject('native-evaluation-moderation-jsonrpc');
       if (!Number.isSafeInteger(wireBytes) || wireBytes<=0) return reject('native-evaluation-moderation-byte-evidence');
       try { if (typeof JSON.stringify(p.metadata) !== 'string') return reject('native-evaluation-moderation-schema'); }
       catch { return reject('native-evaluation-moderation-schema'); }

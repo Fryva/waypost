@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-18T22:53:43.919Z
+generated_at: 2026-10-18T23:51:52.136Z
 
 ---
 
@@ -103,6 +103,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
 | epics/WP-21/epic.md | Source an agent can read in one pass | epic | in-progress |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | Budgeted sealed-source evaluation route | story | done |
+| epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | Distinguish evaluation moderation rejection causes | story | done |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | Evaluation accepts bounded moderation metadata | story | done |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | Execute paired token economy smoke under the owner allocation | story | in-progress |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | Bounded paired smoke protocol for token economy | story | done |
@@ -329,6 +330,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
@@ -347,6 +349,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | ops/proposed-revision-3-of-the-sealed-source-token-pilot.md |
 | epics/WP-21/epic.md | wikilink | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |

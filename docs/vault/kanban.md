@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-18T22:44:15.732Z
+generated_at: 2026-10-18T23:51:51.933Z
 
 ---
 
@@ -80,6 +80,7 @@ generated_at: 2026-10-18T22:44:15.732Z
 - [x] [[epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison|WP-21: Bounded paired smoke protocol for token economy]] #p2 #done
 - [x] [[epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs|WP-21: Targeted evidence reads and reproducible role handoffs]] #p2 #done
 - [x] [[epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route|WP-21: Budgeted sealed-source evaluation route]] #p2 #done
+- [x] [[epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes|WP-21: Distinguish evaluation moderation rejection causes]] #p2 #done
 - [x] [[epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata|WP-21: Evaluation accepts bounded moderation metadata]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done

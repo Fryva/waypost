@@ -14,7 +14,7 @@ const hash = x=>createHash('sha256').update(x).digest('hex');
 const scratch = realpathSync(mkdtempSync(join(tmpdir(),'waypost-eval-home-'))); process.env.HOME=scratch;
 test.after(()=>rmSync(scratch,{recursive:true,force:true}));
 const counters = n=>({totalTokens:n,inputTokens:n-2,cachedInputTokens:0,outputTokens:2,reasoningOutputTokens:0});
-function fixture(t,{probed=true,control=false,late=false,anchor=true,foreign=false,denied=false,configChange=false,probeTool,limits={},regress=false,reroute=false,lateCounter=false,forbiddenTool=false,moderation=false,lateModeration=false,moderationWires=[],splitModeration=false}={}) {
+function fixture(t,{probed=true,control=false,late=false,anchor=true,foreign=false,denied=false,configChange=false,probeTool,limits={},regress=false,reroute=false,lateCounter=false,forbiddenTool=false,moderation=false,lateModeration=false,moderationWires=[],splitModeration=false,earlyModeration=false}={}) {
   const root=realpathSync(mkdtempSync(join(tmpdir(),'waypost-evaluation-')));t.after(()=>rmSync(root,{recursive:true,force:true}));
   const cwd=join(root,'empty'),home=join(root,'home'),pkg=join(root,'pkg'),source=join(root,'source');
   for(const dir of [cwd,home,join(pkg,'bin'),source])mkdirSync(dir,{recursive:true});
@@ -48,6 +48,7 @@ function fixture(t,{probed=true,control=false,late=false,anchor=true,foreign=fal
     };
     child.stdin={on(){},write(s){queueMicrotask(()=>{const m=JSON.parse(s);requests.push(m);
       if(m.method==='turn/start'){
+        if(earlyModeration)notify('turn/moderationMetadata',{metadata:null});
         emit({id:m.id,result:{turn:{id:'turn'}}});notify('turn/started',{turn:{id:'turn'}});
         if(anchor)usage(10);
         const toolArgs=toolArguments();
@@ -191,11 +192,35 @@ test('moderation metadata accepts every JSON value without interpreting its cont
   const g=moderationGuard();checkModeration(g,moderationFrame(metadata));assert.equal(g.blocker,null);assert.equal(g.accountingValid,true);
  }
 });
-test('moderation rejects unbound, foreign, malformed and server-request frames',()=>{
- const good=moderationFrame(null),cases=[{...good,params:{...good.params,threadId:'foreign'}},{...good,params:{...good.params,turnId:'foreign'}},{...good,params:{metadata:null,threadId:'owned'}},{...good,params:{threadId:'owned',turnId:'turn'}},{...good,params:{...good.params,extra:true}},{...good,params:[]},{...good,extra:true},{...good,jsonrpc:'1.0'},{...good,id:1},{...good,params:{...good.params,metadata:undefined}}];
- for(const frame of cases){const g=moderationGuard();checkModeration(g,frame);assert.ok(g.blocker);assert.equal(g.accountingValid,false);checkModeration(g,good);assert.equal(g.accountingValid,false);}
- const unbound=evaluationFrameGuard('owned');checkModeration(unbound,good);assert.ok(unbound.blocker);
+test('moderation reasons distinguish params, ownership, envelope and JSON-RPC failures',()=>{
+ const good=moderationFrame(null),cases=[
+  [{...good,params:{...good.params,threadId:'foreign'}},'native-surface-foreign-thread'],
+  [{...good,params:{...good.params,turnId:'foreign'}},'native-evaluation-foreign-turn'],
+  [{...good,params:{metadata:null,threadId:'owned'}},'native-evaluation-moderation-params'],
+  [{...good,params:{threadId:'owned',turnId:'turn'}},'native-evaluation-moderation-params'],
+  [{...good,params:{...good.params,extra:true}},'native-evaluation-moderation-params'],
+  [{...good,params:[]},'native-evaluation-moderation-params'],
+  [{...good,extra:true},'native-evaluation-moderation-envelope'],
+  [{...good,jsonrpc:'1.0'},'native-evaluation-moderation-jsonrpc'],
+  [{...good,id:1},'native-surface-server-request'],
+  [{...good,params:{...good.params,metadata:undefined}},'native-evaluation-moderation-schema'],
+  [{...good,params:{...good.params,turnId:undefined}},'native-evaluation-moderation-binding'],
+  [{...good,params:{threadId:'owned',turnId:'turn'},jsonrpc:'1.0'},'native-evaluation-moderation-params'],
+  [{...good,extra:true,jsonrpc:'1.0'},'native-evaluation-moderation-envelope'],
+ ];
+ const valid=moderationGuard();checkModeration(valid,{...good,jsonrpc:'2.0'});assert.equal(valid.blocker,null);assert.equal(valid.accountingValid,true);
+ for(const [frame,reason] of cases){const g=moderationGuard();checkModeration(g,frame);assert.equal(g.blocker,reason);assert.equal(g.accountingValid,false);checkModeration(g,good);assert.equal(g.blocker,reason);assert.equal(g.accountingValid,false);}
+ for(const frame of [good,{...good,extra:true}]){
+  const unbound=evaluationFrameGuard('owned');checkModeration(unbound,frame);assert.equal(unbound.blocker,'native-evaluation-moderation-unbound-turn');
+  unbound.bind('turn');unbound.check({method:'rawResponseItem/completed',params:{threadId:'owned',turnId:'turn',item:{type:'message'}}});checkModeration(unbound,good);
+  assert.equal(unbound.blocker,'native-evaluation-moderation-unbound-turn');assert.equal(unbound.accountingValid,false);
+ }
  const closed=moderationGuard();closed.close();checkModeration(closed,good);assert.equal(closed.blocker,'native-evaluation-late-frame');assert.equal(closed.accountingValid,false);
+});
+test('early moderation rejection survives later turn binding and owned drain',async t=>{
+ const f=fixture(t,{earlyModeration:true}),e=await createNativeEndpoint(f.descriptor,f.dependencies),r=await send(e);
+ assert.equal(r.evaluation.accounting_valid,false);assert.equal(r.context_manifest.evaluation_isolation_verified,false);assert.equal(r.usage_span.after,'30');
+ await e.stopAndWait();const proof=e.evaluationEvidence();assert.equal(proof.violation,'native-evaluation-moderation-unbound-turn');assert.equal(proof.accounting_valid,false);assert.equal(proof.closed,true);assert.equal(proof.broker.calls.length,0);
 });
 test('moderation limits count full UTF-8 bytes, cumulative traffic and duplicates',()=>{
  const {maxFrameBytes,maxTotalBytes,maxFrames}=S.moderation_limits,base=Buffer.byteLength(JSON.stringify(moderationFrame(''))),available=maxFrameBytes-base;

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-18T22:53:43.758Z
+generated_at: 2026-10-18T23:44:54.706Z
 
 ---
 
@@ -55,6 +55,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-20 | Reviewed integration and team-aware story gates | `scripts/commit.mjs`, `scripts/sessions.mjs`, `bin/waypost`, `tests/commits.test.mjs`, `scripts/team-integration.mjs`, `scripts/team-legacy.mjs`, `scripts/team-host.mjs`, `scripts/team-workflow.mjs`, `tests/team-integration.test.mjs`, `tests/team-end-to-end.test.mjs` |
 | WP-20 | Team CLI orientation and deterministic diagnostics | `bin/waypost`, `scripts/brief.mjs`, `scripts/doctor.mjs`, `scripts/sessions.mjs`, `scripts/ready.mjs`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, `tests/harness.test.mjs`, `scripts/team-diagnostics.mjs`, `scripts/team-cli.mjs` |
 | WP-21 | Budgeted sealed-source evaluation route | `scripts/evaluation-source.mjs`, `scripts/codex-evaluation-surface.mjs`, `scripts/team-host.mjs`, `scripts/team-cli.mjs`, `scripts/team-subscription.mjs`, `scripts/team-transport.mjs`, `scripts/team-native-action.mjs`, `tests/evaluation-source.test.mjs`, `tests/evaluation-transport.test.mjs`, `tests/team-host.test.mjs`, `tests/team-subscription.test.mjs` |
+| WP-21 | Distinguish evaluation moderation rejection causes | `scripts/codex-evaluation-surface.mjs`, `tests/evaluation-transport.test.mjs` |
 | WP-21 | Evaluation accepts bounded moderation metadata | `scripts/codex-evaluation-surface.mjs`, `scripts/team-transport.mjs`, `tests/evaluation-transport.test.mjs` |
 | WP-21 | Execute paired token economy smoke under the owner allocation | `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md`, `docs/vault/ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md`, `scripts/team-host.mjs`, `scripts/team-transport.mjs`, `docs/vault/ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md` |
 | WP-21 | Bounded paired smoke protocol for token economy | `docs/vault/ops/paired-token-economy-experiment-with-blind-acceptance.md` |
