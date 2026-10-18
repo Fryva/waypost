@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-17T22:44:52.734Z
+generated_at: 2026-10-18T03:24:44.219Z
 
 ---
 
@@ -41,6 +41,7 @@ generated_at: 2026-10-17T22:44:52.734Z
 - [ ] [[epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness|WP-19: Codex keeps one session and direct installers see the running harness]] #p2
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
+- [ ] [[epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation|WP-21: Execute paired token economy smoke under the owner allocation]] #p2
 
 ## Review
 

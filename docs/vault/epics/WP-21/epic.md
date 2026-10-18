@@ -8,7 +8,7 @@ created: 2026-10-04
 updated: 2026-10-14
 external_refs: {}
 tags: []
-code_refs: ["docs/vault/ops/paired-token-economy-experiment-with-blind-acceptance.md", "agents/planner.md", "agents/critic.md", "agents/reviewer.md", "skills/waypost-review/SKILL.md", "bin/", "package.json", "scripts/tokens.mjs", "scripts/token-navigation.mjs", "scripts/token-codex.mjs", "tests/tokens.test.mjs", "tests/token-navigation.test.mjs", "tests/token-codex.test.mjs", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "docs/how-it-works.md", "CHANGELOG.md"]
+code_refs: ["docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md", "docs/vault/ops/paired-token-economy-experiment-with-blind-acceptance.md", "agents/planner.md", "agents/critic.md", "agents/reviewer.md", "skills/waypost-review/SKILL.md", "bin/", "package.json", "scripts/tokens.mjs", "scripts/token-navigation.mjs", "scripts/token-codex.mjs", "tests/tokens.test.mjs", "tests/token-navigation.test.mjs", "tests/token-codex.test.mjs", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "docs/how-it-works.md", "CHANGELOG.md"]
 review_status: pending
 reviewed_at: null
 ---
@@ -148,6 +148,14 @@ not committed. The story is [[story-offline-codex-token-accounting-with-explicit
 [[story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison|Bounded paired smoke protocol for token economy]] prepares [[paired-token-economy-experiment-with-blind-acceptance|Paired token economy experiment with blind acceptance]]: two fixed read-only tasks (navigation and artifact critique), baseline common source plus four policy overlays, AB/BA order and four fresh blinded judges. Static checks confirm identical production inputs. All attempts/unknown costs, setup/control, judging and stopping are specified; no new comparator or ledger was added.
 
 No live experiment or budget mutation occurred. A numeric owner allocation and verified configuration/accounting/isolation remain launch gates. The proposed 250,000 Codex-native-token allowance is not approved or set. The future 12-task/four-group cohort remains unfrozen; these two pairs cannot establish general workflow savings.
+
+## Approved pilot: failed launch gates (2026-10-18)
+
+The owner approved the 250,000 Codex-native-token allowance. Budget
+`waypost-token-smoke-20261018` is set; preflight spent/reserved are zero. The
+[[story-execute-paired-token-economy-smoke-under-the-owner-allocation|Execute paired token economy smoke under the owner allocation]] story remains pending execution. Installed CLI 0.163.0-alpha.10.2 fails the pinned 0.162.0-alpha.17.2 version gate; independently, no supported budgeted Host route delivers original role tasks with source navigation. No native experiment inference was started and no savings are claimed.
+
+[[budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot|Budgeted read-only role evaluation over a sealed source snapshot]] proposes a separate evaluation contract/surface; it is not accepted or implemented. The approved budget does not authorize silently changing the frozen protocol or relaxing existing guards. Preparation/driving cost remains unknown.
 
 ## Dependencies
 
