@@ -2,7 +2,7 @@
 type: adr
 id: "the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass"
 title: "The CLI as a thin entry with per-command modules, each readable in one pass"
-status: proposed
+status: accepted
 date: 2026-10-04
 authors: ["Ivan Morozov"]
 tags: []
@@ -12,6 +12,7 @@ superseded_by: null
 code_refs: ["bin/waypost", "bin/waypost.mjs", "package.json", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "tests/slots.test.mjs", "tests/team-cli.test.mjs", ".github/workflows/ci.yml", "AGENTS.md", "docs/how-it-works.md"]
 review_status: reviewed
 reviewed_at: 2026-10-19
+deciders: "Ivan Morozov (project owner); explicitly approved 2026-10-19"
 drafted_by: {"harness":"claude","provider":null,"date":"2026-10-04"}
 related: "ADR-0001 (harness-agnostic core), ADR-0008 (context spend), ADR-0011 (decisions that check themselves), ADR \"Heavy work sized to the machine\", epic WP-21"
 guards: []
@@ -21,9 +22,10 @@ guards: []
 
 | Field | Value |
 |---|---|
-| **Status** | proposed |
+| **Status** | accepted |
 | **Date** | 2026-10-04 (revised 2026-10-14 and 2026-10-19 after critic passes) |
 | **Authors** | Ivan Morozov |
+| **Deciders** | Ivan Morozov; approved 2026-10-19 |
 
 ---
 
@@ -248,8 +250,8 @@ full-suite verification, or a token-saving measurement.
 Independent fresh-context review on 2026-10-19 returned `ship` as a proposal,
 with no open blocker or should-fix. This records review, not owner acceptance.
 
-The owner decision is whether to adopt Decisions 1–6 on structural grounds now,
-or retain Decision 0 and defer the split for more measurement. Approval adopts
+On 2026-10-19 the owner explicitly approved Decisions 1–6 and continuation on
+structural grounds after the fresh critic pass. This approval adopts
 the bounded plan and its gates; it does not establish runtime coverage or token
 savings and does not authorize a native role pilot. Freeze coordination, the
 dependency-guard implementation and the per-module mapping remain prerequisites

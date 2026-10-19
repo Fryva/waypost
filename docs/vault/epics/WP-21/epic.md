@@ -45,7 +45,7 @@ then `scripts/doctor.mjs` (104 KB). `scripts/team-host.mjs` is dense rather than
 long and is under active WP-20 work.
 
 Decision for the first and largest step: ADR "The CLI as a thin entry with
-per-command modules, each readable in one pass" (proposed).
+per-command modules, each readable in one pass" (accepted 2026-10-19).
 
 ## Stories
 
@@ -56,7 +56,7 @@ The measurement increment is tracked by
 |-------|--------|-------------|
 | `story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees` | done | Decision 0 of the ADR: lazy team import, entry renamed to `bin/waypost.mjs` behind a shim |
 
-<!-- Split implementation stories are drafted after the ADR is accepted.
+<!-- Split implementation stories follow the ADR accepted2026-10-19.
      The navigation classifier/baseline prerequisite is already committed.
      2. bin/waypost.mjs becomes a thin entry; each command lives in bin/cli/
      3. scripts/lib.mjs split into lib-*.mjs behind an `export *` facade
@@ -196,7 +196,7 @@ Final machine cap250000, counted17520 = owner-assumed7520 (revision2) + owner-as
 ## Dependencies
 
 - Step 0: none (adopted ahead of the ADR as its Decision 0, see the critic pass of 2026-10-14; owner approved 2026-10-14; done in 6d5f093).
-- Split: ADR "The CLI as a thin entry with per-command modules, each readable in one pass" — proposed; the split requires owner approval and one freeze window of the entry coordinated with WP-20.
+- Split: ADR "The CLI as a thin entry with per-command modules, each readable in one pass" — accepted2026-10-19; the split requires one freeze window of the entry coordinated with WP-20.
 
 ## Open Questions
 

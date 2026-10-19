@@ -59,6 +59,10 @@ a generator and compare the result with what is on disk.
 
 See the [CLI reference](cli-reference.md) for commands and option details.
 
+The [accepted CLI split decision](vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md)
+sets the migration gates. The current entry remains monolithic until the guarded
+implementation lands; acceptance alone does not establish token savings.
+
 `waypost brief` keeps folder paths, kinds and counts in the default orientation;
 `--full` adds their README descriptions and the reading tutorial. JSON facts keep
 the full detail in either mode.
