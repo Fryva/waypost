@@ -23,7 +23,7 @@ import { teamOrientation } from "./team-diagnostics.mjs";
 
 export async function brief(cfg, opts = {}) {
   const facts = await gatherVaultFacts(cfg, opts);
-  const full = renderVaultSkeleton(facts);
+  const full = renderVaultSkeleton(facts, { folderPurposes: !!opts.full });
   const teams=teamOrientation(cfg.vault_path);
   if(teams.facts.length)facts.teams=teams.facts;
   if(teams.error)facts.team_authority_error=teams.error;

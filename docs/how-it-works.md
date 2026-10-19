@@ -59,6 +59,10 @@ a generator and compare the result with what is on disk.
 
 See the [CLI reference](cli-reference.md) for commands and option details.
 
+`waypost brief` keeps folder paths, kinds and counts in the default orientation;
+`--full` adds their README descriptions and the reading tutorial. JSON facts keep
+the full detail in either mode.
+
 ## Agent roles across harnesses
 
 One definition per role — `agents/<role>.md` with neutral frontmatter

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-19T01:12:08.870Z
+generated_at: 2026-10-19T15:51:47.972Z
 
 ---
 
@@ -108,6 +108,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | Evaluation accepts bounded moderation metadata | story | done |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | Execute paired token economy smoke under the owner allocation | story | in-progress |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | Bounded paired smoke protocol for token economy | story | done |
+| epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | Keep brief folder descriptions behind full mode | story | done |
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | Keep CLI reference out of standing instructions | story | done |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | Offline Codex token accounting with explicit coverage | story | done |
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | Recognize explicit inherited parent headers in Codex accounting | story | done |
@@ -339,6 +340,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md |
@@ -351,6 +353,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md |
@@ -369,6 +372,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | mdlink | epics/WP-21/epic.md |

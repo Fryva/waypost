@@ -1346,6 +1346,21 @@ test("brief is the session-start packet, on demand and without a hook", () => {
   assert.ok(!out.includes("Use Postgres"), "a skeleton carries no artifact content");
 });
 
+test("brief keeps folder descriptions behind full mode without reducing JSON facts", () => {
+  const { proj, vault } = bound();
+  writeFileSync(join(vault, "adr", "README.md"), "# Decisions\n\nContext A | B for decisions.\n");
+  const compact = waypost(proj, ["brief", "--no-install"]).stdout;
+  const full = waypost(proj, ["brief", "--full", "--no-install"]).stdout;
+  assert.match(compact, /\| Folder \| Kind \| Count \|\n/);
+  assert.match(compact, /\| `adr\/` \| adr \| 0 \|\n/);
+  assert.ok(!compact.includes("Context A"));
+  assert.match(compact, /waypost brief --full/);
+  assert.ok(full.includes("| Folder | Kind | Count | Purpose |"));
+  assert.ok(full.includes("Context A \\| B for decisions."));
+  const facts = (args) => JSON.parse(waypost(proj, ["brief", "--json", "--no-install", ...args]).stdout);
+  assert.deepEqual(facts([]), facts(["--full"]), "detail selection affects text only");
+});
+
 test("a harness that opens the project for the first time gets its roles from its own first brief", () => {
   const { proj } = bound();
   writeFileSync(join(proj, "CLAUDE.md"), "# house rules\n", "utf8"); // a Claude-only project so far
@@ -1511,7 +1526,7 @@ test("routine commands answer without pasting the vault into the context", () =>
   waypost(proj, ["graph"]);
 
   const budgets = [
-    [["brief"], 2200, "starts every session"],
+    [["brief"], 1500, "starts every session"],
     [["status"], 900, "asked whenever orientation is lost"],
     [["doctor"], 2000, "run before finishing work"],
     [["harnesses"], 700, "a lookup, not a reference dump"],

@@ -1222,6 +1222,24 @@ test("skeleton contract 4: every layout folder gets a row, none is a literal", (
   assert.ok(grown.includes("`decisions/`"), "a new layout kind appears without touching the renderer");
 });
 
+test("skeleton compact folders retain custom and empty folders, counts and all other orientation", () => {
+  const facts = factsFor({ folders: [
+    { path: "decisions", kind: "decision", counts: { artifacts: 0 }, readme: "# Decisions\n\nA | B\n" },
+    { path: "deliveries", kind: "epic", counts: { epics: 5, stories: 48 }, readme: null },
+  ], inFlight: { status: "timeout" } });
+  const before = JSON.stringify(facts);
+  const full = renderVaultSkeleton(facts);
+  assert.ok(full.includes("| `decisions/` | decision | 0 | A \\| B |"));
+  assert.equal(full, renderVaultSkeleton(facts, { folderPurposes: true }));
+  const compact = renderVaultSkeleton(facts, { folderPurposes: false });
+  assert.ok(compact.includes("| `decisions/` | decision | 0 |\n"));
+  assert.ok(compact.includes("| `deliveries/` | epic | 5 epics · 48 stories |\n"));
+  assert.ok(!compact.includes("A \\| B"));
+  const outsideTable = (text) => text.replace(/## Where things live[\s\S]*?(?=## In flight now)/, "");
+  assert.equal(outsideTable(compact), outsideTable(full), "only folder reference detail changes");
+  assert.equal(JSON.stringify(facts), before, "rendering does not mutate facts");
+});
+
 test("skeleton contract 5: counts are per folder, and epics report stories separately", () => {
   const out = renderVaultSkeleton(factsFor({
     folders: [
