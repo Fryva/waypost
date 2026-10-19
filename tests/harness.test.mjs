@@ -16,6 +16,7 @@ import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleO
   instructionTargets, importTargets, importsSharedFile, skillsOf, CONFIDENCE } from "../scripts/agents.mjs";
 import { skillNames, readSkill, validateSkill, DESCRIPTION_MAX, DESCRIPTIONS_TOTAL_MAX } from "../scripts/skills.mjs";
 import { ambientEnv } from "./env.mjs";
+import { inspectStaticClosure, decodeClosureResult } from "./helpers/cli-static-closure.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -1492,6 +1493,81 @@ test("project standing context keeps the CLI reference within a character budget
   const instructions = readFileSync(join(REPO, "AGENTS.md"), "utf8");
   assert.ok(instructions.length < 17100,
     `project instructions are ${instructions.length} chars — command reference belongs on demand`);
+});
+
+test("CLI static closure excludes team code through every early dependency", () => {
+  const report = inspectStaticClosure(REPO, "bin/waypost", ambientEnv());
+  assert.ok(report.files.includes("bin/waypost.mjs"));
+});
+
+test("CLI static closure follows side effects, re-exports and cycles without executing modules", () => {
+  const root = mkdtempSync(join(tmpdir(), "waypost-static space-"));
+  mkdirSync(join(root, "scripts"));
+  const put = (name, text) => writeFileSync(join(root, name), text);
+  const scan = () => inspectStaticClosure(root, "entry.mjs", ambientEnv());
+  put("entry.mjs", 'import "node:fs"; import "./core.mjs"; throw new Error("must not execute");');
+  put("core.mjs", 'export * from "./cycle.mjs";');
+  put("cycle.mjs", 'import "./core.mjs"; export const value=1;');
+  put("scripts/team-hidden.mjs", 'export const value=1;');
+  assert.deepEqual(scan().files, ["entry.mjs", "core.mjs", "cycle.mjs"]);
+  for (const edge of [
+    'import "./scripts/team-hidden.mjs";',
+    'import {value} from "./scripts/team-hidden.mjs";',
+    'export * from "./scripts/team-hidden.mjs";',
+    'export {value} from "./scripts/team-hidden.mjs";',
+  ]) {
+    put("cycle.mjs", 'import "./core.mjs"; ' + edge);
+    assert.throws(scan, error => /forbidden-team-static-import/.test(error.message)
+      && error.chain.join(" → ") === "entry.mjs → core.mjs → cycle.mjs → scripts/team-hidden.mjs");
+  }
+  put("cycle.mjs", 'const text=`import "./scripts/team-hidden.mjs"`; /* import "./scripts/team-hidden.mjs"; */ const lazy=()=>import("./scripts/team-hidden.mjs");');
+  assert.deepEqual(scan().files, ["entry.mjs", "core.mjs", "cycle.mjs"]);
+  put("scripts/team.mjs", 'export const value=1;');
+  put("core.mjs", 'import "./scripts/team.mjs";');
+  assert.throws(scan, /forbidden-team-static-import/);
+});
+
+test("CLI static closure rejects missing, invalid, escaping and unresolved dependencies", () => {
+  const root = mkdtempSync(join(tmpdir(), "waypost-static-errors-"));
+  const scan = () => inspectStaticClosure(root, "entry.mjs", ambientEnv());
+  writeFileSync(join(root, "entry.mjs"), 'import "./missing.mjs";');
+  assert.throws(scan, /missing-module missing.mjs/);
+  writeFileSync(join(root, "entry.mjs"), 'import "./broken.mjs";');
+  writeFileSync(join(root, "broken.mjs"), 'export const = ;');
+  assert.throws(scan, error => /invalid-module broken.mjs/.test(error.message)
+    && error.chain.join(" → ") === "entry.mjs → broken.mjs");
+  for (const specifier of ["unresolved-package", "node:not-a-builtin", "./broken.mjs?variant", "https://example.invalid/code.mjs"]) {
+    writeFileSync(join(root, "entry.mjs"), `import ${JSON.stringify(specifier)};`);
+    assert.throws(scan, /unsupported-import/);
+  }
+  const outside = mkdtempSync(join(tmpdir(), "waypost-static-outside-"));
+  writeFileSync(join(outside, "module.mjs"), 'export const value=1;');
+  writeFileSync(join(root, "entry.mjs"), `import ${JSON.stringify(pathToFileURL(join(outside, "module.mjs")).href)};`);
+  assert.throws(scan, /outside-root/);
+});
+
+test("CLI static closure checks canonical symlink targets", t => {
+  const root = mkdtempSync(join(tmpdir(), "waypost-static-link-"));
+  mkdirSync(join(root, "scripts"));
+  writeFileSync(join(root, "scripts", "team-hidden.mjs"), 'export const value=1;');
+  try { symlinkSync(join(root, "scripts", "team-hidden.mjs"), join(root, "alias.mjs")); }
+  catch (error) {
+    if (process.platform === "win32" && ["EPERM", "EACCES"].includes(error.code)) return t.skip("symlink privilege unavailable");
+    throw error;
+  }
+  writeFileSync(join(root, "entry.mjs"), 'import "./alias.mjs";');
+  assert.throws(() => inspectStaticClosure(root, "entry.mjs", ambientEnv()), /forbidden-team-static-import/);
+});
+
+test("CLI static closure cannot pass on malformed reports or a failed child", () => {
+  assert.throws(() => decodeClosureResult({ status: 0, stdout: "not JSON" }), /invalid-report/);
+  for (const result of [
+    { status: 1, stdout: '{"ok":true,"files":["entry.mjs"]}' },
+    { status: 0, stdout: '{"ok":false,"error":"failed"}' },
+    { status: 0, stdout: '{"ok":true,"files":[]}' },
+    { status: 0, stdout: '{"ok":true,"files":[42]}' },
+    { status: 0, signal: "SIGTERM", stdout: '{"ok":true,"files":["entry.mjs"]}' },
+  ]) assert.throws(() => decodeClosureResult(result), /static-closure-/);
 });
 
 test("the standing context stays small — it is re-read on every turn", () => {

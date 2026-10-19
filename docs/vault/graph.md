@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-19T16:39:28.986Z
+generated_at: 2026-10-19T17:09:58.234Z
 
 ---
 
@@ -112,6 +112,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | Keep CLI reference out of standing instructions | story | done |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | Offline Codex token accounting with explicit coverage | story | done |
 | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md | Pin team-bound story refusal before CLI modularization | story | done |
+| epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md | Prepare dependency and loader guards for the CLI split | story | done |
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | Recognize explicit inherited parent headers in Codex accounting | story | done |
 | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | Reproducible token accounting and repeated-read evidence | story | done |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | Scope unknown-prefix diagnostics to the requested period | story | done |
@@ -345,6 +346,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md |
@@ -359,6 +361,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md |
@@ -379,6 +382,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | mdlink | epics/WP-21/epic.md |

@@ -1052,13 +1052,6 @@ test("node --check passes on scripts/sizes.mjs, bin/waypost and bin/waypost.mjs"
   }
 });
 
-test("the CLI entry does not link the team code statically", () => {
-  // Only story --write needs it, and loads it lazily: a static import would
-  // let a syntax error in team work in progress break every command.
-  const src = readFileSync(join(REPO, "bin", "waypost.mjs"), "utf8");
-  assert.doesNotMatch(src, /^import[^;]*from\s*["']\.\.\/scripts\/team-/m);
-});
-
 test("the disk-hygiene ADR's three guards select scripts/sizes.mjs and all pass (no finding for this ADR)", () => {
   const r = runBin(["doctor", "--json"]);
   const findings = JSON.parse(r.stdout);
