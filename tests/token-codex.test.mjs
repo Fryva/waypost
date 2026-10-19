@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import * as zlib from "node:zlib";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { collectCodexReport } from "../scripts/token-codex.mjs";
+import { collectCodexReport, formatCodexReport } from "../scripts/token-codex.mjs";
 import { ambientEnv } from "./env.mjs";
 
 const scratch = [];
@@ -557,4 +557,93 @@ test("Codex copied parent envelope timestamps do not create false replay conflic
   assert.equal(r.coverage.conflicting_contexts, 0);
   assert.equal(r.native_totals.all.total_tokens, 100);
   assert.equal(r.coverage.inherited_parent_headers, 2);
+});
+
+test("Codex unknown-prefix diagnostics use the existing completeness boundaries", async () => {
+  const cases = [
+    { first: at(1), last: at(3), from: at(2), to: at(4), overlap: 0, observed: 50, total: 50 },
+    { first: at(2), last: at(3), from: at(2), to: at(4), overlap: 1, observed: 50, total: null },
+    { first: at(3), last: at(4), from: at(2), to: at(5), overlap: 1, observed: 50, total: null },
+    { first: at(4), last: at(5), from: at(2), to: at(4), overlap: 1, observed: 0, total: null },
+    { first: at(5), last: at(6), from: at(2), to: at(4), overlap: 1, observed: 0, total: null },
+    { born: at(4), first: at(5), last: at(6), from: at(2), to: at(4), overlap: 0, observed: 0, total: 0 },
+    { born: at(5), first: at(6), last: at(7), from: at(2), to: at(4), overlap: 0, observed: 0, total: 0 },
+    { first: at(1), last: at(2), overlap: 1, observed: 50, total: null },
+    { first: at(1), last: at(3), from: at(2), overlap: 0, observed: 50, total: 50 },
+    { first: at(1), last: at(3), to: at(4), overlap: 1, observed: 50, total: null },
+    { first: "2026-10-14T02:00:00+01:00", last: at(3), from: at(2), to: at(4), overlap: 0, observed: 50, total: 50 },
+  ];
+  for (const row of cases) {
+    const f = fixture();
+    f.write("prefix", [event(row.first, usage(100)), event(row.last, usage(150))], { meta: { timestamp: row.born ?? created } });
+    const r = await f.report({ since: row.from, until: row.to });
+    assert.equal(r.contexts[0].coverage.unknown_prefixes, 1);
+    assert.equal(r.contexts[0].coverage.unknown_prefixes_overlapping_period, row.overlap);
+    assert.equal(r.coverage.unknown_prefix_contexts, 1);
+    assert.equal(r.coverage.unknown_prefix_contexts_overlapping_period, row.overlap);
+    assert.equal(r.native_totals.all.observed_total_tokens, row.observed);
+    assert.equal(r.native_totals.all.total_tokens, row.total);
+    assert.equal(r.native_totals.all.complete_within_discovered_retained_sources, row.total !== null);
+  }
+});
+
+test("Codex prefix diagnostics deduplicate replay and exclude quarantined contexts", async () => {
+  const f = fixture(), replay = [event(at(1), usage(100)), event(at(3), usage(150))], uncertain = [event(at(2), usage(50)), event(at(3), usage(60))];
+  f.write("replay", replay, { name: "a.jsonl" });
+  archive(f, "replay", [...replay, event(at(4), usage(180))], "gz", { name: "b.jsonl" });
+  f.write("overlap", uncertain, { meta: { agent_role: "waypost-critic" } });
+  f.write("quarantine", uncertain, { name: "c.jsonl", meta: { agent_role: "waypost-critic" } });
+  f.write("quarantine", uncertain, { name: "d.jsonl", meta: { agent_role: "waypost-reviewer" } });
+  const r = await f.report({ since: at(2), until: at(5) });
+  assert.equal(r.coverage.matched_contexts, 3);
+  assert.equal(r.coverage.replay_files, 2);
+  assert.equal(r.coverage.conflicting_contexts, 1);
+  assert.equal(r.coverage.unknown_prefix_contexts, 2);
+  assert.equal(r.coverage.unknown_prefix_contexts_overlapping_period, 1);
+  assert.deepEqual(r.contexts.find(c => c.id === "quarantine").coverage, {});
+  assert.equal(r.native_totals.all.observed_total_tokens, 90);
+  assert.equal(r.native_totals.waypost.observed_total_tokens, 10);
+  assert.equal(r.native_totals.all.total_tokens, null);
+  assert.equal(r.token_shares.full_retained_source_waypost_percent, null);
+  assert.match(r.measurement.prefix_diagnostics, /quarantined contexts excluded/);
+});
+
+test("Codex zero prefix diagnostics never hide absent observations or gap recovery", async () => {
+  for (const [frames, observed, total] of [
+    [[event(at(0), usage()), event(at(1), usage(10))], 10, 10],
+    [[], 0, null],
+    [[event(at(1), null), event(at(2), usage(100)), event(at(3), usage(110))], 10, null],
+  ]) {
+    const f = fixture(); f.write("other-gaps", frames);
+    const r = await f.report();
+    assert.equal(r.coverage.unknown_prefix_contexts, 0);
+    assert.equal(r.coverage.unknown_prefix_contexts_overlapping_period, 0);
+    assert.equal(r.native_totals.all.observed_total_tokens, observed);
+    assert.equal(r.native_totals.all.total_tokens, total);
+    const detailed = formatCodexReport(r);
+    assert.match(detailed, /unknown initial prefixes: 0 contexts; overlapping requested period 0/);
+    assert.match(detailed, /other gaps possible/);
+    const legacy = structuredClone(r);
+    delete legacy.coverage.unknown_prefix_contexts;
+    delete legacy.coverage.unknown_prefix_contexts_overlapping_period;
+    assert.match(formatCodexReport(legacy), /unknown initial prefixes: unknown contexts; overlapping requested period unknown/);
+    assert.equal(formatCodexReport(r, { summary: true }), formatCodexReport(legacy, { summary: true }));
+  }
+});
+
+test("Codex CLI shows prefix diagnostics only in JSON and detailed output", () => {
+  const f = fixture(); f.write("cli-prefix", [event(at(1), usage(100)), event(at(2), usage(150))]);
+  const json = cli(f, ["--json"]);
+  assert.equal(json.status, 0, json.stderr);
+  const r = JSON.parse(json.stdout);
+  assert.equal(r.coverage.unknown_prefix_contexts, 1);
+  assert.equal(r.coverage.unknown_prefix_contexts_overlapping_period, 1);
+  assert.equal(r.native_totals.all.total_tokens, null);
+  const detailed = cli(f);
+  assert.equal(detailed.status, 0, detailed.stderr);
+  assert.match(detailed.stdout, /unknown initial prefixes: 1 contexts; overlapping requested period 1/);
+  const compact = cli(f, ["--summary"]);
+  assert.equal(compact.status, 0, compact.stderr);
+  assert.doesNotMatch(compact.stdout, /unknown initial prefixes|overlapping requested period/);
+  assert.ok(compact.stdout.length < 600);
 });

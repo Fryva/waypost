@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-19T00:36:07.131Z
+generated_at: 2026-10-19T00:55:56.980Z
 
 ---
 
@@ -63,6 +63,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Offline Codex token accounting with explicit coverage | `scripts/tokens.mjs`, `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Recognize explicit inherited parent headers in Codex accounting | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Reproducible token accounting and repeated-read evidence | `scripts/tokens.mjs`, `scripts/token-navigation.mjs`, `tests/tokens.test.mjs`, `tests/token-navigation.test.mjs`, `docs/how-it-works.md` |
+| WP-21 | Scope unknown-prefix diagnostics to the requested period | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Targeted evidence reads and reproducible role handoffs | `agents/planner.md`, `agents/critic.md`, `agents/reviewer.md`, `skills/waypost-review/SKILL.md`, `tests/harness.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | The team code loads only for story --write, and the CLI entry is an .mjs the code index sees | `bin/waypost`, `bin/waypost.mjs`, `tests/scripts.test.mjs`, `tests/sizes.test.mjs`, `CHANGELOG.md` |
 | WP-23 | A vault turns brief's self-install off for every clone | `bin/waypost.mjs`, `scripts/lib.mjs`, `scripts/doctor.mjs`, `tests/harness.test.mjs`, `AGENTS.md`, `CHANGELOG.md`, `docs/how-it-works.md`, `docs/harnesses.md` |

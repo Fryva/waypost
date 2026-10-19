@@ -293,6 +293,18 @@ with pre-period baselines. This is an accounting assignment, not exact per-call
 timing; spans crossing a requested boundary are counted explicitly. Missing first
 responses are not reconstructed or assigned estimated tokens.
 
+Prefix diagnostics distinguish all classified retained histories from the selected
+UTC period: `coverage.unknown_prefix_contexts` counts unique reduced contexts with
+an uncharged first prefix; `unknown_prefix_contexts_overlapping_period` counts
+those whose first observation is at/after `since` and creation is before `until`,
+using the existing completeness guard. Per-context coverage exposes the matching
+`unknown_prefixes_overlapping_period` count. A first snapshot after `until` can
+still leave the period's prefix unknown. Replay is deduplicated; quarantined
+contexts are excluded from these counts. Zero overlap cannot prove full coverage:
+empty histories, gaps, read/discovery failures and quarantine remain separate
+limitations. These diagnostics appear in JSON and detailed text; `--summary`,
+accounting decisions and observed/full totals are unchanged.
+
 `observed_waypost_percent` describes explicitly labelled `waypost-*` roles over
 covered spans only. Unlabelled contexts stay unattributed. Full retained-source
 totals/shares remain null when discovery/history is incomplete; even complete

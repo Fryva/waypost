@@ -179,7 +179,7 @@ export function reduceCodexHistory(meta, frames, { since = null, until = null } 
   const from = since ? Date.parse(since) : -Infinity, to = until ? Date.parse(until) : Infinity;
   const selected = time => time >= from && time < to;
   const spans = [];
-  const coverage = { snapshots: 0, current_snapshots: 0, duplicates: 0, historical_snapshots: 0, unknown_prefixes: 0, chain_gaps: 0, invalid_timestamps: 0, counter_conflicts: 0, counter_decreases: 0, schema_changes: 0, boundary_crossing_spans: 0 };
+  const coverage = { snapshots: 0, current_snapshots: 0, duplicates: 0, historical_snapshots: 0, unknown_prefixes: 0, unknown_prefixes_overlapping_period: 0, chain_gaps: 0, invalid_timestamps: 0, counter_conflicts: 0, counter_decreases: 0, schema_changes: 0, boundary_crossing_spans: 0 };
   let prev = null, recovering = false, complete = true, lastTime = meta.created, seenCurrent = false;
   for (const frame of frames) {
     if (frame.gap) { coverage.chain_gaps++; prev = null; recovering = true; complete = false; continue; }
@@ -197,7 +197,7 @@ export function reduceCodexHistory(meta, frames, { since = null, until = null } 
         coverage.unknown_prefixes++;
         // An unknown prefix can cover the window even when its first retained
         // endpoint is after --until. Only a wholly pre-window prefix is safe.
-        if (frame.time >= from && meta.created < to) complete = false;
+        if (frame.time >= from && meta.created < to) { coverage.unknown_prefixes_overlapping_period++; complete = false; }
       }
       prev = frame; recovering = false; continue;
     }
@@ -245,7 +245,7 @@ function summary(spans, complete) {
 
 export async function collectCodexReport({ project, since = null, until = null, codexHome = process.env.CODEX_HOME || join(homedir(), ".codex") }) {
   const root = join(codexHome, "sessions"), wanted = normalized(project);
-  const coverage = { plain_files_discovered: 0, compressed_files_skipped: 0, compressed_files_discovered: 0, compressed_files_decoded: 0, compressed_files_failed: 0, archive_limit_failures: 0, symlinks_skipped: 0, discovery_errors: 0, unidentifiable_headers: 0, other_project_files: 0, matching_files: 0, unreadable_matching_files: 0, malformed_or_oversized_lines: 0, conflicting_contexts: 0, inherited_parent_headers: 0, replay_files: 0 };
+  const coverage = { plain_files_discovered: 0, compressed_files_skipped: 0, compressed_files_discovered: 0, compressed_files_decoded: 0, compressed_files_failed: 0, archive_limit_failures: 0, symlinks_skipped: 0, discovery_errors: 0, unidentifiable_headers: 0, other_project_files: 0, matching_files: 0, unreadable_matching_files: 0, malformed_or_oversized_lines: 0, conflicting_contexts: 0, inherited_parent_headers: 0, unknown_prefix_contexts: 0, unknown_prefix_contexts_overlapping_period: 0, replay_files: 0 };
   const files = [], discovery = [], contexts = new Map(), identityHeaders = new Map(), conflictingIds = new Set(), stack = [root];
   const registerIdentity = meta => {
     const signature = JSON.stringify(meta), prior = identityHeaders.get(meta.id);
@@ -310,7 +310,11 @@ export async function collectCodexReport({ project, since = null, until = null, 
   for (const context of [...contexts.values()].sort((a, b) => a.meta.id.localeCompare(b.meta.id))) {
     let reduced;
     if (context.conflict || conflictingIds.has(context.meta.id) || (context.inheritedParent && conflictingIds.has(context.inheritedParent.id))) { coverage.conflicting_contexts++; reduced = { spans: [], complete: false, coverage: {} }; }
-    else reduced = reduceCodexHistory(context.meta, context.frames, { since, until });
+    else {
+      reduced = reduceCodexHistory(context.meta, context.frames, { since, until });
+      if (reduced.coverage.unknown_prefixes > 0) coverage.unknown_prefix_contexts++;
+      if (reduced.coverage.unknown_prefixes_overlapping_period > 0) coverage.unknown_prefix_contexts_overlapping_period++;
+    }
     if (!context.readable || !reduced.complete) historiesComplete = false;
     all.push(...reduced.spans);
     const target = context.meta.role?.startsWith("waypost-") ? waypost : context.meta.role ? other : unattributed;
@@ -323,7 +327,7 @@ export async function collectCodexReport({ project, since = null, until = null, 
   const share = total > 0 && numerator !== null ? 100 * numerator / total : null;
   return {
     report_version: 2,
-    measurement: { source_harness: "codex", counter_schema: "codex-rollout-cumulative-delta-v1", scope: "observed native spans in matching retained plain and supported compressed rollouts, not provider-exhaustive usage", total_formula: "delta(total_tokens); cached input and reasoning are subsets, never extra tokens", first_snapshot: "baseline only; nonzero prefixes are uncharged unknown usage even when total equals last", inherited_metadata: "one older same-cwd explicit parent header immediately after the current header; parentage never anchors counters", unsupported_harnesses: ["claude", "opencode"], other_harness_modes: ["claude"], subscription_quota_percent: null, source_discovery_complete: !!sourceComplete, raw_transcript_bodies_emitted: false },
+    measurement: { source_harness: "codex", counter_schema: "codex-rollout-cumulative-delta-v1", scope: "observed native spans in matching retained plain and supported compressed rollouts, not provider-exhaustive usage", total_formula: "delta(total_tokens); cached input and reasoning are subsets, never extra tokens", first_snapshot: "baseline only; nonzero prefixes are uncharged unknown usage even when total equals last", inherited_metadata: "one older same-cwd explicit parent header immediately after the current header; parentage never anchors counters", prefix_diagnostics: "unique reduced contexts after replay deduplication; quarantined contexts excluded; overlap uses first observation >= since and creation < until; zero is not proof of complete coverage", unsupported_harnesses: ["claude", "opencode"], other_harness_modes: ["claude"], subscription_quota_percent: null, source_discovery_complete: !!sourceComplete, raw_transcript_bodies_emitted: false },
     provenance: { generated_at: new Date().toISOString(), project_root: wanted, transcript_dir: root, period: { since_inclusive_utc: since, until_exclusive_utc: until, span_selection: "endpoint timestamp after constructing cumulative chain with pre-period baselines" }, input_files: files.sort((a, b) => a.path.localeCompare(b.path)), discovery_sha256: digest(JSON.stringify(discovery.sort((a, b) => a[0].localeCompare(b[0])))), snapshot: "sequential per-file reads; not an atomic snapshot of live sessions; metadata probed before full read", max_line_bytes: MAX_LINE, archive_limits: { compressed_bytes: MAX_ARCHIVE, decompressed_bytes: MAX_EXPANDED, zstd_window_log_max: 26 }, archive_codecs: { gz: true, br: true, zst: archiveSupported("zst"), xz: false }, archive_foreign_project_check: "bounded header only; unrelated archive tails are not decoded or integrity-checked" },
     coverage: { ...coverage, matched_contexts: contexts.size, histories_complete_within_observed_sources: historiesComplete && contexts.size > 0 },
     native_totals: native,
@@ -340,7 +344,7 @@ export function formatCodexReport(report, { summary: compact = false, sessions =
     "scope: plain and supported compressed retained rollouts; first nonzero snapshots are uncharged baselines; no subscription quota conversion",
   ];
   if (!compact) {
-    text.push(`contexts ${report.coverage.matched_contexts}; decoded archives ${report.coverage.compressed_files_decoded}; skipped compressed files ${report.coverage.compressed_files_skipped}; failed archives ${report.coverage.compressed_files_failed}; unknown headers ${report.coverage.unidentifiable_headers}`, "cache/reasoning are subsets of input/output; snapshots are not request counts");
+    text.push(`contexts ${report.coverage.matched_contexts}; decoded archives ${report.coverage.compressed_files_decoded}; skipped compressed files ${report.coverage.compressed_files_skipped}; failed archives ${report.coverage.compressed_files_failed}; unknown headers ${report.coverage.unidentifiable_headers}`, `unknown initial prefixes: ${report.coverage.unknown_prefix_contexts ?? "unknown"} contexts; overlapping requested period ${report.coverage.unknown_prefix_contexts_overlapping_period ?? "unknown"} (quarantined contexts excluded; other gaps possible)`, "cache/reasoning are subsets of input/output; snapshots are not request counts");
     if (sessions) for (const context of report.contexts) text.push(`${context.id}  ${context.role ?? "unattributed"}  ${context.observed_total_tokens ?? "unknown"} observed tokens`);
   }
   return text.join("\n") + "\n";
