@@ -57,30 +57,7 @@ no LLM involved.
 `scripts/` stay pure compute printing JSON. That is exactly why doctor can re-run
 a generator and compare the result with what is on disk.
 
-| Command | What it does |
-|---|---|
-| `waypost setup` | the whole install in one command |
-| `waypost next` | what the project needs now, ranked |
-| `waypost bind <vault>` | bind a vault and scaffold the layout (`--layout`, `--lang`, `--force`, `--self-install off\|on`) |
-| `waypost scaffold` | create any missing layout folders and index READMEs |
-| `waypost brief` | session-start orientation packet (`--full` for the descent tutorial); installs the running harness's roles when they are missing (`--no-install` to only read; `"self_install": "off"` in the vault policy for every clone) |
-| `waypost draft <kind> "<title>" [--write]` | draft an artifact; `--write` creates and reconciles |
-| `waypost story plan\|close <path> [--write]` | story lifecycle gates |
-| `waypost kanban` / `graph` / `codemap` | regenerate one derived view |
-| `waypost graph --for <path>` | one artifact's neighbourhood instead of the whole graph |
-| `waypost search "<text>"` | vault-wide search returning pointers |
-| `waypost reconcile [--write]` | rebuild every view and index |
-| `waypost doctor [--install\|--vault [<path>]] [--fix]` | deterministic diagnostics; `--vault <path>` needs no binding |
-| `waypost diff-refs` | changed files as evidence for `code_refs` |
-| `waypost agents …` | roles: list / show / install / register / model |
-| `waypost harnesses` | the registry: where roles land and how to invoke them |
-| `waypost commit` / `merge` / `log` | the commit protocol (ADR-0006) |
-| `waypost skills …` | the bundled Agent Skills: install/list/uninstall/validate (WP-14) |
-| `waypost ready [--all]` | planned, unblocked, unclaimed stories with the claim command (WP-15); a story whose spec is not `active` or whose spec's ADR is not `accepted` is blocked |
-| `waypost sessions` / `watch` / `lease` / `storage` | presence and leases (ADR-0007) |
-| `waypost prompt [name]` / `waypost skill [name]` | loop procedures and skills |
-| `waypost status` | bind summary, live sessions, role state |
-| `waypost tokens` | offline token evidence: Claude by default, separate native Codex spans with `--harness codex` |
+See the [CLI reference](cli-reference.md) for commands and option details.
 
 ## Agent roles across harnesses
 

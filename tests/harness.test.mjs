@@ -1473,6 +1473,12 @@ test("no user-facing message cites an ADR this fork does not have", () => {
 // hundreds of times. Characters stand in for tokens: the ratio is stable enough
 // for a ceiling, and it needs no tokenizer.
 
+test("project standing context keeps the CLI reference within a character budget", () => {
+  const instructions = readFileSync(join(REPO, "AGENTS.md"), "utf8");
+  assert.ok(instructions.length < 17100,
+    `project instructions are ${instructions.length} chars — command reference belongs on demand`);
+});
+
 test("the standing context stays small — it is re-read on every turn", () => {
   const { proj } = bound();
   writeFileSync(join(proj, "CLAUDE.md"), "# rules\n", "utf8");

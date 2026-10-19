@@ -43,34 +43,12 @@ Before analysing a task, planning, editing or running checks:
 
 ## The CLI (instead of slash commands)
 
-| Command | What it does |
-|---------|--------------|
-| `waypost setup` | the whole install in one command (`--dry-run` to look first) |
-| `waypost next` | what needs doing now, ranked, with the command for each |
-| `waypost brief` | orientation packet at the start of work (`--full` for the tutorial) |
-| `waypost draft <kind> "<title>" [--write]` | draft an artifact; `--write` creates it and reconciles |
-| `waypost story plan\|close <path> [--write]` | story lifecycle gates |
-| `waypost ready [--all]` | stories that are planned, unblocked (`blocked_by`, a draft spec, a proposed ADR) and unclaimed, with the claim command |
-| `waypost kanban` / `graph` / `codemap` | regenerate one derived view |
-| `waypost graph --for <path>` | one artifact's neighbourhood instead of the whole graph |
-| `waypost search "<text>"` | vault-wide search returning pointers, not documents |
-| `waypost reconcile [--write]` | rebuild every view and index |
-| `waypost doctor [--install\|--vault [<path>]] [--fix]` | consistency diagnostics; `--vault <path>` checks a vault with no binding (CI on a fresh clone) |
-| `waypost diff-refs` | changed files as evidence for `code_refs` |
-| `waypost agents …` | roles: `list`/`show`/`install`/`uninstall`/`register`/`model` |
-| `waypost skills …` | Agent Skills: `install`/`list`/`uninstall`/`validate` — the bundled procedures as standard `SKILL.md`, in the directory each harness discovers |
-| `waypost harnesses` | which harnesses are supported, where roles land, how to invoke them |
-| `waypost commit -m "<what>" [--task <id>]` | commit with harness/session/story trailers; `--task` adds an external tracker's id |
-| `waypost merge <ref>` | merge, re-derive the views, then commit |
-| `waypost log [--story\|--task\|--harness]` | history read back through those trailers |
-| `waypost sessions [--touch] [--claim/--release] [--prune [--older-than <span>]]` | active sessions and story claims |
-| `waypost watch` | stay live and see other devices' events |
-| `waypost lease <path…>` | announce the files you are editing right now |
-| `waypost storage` | what the vault is stored on and how far behind presence can be |
-| `waypost prompt [name]` / `waypost skill [name]` | loop procedures and skills |
-| `waypost capacity [--json] [--release <id>]` | the machine's real free resources right now, and how many more heavy jobs it can take |
-| `waypost run --heavy [--wait <Ns\|Nm>] -- <cmd…>` | the rule: heavy work (a build, a full test suite, a simulator/emulator boot, a whole-disk scan, a background agent that builds or tests) always runs through this, never directly; refused = exit 75 (`waypost prompt heavy`) |
-| `waypost status`, `waypost help` | summary and full help |
+The command reference is in [CLI reference](docs/cli-reference.md). Use
+`waypost help` for the installed CLI; read the reference only for command details.
+
+Heavy work (a build, a full test suite, a simulator/emulator boot, a whole-disk
+scan, a background agent that builds or tests) always runs through
+`waypost run --heavy`, never directly; refused = exit 75 (`waypost prompt heavy`).
 
 Every write to disk is made by the dispatcher `bin/waypost`; the scripts under
 `scripts/` are pure compute printing JSON. Never hand-edit a derived view: it is
