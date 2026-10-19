@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-19T00:04:28.453Z
+generated_at: 2026-10-19T00:41:53.413Z
 
 ---
 
@@ -83,6 +83,7 @@ generated_at: 2026-10-19T00:04:28.453Z
 - [x] [[epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route|WP-21: Budgeted sealed-source evaluation route]] #p2 #done
 - [x] [[epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes|WP-21: Distinguish evaluation moderation rejection causes]] #p2 #done
 - [x] [[epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata|WP-21: Evaluation accepts bounded moderation metadata]] #p2 #done
+- [x] [[epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting|WP-21: Recognize explicit inherited parent headers in Codex accounting]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

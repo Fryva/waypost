@@ -25,16 +25,23 @@ const timestamp = value => {
   return parsed;
 };
 
+// Parentage narrows a metadata-prefix exception; it never anchors counters.
+function parentIdentity(payload) {
+  const links = [payload.parent_thread_id, payload.forked_from_id, payload.source?.subagent?.thread_spawn?.parent_thread_id].filter(value => value !== undefined && value !== null);
+  if (!links.length) return null;
+  return links.every(value => typeof value === "string" && value.length && value !== payload.id && value === links[0]) ? links[0] : undefined;
+}
+
 function metadata(rec) {
   const p = rec?.type === "session_meta" ? rec.payload : null;
   if (!p || typeof p !== "object" || Array.isArray(p)) return null;
   // Desktop rollouts can share session_id across parent and subagent files.
   // Only id owns the cumulative native context; never merge by session_id.
   const id = p.id;
-  const created = timestamp(p.timestamp);
+  const created = timestamp(p.timestamp), parent = parentIdentity(p);
   const roles = [p.agent_role, p.source?.subagent?.thread_spawn?.agent_role].filter(value => typeof value === "string" && value.length);
-  if (typeof id !== "string" || !id || typeof p.cwd !== "string" || !p.cwd || created === null || new Set(roles).size > 1) return null;
-  return { id, session_label: typeof p.session_id === "string" ? p.session_id : null, cwd: normalized(p.cwd), created, role: roles[0] ?? null, provider: typeof p.model_provider === "string" ? p.model_provider : null, version: typeof p.cli_version === "string" ? p.cli_version : null };
+  if (parent === undefined || typeof id !== "string" || !id || typeof p.cwd !== "string" || !p.cwd || created === null || new Set(roles).size > 1) return null;
+  return { id, session_label: typeof p.session_id === "string" ? p.session_id : null, cwd: normalized(p.cwd), created, role: roles[0] ?? null, provider: typeof p.model_provider === "string" ? p.model_provider : null, version: typeof p.cli_version === "string" ? p.cli_version : null, parent_id: parent };
 }
 
 function counters(value) {
@@ -117,13 +124,14 @@ function header(file) {
 async function readHistory(file, expected) {
   const hash = createHash("sha256"), decoder = new StringDecoder("utf8");
   const frames = [];
-  let pending = "", dropping = false, errors = 0, metadataConflict = false, sawHeader = false;
-  const gap = () => { if (!sawHeader) { sawHeader = true; metadataConflict = true; } errors++; frames.push({ gap: true }); };
+  let pending = "", dropping = false, errors = 0, metadataConflict = false, sawHeader = false, parentSlot = false, inheritedParentHeaders = 0, inheritedParent = null;
+  const gap = () => { parentSlot = false; if (!sawHeader) { sawHeader = true; metadataConflict = true; } errors++; frames.push({ gap: true }); };
   const line = text => {
     if (!text.trim()) return;
     let rec;
     try { rec = JSON.parse(text); } catch { gap(); return; }
-    if (!sawHeader) {
+    const initial = !sawHeader;
+    if (initial) {
       sawHeader = true;
       const first = metadata(rec);
       if (!first || JSON.stringify(first) !== JSON.stringify(expected)) metadataConflict = true;
@@ -131,8 +139,12 @@ async function readHistory(file, expected) {
     if (!rec || typeof rec !== "object" || Array.isArray(rec)) { gap(); return; }
     if (rec.type === "session_meta") {
       const meta = metadata(rec);
-      if (!meta || JSON.stringify(meta) !== JSON.stringify(expected)) metadataConflict = true;
+      if (!meta || JSON.stringify(meta) !== JSON.stringify(expected)) {
+        if (parentSlot && meta && expected.parent_id && meta.id === expected.parent_id && meta.cwd === expected.cwd && meta.created < expected.created) { inheritedParentHeaders++; inheritedParent = meta; }
+        else metadataConflict = true;
+      }
     }
+    parentSlot = initial && !metadataConflict;
     if (rec.type === "event_msg" && rec.payload?.type === "token_count") frames.push({ time: timestamp(rec.timestamp), value: counters(rec.payload.info?.total_token_usage) });
   };
   const consume = text => {
@@ -157,8 +169,8 @@ async function readHistory(file, expected) {
     consume(decoder.end());
     if (pending && !dropping) line(pending);
     if (!sawHeader) metadataConflict = true;
-    return { frames, errors, metadataConflict, sha256: sourceHash, readable: true };
-  } catch (error) { gap(); return { frames: archiveKind(file) ? [] : frames, errors, metadataConflict: metadataConflict || !!archiveKind(file), sha256: null, readable: false, archive_error: error.archiveReason ?? null }; }
+    return { frames, errors, metadataConflict, inheritedParentHeaders, inheritedParent, sha256: sourceHash, readable: true };
+  } catch (error) { gap(); return { frames: archiveKind(file) ? [] : frames, errors, inheritedParentHeaders, inheritedParent, metadataConflict: metadataConflict || !!archiveKind(file), sha256: null, readable: false, archive_error: error.archiveReason ?? null }; }
 }
 
 const prefix = (a, b) => a.length <= b.length && a.every((frame, i) => JSON.stringify(frame) === JSON.stringify(b[i]));
@@ -233,8 +245,13 @@ function summary(spans, complete) {
 
 export async function collectCodexReport({ project, since = null, until = null, codexHome = process.env.CODEX_HOME || join(homedir(), ".codex") }) {
   const root = join(codexHome, "sessions"), wanted = normalized(project);
-  const coverage = { plain_files_discovered: 0, compressed_files_skipped: 0, compressed_files_discovered: 0, compressed_files_decoded: 0, compressed_files_failed: 0, archive_limit_failures: 0, symlinks_skipped: 0, discovery_errors: 0, unidentifiable_headers: 0, other_project_files: 0, matching_files: 0, unreadable_matching_files: 0, malformed_or_oversized_lines: 0, conflicting_contexts: 0, replay_files: 0 };
+  const coverage = { plain_files_discovered: 0, compressed_files_skipped: 0, compressed_files_discovered: 0, compressed_files_decoded: 0, compressed_files_failed: 0, archive_limit_failures: 0, symlinks_skipped: 0, discovery_errors: 0, unidentifiable_headers: 0, other_project_files: 0, matching_files: 0, unreadable_matching_files: 0, malformed_or_oversized_lines: 0, conflicting_contexts: 0, inherited_parent_headers: 0, replay_files: 0 };
   const files = [], discovery = [], contexts = new Map(), identityHeaders = new Map(), conflictingIds = new Set(), stack = [root];
+  const registerIdentity = meta => {
+    const signature = JSON.stringify(meta), prior = identityHeaders.get(meta.id);
+    if (prior && prior !== signature) conflictingIds.add(meta.id);
+    identityHeaders.set(meta.id, signature);
+  };
   while (stack.length) {
     const dir = stack.pop();
     let entries;
@@ -263,25 +280,25 @@ export async function collectCodexReport({ project, since = null, until = null, 
         discovery.push([name, first?.sha256 ?? "unknown-header"]); continue;
       }
       discovery.push([name, first.sha256]);
-      const signature = JSON.stringify(first.meta), prior = identityHeaders.get(first.meta.id);
-      if (prior && prior !== signature) conflictingIds.add(first.meta.id);
-      identityHeaders.set(first.meta.id, signature);
+      registerIdentity(first.meta);
       if (first.meta.cwd !== wanted) { coverage.other_project_files++; continue; }
       coverage.matching_files++;
       const history = await readHistory(path, first.meta);
+      if (history.readable && !history.metadataConflict && history.inheritedParent) registerIdentity(history.inheritedParent);
       if (compression) {
         if (history.readable) coverage.compressed_files_decoded++;
         else { coverage.compressed_files_failed++; if (history.archive_error?.endsWith("-limit")) coverage.archive_limit_failures++; }
       }
       files.push({ path: name, sha256: history.sha256, readable: history.readable, context_id: first.meta.id, ...(compression ? { compression, archive_error: history.archive_error ?? null } : {}) });
       coverage.malformed_or_oversized_lines += history.errors;
+      coverage.inherited_parent_headers += history.inheritedParentHeaders;
       if (!history.readable) coverage.unreadable_matching_files++;
       const existing = contexts.get(first.meta.id);
-      if (!existing) contexts.set(first.meta.id, { meta: first.meta, frames: history.frames, conflict: history.metadataConflict, readable: history.readable });
+      if (!existing) contexts.set(first.meta.id, { meta: first.meta, frames: history.frames, inheritedParent: history.inheritedParent, conflict: history.metadataConflict, readable: history.readable });
       else {
         coverage.replay_files++;
         existing.readable &&= history.readable;
-        if (JSON.stringify(existing.meta) !== JSON.stringify(first.meta) || history.metadataConflict) existing.conflict = true;
+        if (JSON.stringify(existing.meta) !== JSON.stringify(first.meta) || JSON.stringify(existing.inheritedParent) !== JSON.stringify(history.inheritedParent) || history.metadataConflict) existing.conflict = true;
         if (prefix(existing.frames, history.frames)) existing.frames = history.frames;
         else if (!prefix(history.frames, existing.frames)) existing.conflict = true;
       }
@@ -292,7 +309,7 @@ export async function collectCodexReport({ project, since = null, until = null, 
   let historiesComplete = true;
   for (const context of [...contexts.values()].sort((a, b) => a.meta.id.localeCompare(b.meta.id))) {
     let reduced;
-    if (context.conflict || conflictingIds.has(context.meta.id)) { coverage.conflicting_contexts++; reduced = { spans: [], complete: false, coverage: {} }; }
+    if (context.conflict || conflictingIds.has(context.meta.id) || (context.inheritedParent && conflictingIds.has(context.inheritedParent.id))) { coverage.conflicting_contexts++; reduced = { spans: [], complete: false, coverage: {} }; }
     else reduced = reduceCodexHistory(context.meta, context.frames, { since, until });
     if (!context.readable || !reduced.complete) historiesComplete = false;
     all.push(...reduced.spans);
@@ -306,7 +323,7 @@ export async function collectCodexReport({ project, since = null, until = null, 
   const share = total > 0 && numerator !== null ? 100 * numerator / total : null;
   return {
     report_version: 2,
-    measurement: { source_harness: "codex", counter_schema: "codex-rollout-cumulative-delta-v1", scope: "observed native spans in matching retained plain and supported compressed rollouts, not provider-exhaustive usage", total_formula: "delta(total_tokens); cached input and reasoning are subsets, never extra tokens", first_snapshot: "baseline only; nonzero prefixes are uncharged unknown usage even when total equals last", unsupported_harnesses: ["claude", "opencode"], other_harness_modes: ["claude"], subscription_quota_percent: null, source_discovery_complete: !!sourceComplete, raw_transcript_bodies_emitted: false },
+    measurement: { source_harness: "codex", counter_schema: "codex-rollout-cumulative-delta-v1", scope: "observed native spans in matching retained plain and supported compressed rollouts, not provider-exhaustive usage", total_formula: "delta(total_tokens); cached input and reasoning are subsets, never extra tokens", first_snapshot: "baseline only; nonzero prefixes are uncharged unknown usage even when total equals last", inherited_metadata: "one older same-cwd explicit parent header immediately after the current header; parentage never anchors counters", unsupported_harnesses: ["claude", "opencode"], other_harness_modes: ["claude"], subscription_quota_percent: null, source_discovery_complete: !!sourceComplete, raw_transcript_bodies_emitted: false },
     provenance: { generated_at: new Date().toISOString(), project_root: wanted, transcript_dir: root, period: { since_inclusive_utc: since, until_exclusive_utc: until, span_selection: "endpoint timestamp after constructing cumulative chain with pre-period baselines" }, input_files: files.sort((a, b) => a.path.localeCompare(b.path)), discovery_sha256: digest(JSON.stringify(discovery.sort((a, b) => a[0].localeCompare(b[0])))), snapshot: "sequential per-file reads; not an atomic snapshot of live sessions; metadata probed before full read", max_line_bytes: MAX_LINE, archive_limits: { compressed_bytes: MAX_ARCHIVE, decompressed_bytes: MAX_EXPANDED, zstd_window_log_max: 26 }, archive_codecs: { gz: true, br: true, zst: archiveSupported("zst"), xz: false }, archive_foreign_project_check: "bounded header only; unrelated archive tails are not decoded or integrity-checked" },
     coverage: { ...coverage, matched_contexts: contexts.size, histories_complete_within_observed_sources: historiesComplete && contexts.size > 0 },
     native_totals: native,

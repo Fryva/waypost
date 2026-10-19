@@ -268,7 +268,22 @@ are subsets of input/output; adding them again would inflate consumption. A firs
 nonzero snapshot is an **uncharged baseline**, even when it equals `last_token_usage`:
 it may contain inherited history. Only an explicit zero establishes a zero anchor.
 Copied events before session creation are skipped. Parent identity alone does not
-prove a fork. Missing/malformed events, invalid or decreasing timestamps, reset
+anchor counters. One older same-project parent `session_meta` immediately after
+the current header is recognized only with a consistent explicit parent identity
+(`parent_thread_id`, `forked_from_id`, or the subagent spawn link). Contradictory,
+empty, non-string or self links invalidate the header; absent/null links cannot
+authorize this exception. The outer event timestamp may be rewritten
+when history is copied; the older parent creation time and exact prefix position
+are checked instead. This exception never merges parent counters, assigns an
+unknown first prefix or changes the child's role. Later, repeated, unrelated or
+invalid metadata remains conflicting; accepted normalized parent metadata is bound
+across replay copies and the registry of discovered first headers, including foreign
+projects. A contradictory parent identity quarantines children using that prefix
+exception. Outer copied-record timestamps are excluded from this identity check.
+Identical repetitions of the current header retain their previous behavior; they
+do not reopen the parent-header slot. `coverage.inherited_parent_headers` counts recognized matching-file header
+occurrences, including replay copies, not token requests. Missing/malformed events,
+invalid or decreasing timestamps, reset
 counters, conflicting snapshots and optional-schema changes break continuity;
 the next valid snapshot only rebases. Divergent same-id histories are quarantined.
 Duplicate files must have compatible prefix token histories to merge.

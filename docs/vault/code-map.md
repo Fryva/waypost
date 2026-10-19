@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-19T00:03:38.278Z
+generated_at: 2026-10-19T00:36:07.131Z
 
 ---
 
@@ -61,6 +61,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Execute paired token economy smoke under the owner allocation | `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md`, `docs/vault/ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md`, `scripts/team-host.mjs`, `scripts/team-transport.mjs`, `docs/vault/ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md` |
 | WP-21 | Bounded paired smoke protocol for token economy | `docs/vault/ops/paired-token-economy-experiment-with-blind-acceptance.md` |
 | WP-21 | Offline Codex token accounting with explicit coverage | `scripts/tokens.mjs`, `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
+| WP-21 | Recognize explicit inherited parent headers in Codex accounting | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Reproducible token accounting and repeated-read evidence | `scripts/tokens.mjs`, `scripts/token-navigation.mjs`, `tests/tokens.test.mjs`, `tests/token-navigation.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Targeted evidence reads and reproducible role handoffs | `agents/planner.md`, `agents/critic.md`, `agents/reviewer.md`, `skills/waypost-review/SKILL.md`, `tests/harness.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | The team code loads only for story --write, and the CLI entry is an .mjs the code index sees | `bin/waypost`, `bin/waypost.mjs`, `tests/scripts.test.mjs`, `tests/sizes.test.mjs`, `CHANGELOG.md` |

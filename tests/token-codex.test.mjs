@@ -441,3 +441,120 @@ for (const kind of Object.keys(compressors)) test(`Codex ${kind} cannot silently
     assert.doesNotMatch(JSON.stringify(r), /UNTRUSTED-TRAILER/);
   }
 });
+
+function parentHeader(f, overrides = {}) {
+  return { type: "session_meta", timestamp: at(2), payload: { id: "parent", session_id: "parent", timestamp: "2026-10-13T00:00:00Z", cwd: f.project, model_provider: "openai", agent_role: "waypost-critic", cli_version: "PARENT-VERSION-PRIVATE", ...overrides } };
+}
+const parentHints = [
+  { parent_thread_id: "parent" },
+  { forked_from_id: "parent" },
+  { source: { subagent: { thread_spawn: { parent_thread_id: "parent" } } } },
+  { parent_thread_id: "parent", forked_from_id: "parent", source: { subagent: { thread_spawn: { parent_thread_id: "parent" } } } },
+];
+
+test("Codex explicit inherited parent header never charges a parent's counter prefix or role", async () => {
+  for (const hints of parentHints) {
+    const f = fixture();
+    f.write("child", [parentHeader(f), event("2026-10-13T23:00:00Z", usage(500)), event(at(1), usage(1000)), event(at(2), usage(1030))], { meta: { ...hints, agent_role: "waypost-reviewer" } });
+    const r = await f.report();
+    assert.equal(r.coverage.inherited_parent_headers, 1);
+    assert.equal(r.coverage.conflicting_contexts, 0);
+    assert.equal(r.native_totals.all.observed_total_tokens, 30);
+    assert.equal(r.native_totals.all.total_tokens, null);
+    assert.equal(r.contexts[0].coverage.unknown_prefixes, 1);
+    assert.equal(r.contexts[0].coverage.historical_snapshots, 1);
+    assert.equal(r.contexts[0].role, "waypost-reviewer");
+    assert.equal(r.native_totals.waypost.observed_total_tokens, 30);
+    assert.doesNotMatch(JSON.stringify(r), /PARENT-VERSION-PRIVATE/);
+  }
+});
+
+for (const kind of [null, ...Object.keys(compressors)]) test(`Codex inherited prefix with explicit zero anchor in ${kind ?? "plain"} preserves native spans`, async () => {
+  const f = fixture(), frames = [parentHeader(f), event("2026-10-13T23:00:00Z", usage(500)), event(at(0), usage()), event(at(1), usage(40))];
+  if (kind) archive(f, "child", frames, kind, { meta: { forked_from_id: "parent" } });
+  else f.write("child", frames, { meta: { forked_from_id: "parent" } });
+  const r = await f.report();
+  assert.equal(r.coverage.inherited_parent_headers, 1);
+  assert.equal(r.native_totals.all.total_tokens, 40);
+  assert.equal(r.native_totals.all.observed_spans, 1);
+});
+
+test("Codex absent or invalid parentage cannot authorize inherited metadata", async () => {
+  for (const hints of [{}, { parent_thread_id: null }, { parent_thread_id: "" }, { parent_thread_id: 123 }, { parent_thread_id: "child" }, { parent_thread_id: "parent", forked_from_id: "another" }]) {
+    const f = fixture();
+    f.write("child", [parentHeader(f), event(at(0), usage()), event(at(1), usage(100))], { meta: hints });
+    const r = await f.report();
+    assert.equal(r.native_totals.all.observed_total_tokens, 0);
+    assert.equal(r.native_totals.all.total_tokens, null);
+    assert.equal(r.coverage.inherited_parent_headers, 0);
+    assert.ok(r.coverage.unidentifiable_headers + r.coverage.conflicting_contexts > 0);
+  }
+});
+
+test("Codex inherited metadata exception is exact, older, same-cwd and immediately after the current header", async () => {
+  for (const mode of ["unrelated", "foreign", "same-time", "newer", "invalid", "after-content", "after-token", "after-gap", "duplicate", "after-own-header"]) {
+    const f = fixture();
+    const overrides = mode === "unrelated" ? { id: "another" } : mode === "foreign" ? { cwd: f.project + "-other" } : mode === "same-time" ? { timestamp: created } : mode === "newer" ? { timestamp: at(1) } : mode === "invalid" ? { id: null } : {};
+    const parent = parentHeader(f, overrides), frames = [parent, event(at(0), usage()), event(at(1), usage(100))];
+    if (mode === "after-content") frames.unshift({ type: "response_item", payload: "PRIVATE-INHERITED-BODY" });
+    if (mode === "after-token") frames.unshift(event("2026-10-13T22:00:00Z", usage(100)));
+    if (mode === "after-gap") frames.unshift("{bad");
+    if (mode === "duplicate") frames.splice(1, 0, parent);
+    if (mode === "after-own-header") frames.unshift({ type: "session_meta", payload: { id: "child", session_id: "child", timestamp: created, cwd: f.project, model_provider: "openai", cli_version: "fixture", forked_from_id: "parent" } });
+    f.write("child", frames, { meta: { forked_from_id: "parent" } });
+    const r = await f.report();
+    assert.equal(r.coverage.conflicting_contexts, 1, mode);
+    assert.equal(r.native_totals.all.observed_total_tokens, 0, mode);
+    assert.equal(r.native_totals.all.total_tokens, null, mode);
+    assert.doesNotMatch(JSON.stringify(r), /PRIVATE-INHERITED-BODY/);
+  }
+});
+
+test("Codex parent identity stays bound across compatible replay and foreign headers", async () => {
+  for (const incompatible of [false, true, "foreign"]) {
+    const f = fixture(), frames = [parentHeader(f), event(at(0), usage()), event(at(1), usage(100))];
+    f.write("child", frames, { name: "a.jsonl", meta: { forked_from_id: "parent" } });
+    archive(f, "child", frames, "gz", { name: "b.jsonl", meta: { forked_from_id: incompatible ? "different-parent" : "parent", ...(incompatible === "foreign" ? { cwd: f.project + "-other" } : {}) } });
+    const r = await f.report();
+    assert.equal(r.native_totals.all.observed_total_tokens, incompatible ? 0 : 100);
+    assert.equal(r.coverage.conflicting_contexts, incompatible ? 1 : 0);
+    if (!incompatible) { assert.equal(r.coverage.replay_files, 1); assert.equal(r.coverage.inherited_parent_headers, 2); }
+  }
+});
+
+test("Codex accepted parent metadata stays consistent across child replay copies", async () => {
+  for (const differing of [{ timestamp: "2026-10-12T00:00:00Z" }, { agent_role: "other-role" }, { cwd: "/foreign-parent-project" }]) {
+    const f = fixture(), counters = [event(at(0), usage()), event(at(1), usage(100))];
+    f.write("child", [parentHeader(f), ...counters], { name: "a.jsonl", meta: { forked_from_id: "parent" } });
+    archive(f, "child", [parentHeader(f, differing), ...counters], "gz", { name: "b.jsonl", meta: { forked_from_id: "parent" } });
+    const r = await f.report();
+    assert.equal(r.coverage.conflicting_contexts, 1);
+    assert.equal(r.native_totals.all.observed_total_tokens, 0);
+    assert.equal(r.native_totals.all.total_tokens, null);
+  }
+});
+
+test("Codex accepted parent metadata is checked against first headers before project filtering", async () => {
+  for (const differing of [{}, { cwd: "/foreign-parent-project" }, { timestamp: "2026-10-12T00:00:00Z" }, { agent_role: "other-role" }]) {
+    for (const parentFirst of [false, true]) {
+      const f = fixture(), parent = parentHeader(f, differing);
+      f.write("parent", [], { name: parentFirst ? "a.jsonl" : "z.jsonl", meta: parent.payload });
+      f.write("child", [parentHeader(f), event(at(0), usage()), event(at(1), usage(100))], { name: "m.jsonl", meta: { forked_from_id: "parent" } });
+      const r = await f.report();
+      const conflict = Object.keys(differing).length > 0;
+      assert.equal(r.native_totals.all.observed_total_tokens, conflict ? 0 : 100);
+      assert.equal(r.contexts.find(c => c.id === "child").observed_total_tokens, conflict ? 0 : 100);
+      assert.ok(!conflict || r.coverage.conflicting_contexts > 0);
+    }
+  }
+});
+
+test("Codex copied parent envelope timestamps do not create false replay conflicts", async () => {
+  const f = fixture(), parent = parentHeader(f), counters = [event(at(0), usage()), event(at(1), usage(100))];
+  f.write("child", [parent, ...counters], { name: "a.jsonl", meta: { forked_from_id: "parent" } });
+  archive(f, "child", [{ ...parent, timestamp: at(3) }, ...counters], "gz", { name: "b.jsonl", meta: { forked_from_id: "parent" } });
+  const r = await f.report();
+  assert.equal(r.coverage.conflicting_contexts, 0);
+  assert.equal(r.native_totals.all.total_tokens, 100);
+  assert.equal(r.coverage.inherited_parent_headers, 2);
+});
