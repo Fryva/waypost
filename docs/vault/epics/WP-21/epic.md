@@ -56,8 +56,8 @@ The measurement increment is tracked by
 |-------|--------|-------------|
 | `story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees` | done | Decision 0 of the ADR: lazy team import, entry renamed to `bin/waypost.mjs` behind a shim |
 
-<!-- Planned, drafted after the ADR is accepted:
-     1. the classifier of navigation turns committed to scripts/tokens.mjs, baseline recorded here
+<!-- Split implementation stories are drafted after the ADR is accepted.
+     The navigation classifier/baseline prerequisite is already committed.
      2. bin/waypost.mjs becomes a thin entry; each command lives in bin/cli/
      3. scripts/lib.mjs split into lib-*.mjs behind an `export *` facade
      4. sizes.mjs / presence.mjs split by measured read volume
@@ -68,7 +68,7 @@ The measurement increment is tracked by
 
 - [x] Step 0: `version`, `help`, `run`, `capacity`, `size`, `clean` work with a deliberately broken team module; `story --write` still refuses a team-bound story.
 - [x] Step 0, manual (codegraph is an external tool): `codegraph query` finds functions of `bin/waypost.mjs`.
-- [ ] A committed classifier (Node, in `scripts/tokens.mjs`) counts navigation turns on `bin/(waypost|cli/)` with cache weights; the baseline is recorded in this epic and a target stated.
+- [ ] A committed classifier (Node, in `scripts/tokens.mjs`) counts navigation turns on `bin/(waypost|cli/)` with cache weights; classifier and baseline are now committed below, while the comparable post-split cohort and target remain to be stated. Existing coverage and API-price proxies do not establish causal savings.
 - [ ] Split: the entry ≤ 14 KB; every `bin/cli/*.mjs` ≤ 24 KB, pinned by a test.
 - [ ] Split: the free-identifier test and the import-every-module test pass; `node --check` covers `bin/cli`.
 - [ ] Split: `help`, `version` and an unknown command are byte-identical before and after; the suite is green on Node 20/22/24 at every step.

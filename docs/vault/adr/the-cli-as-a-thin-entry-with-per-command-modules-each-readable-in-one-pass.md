@@ -9,9 +9,9 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["bin/waypost", "bin/waypost.mjs", "package.json", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "tests/slots.test.mjs", "AGENTS.md", "docs/how-it-works.md"]
-review_status: pending
-reviewed_at: null
+code_refs: ["bin/waypost", "bin/waypost.mjs", "package.json", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "tests/slots.test.mjs", "tests/team-cli.test.mjs", ".github/workflows/ci.yml", "AGENTS.md", "docs/how-it-works.md"]
+review_status: reviewed
+reviewed_at: 2026-10-19
 drafted_by: {"harness":"claude","provider":null,"date":"2026-10-04"}
 related: "ADR-0001 (harness-agnostic core), ADR-0008 (context spend), ADR-0011 (decisions that check themselves), ADR \"Heavy work sized to the machine\", epic WP-21"
 guards: []
@@ -22,7 +22,7 @@ guards: []
 | Field | Value |
 |---|---|
 | **Status** | proposed |
-| **Date** | 2026-10-04 (revised 2026-10-14 after a critic pass) |
+| **Date** | 2026-10-04 (revised 2026-10-14 and 2026-10-19 after critic passes) |
 | **Authors** | Ivan Morozov |
 
 ---
@@ -48,7 +48,9 @@ repository; WP-21 commits it.
    harness read cap (Claude Code CLI 25 k tokens, Claude Desktop 10 k, OpenCode
    50 KB), so it can never be read in one pass. Turns that read or searched this
    file: 441 in 52 threads; the full input of those requests was ~159 M tokens
-   (≈8% of all input) — an upper bound on what navigation costs, not a saving.
+   (≈8% of all input). This historical proxy counts initiating-request usage,
+   not returned-content cost, a workflow-cost bound or measured savings; later
+   reuse of returned code is outside it (see the current WP-21 limitations).
 2. **Invisible to the code index.** codegraph picks the language by file
    extension and has no configuration; the extensionless `bin/waypost` is not
    indexed.
@@ -94,11 +96,19 @@ migration must never leave it broken between steps.
    load failure names the module the entry tried to load: a `SyntaxError` from
    a dynamic import carries neither the file nor the line in its message or
    stack (checked 2026-10-14 — the entry prints only `Unexpected token ';'`),
-   so the exact place comes from `node --check` on that module.
+   so the message identifies the requested module, not necessarily the failing
+   static dependency. Localize syntax errors with `node --check` over the entry
+   and **every** `bin/cli/*.mjs`, reporting each checked filename; checking only
+   the requested module does not check its dependencies.
    Shared state and helpers (`ROOT`, `SCRIPT`, `fail`/`run`, flag parsing with
    the single `VALUED` set, `INHERITED_*` capture) live in `bin/cli/core.mjs`,
    imported statically by the entry, so `INHERITED_*` is captured before
    `main()` as `tests/slots.test.mjs` requires.
+   Preserve the existing startup order: capture `INHERITED_*`, early exits,
+   leading `--project`, state migration, harness/process/session binding,
+   worktree qualification, heartbeat, then dispatch. Importing a module must
+   add no new writes, process launch or command execution; shared mutable
+   bindings have one owner, recorded in the implementation plan.
 4. A module never imports the entry (importing it runs `main()`). `bin/cli`
    imports form a DAG; `core.mjs` imports nothing from `bin/cli`.
 5. The write rule is restated truthfully: generator functions that doctor
@@ -115,8 +125,19 @@ migration must never leave it broken between steps.
      used outside comments and strings is declared or imported there (72 empty
      `catch {}` blocks would otherwise turn a forgotten import into silent
      degradation, not a `ReferenceError`);
+     template `${...}` expressions count as code. A local declaration or
+     shadowed name cannot satisfy a missing module-level dependency. Pin these
+     cases with negative mutation fixtures, including a missing import inside
+     a suppressed `catch`. Do not assume an external JavaScript parser exists:
+     the planner must choose and document a dependency-free implementation of
+     this bounded guard before the first move; its claim is scoped to frozen U,
+     not arbitrary JavaScript free-identifier analysis;
    - a test that imports every `bin/cli` module (link errors);
    - `node --check` over `bin/waypost.mjs` and `bin/cli/*.mjs`.
+   Extend the current entry-only static team-import prohibition to the
+   **transitive static import closure** of the early entry/core. Retain the
+   broken-team-module scenarios for utility commands and the fail-closed story
+   write; moving the same dependency into core must not defeat Decision 0.
    Once `bin/cli/` exists, guards are added: the ceiling test as a `check`, and
    a `forbid` of importing `../waypost.mjs` from `bin/cli/*.mjs`. Guards of
    other ADRs whose `in` names the entry are re-scoped in the commit that moves
@@ -196,7 +217,43 @@ forgotten.
 - Split: six commits prepared in a separate worktree from the leaves, the suite
   green on Node 20/22/24 at each, merged in one sitting during a WP-20 freeze of
   the entry; a CLI test "team-bound story → refuse" lands before the gate moves.
+  In the same commit that makes the entry depend on `bin/cli`, update
+  `makeRaceRepo` in `tests/scripts.test.mjs` to recursively copy that directory
+  as **real files**, preserving the fixture's `scripts/story-section.mjs`
+  substitution and concurrent-edit preservation assertions. A symlink back to
+  the live entry/modules would test the wrong ROOT.
+  The existing `.github/workflows/ci.yml` Ubuntu matrix provides the Node
+  20/22/24 gate for every prepared commit; each revision must have all three
+  results before advancing the migration. A local Node 25 run cannot replace
+  those results. Node versions and operating systems are separate coverage
+  dimensions; this matrix does not establish Windows/macOS runtime coverage.
   Rollback: revert the merge — the entry and shim before it are self-contained.
+
+## Readiness for an owner decision (2026-10-19)
+
+Current entry at `3f7933e`: 204781 bytes. Decision 0 is implemented; no
+`bin/cli` split has started. The reproducible navigation collector is committed;
+its retained-history limitations and baseline are in WP-21. Historical
+navigation-request input is observational initiating-request usage, not
+returned-content cost, a workflow-cost bound or measured savings.
+
+The real CLI prerequisite is now committed as `3f7933e`: changed:true plan/close
+previews, exact refusal for a canonical team-bound story before any vault file
+changes, plus a successful unbound lifecycle control. The full affected
+`tests/team-cli.test.mjs` run passed 11/11 on Node 25.6.1/macOS, with 154 unchanged
+code-input identities and independent acceptance. Earlier capacity refusals ran
+no tests. This is local guard verification, not the Node 20/22/24 migration gate,
+full-suite verification, or a token-saving measurement.
+
+Independent fresh-context review on 2026-10-19 returned `ship` as a proposal,
+with no open blocker or should-fix. This records review, not owner acceptance.
+
+The owner decision is whether to adopt Decisions 1–6 on structural grounds now,
+or retain Decision 0 and defer the split for more measurement. Approval adopts
+the bounded plan and its gates; it does not establish runtime coverage or token
+savings and does not authorize a native role pilot. Freeze coordination, the
+dependency-guard implementation and the per-module mapping remain prerequisites
+before implementation, not reasons to edit the live entry while preparing them.
 
 ## References
 
