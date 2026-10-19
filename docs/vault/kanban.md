@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-19T15:51:47.760Z
+generated_at: 2026-10-19T16:26:39.724Z
 
 ---
 
@@ -85,6 +85,7 @@ generated_at: 2026-10-19T15:51:47.760Z
 - [x] [[epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata|WP-21: Evaluation accepts bounded moderation metadata]] #p2 #done
 - [x] [[epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode|WP-21: Keep brief folder descriptions behind full mode]] #p2 #done
 - [x] [[epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions|WP-21: Keep CLI reference out of standing instructions]] #p2 #done
+- [x] [[epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization|WP-21: Pin team-bound story refusal before CLI modularization]] #p2 #done
 - [x] [[epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting|WP-21: Recognize explicit inherited parent headers in Codex accounting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period|WP-21: Scope unknown-prefix diagnostics to the requested period]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done

@@ -8,7 +8,7 @@ created: 2026-10-04
 updated: 2026-10-14
 external_refs: {}
 tags: []
-code_refs: ["docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md", "docs/vault/ops/paired-token-economy-experiment-with-blind-acceptance.md", "agents/planner.md", "agents/critic.md", "agents/reviewer.md", "skills/waypost-review/SKILL.md", "bin/", "package.json", "scripts/brief.mjs", "scripts/lib.mjs", "tests/predicates.test.mjs", "scripts/tokens.mjs", "scripts/token-navigation.mjs", "scripts/token-codex.mjs", "tests/tokens.test.mjs", "tests/token-navigation.test.mjs", "tests/token-codex.test.mjs", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "AGENTS.md", "docs/how-it-works.md", "docs/cli-reference.md", "CHANGELOG.md", "scripts/evaluation-source.mjs", "scripts/codex-evaluation-surface.mjs", "scripts/team-host.mjs", "scripts/team-cli.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/team-native-action.mjs", "tests/evaluation-source.test.mjs", "tests/evaluation-transport.test.mjs", "tests/team-host.test.mjs", "tests/team-subscription.test.mjs", "docs/vault/ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md", "docs/vault/ops/proposed-revision-3-of-the-sealed-source-token-pilot.md", "docs/vault/ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md"]
+code_refs: ["docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md", "docs/vault/ops/paired-token-economy-experiment-with-blind-acceptance.md", "agents/planner.md", "agents/critic.md", "agents/reviewer.md", "skills/waypost-review/SKILL.md", "bin/", "package.json", "scripts/brief.mjs", "scripts/lib.mjs", "tests/predicates.test.mjs", "scripts/tokens.mjs", "scripts/token-navigation.mjs", "scripts/token-codex.mjs", "tests/tokens.test.mjs", "tests/token-navigation.test.mjs", "tests/token-codex.test.mjs", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "tests/team-cli.test.mjs", "AGENTS.md", "docs/how-it-works.md", "docs/cli-reference.md", "CHANGELOG.md", "scripts/evaluation-source.mjs", "scripts/codex-evaluation-surface.mjs", "scripts/team-host.mjs", "scripts/team-cli.mjs", "scripts/team-subscription.mjs", "scripts/team-transport.mjs", "scripts/team-native-action.mjs", "tests/evaluation-source.test.mjs", "tests/evaluation-transport.test.mjs", "tests/team-host.test.mjs", "tests/team-subscription.test.mjs", "docs/vault/ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md", "docs/vault/ops/proposed-revision-3-of-the-sealed-source-token-pilot.md", "docs/vault/ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md"]
 review_status: pending
 reviewed_at: null
 ---
@@ -196,7 +196,7 @@ Final machine cap250000, counted17520 = owner-assumed7520 (revision2) + owner-as
 ## Dependencies
 
 - Step 0: none (adopted ahead of the ADR as its Decision 0, see the critic pass of 2026-10-14; owner approved 2026-10-14; done in 6d5f093).
-- Split: ADR "The CLI as a thin entry with per-command modules, each readable in one pass" — accepted; one freeze window of the entry agreed with WP-20.
+- Split: ADR "The CLI as a thin entry with per-command modules, each readable in one pass" — proposed; the split requires owner approval and one freeze window of the entry coordinated with WP-20.
 
 ## Open Questions
 
@@ -238,3 +238,7 @@ Affected accounting fixtures100/100 passed on Node25.6.1/macOS. Offline old/new 
 ## Compact default folder orientation (2026-10-19)
 
 [[story-keep-brief-folder-descriptions-behind-full-mode|Keep brief folder descriptions behind full mode]] hides only folder Purpose descriptions in default brief; every folder/kind/count remains. Full-mode output and JSON detail are retained. Frozen real-vault condensed skeleton1787→1097 characters (690 removed,38.6121992% of this output); dynamic appenders excluded and unchanged.21 selected skeleton/brief/routine/standing checks pass; default brief fixture ceiling tightened2200→1500. This is output-size reduction, not measured token/task/quota savings. No native pilot or budget mutation.
+
+## CLI story-write guard prerequisite (2026-10-19)
+
+[[story-pin-team-bound-story-refusal-before-cli-modularization|Pin team-bound story refusal before CLI modularization]] pins the existing gate at the real CLI: changed:true plan/close previews, exact binding refusal before any vault file/authority/claim/view change, and successful unbound sibling lifecycle. Close fixtures claim before team binding; team-only --id follows -- to preserve session identity. Full affected tests/team-cli.test.mjs11/11 pass on macOS after earlier capacity refusals;154 code identities unchanged. Production CLI unchanged. This is a prerequisite for the proposed split, not approval/implementation of that ADR or measured savings.

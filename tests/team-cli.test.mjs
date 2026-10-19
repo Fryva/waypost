@@ -2,9 +2,9 @@
 import "./env.mjs";
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, realpathSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { authorityFixture, now as fxNow, at as nowAt } from './helpers/native-calibration.mjs';
@@ -13,20 +13,72 @@ import { rolesListing, ownerAssignFields, participantBinary } from '../scripts/t
 const cli = fileURLToPath(new URL('../bin/waypost', import.meta.url));
 const tmp = [];
 after(() => tmp.forEach(p => rmSync(p, { recursive: true, force: true })));
-function fixture() {
+function fixture({ storyStatus } = {}) {
  const root = realpathSync(mkdtempSync(join(tmpdir(), 'waypost-team-cli-'))); tmp.push(root);
  mkdirSync(join(root, '.waypost')); mkdirSync(join(root, 'vault'));
  writeFileSync(join(root, '.waypost/projectstore.json'), JSON.stringify({ vault_path: 'vault', language: 'en', layout: 'engineering' }));
- writeFileSync(join(root, 'vault/task.md'), '---\ntype: epic\nid: fixture-task\ntitle: Fixture task\nstatus: planned\n---\n');
+ const task = storyStatus ? 'epics/FX/stories/story-fixture.md' : 'task.md';
+ const taskPath = join(root, 'vault', task);
+ mkdirSync(dirname(taskPath), { recursive: true });
+ writeFileSync(taskPath, storyStatus
+  ? `---\ntype: story\nid: story-fixture\nepic: FX\ntitle: Fixture story\nstatus: ${storyStatus}\n---\n`
+  : '---\ntype: epic\nid: fixture-task\ntitle: Fixture task\nstatus: planned\n---\n');
  const at = new Date().toISOString();
  const policy = { protocol: 1, mode: 'manual', revision: 1, domain: 'fixture', approved_by: 'fixture', approved_at: at, profiles: [{ provider: 'fixture', model_id: 'fixture-model', reasoning: 'fixture', priorities: { coordinate: 1, implement: 1, review: 1 }, source: 'fixture', date: at.slice(0,10) }] };
  writeFileSync(join(root, 'policy.json'), JSON.stringify(policy));
  writeFileSync(join(root, 'model.json'), JSON.stringify({ provider: 'fixture', model_id: 'fixture-model', reasoning: 'fixture', model_revision: 1, resolved: true, evidence: { kind: 'adapter-observed', source: 'fixture', observed_at: at } }));
- function run(...args) { return spawnSync(process.execPath, [cli, 'team', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: '1', WAYPOST_SESSION_ID: 'inherited-test-session' } }); }
+ function runCli(...args) { return spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, WAYPOST_PROJECT_DIR: root, WAYPOST_NO_BEAT: '1', WAYPOST_SESSION_ID: 'inherited-test-session' } }); }
+ function run(...args) { return runCli('team', ...args); }
  function ok(...args) { const r = run(...args); assert.equal(r.status, 0, r.stderr || r.stdout); return JSON.parse(r.stdout); }
- ok('create','vault/task.md','--id','fixture-team','--policy','policy.json','--confirm-local');
- return { root, run, ok };
+ if (storyStatus==='in-progress') {
+  const claim=runCli('sessions','--claim',taskPath);
+  assert.equal(claim.status,0,claim.stderr);
+  assert.match(claim.stdout,/claimed/, 'seed the claim before team binding forbids legacy claims');
+ }
+ ok('create',join('vault',task),'--','--id','fixture-team','--policy','policy.json','--confirm-local');
+ return { root, run, runCli, ok, taskPath };
 }
+
+test('real CLI refuses team-bound story writes before lifecycle, authority, claims or views change', () => {
+ // No Git fixture: all coordination, including authority and claims, is under
+ // this vault. Compare file bytes, not mtimes or the transient authority mutex.
+ const snapshot = (dir) => {
+  const files = {};
+  const walk = (path, prefix = '') => {
+   for (const entry of readdirSync(path, { withFileTypes: true })) {
+    const name = prefix + entry.name;
+    if (entry.isDirectory()) walk(join(path, entry.name), name + '/');
+    else files[name] = readFileSync(join(path, entry.name)).toString('base64');
+   }
+  };
+  walk(dir); return files;
+ };
+ for (const [operation, storyStatus] of [['plan','planned'],['close','in-progress']]) {
+  const f=fixture({storyStatus}),vault=join(f.root,'vault');
+  // Existing bytes make an accidental reconciliation observable, rather than
+  // merely checking an artifact after it was refused.
+  for (const name of ['kanban.md','graph.md','code-map.md']) writeFileSync(join(vault,name),'retained '+name+'\n');
+  const before=snapshot(vault);
+  const preview=f.runCli('story',operation,f.taskPath);
+  assert.equal(preview.status,0,preview.stderr);
+  assert.match(preview.stdout,/"changed": true/, 'exercise a real transition, not the no-op early return');
+  assert.deepEqual(snapshot(vault),before,'preview does not mutate the vault');
+  const refused=f.runCli('story',operation,f.taskPath,'--write');
+  assert.equal(refused.status,1,refused.stderr);
+  assert.match(refused.stderr,new RegExp('team-bound-artifact-use-team-workflow:fixture-team:'+operation));
+  assert.deepEqual(snapshot(vault),before,'refusal precedes every vault/coordination write');
+
+  const unbound=join(dirname(f.taskPath),'story-unbound.md');
+  writeFileSync(unbound,readFileSync(f.taskPath,'utf8').replace('id: story-fixture','id: story-unbound').replace('status: in-progress','status: planned'));
+  for (const mode of ['plan','close']) {
+   const result=f.runCli('story',mode,unbound,'--write');
+   assert.equal(result.status,0,result.stderr);
+   assert.match(readFileSync(unbound,'utf8'),new RegExp('status: '+(mode==='plan'?'in-progress':'done')));
+   assert.match(readFileSync(unbound,'utf8'),new RegExp((mode==='plan'?'started_at':'closed_at')+': "?\\d{4}-'));
+   assert.match(result.stdout,mode==='plan'?/claimed/:/released/);
+  }
+ }
+});
 test('real CLI creates one task owner and independent parent/child inboxes', () => {
  const f=fixture();
  const a=f.ok('join','fixture-team','--model','model.json','--credential','a.json');
