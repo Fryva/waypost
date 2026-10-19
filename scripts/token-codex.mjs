@@ -4,8 +4,15 @@ import { resolve, join, relative } from "node:path";
 import { homedir } from "node:os";
 import { createHash } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
+import * as zlib from "node:zlib";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 const MAX_LINE = 1024 * 1024;
+const MAX_ARCHIVE = 8 * 1024 * 1024;
+const MAX_EXPANDED = 64 * 1024 * 1024;
+const archiveKind = file => file.match(/\.jsonl\.(zst|gz|xz|br)$/)?.[1] ?? null;
+const archiveSupported = kind => kind === "gz" || kind === "br" || (kind === "zst" && typeof zlib.createZstdDecompress === "function");
 const FIELDS = ["input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens"];
 const WRITE = "cache_write_input_tokens";
 const digest = value => createHash("sha256").update(value).digest("hex");
@@ -36,6 +43,50 @@ function counters(value) {
   if (keys.some(key => !count(value[key])) || value.cached_input_tokens > value.input_tokens || value.reasoning_output_tokens > value.output_tokens || (Object.hasOwn(value, WRITE) && value[WRITE] > value.input_tokens)) return null;
   if (!Number.isSafeInteger(value.input_tokens + value.output_tokens) || value.total_tokens !== value.input_tokens + value.output_tokens) return null;
   return Object.fromEntries(keys.map(key => [key, value[key]]));
+}
+
+// Probe cancellation is intentional; full reads must reach decoder EOF/trailer.
+async function archiveBytes(file, consume, probe = false) {
+  const kind = archiveKind(file), hash = createHash("sha256");
+  const stop = new Error("archive-probe-complete");
+  let raw = 0, expanded = 0, probeComplete = false, limitFailure = null;
+  const limit = (compressed) => new Transform({ transform(bytes, _encoding, done) {
+    if (compressed) raw += bytes.length; else expanded += bytes.length;
+    if ((compressed ? raw > MAX_ARCHIVE : expanded > MAX_EXPANDED)) {
+      limitFailure = compressed ? "archive-input-limit" : "archive-output-limit";
+      done(Object.assign(new Error("archive-limit"), { archiveReason: limitFailure }));
+    } else { if (compressed) hash.update(bytes); done(null, bytes); }
+  } });
+  const decoder = kind === "gz" ? zlib.createGunzip() : kind === "br" ? zlib.createBrotliDecompress()
+    : zlib.createZstdDecompress({ params: { [zlib.constants.ZSTD_d_windowLogMax]: 26 } });
+  try {
+    await pipeline(createReadStream(file), limit(true), decoder, limit(false), async source => {
+      for await (const bytes of source) if (consume(bytes) === false && probe) { probeComplete = true; throw stop; }
+    });
+    if (decoder.bytesWritten !== raw) throw Object.assign(new Error("archive-trailing-data"), { archiveReason: "archive-trailing-data" });
+    return hash.digest("hex");
+  } catch (error) {
+    if (probeComplete && (error === stop || error.code === "ABORT_ERR")) return null;
+    throw Object.assign(new Error("archive-read-failed"), { archiveReason: error.archiveReason ?? limitFailure ?? "archive-decode-or-read-error" });
+  }
+}
+
+async function archiveHeader(file) {
+  const chunks = [];
+  let size = 0, complete = false;
+  try {
+    await archiveBytes(file, bytes => {
+      const end = bytes.indexOf(10), part = bytes.subarray(0, end < 0 ? bytes.length : end);
+      size += part.length;
+      if (size > MAX_LINE || (size === MAX_LINE && end < 0)) throw new Error("header-limit");
+      chunks.push(part);
+      if (end >= 0) { complete = true; return false; }
+    }, true);
+    const line = Buffer.concat(chunks);
+    if (!complete && !line.length) return null;
+    const rec = JSON.parse(line.toString("utf8"));
+    return { meta: metadata(rec), id: typeof rec?.payload?.id === "string" ? rec.payload.id : null, sha256: digest(line) };
+  } catch (error) { return { archive_error: error.archiveReason ?? "archive-header-error" }; }
 }
 
 function header(file) {
@@ -100,12 +151,14 @@ async function readHistory(file, expected) {
     }
   };
   try {
-    for await (const bytes of createReadStream(file)) { hash.update(bytes); consume(decoder.write(bytes)); }
+    let sourceHash;
+    if (archiveKind(file)) sourceHash = await archiveBytes(file, bytes => consume(decoder.write(bytes)));
+    else { for await (const bytes of createReadStream(file)) { hash.update(bytes); consume(decoder.write(bytes)); } sourceHash = hash.digest("hex"); }
     consume(decoder.end());
     if (pending && !dropping) line(pending);
     if (!sawHeader) metadataConflict = true;
-    return { frames, errors, metadataConflict, sha256: hash.digest("hex"), readable: true };
-  } catch { gap(); return { frames, errors, metadataConflict, sha256: null, readable: false }; }
+    return { frames, errors, metadataConflict, sha256: sourceHash, readable: true };
+  } catch (error) { gap(); return { frames: archiveKind(file) ? [] : frames, errors, metadataConflict: metadataConflict || !!archiveKind(file), sha256: null, readable: false, archive_error: error.archiveReason ?? null }; }
 }
 
 const prefix = (a, b) => a.length <= b.length && a.every((frame, i) => JSON.stringify(frame) === JSON.stringify(b[i]));
@@ -180,7 +233,7 @@ function summary(spans, complete) {
 
 export async function collectCodexReport({ project, since = null, until = null, codexHome = process.env.CODEX_HOME || join(homedir(), ".codex") }) {
   const root = join(codexHome, "sessions"), wanted = normalized(project);
-  const coverage = { plain_files_discovered: 0, compressed_files_skipped: 0, symlinks_skipped: 0, discovery_errors: 0, unidentifiable_headers: 0, other_project_files: 0, matching_files: 0, unreadable_matching_files: 0, malformed_or_oversized_lines: 0, conflicting_contexts: 0, replay_files: 0 };
+  const coverage = { plain_files_discovered: 0, compressed_files_skipped: 0, compressed_files_discovered: 0, compressed_files_decoded: 0, compressed_files_failed: 0, archive_limit_failures: 0, symlinks_skipped: 0, discovery_errors: 0, unidentifiable_headers: 0, other_project_files: 0, matching_files: 0, unreadable_matching_files: 0, malformed_or_oversized_lines: 0, conflicting_contexts: 0, replay_files: 0 };
   const files = [], discovery = [], contexts = new Map(), identityHeaders = new Map(), conflictingIds = new Set(), stack = [root];
   while (stack.length) {
     const dir = stack.pop();
@@ -191,10 +244,19 @@ export async function collectCodexReport({ project, since = null, until = null, 
       const path = join(dir, entry.name), name = relative(root, path).replace(/\\/g, "/");
       if (entry.isSymbolicLink()) { coverage.symlinks_skipped++; discovery.push([name, "symlink"]); continue; }
       if (entry.isDirectory()) { stack.push(path); continue; }
-      if (/\.jsonl\.(?:zst|gz|xz|br)$/.test(entry.name)) { coverage.compressed_files_skipped++; discovery.push([name, "compressed-skipped"]); continue; }
-      if (!entry.name.endsWith(".jsonl")) continue;
-      coverage.plain_files_discovered++;
-      const first = header(path);
+      const compression = archiveKind(path);
+      if (compression) {
+        coverage.compressed_files_discovered++;
+        if (!archiveSupported(compression)) { coverage.compressed_files_skipped++; discovery.push([name, "compressed-unsupported"]); continue; }
+      } else {
+        if (!entry.name.endsWith(".jsonl")) continue;
+        coverage.plain_files_discovered++;
+      }
+      const first = compression ? await archiveHeader(path) : header(path);
+      if (first?.archive_error) {
+        coverage.compressed_files_failed++;
+        if (first.archive_error.endsWith("-limit")) coverage.archive_limit_failures++;
+      }
       if (!first?.meta) {
         coverage.unidentifiable_headers++;
         if (first?.id) conflictingIds.add(first.id);
@@ -207,7 +269,11 @@ export async function collectCodexReport({ project, since = null, until = null, 
       if (first.meta.cwd !== wanted) { coverage.other_project_files++; continue; }
       coverage.matching_files++;
       const history = await readHistory(path, first.meta);
-      files.push({ path: name, sha256: history.sha256, readable: history.readable, context_id: first.meta.id });
+      if (compression) {
+        if (history.readable) coverage.compressed_files_decoded++;
+        else { coverage.compressed_files_failed++; if (history.archive_error?.endsWith("-limit")) coverage.archive_limit_failures++; }
+      }
+      files.push({ path: name, sha256: history.sha256, readable: history.readable, context_id: first.meta.id, ...(compression ? { compression, archive_error: history.archive_error ?? null } : {}) });
       coverage.malformed_or_oversized_lines += history.errors;
       if (!history.readable) coverage.unreadable_matching_files++;
       const existing = contexts.get(first.meta.id);
@@ -240,8 +306,8 @@ export async function collectCodexReport({ project, since = null, until = null, 
   const share = total > 0 && numerator !== null ? 100 * numerator / total : null;
   return {
     report_version: 2,
-    measurement: { source_harness: "codex", counter_schema: "codex-rollout-cumulative-delta-v1", scope: "observed native spans in matching retained plain rollouts, not provider-exhaustive usage", total_formula: "delta(total_tokens); cached input and reasoning are subsets, never extra tokens", first_snapshot: "baseline only; nonzero prefixes are uncharged unknown usage even when total equals last", unsupported_harnesses: ["claude", "opencode"], other_harness_modes: ["claude"], subscription_quota_percent: null, source_discovery_complete: !!sourceComplete, raw_transcript_bodies_emitted: false },
-    provenance: { generated_at: new Date().toISOString(), project_root: wanted, transcript_dir: root, period: { since_inclusive_utc: since, until_exclusive_utc: until, span_selection: "endpoint timestamp after constructing cumulative chain with pre-period baselines" }, input_files: files.sort((a, b) => a.path.localeCompare(b.path)), discovery_sha256: digest(JSON.stringify(discovery.sort((a, b) => a[0].localeCompare(b[0])))), snapshot: "sequential per-file reads; not an atomic snapshot of live sessions; metadata probed before full read", max_line_bytes: MAX_LINE },
+    measurement: { source_harness: "codex", counter_schema: "codex-rollout-cumulative-delta-v1", scope: "observed native spans in matching retained plain and supported compressed rollouts, not provider-exhaustive usage", total_formula: "delta(total_tokens); cached input and reasoning are subsets, never extra tokens", first_snapshot: "baseline only; nonzero prefixes are uncharged unknown usage even when total equals last", unsupported_harnesses: ["claude", "opencode"], other_harness_modes: ["claude"], subscription_quota_percent: null, source_discovery_complete: !!sourceComplete, raw_transcript_bodies_emitted: false },
+    provenance: { generated_at: new Date().toISOString(), project_root: wanted, transcript_dir: root, period: { since_inclusive_utc: since, until_exclusive_utc: until, span_selection: "endpoint timestamp after constructing cumulative chain with pre-period baselines" }, input_files: files.sort((a, b) => a.path.localeCompare(b.path)), discovery_sha256: digest(JSON.stringify(discovery.sort((a, b) => a[0].localeCompare(b[0])))), snapshot: "sequential per-file reads; not an atomic snapshot of live sessions; metadata probed before full read", max_line_bytes: MAX_LINE, archive_limits: { compressed_bytes: MAX_ARCHIVE, decompressed_bytes: MAX_EXPANDED, zstd_window_log_max: 26 }, archive_codecs: { gz: true, br: true, zst: archiveSupported("zst"), xz: false }, archive_foreign_project_check: "bounded header only; unrelated archive tails are not decoded or integrity-checked" },
     coverage: { ...coverage, matched_contexts: contexts.size, histories_complete_within_observed_sources: historiesComplete && contexts.size > 0 },
     native_totals: native,
     token_shares: { observed_waypost_percent: share, full_retained_source_waypost_percent: native.all.complete_within_discovered_retained_sources ? share : null, interpretation: "explicit role attribution over covered spans only; unknown role remains unattributed, not non-Waypost" },
@@ -254,10 +320,10 @@ export function formatCodexReport(report, { summary: compact = false, sessions =
   const text = [
     `waypost tokens (Codex): ${all.observed_total_tokens ?? "unknown"} observed native tokens in ${all.observed_spans} spans`,
     `explicit Waypost role share: ${share === null ? "unknown" : `${share.toFixed(2)}%`} of covered spans; full retained-source coverage ${all.complete_within_discovered_retained_sources}`,
-    "scope: plain retained rollouts only; first nonzero snapshots are uncharged baselines; no subscription quota conversion",
+    "scope: plain and supported compressed retained rollouts; first nonzero snapshots are uncharged baselines; no subscription quota conversion",
   ];
   if (!compact) {
-    text.push(`contexts ${report.coverage.matched_contexts}; skipped compressed files ${report.coverage.compressed_files_skipped}; unknown headers ${report.coverage.unidentifiable_headers}`, "cache/reasoning are subsets of input/output; snapshots are not request counts");
+    text.push(`contexts ${report.coverage.matched_contexts}; decoded archives ${report.coverage.compressed_files_decoded}; skipped compressed files ${report.coverage.compressed_files_skipped}; failed archives ${report.coverage.compressed_files_failed}; unknown headers ${report.coverage.unidentifiable_headers}`, "cache/reasoning are subsets of input/output; snapshots are not request counts");
     if (sessions) for (const context of report.contexts) text.push(`${context.id}  ${context.role ?? "unattributed"}  ${context.observed_total_tokens ?? "unknown"} observed tokens`);
   }
   return text.join("\n") + "\n";

@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-18T23:51:51.933Z
+generated_at: 2026-10-19T00:04:28.453Z
 
 ---
 
@@ -79,6 +79,7 @@ generated_at: 2026-10-18T23:51:51.933Z
 - [x] [[epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage|WP-21: Offline Codex token accounting with explicit coverage]] #p2 #done
 - [x] [[epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison|WP-21: Bounded paired smoke protocol for token economy]] #p2 #done
 - [x] [[epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs|WP-21: Targeted evidence reads and reproducible role handoffs]] #p2 #done
+- [x] [[epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting|WP-21: Bounded compressed Codex rollout accounting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route|WP-21: Budgeted sealed-source evaluation route]] #p2 #done
 - [x] [[epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes|WP-21: Distinguish evaluation moderation rejection causes]] #p2 #done
 - [x] [[epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata|WP-21: Evaluation accepts bounded moderation metadata]] #p2 #done

@@ -212,3 +212,9 @@ Final machine cap250000, counted17520 = owner-assumed7520 (revision2) + owner-as
 ---
 
 *Last updated: 2026-10-14*
+
+## Compressed retained-source coverage (2026-10-18)
+
+[[story-bounded-compressed-codex-rollout-accounting|Bounded compressed Codex rollout accounting]] extends the offline Codex collector to gzip/Brotli and runtime-native Zstandard, with original-byte hashes, bounded header-first project filtering and full-context quarantine for corrupt, oversized or partially consumed archives. Limits8 MiB compressed/64 MiB expanded; no external decoder or model call. Affected accounting fixtures85/85 passed on Node25.6.1/macOS; Node20 runtime not exercised.
+
+Refreshed [2026-10-08,2026-10-16) UTC retained history:206 archive headers checked,105 matching archives fully decoded,101 foreign headers filtered,0 skipped/failed archives. Observed total18,949,185 and explicit Waypost4,076,805 (21.514408%) are unchanged from the plain-only collector in this window. Full usage/shares remain unknown:108 contexts have unknown prefixes and27 conflicting histories are quarantined. Reports are sequential; one shared active plain input changed, so this is not an atomic controlled comparison. This verifies expanded inspection, not token savings, weekly quota or provider-exhaustive usage. Retained private manifests/logs/reports: `.waypost/experiments/wp21-compressed-20261018/`. Historical failed pilots, assumed charges and frozen protocols are unchanged.

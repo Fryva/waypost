@@ -1,9 +1,10 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, unlinkSync, truncateSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import * as zlib from "node:zlib";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { collectCodexReport } from "../scripts/token-codex.mjs";
@@ -243,7 +244,7 @@ test("Codex same-id metadata conflicts are detected before project filtering", a
 
 test("Codex archive/header/discovery gaps are explicit and cannot become a full-history zero", async () => {
   const f = fixture();
-  writeFileSync(join(f.sessions, "old.jsonl.zst"), "not decoded");
+  writeFileSync(join(f.sessions, "old.jsonl.xz"), "not decoded");
   writeFileSync(join(f.sessions, "bad.jsonl"), "{bad header}\n");
   const r = await f.report();
   assert.equal(r.coverage.compressed_files_skipped, 1);
@@ -331,4 +332,112 @@ test("explicit Claude mode preserves the default report schema and totals", () =
   assert.deepEqual(a.totals, b.totals);
   assert.equal(b.measurement.source_harness, "claude-code");
   assert.equal(b.native_totals.all.total_tokens, 160);
+});
+
+const compressors = { gz: zlib.gzipSync, br: zlib.brotliCompressSync, ...(typeof zlib.zstdCompressSync === "function" ? { zst: zlib.zstdCompressSync } : {}) };
+function archive(f, id, frames, kind, options = {}) {
+  const plain = f.write(id, frames, options), bytes = readFileSync(plain);
+  const path = `${plain}.${kind}`;
+  writeFileSync(path, compressors[kind](bytes));
+  unlinkSync(plain);
+  return path;
+}
+
+for (const kind of Object.keys(compressors)) test(`Codex ${kind} archives preserve spans, original-byte hashes and privacy`, async () => {
+  const f = fixture();
+  const path = archive(f, "compressed", [event(at(0), usage()), { type: "response_item", payload: "PRIVATE-ARCHIVE-BODY" }, event(at(1), usage(100, 20, 40, 10))], kind, { meta: { agent_role: "waypost-reviewer" } });
+  const r = await f.report();
+  assert.equal(r.native_totals.all.total_tokens, 120);
+  assert.equal(r.token_shares.full_retained_source_waypost_percent, 100);
+  assert.equal(r.coverage.compressed_files_decoded, 1);
+  assert.equal(r.coverage.compressed_files_skipped, 0);
+  assert.equal(r.provenance.input_files[0].compression, kind);
+  assert.equal(r.provenance.input_files[0].sha256, createHash("sha256").update(readFileSync(path)).digest("hex"));
+  assert.doesNotMatch(JSON.stringify(r), /PRIVATE-ARCHIVE-BODY/);
+});
+
+test("Codex plain/archive replay cannot duplicate counters and divergent archives quarantine the context", async () => {
+  for (const conflict of [false, true]) {
+    const f = fixture(), base = [event(at(0), usage()), event(at(1), usage(100))];
+    f.write("shared", base, { name: "a.jsonl" });
+    archive(f, "shared", conflict ? [event(at(0), usage()), event(at(1), usage(200))] : [...base, event(at(2), usage(120))], "gz", { name: "b.jsonl" });
+    const r = await f.report();
+    assert.equal(r.coverage.replay_files, 1);
+    assert.equal(r.coverage.conflicting_contexts, conflict ? 1 : 0);
+    assert.equal(r.native_totals.all.observed_total_tokens, conflict ? 0 : 120);
+  }
+});
+
+test("Codex archive headers preserve foreign-project identity conflicts before filtering", async () => {
+  const f = fixture();
+  f.write("shared", [event(at(0), usage()), event(at(1), usage(100))]);
+  archive(f, "shared", [], "gz", { name: "foreign.jsonl", meta: { cwd: `${f.project}-other` } });
+  const r = await f.report();
+  assert.equal(r.coverage.other_project_files, 1);
+  assert.equal(r.coverage.compressed_files_decoded, 0);
+  assert.equal(r.coverage.conflicting_contexts, 1);
+  assert.equal(r.native_totals.all.observed_total_tokens, 0);
+});
+
+test("Codex corrupt archive tails quarantine matching replay counters instead of trusting partial output", async () => {
+  const f = fixture(), base = [event(at(0), usage()), event(at(1), usage(100))];
+  f.write("shared", base, { name: "a.jsonl" });
+  const path = archive(f, "shared", [...base, { type: "response_item", payload: "private".repeat(40000) }], "gz", { name: "b.jsonl" });
+  truncateSync(path, readFileSync(path).length - 4);
+  const r = await f.report();
+  assert.equal(r.coverage.compressed_files_failed, 1);
+  assert.equal(r.coverage.unreadable_matching_files, 1);
+  assert.equal(r.coverage.conflicting_contexts, 1);
+  assert.equal(r.native_totals.all.observed_total_tokens, 0);
+  assert.equal(r.native_totals.all.total_tokens, null);
+  assert.equal(r.provenance.input_files.find(file => file.compression).sha256, null);
+});
+
+test("Codex archive byte ceilings reject oversized compressed and expanded histories", async () => {
+  for (const expanded of [false, true]) {
+    const f = fixture();
+    const frames = [event(at(0), usage()), event(at(1), usage(100))];
+    if (expanded) frames.push({ type: "response_item", payload: "x".repeat(64 * 1024 * 1024) });
+    const path = archive(f, "bounded", frames, "gz");
+    if (!expanded) truncateSync(path, 8 * 1024 * 1024 + 1);
+    const r = await f.report();
+    assert.equal(r.coverage.archive_limit_failures, 1);
+    assert.equal(r.coverage.compressed_files_failed, 1);
+    assert.equal(r.native_totals.all.observed_total_tokens, 0);
+    assert.equal(r.native_totals.all.total_tokens, null);
+    assert.equal(r.provenance.input_files[0].archive_error, expanded ? "archive-output-limit" : "archive-input-limit");
+  }
+});
+
+test("Codex invalid compressed headers and runtime codec support remain explicit coverage gaps", async () => {
+  const f = fixture();
+  writeFileSync(join(f.sessions, "broken.jsonl.gz"), "not gzip");
+  writeFileSync(join(f.sessions, "unsupported.jsonl.xz"), "not decoded");
+  if (typeof zlib.createZstdDecompress !== "function") writeFileSync(join(f.sessions, "native-unavailable.jsonl.zst"), "not decoded");
+  const r = await f.report();
+  assert.equal(r.coverage.compressed_files_failed, 1);
+  assert.equal(r.coverage.unidentifiable_headers, 1);
+  assert.equal(r.coverage.compressed_files_skipped, typeof zlib.createZstdDecompress === "function" ? 1 : 2);
+  assert.equal(r.provenance.archive_codecs.zst, typeof zlib.createZstdDecompress === "function");
+  assert.equal(r.native_totals.all.total_tokens, null);
+});
+
+for (const kind of Object.keys(compressors)) test(`Codex ${kind} cannot silently accept trailing bytes or an ignored second member`, async () => {
+  for (const member of [false, true]) {
+    const f = fixture();
+    const path = archive(f, "tail", [event(at(0), usage()), event(at(1), usage(100))], kind);
+    const suffix = member ? compressors[kind](Buffer.from(JSON.stringify(event(at(2), usage(150))) + "\n")) : Buffer.from("UNTRUSTED-TRAILER");
+    writeFileSync(path, Buffer.concat([readFileSync(path), suffix]));
+    const r = await f.report();
+    if (kind === "gz" && member) {
+      assert.equal(r.native_totals.all.total_tokens, 150);
+      assert.equal(r.coverage.compressed_files_decoded, 1);
+    } else {
+      assert.equal(r.native_totals.all.total_tokens, null);
+      assert.equal(r.native_totals.all.observed_total_tokens, 0);
+      assert.equal(r.coverage.compressed_files_failed, 1);
+      if (r.provenance.input_files.length && kind !== "gz") assert.equal(r.provenance.input_files[0].archive_error, "archive-trailing-data");
+    }
+    assert.doesNotMatch(JSON.stringify(r), /UNTRUSTED-TRAILER/);
+  }
 });

@@ -252,7 +252,7 @@ Live comparisons need an owner-set numeric token allocation.
 
 ### Codex offline counters
 
-`waypost tokens --harness codex --summary --since 2026-10-08` reads plain rollouts
+`waypost tokens --harness codex --summary --since 2026-10-08` reads plain and supported compressed rollouts
 under `CODEX_HOME/sessions` (default `~/.codex/sessions`), without starting a model.
 Exact normalized `session_meta.cwd` selects the project; worktrees and aliases
 are not guessed. `--json` includes source/analyzer hashes, context identity,
@@ -281,8 +281,18 @@ responses are not reconstructed or assigned estimated tokens.
 `observed_waypost_percent` describes explicitly labelled `waypost-*` roles over
 covered spans only. Unlabelled contexts stay unattributed. Full retained-source
 totals/shares remain null when discovery/history is incomplete; even complete
-retained sources cannot prove provider-exhaustive history. `.jsonl.zst` and other
-archives are counted as skipped without decompression or a required dependency.
+retained sources cannot prove provider-exhaustive history. `.jsonl.gz` and
+`.jsonl.br` use Node's built-in streaming decoders; `.jsonl.zst` is supported only
+when the runtime exposes a native Zstandard decoder. Other codecs (`.xz`) and
+unavailable native decoders remain explicitly skipped. No external commands or
+dependencies are used. Archive reads are capped at 8 MiB compressed and 64 MiB
+decompressed per pass, with a 64 MiB maximum Zstandard window. Headers are probed
+before project filtering; unrelated archive tails are not integrity-checked.
+Matching archives require a successful full decode including the trailer and
+consumption of every input byte. Ignored tails or additional unsupported compressed
+members invalidate the context rather than hide observations. Hashes
+cover the original compressed bytes. Decode/read/limit failures quarantine matching
+contexts, including valid replay copies, and leave full totals unknown.
 Unidentifiable headers, unreadable files and oversized lines also stay visible.
 The reader bounds line storage to 1 MiB and never emits prompt/tool bodies.
 No API prices, combined Claude/Codex total or subscription-quota percentage is
