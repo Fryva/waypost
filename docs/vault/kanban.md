@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-19T17:09:58.026Z
+generated_at: 2026-10-20T20:28:47.203Z
 
 ---
 
@@ -83,6 +83,7 @@ generated_at: 2026-10-19T17:09:58.026Z
 - [x] [[epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route|WP-21: Budgeted sealed-source evaluation route]] #p2 #done
 - [x] [[epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes|WP-21: Distinguish evaluation moderation rejection causes]] #p2 #done
 - [x] [[epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata|WP-21: Evaluation accepts bounded moderation metadata]] #p2 #done
+- [x] [[epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization|WP-21: Freeze and guard the CLI namespace before modularization]] #p2 #done
 - [x] [[epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode|WP-21: Keep brief folder descriptions behind full mode]] #p2 #done
 - [x] [[epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions|WP-21: Keep CLI reference out of standing instructions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization|WP-21: Pin team-bound story refusal before CLI modularization]] #p2 #done

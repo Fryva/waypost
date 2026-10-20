@@ -8,6 +8,8 @@ import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, exist
 import { join, dirname, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { gunzipSync } from "node:zlib";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { detectHarnesses, detectHarness, gateCheck, registry } from "../scripts/agents.mjs";
 import { storedVaultPath, resolveVaultPath } from "../scripts/lib.mjs";
@@ -17,6 +19,7 @@ import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleO
 import { skillNames, readSkill, validateSkill, DESCRIPTION_MAX, DESCRIPTIONS_TOTAL_MAX } from "../scripts/skills.mjs";
 import { ambientEnv } from "./env.mjs";
 import { inspectStaticClosure, decodeClosureResult } from "./helpers/cli-static-closure.mjs";
+import { auditNamespace, inspectNamespace, collectNamespaceFiles, decodeNamespaceResult } from "./helpers/cli-namespace.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -1493,6 +1496,103 @@ test("project standing context keeps the CLI reference within a character budget
   const instructions = readFileSync(join(REPO, "AGENTS.md"), "utf8");
   assert.ok(instructions.length < 17100,
     `project instructions are ${instructions.length} chars — command reference belongs on demand`);
+});
+
+test("CLI namespace inventory is complete against the frozen pre-split source", () => {
+  const bytes = readFileSync(join(REPO, "tests/fixtures/cli-namespace.json"));
+  const sha = value => createHash("sha256").update(value).digest("hex");
+  assert.equal(sha(bytes), "3ec2f5edaed4e1a7f6b0c9ab01324479b3b11feca50d8d60a22ba481bbf5fe5c");
+  const inventory = JSON.parse(bytes);
+  assert.equal(inventory.schema, 1);
+  const compressed = readFileSync(join(REPO, "tests/fixtures/cli-namespace-baseline.mjs.gz"));
+  assert.equal(sha(compressed), inventory.source.gzip_sha256);
+  const baseline = gunzipSync(compressed);
+  assert.equal(baseline.length, 204781);
+  assert.equal(sha(baseline), inventory.source.sha256);
+  assert.equal(createHash("sha1").update(Buffer.from(`blob ${baseline.length}\0`)).update(baseline).digest("hex"), inventory.source.git_blob);
+  assert.equal(inventory.imports.length, 63);
+  assert.equal(inventory.declarations.length, 138);
+  assert.equal(inventory.names.length, 201);
+  assert.deepEqual(inventory.names, [...new Set([...inventory.imports, ...inventory.declarations])].sort());
+  assert.ok(inventory.names.every(name => /^[A-Za-z_$][0-9A-Za-z_$]*$/.test(name)));
+  const audited = auditNamespace(baseline.toString("utf8"), ambientEnv());
+  assert.ok(audited.candidates >= 2625, "raw Unicode candidates include the entire ASCII superset");
+  assert.deepEqual(audited.bindings, inventory.names, "the engine census independently proves header inventory completeness");
+});
+
+test("CLI namespace checks the entry and all future nested command modules", () => {
+  const inventory = JSON.parse(readFileSync(join(REPO, "tests/fixtures/cli-namespace.json"), "utf8"));
+  const files = collectNamespaceFiles(REPO);
+  assert.ok(files.some(f => f.path === "bin/waypost.mjs"));
+  assert.equal(inspectNamespace(files, inventory.names, ambientEnv()).checked.length, files.length);
+  const root = mkdtempSync(join(tmpdir(), "waypost-namespace-files-"));
+  mkdirSync(join(root, "bin/cli/nested"), { recursive: true });
+  writeFileSync(join(root, "bin/waypost.mjs"), 'export const value=1;');
+  writeFileSync(join(root, "bin/cli/core.mjs"), 'export const value=1;');
+  writeFileSync(join(root, "bin/cli/nested/command.mjs"), 'export function run(){ need(); }');
+  const nested = collectNamespaceFiles(root);
+  assert.deepEqual(nested.map(f => f.path), ["bin/waypost.mjs", "bin/cli/core.mjs", "bin/cli/nested/command.mjs"]);
+  assert.throws(() => inspectNamespace(nested, ["need"], ambientEnv()), /nested\/command.mjs.*not defined/);
+});
+
+test("CLI namespace discovery refuses parent and dangling command-directory symlinks", t => {
+  const root = mkdtempSync(join(tmpdir(), "waypost-namespace-link-"));
+  mkdirSync(join(root, "bin"));
+  writeFileSync(join(root, "bin/waypost.mjs"), 'export const value=1;');
+  try { symlinkSync(join(root, "missing-directory"), join(root, "bin/cli"), "dir"); }
+  catch (error) {
+    if (process.platform === "win32" && ["EPERM", "EACCES"].includes(error.code)) return t.skip("symlink privilege unavailable");
+    throw error;
+  }
+  assert.throws(() => collectNamespaceFiles(root), /namespace-symlink/);
+  const parent = mkdtempSync(join(tmpdir(), "waypost-namespace-parent-"));
+  const outside = mkdtempSync(join(tmpdir(), "waypost-namespace-parent-target-"));
+  writeFileSync(join(outside, "waypost.mjs"), 'export const value=1;');
+  mkdirSync(join(outside, "cli"));
+  symlinkSync(outside, join(parent, "bin"), "dir");
+  assert.throws(() => collectNamespaceFiles(parent), /namespace-symlink: bin/);
+});
+
+test("CLI namespace detects forgotten imports despite local scope or suppressed catches", () => {
+  const scan = source => inspectNamespace([{ path: "command.mjs", source }], ["need"], ambientEnv());
+  for (const source of [
+    'export const f=()=>`${need()}`;',
+    'export function f(){const need=()=>1;return need();}',
+    'export function f(need){return need();}',
+    'export function f(){try{throw 1;}catch(need){return need;}}',
+    'export function f(){try{need();}catch{}}',
+    'export const f={need:1};',
+    'export const f="need";',
+    '// need\nexport const f=1;',
+  ]) assert.throws(() => scan(source), /command.mjs.*not defined/);
+  for (const source of [
+    'import need from "must-not-link"; throw new Error("must not execute");',
+    'import * as need from "must-not-link";',
+    'import {original as need} from "must-not-link";',
+    'const need=1; export function f(need){return need;}',
+    'export function need(){}',
+    'export class need{}',
+    'const need=1; export {need as __waypost_namespace_probe_0};',
+  ]) assert.deepEqual(scan(source).checked[0].selected, ["need"]);
+  assert.deepEqual(scan('export const f=()=>outsideFrozenU();').checked[0].selected, [],
+    "names outside frozen U are explicitly outside this guard's claim");
+});
+
+test("CLI namespace rejects Unicode escapes and malformed or incomplete child results", () => {
+  const file = source => [{ path: "command.mjs", source }];
+  for (const source of ['export const f=()=>n\\u0065ed();', 'export const f="\\u006e";', '// \\u006e\nexport const f=1;']) {
+    assert.throws(() => inspectNamespace(file(source), ["need"], ambientEnv()), /unsupported-unicode-escape/);
+  }
+  const request = { kind: "files", files: file("const need=1;"), names: ["need"] };
+  assert.throws(() => decodeNamespaceResult({ status: 0, stdout: "broken JSON" }, request), /invalid-report/);
+  for (const result of [
+    { status: 1, stdout: '{"ok":true,"kind":"files","checked":[{"path":"command.mjs","selected":["need"]}]}' },
+    { status: 0, stdout: '{"ok":true,"kind":"files","checked":[]}' },
+    { status: 0, stdout: '{"ok":true,"kind":"files","checked":[{"path":"command.mjs","selected":[]}]}' },
+    { status: 0, stdout: '{"ok":true,"kind":"files","checked":[{"path":"wrong.mjs","selected":[]}]}' },
+    { status: 0, stdout: '{"ok":true,"kind":"files","checked":[{"path":"command.mjs","selected":["unknown"]}]}' },
+    { status: 0, signal: "SIGTERM", stdout: '{"ok":true,"kind":"files","checked":[{"path":"command.mjs","selected":[]}]}' },
+  ]) assert.throws(() => decodeNamespaceResult(result, request), /cli-namespace-/);
 });
 
 test("CLI static closure excludes team code through every early dependency", () => {
