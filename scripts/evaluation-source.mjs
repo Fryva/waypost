@@ -55,7 +55,7 @@ export function sealEvaluationSource({ root, manifest, limits = {} }) {
     if (typeof entry.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(entry.sha256)) fail('source-manifest');
     return { path: entry.path, sha256: entry.sha256 };
   }).sort((a, b) => compare(a.path, b.path));
-  const seen = new Map(), files = new Map(); let total = 0;
+  const seen = new Map();
   for (const entry of entries) {
     const partsForCollision = entry.path.split('/');
     for (let i = 1; i <= partsForCollision.length; i++) {
@@ -63,6 +63,9 @@ export function sealEvaluationSource({ root, manifest, limits = {} }) {
       if (seen.has(folded) && (seen.get(folded) !== prefix || i === partsForCollision.length)) fail('source-case-collision');
       seen.set(folded, prefix);
     }
+  }
+  const files = new Map(); let total = 0;
+  for (const entry of entries) {
     let target = base;
     const parts = portable(entry.path);
     for (const [index, part] of parts.entries()) {

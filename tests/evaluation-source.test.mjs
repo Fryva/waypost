@@ -71,6 +71,28 @@ test('rejects manifest collisions before they can silently alias one file', t =>
   assert.throws(() => sealEvaluationSource({ ...f, manifest: [f.manifest[0], { ...f.manifest[0], path: 'A.mjs' }] }), code('source-case-collision'));
 });
 
+for (const [name, paths] of [
+  ['absent case variants', ['missing/A.mjs', 'missing/a.mjs']],
+  ['absent duplicate entries', ['missing/a.mjs', 'missing/a.mjs']],
+  ['case variants of a directory prefix', ['Missing/a.mjs', 'missing/b.mjs']],
+  ['an earlier absent noncolliding file', ['0-missing.mjs', 'z/A.mjs', 'z/a.mjs']],
+]) {
+  test('collision preflight precedes manifest lookup with ' + name, t => {
+    const f = fixture(t);
+    for (const order of [paths, [...paths].reverse()]) {
+      const manifest = order.map(path => ({ path, sha256: sha('absent') }));
+      assert.throws(() => sealEvaluationSource({ ...f, manifest }), code('source-case-collision'));
+    }
+  });
+}
+
+test('collision preflight permits distinct files sharing an exact directory prefix', t => {
+  const f = fixture(t, { 'nested/a.mjs': 'first', 'nested/b.mjs': 'second' });
+  const b = sealEvaluationSource(f);
+  assert.deepEqual(b.manifest, f.manifest);
+  assert.equal(b.evidence().sourceBytes, Buffer.byteLength('firstsecond'));
+});
+
 test('literal search is sorted by path bytes and line and paginates without losing hits', t => {
   const f = fixture(t, { 'z': 'x\nx\n', 'a': 'x\nX\nx\n', 'literal': 'a.*b\n' }), b = broker(f);
   const first = search(b, { query: 'x', limit: 2 }, 'one');

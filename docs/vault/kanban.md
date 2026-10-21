@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-21T13:52:24.874Z
+generated_at: 2026-10-21T14:42:44.141Z
 
 ---
 
@@ -43,6 +43,7 @@ generated_at: 2026-10-21T13:52:24.874Z
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
 - [ ] [[epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation|WP-21: Execute paired token economy smoke under the owner allocation]] #p2
 - [ ] [[epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a|WP-21: Extract shared CLI core as migration stage a]] #p2
+- [ ] [[epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads|WP-21: Validate sealed-source collisions before filesystem reads]] #p2
 
 ## Review
 
