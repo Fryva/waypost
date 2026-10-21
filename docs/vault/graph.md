@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-20T20:28:47.423Z
+generated_at: 2026-10-21T02:47:51.372Z
 
 ---
 
@@ -104,6 +104,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | Source an agent can read in one pass | epic | in-progress |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | Bounded compressed Codex rollout accounting | story | done |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | Budgeted sealed-source evaluation route | story | done |
+| epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | Check every CLI module before the first split | story | done |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | Distinguish evaluation moderation rejection causes | story | done |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | Evaluation accepts bounded moderation metadata | story | done |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | Execute paired token economy smoke under the owner allocation | story | in-progress |
@@ -339,6 +340,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
@@ -356,6 +358,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md |
 | epics/WP-21/epic.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
@@ -374,6 +377,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | mdlink | epics/WP-21/epic.md |

@@ -5,11 +5,11 @@
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, symlinkSync, rmSync } from "node:fs";
+import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, symlinkSync, rmSync, cpSync, lstatSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 import { ambientEnv } from "./env.mjs";
 
@@ -770,14 +770,17 @@ test("bin/waypost story --write refuses to write outside the vault, file left un
 // answer it got back, overwrites the story file with different bytes before
 // returning — landing bin/waypost in exactly the position "someone else wrote
 // this file after I read it" describes.
-function makeRaceRepo(raceContent) {
+function makeRaceRepo(raceContent, binSource = join(REPO, "bin")) {
   const tmp = mkdtempSync(join(tmpdir(), "ps-race-"));
   mkdirSync(join(tmp, "bin"));
   mkdirSync(join(tmp, "scripts"));
   // Real files, not symlinks: ESM resolves a symlink to its real path, and the
   // entry must compute ROOT from tmp so the story-section substitution applies.
   for (const f of ["waypost", "waypost.mjs"]) {
-    writeFileSync(join(tmp, "bin", f), readFileSync(join(REPO, "bin", f), "utf8"), "utf8");
+    writeFileSync(join(tmp, "bin", f), readFileSync(join(binSource, f), "utf8"), "utf8");
+  }
+  if (existsSync(join(binSource, "cli"))) {
+    cpSync(join(binSource, "cli"), join(tmp, "bin", "cli"), { recursive: true, dereference: true });
   }
   for (const f of readdirSync(join(REPO, "scripts"))) {
     if (f === "story-section.mjs") continue;
@@ -796,6 +799,34 @@ function makeRaceRepo(raceContent) {
   ].join("\n"), "utf8");
   return tmp;
 }
+
+test("CLI module race fixture copies real nested modules and isolates dependency faults", () => {
+  const source = mkdtempSync(join(tmpdir(), "ps-race-source-"));
+  mkdirSync(join(source, "cli/nested"), { recursive: true });
+  writeFileSync(join(source, "waypost"), 'await import("./waypost.mjs");');
+  writeFileSync(join(source, "waypost.mjs"), 'export const entry=true;');
+  writeFileSync(join(source, "cli/command.mjs"), 'export {location} from "./nested/location.mjs";');
+  writeFileSync(join(source, "cli/nested/location.mjs"), 'export const location=import.meta.url;');
+  const copy = makeRaceRepo("unused", source);
+  for (const path of ["waypost", "waypost.mjs", "cli/command.mjs", "cli/nested/location.mjs"]) {
+    assert.equal(lstatSync(join(copy, "bin", path)).isSymbolicLink(), false);
+    assert.deepEqual(readFileSync(join(copy, "bin", path)), readFileSync(join(source, path)));
+  }
+  const command = pathToFileURL(join(copy, "bin/cli/command.mjs")).href;
+  const load = () => spawnSync(process.execPath, ["--input-type=module", "-e",
+    `const {location}=await import(${JSON.stringify(command)}); console.log(location);`], {
+    encoding: "utf8", cwd: copy, env: ENV, timeout: 15000,
+  });
+  const loaded = load();
+  assert.equal(loaded.status, 0, loaded.stderr);
+  assert.equal(loaded.stdout.trim(), pathToFileURL(realpathSync(join(copy, "bin/cli/nested/location.mjs"))).href);
+  const original = readFileSync(join(source, "cli/nested/location.mjs"));
+  writeFileSync(join(copy, "bin/cli/nested/location.mjs"), 'export const location=;');
+  const broken = load();
+  assert.notEqual(broken.status, 0);
+  assert.match(broken.stderr, /SyntaxError/);
+  assert.deepEqual(readFileSync(join(source, "cli/nested/location.mjs")), original);
+});
 
 test("bin/waypost story --write refuses a stale sha256 — a concurrent edit is not silently discarded (P1-6, A-2/A-3)", () => {
   const { proj, vault } = makeVaultProject();

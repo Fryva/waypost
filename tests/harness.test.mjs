@@ -20,6 +20,7 @@ import { skillNames, readSkill, validateSkill, DESCRIPTION_MAX, DESCRIPTIONS_TOT
 import { ambientEnv } from "./env.mjs";
 import { inspectStaticClosure, decodeClosureResult } from "./helpers/cli-static-closure.mjs";
 import { auditNamespace, inspectNamespace, collectNamespaceFiles, decodeNamespaceResult } from "./helpers/cli-namespace.mjs";
+import { checkCliSyntax, importCliModule, inspectCliModules, decodeModuleImport } from "./helpers/cli-modules.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -1496,6 +1497,68 @@ test("project standing context keeps the CLI reference within a character budget
   const instructions = readFileSync(join(REPO, "AGENTS.md"), "utf8");
   assert.ok(instructions.length < 17100,
     `project instructions are ${instructions.length} chars — command reference belongs on demand`);
+});
+
+test("CLI module checks cover the real entry and every future command module", () => {
+  const scratch = mkdtempSync(join(tmpdir(), "waypost-module-real-"));
+  const expected = collectNamespaceFiles(REPO).map(f => f.path);
+  const report = inspectCliModules(REPO, scratch, ambientEnv());
+  assert.deepEqual(report.checked, expected);
+  assert.deepEqual(report.imported, expected.filter(p => p.startsWith("bin/cli/")));
+  assert.deepEqual(readdirSync(scratch), [], "imports leave no files in scratch stores");
+});
+
+test("CLI module checks handle absent and nested modules without evaluating the entry or exported functions", () => {
+  const root = mkdtempSync(join(tmpdir(), "waypost-module-tree-"));
+  const scratch = mkdtempSync(join(tmpdir(), "waypost-module-home-"));
+  mkdirSync(join(root, "bin"));
+  writeFileSync(join(root, "bin/waypost.mjs"), 'throw new Error("entry must never run");');
+  assert.deepEqual(inspectCliModules(root, scratch), { checked: ["bin/waypost.mjs"], imported: [] });
+  mkdirSync(join(root, "bin/cli/nested"), { recursive: true });
+  writeFileSync(join(root, "bin/cli/command.mjs"), 'import {value} from "./nested/value.mjs"; export function run(){ throw new Error("not called"); }');
+  writeFileSync(join(root, "bin/cli/nested/value.mjs"), 'export const value=1;');
+  writeFileSync(join(root, "bin/cli/nested/ignore.txt"), 'not JavaScript');
+  const files = ["bin/waypost.mjs", "bin/cli/command.mjs", "bin/cli/nested/value.mjs"];
+  assert.deepEqual(inspectCliModules(root, scratch), { checked: files, imported: files.slice(1) });
+  assert.deepEqual(readdirSync(scratch), []);
+});
+
+test("CLI module checks locate dependency syntax errors and report requested imports separately", () => {
+  const root = mkdtempSync(join(tmpdir(), "waypost-module-errors-"));
+  const scratch = mkdtempSync(join(tmpdir(), "waypost-module-errors-home-"));
+  mkdirSync(join(root, "bin/cli/nested"), { recursive: true });
+  writeFileSync(join(root, "bin/waypost.mjs"), 'throw new Error("never evaluate entry");');
+  writeFileSync(join(root, "bin/cli/command.mjs"), 'import {value} from "./nested/value.mjs";');
+  writeFileSync(join(root, "bin/cli/nested/value.mjs"), 'export const value=;');
+  const checked = checkCliSyntax(root, scratch);
+  assert.deepEqual(checked.map(f => [f.path, f.ok]), [
+    ["bin/waypost.mjs", true], ["bin/cli/command.mjs", true], ["bin/cli/nested/value.mjs", false],
+  ]);
+  assert.throws(() => inspectCliModules(root, scratch), /cli-syntax-failed:[\s\S]*bin\/cli\/nested\/value.mjs/);
+  assert.throws(() => importCliModule(root, "bin/cli/command.mjs", scratch), /requested module bin\/cli\/command.mjs/);
+  writeFileSync(join(root, "bin/cli/nested/value.mjs"), 'export const different=1;');
+  assert.ok(checkCliSyntax(root, scratch).every(f => f.ok), "missing exports are valid syntax");
+  assert.throws(() => inspectCliModules(root, scratch), /requested module bin\/cli\/command.mjs[\s\S]*export/);
+  writeFileSync(join(root, "bin/cli/nested/value.mjs"), 'throw new Error("top-level failure"); export const value=1;');
+  assert.throws(() => importCliModule(root, "bin/cli/command.mjs", scratch), /requested module bin\/cli\/command.mjs[\s\S]*top-level failure/);
+  writeFileSync(join(root, "bin/cli/command.mjs"), 'process.exit(0);');
+  assert.throws(() => importCliModule(root, "bin/cli/command.mjs", scratch), /cli-import-failed/);
+});
+
+test("CLI module checks reject failed, malformed or mismatched import receipts", () => {
+  const requested = "bin/cli/command.mjs";
+  const good = { status: 0, stdout: JSON.stringify({ ok: true, requested }), stderr: "" };
+  assert.equal(decodeModuleImport(good, requested), requested);
+  for (const bad of [
+    { ...good, status: 1 }, { ...good, status: null }, { ...good, signal: "SIGTERM" },
+    { ...good, error: new Error("timeout") }, { ...good, stdout: "" }, { ...good, stdout: "{}" },
+    { ...good, stdout: "noise\n" + good.stdout }, { ...good, stdout: good.stdout + "\n{}" },
+    { ...good, stdout: JSON.stringify({ ok: true, requested: "bin/cli/skipped.mjs" }) },
+    { ...good, stdout: JSON.stringify({ ok: true, requested, extra: true }) },
+  ]) assert.throws(() => decodeModuleImport(bad, requested), /cli-import-failed/);
+  for (const bad of ["bin/waypost.mjs", "bin/cli/../waypost.mjs", "bin/cli/..\\waypost.mjs"]) {
+    assert.throws(() => importCliModule(REPO, bad, tmpdir()), /cli-import-invalid-path/);
+  }
 });
 
 test("CLI namespace inventory is complete against the frozen pre-split source", () => {
