@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-21T02:47:51.372Z
+generated_at: 2026-10-21T03:15:14.334Z
 
 ---
 
@@ -112,6 +112,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | Freeze and guard the CLI namespace before modularization | story | done |
 | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | Keep brief folder descriptions behind full mode | story | done |
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | Keep CLI reference out of standing instructions | story | done |
+| epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | Map CLI dependencies and shared-state ownership before migration | story | done |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | Offline Codex token accounting with explicit coverage | story | done |
 | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md | Pin team-bound story refusal before CLI modularization | story | done |
 | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md | Prepare dependency and loader guards for the CLI split | story | done |
@@ -348,6 +349,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md |
@@ -365,6 +367,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md |
@@ -388,6 +391,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md | mdlink | epics/WP-21/epic.md |

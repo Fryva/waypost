@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-20T20:38:08.167Z
+generated_at: 2026-10-21T02:57:39.886Z
 
 ---
 
@@ -64,6 +64,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Freeze and guard the CLI namespace before modularization | `tests/helpers/cli-namespace.mjs`, `tests/fixtures/cli-namespace.json`, `tests/fixtures/cli-namespace-baseline.mjs.gz`, `tests/harness.test.mjs` |
 | WP-21 | Keep brief folder descriptions behind full mode | `scripts/brief.mjs`, `scripts/lib.mjs`, `tests/predicates.test.mjs`, `tests/harness.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Keep CLI reference out of standing instructions | `AGENTS.md`, `docs/cli-reference.md`, `docs/how-it-works.md`, `tests/harness.test.mjs` |
+| WP-21 | Map CLI dependencies and shared-state ownership before migration | `bin/waypost.mjs`, `tests/fixtures/cli-namespace.json`, `tests/helpers/cli-namespace.mjs`, `tests/helpers/cli-static-closure.mjs`, `tests/helpers/cli-modules.mjs` |
 | WP-21 | Offline Codex token accounting with explicit coverage | `scripts/tokens.mjs`, `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Pin team-bound story refusal before CLI modularization | `tests/team-cli.test.mjs` |
 | WP-21 | Prepare dependency and loader guards for the CLI split | `tests/helpers/cli-static-closure.mjs`, `tests/harness.test.mjs`, `tests/sizes.test.mjs` |
