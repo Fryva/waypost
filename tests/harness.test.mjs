@@ -19,7 +19,7 @@ import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleO
 import { skillNames, readSkill, validateSkill, DESCRIPTION_MAX, DESCRIPTIONS_TOTAL_MAX } from "../scripts/skills.mjs";
 import { ambientEnv } from "./env.mjs";
 import { inspectStaticClosure, decodeClosureResult } from "./helpers/cli-static-closure.mjs";
-import { auditNamespace, inspectNamespace, collectNamespaceFiles, decodeNamespaceResult } from "./helpers/cli-namespace.mjs";
+import { auditNamespace, inspectNamespace, collectNamespaceFiles, decodeNamespaceResult, decodeSelectionResult } from "./helpers/cli-namespace.mjs";
 import { checkCliSyntax, importCliModule, inspectCliModules, decodeModuleImport } from "./helpers/cli-modules.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
@@ -1620,13 +1620,15 @@ test("CLI namespace detects forgotten imports despite local scope or suppressed 
   const scan = source => inspectNamespace([{ path: "command.mjs", source }], ["need"], ambientEnv());
   for (const source of [
     'export const f=()=>`${need()}`;',
+    'export const f=`need ${`inner ${need()}`} need`;',
+    'const tag=x=>x; export const f=tag`need ${need()}`;',
+    '// need\nexport const f=()=>need(); // need',
+    'export const f=()=>need(); const text="need";',
     'export function f(){const need=()=>1;return need();}',
     'export function f(need){return need();}',
     'export function f(){try{throw 1;}catch(need){return need;}}',
     'export function f(){try{need();}catch{}}',
     'export const f={need:1};',
-    'export const f="need";',
-    '// need\nexport const f=1;',
   ]) assert.throws(() => scan(source), /command.mjs.*not defined/);
   for (const source of [
     'import need from "must-not-link"; throw new Error("must not execute");',
@@ -1635,15 +1637,56 @@ test("CLI namespace detects forgotten imports despite local scope or suppressed 
     'const need=1; export function f(need){return need;}',
     'export function need(){}',
     'export class need{}',
+    '// need\nconst text="need"; const need=1;',
     'const need=1; export {need as __waypost_namespace_probe_0};',
   ]) assert.deepEqual(scan(source).checked[0].selected, ["need"]);
   assert.deepEqual(scan('export const f=()=>outsideFrozenU();').checked[0].selected, [],
     "names outside frozen U are explicitly outside this guard's claim");
 });
 
+test("CLI namespace excludes non-code occurrences while preserving syntax validation", () => {
+  const scan = source => inspectNamespace([{ path: "text.mjs", source }], ["need"], ambientEnv());
+  for (const source of [
+    'export const f="need";',
+    "export const f='need';",
+    'export const f="escaped \\\"need\\\"";',
+    '// need\nexport const f=1;',
+    '/* need ${need()} */ export const f=1;',
+    'export const f=`need`;',
+    'export const f=`need ${`inner need`} need`;',
+    'export const f=`escaped \\${need()} need`;',
+    'const tag=x=>x; export const f=tag`need`;',
+    'const f="need ${need()}"; throw new Error("must not execute");',
+    'import value from "need"; export const f="need";',
+    'const astral="💡"; /* need */ export const f="need";',
+  ]) assert.deepEqual(scan(source).checked[0].selected, [], source);
+  assert.throws(() => scan('/* need */ export const f=;'), /cli-namespace-failed/);
+});
+
+test("CLI namespace excludes actual unchanged run/status/heartbeat text dependencies", () => {
+  // The immutable real source survives the later production module moves.
+  const source = gunzipSync(readFileSync(join(REPO, "tests/fixtures/cli-namespace-baseline.mjs.gz"))).toString("utf8");
+  const names = JSON.parse(readFileSync(join(REPO, "tests/fixtures/cli-namespace.json"), "utf8")).names;
+  // Exact unmodified function chunks, bounded by the next top-level declaration.
+  const declarations = [...source.matchAll(/^(?:async )?function ([A-Za-z_$][\w$]*)\(/gm)];
+  for (const [name, absent] of [["runHeavy", ["main", "heartbeat"]], ["handleStatus", ["main"]], ["heartbeat", ["main"]]]) {
+    const index = declarations.findIndex(m => m[1] === name);
+    assert.ok(index >= 0 && index + 1 < declarations.length);
+    const chunk = source.slice(declarations[index].index, declarations[index + 1].index);
+    for (const missing of absent) assert.ok(chunk.includes(missing), `${name} actually mentions ${missing}`);
+    const bindings = names.filter(n => n !== name && !absent.includes(n));
+    const fixture = bindings.map(n => `const ${n}=null;`).join("\n") + "\n" + chunk;
+    const files = [{ path: name + ".mjs", source: fixture }];
+    const selected = inspectNamespace(files, names, ambientEnv()).checked[0].selected;
+    for (const missing of absent) assert.ok(!selected.includes(missing), `${name} text must not require ${missing}`);
+    assert.throws(() => inspectNamespace([{ ...files[0], source: fixture + "\nmain();" }], names, ambientEnv()),
+      /not defined/, `${name} executable missing main must still fail`);
+  }
+});
+
 test("CLI namespace rejects Unicode escapes and malformed or incomplete child results", () => {
   const file = source => [{ path: "command.mjs", source }];
-  for (const source of ['export const f=()=>n\\u0065ed();', 'export const f="\\u006e";', '// \\u006e\nexport const f=1;']) {
+  for (const source of ['export const f=()=>n\\u0065ed();', 'export const f="\\u006e";', '// \\u006e\nexport const f=1;', 'export const f=`\\u006e`;']) {
     assert.throws(() => inspectNamespace(file(source), ["need"], ambientEnv()), /unsupported-unicode-escape/);
   }
   const request = { kind: "files", files: file("const need=1;"), names: ["need"] };
@@ -1656,6 +1699,46 @@ test("CLI namespace rejects Unicode escapes and malformed or incomplete child re
     { status: 0, stdout: '{"ok":true,"kind":"files","checked":[{"path":"command.mjs","selected":["unknown"]}]}' },
     { status: 0, signal: "SIGTERM", stdout: '{"ok":true,"kind":"files","checked":[{"path":"command.mjs","selected":[]}]}' },
   ]) assert.throws(() => decodeNamespaceResult(result, request), /cli-namespace-/);
+});
+
+test("CLI namespace validates both report channels completely and fails on process errors", () => {
+  const request = { kind: "files", names: ["need", "other"], files: [
+    { path: "a.mjs", source: "const need=1,other=2;" },
+    { path: "b.mjs", source: 'const text="need";' },
+  ] };
+  const checked = [{ path: "a.mjs", selected: ["need", "other"] }, { path: "b.mjs", selected: [] }];
+  const result = (kind, rows=checked) => ({ status: 0, stdout: JSON.stringify({ ok: true, kind, checked: rows }) });
+  assert.deepEqual(decodeNamespaceResult(result("files"), request, ambientEnv()).checked, checked);
+  assert.deepEqual(decodeSelectionResult(result("selection"), request).checked, checked);
+  const invalidRows = [
+    [], checked.slice(0, 1), [...checked].reverse(), [...checked, checked[0]],
+    [{ path: "a.mjs", selected: ["other", "need"] }, checked[1]],
+    [{ path: "a.mjs", selected: ["need", "need"] }, checked[1]],
+    [{ path: "wrong.mjs", selected: ["need", "other"] }, checked[1]],
+    [{ path: "a.mjs", selected: ["need", "unknown"] }, checked[1]],
+    [checked[0], { path: "b.mjs", selected: ["other"] }],
+    [checked[0], { path: "b.mjs", selected: "need" }],
+  ];
+  for (const rows of invalidRows) {
+    assert.throws(() => decodeNamespaceResult(result("files", rows), request, ambientEnv()), /cli-namespace-/);
+    assert.throws(() => decodeSelectionResult(result("selection", rows), request), /cli-namespace-/);
+  }
+  // A structurally valid selector response is trusted only from our independent
+  // selector process. Primary subsets must still fail against that expectation.
+  for (const names of [[], ["need"], ["other"]]) {
+    assert.throws(() => decodeNamespaceResult(result("files", [{ path: "a.mjs", selected: names }, checked[1]]), request, ambientEnv()),
+      /incomplete-report/);
+  }
+  for (const kind of ["files", "selection"]) {
+    const decode = r => kind === "files" ? decodeNamespaceResult(r, request, ambientEnv()) : decodeSelectionResult(r, request);
+    for (const change of [{ status: 1 }, { signal: "SIGTERM" }, { error: new Error("ETIMEDOUT") },
+      { stdout: "not JSON" }, { stdout: JSON.stringify({ ok: true, kind: "wrong", checked }) }]) {
+      assert.throws(() => decode({ ...result(kind), ...change }), /cli-namespace-/);
+    }
+  }
+  // A valid-looking primary cannot hide an independent oracle's source failure.
+  const invalidSource = { ...request, files: [{ path: "a.mjs", source: "const =;" }, request.files[1]] };
+  assert.throws(() => decodeNamespaceResult(result("files"), invalidSource, ambientEnv()), /cli-namespace-failed/);
 });
 
 test("CLI static closure excludes team code through every early dependency", () => {

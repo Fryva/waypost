@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-21T03:15:14.086Z
+generated_at: 2026-10-21T03:40:08.099Z
 
 ---
 
@@ -91,6 +91,7 @@ generated_at: 2026-10-21T03:15:14.086Z
 - [x] [[epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting|WP-21: Recognize explicit inherited parent headers in Codex accounting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period|WP-21: Scope unknown-prefix diagnostics to the requested period]] #p2 #done
 - [x] [[epics/WP-21/stories/story-check-every-cli-module-before-the-first-split|WP-21: Check every CLI module before the first split]] #p2 #done
+- [x] [[epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard|WP-21: Exclude non-code text from the bounded CLI namespace guard]] #p2 #done
 - [x] [[epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration|WP-21: Map CLI dependencies and shared-state ownership before migration]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done

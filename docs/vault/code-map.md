@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-21T02:57:39.886Z
+generated_at: 2026-10-21T03:29:31.941Z
 
 ---
 
@@ -59,6 +59,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Check every CLI module before the first split | `tests/helpers/cli-modules.mjs`, `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs` |
 | WP-21 | Distinguish evaluation moderation rejection causes | `scripts/codex-evaluation-surface.mjs`, `tests/evaluation-transport.test.mjs` |
 | WP-21 | Evaluation accepts bounded moderation metadata | `scripts/codex-evaluation-surface.mjs`, `scripts/team-transport.mjs`, `tests/evaluation-transport.test.mjs` |
+| WP-21 | Exclude non-code text from the bounded CLI namespace guard | `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `bin/waypost.mjs`, `tests/fixtures/cli-namespace.json` |
 | WP-21 | Execute paired token economy smoke under the owner allocation | `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md`, `docs/vault/ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md`, `scripts/team-host.mjs`, `scripts/team-transport.mjs`, `docs/vault/ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md` |
 | WP-21 | Bounded paired smoke protocol for token economy | `docs/vault/ops/paired-token-economy-experiment-with-blind-acceptance.md` |
 | WP-21 | Freeze and guard the CLI namespace before modularization | `tests/helpers/cli-namespace.mjs`, `tests/fixtures/cli-namespace.json`, `tests/fixtures/cli-namespace-baseline.mjs.gz`, `tests/harness.test.mjs` |

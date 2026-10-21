@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-21T03:15:14.334Z
+generated_at: 2026-10-21T03:40:08.308Z
 
 ---
 
@@ -107,6 +107,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | Check every CLI module before the first split | story | done |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | Distinguish evaluation moderation rejection causes | story | done |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | Evaluation accepts bounded moderation metadata | story | done |
+| epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | Exclude non-code text from the bounded CLI namespace guard | story | done |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | Execute paired token economy smoke under the owner allocation | story | in-progress |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | Bounded paired smoke protocol for token economy | story | done |
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | Freeze and guard the CLI namespace before modularization | story | done |
@@ -344,6 +345,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
@@ -362,6 +364,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
@@ -383,6 +386,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md |
