@@ -9,13 +9,13 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["bin/waypost", "bin/waypost.mjs", "package.json", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "tests/slots.test.mjs", "tests/team-cli.test.mjs", ".github/workflows/ci.yml", "AGENTS.md", "docs/how-it-works.md"]
+code_refs: ["bin/cli/core.mjs", "bin/waypost", "bin/waypost.mjs", "package.json", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "tests/slots.test.mjs", "tests/team-cli.test.mjs", ".github/workflows/ci.yml", "AGENTS.md", "docs/how-it-works.md"]
 review_status: reviewed
 reviewed_at: 2026-10-19
 deciders: "Ivan Morozov (project owner); explicitly approved 2026-10-19"
 drafted_by: {"harness":"claude","provider":null,"date":"2026-10-04"}
 related: "ADR-0001 (harness-agnostic core), ADR-0008 (context spend), ADR-0011 (decisions that check themselves), ADR \"Heavy work sized to the machine\", epic WP-21"
-guards: []
+guards: [{"check": "node --test --test-name-pattern=\"CLI migration\" tests/harness.test.mjs", "why": "Pins fixed migration-stage entry and per-module UTF-8 ceilings."}, {"forbid": "[\"']\\.\\./waypost(?:\\.mjs)?[\"']", "in": "bin/cli/*.mjs", "why": "CLI modules never import the executable entry or its shim."}]
 ---
 
 # The CLI as a thin entry with per-command modules, each readable in one pass

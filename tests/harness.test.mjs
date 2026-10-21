@@ -1499,6 +1499,64 @@ test("project standing context keeps the CLI reference within a character budget
     `project instructions are ${instructions.length} chars — command reference belongs on demand`);
 });
 
+test("CLI migration stage a keeps fixed entry and module byte ceilings", () => {
+  const files = collectNamespaceFiles(REPO);
+  assert.deepEqual(files.map(f => f.path), ["bin/waypost.mjs", "bin/cli/core.mjs"],
+    "advance the explicit stage inventory only after the previous revision passes CI");
+  for (const file of files) {
+    const ceiling = file.path === "bin/waypost.mjs" ? 191000 : 24000;
+    const bytes = Buffer.byteLength(file.source, "utf8");
+    assert.ok(bytes <= ceiling, `${file.path}: ${bytes} bytes exceeds ${ceiling}`);
+  }
+});
+
+test("CLI migration core has no transitive entry or command dependency", () => {
+  const core = inspectStaticClosure(REPO, "bin/cli/core.mjs", ambientEnv());
+  assert.deepEqual(core.files.filter(path => path.startsWith("bin/")), ["bin/cli/core.mjs"]);
+  const entry = inspectStaticClosure(REPO, "bin/waypost", ambientEnv());
+  assert.ok(entry.files.includes("bin/cli/core.mjs"), "entry captures inherited state through static core import");
+});
+
+test("CLI migration core preserves inherited capture, live clock and lazy authority state", () => {
+  const code = `
+    import assert from "node:assert/strict";
+    import * as core from ${moduleUrl(REPO, "bin", "cli", "core.mjs")};
+    import { lastCleanNowHonored, cleanNow } from ${moduleUrl(REPO, "bin", "cli", "core.mjs")};
+    assert.equal(core.VERSION, ${JSON.stringify(JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")).version)});
+    assert.equal(core.ROOT, ${JSON.stringify(REPO)});
+    assert.equal(core.SCRIPT_URL("lib"), ${moduleUrl(REPO, "scripts", "lib.mjs")});
+    for (const [suffix, value] of [["SESSION_ID", "initial-session"], ["HARNESS", "initial-harness"], ["PROC", "initial-proc"]]) {
+      assert.equal(core["INHERITED_" + suffix], value);
+      process.env["WAYPOST_" + suffix] = "changed";
+      assert.equal(core["INHERITED_" + suffix], value);
+    }
+    assert.equal(lastCleanNowHonored, false);
+    assert.equal(cleanNow(), 1500);
+    assert.equal(lastCleanNowHonored, true);
+    delete process.env.WAYPOST_CLEAN_NOW;
+    cleanNow();
+    assert.equal(lastCleanNowHonored, false);
+    let calls = 0;
+    const authority = () => "authority";
+    assert.equal(core.bootAuthority({ authorityOnce() { calls++; return authority; } }), authority);
+    assert.equal(core.bootAuthority({ authorityOnce() { throw new Error("must reuse cached authority"); } }), authority);
+    assert.equal(calls, 1);
+    const again = await import(${moduleUrl(REPO, "bin", "cli", "core.mjs")});
+    assert.equal(again.warnIfProbed, core.warnIfProbed);
+    assert.equal(again.cleanNow, core.cleanNow);
+    process.stdout.write("core-state-ok");
+  `;
+  const result = spawnSync(process.execPath, ["--input-type=module", "-e", code], {
+    encoding: "utf8", timeout: 15000,
+    env: { ...ambientEnv(), WAYPOST_SESSION_ID: "initial-session", WAYPOST_HARNESS: "initial-harness",
+      WAYPOST_PROC: "initial-proc", NODE_TEST_CONTEXT: "child-v8", WAYPOST_CLEAN_NOW: "1500" },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.error, undefined);
+  assert.equal(result.signal, null);
+  assert.equal(result.stdout, "core-state-ok");
+});
+
 test("CLI module checks cover the real entry and every future command module", () => {
   const scratch = mkdtempSync(join(tmpdir(), "waypost-module-real-"));
   const expected = collectNamespaceFiles(REPO).map(f => f.path);

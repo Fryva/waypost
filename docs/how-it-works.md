@@ -53,15 +53,19 @@ no LLM involved.
 
 ## One CLI
 
-`bin/waypost` is the dispatcher: it owns every write to disk, while the scripts in
-`scripts/` stay pure compute printing JSON. That is exactly why doctor can re-run
-a generator and compare the result with what is on disk.
+`bin/waypost` is the stable shim; `bin/waypost.mjs` dispatches commands and statically
+imports shared state and helpers from `bin/cli/core.mjs`. Generators that doctor
+re-runs stay pure so it can compare their output with disk. Writes belong to
+`bin/` and scripts owning stores or `--write` modes: reconcile, presence, sessions,
+commit, agents/skills install, launcher, `doctor --fix` and team commands.
 
 See the [CLI reference](cli-reference.md) for commands and option details.
 
 The [accepted CLI split decision](vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md)
-sets the migration gates. The current entry remains monolithic until the guarded
-implementation lands; acceptance alone does not establish token savings.
+sets the migration gates. Stage a extracts core under the temporary191000-byte
+entry ceiling; command bodies remain in the entry until later verified stages.
+The final entry ceiling is14000bytes; acceptance and source size changes alone
+do not establish token savings.
 
 `waypost brief` keeps folder paths, kinds and counts in the default orientation;
 `--full` adds their README descriptions and the reading tutorial. JSON facts keep
