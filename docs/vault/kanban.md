@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-21T03:40:08.099Z
+generated_at: 2026-10-21T13:40:48.375Z
 
 ---
 
@@ -91,6 +91,7 @@ generated_at: 2026-10-21T03:40:08.099Z
 - [x] [[epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting|WP-21: Recognize explicit inherited parent headers in Codex accounting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period|WP-21: Scope unknown-prefix diagnostics to the requested period]] #p2 #done
 - [x] [[epics/WP-21/stories/story-check-every-cli-module-before-the-first-split|WP-21: Check every CLI module before the first split]] #p2 #done
+- [x] [[epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout|WP-21: Bound each CLI migration stage and measure the final layout]] #p2 #done
 - [x] [[epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard|WP-21: Exclude non-code text from the bounded CLI namespace guard]] #p2 #done
 - [x] [[epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration|WP-21: Map CLI dependencies and shared-state ownership before migration]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done

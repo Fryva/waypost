@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-21T03:29:31.941Z
+generated_at: 2026-10-21T13:19:55.845Z
 
 ---
 
@@ -54,6 +54,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-20 | Quota exhaustion redistributes leadership and independent review safely | `scripts/native-model-profile.mjs`, `scripts/team-host-registry.mjs`, `scripts/team-host.mjs`, `scripts/team-native-action.mjs`, `scripts/team-native-quota.mjs`, `scripts/team-owned-runtime.mjs`, `scripts/team-quota-native.mjs`, `scripts/team-quota.mjs`, `scripts/team-state.mjs`, `scripts/team-subscription.mjs`, `scripts/team-transport.mjs`, `scripts/team-workflow.mjs`, `scripts/team.mjs`, `tests/helpers/native-calibration.mjs`, `tests/helpers/native-protocol-host.mjs`, `tests/native-protocol-handover-host.test.mjs`, `tests/native-protocol-handover.test.mjs`, `tests/native-protocol-quota.test.mjs`, `tests/team-host-registry.test.mjs`, `tests/team-host.test.mjs`, `tests/team-owned-runtime.test.mjs`, `tests/team-quota-native.test.mjs`, `tests/team-quota-state.test.mjs`, `tests/team-quota.test.mjs`, `tests/team-transport.test.mjs`, `scripts/team-store.mjs`, `tests/team-store.test.mjs`, `scripts/team-cli.mjs`, `tests/team-model-inventory-cli.test.mjs`, `scripts/team-diagnostics.mjs`, `scripts/team-role-calibration.mjs`, `tests/native-protocol-host.test.mjs`, `tests/team-diagnostics.test.mjs` |
 | WP-20 | Reviewed integration and team-aware story gates | `scripts/commit.mjs`, `scripts/sessions.mjs`, `bin/waypost`, `tests/commits.test.mjs`, `scripts/team-integration.mjs`, `scripts/team-legacy.mjs`, `scripts/team-host.mjs`, `scripts/team-workflow.mjs`, `tests/team-integration.test.mjs`, `tests/team-end-to-end.test.mjs` |
 | WP-20 | Team CLI orientation and deterministic diagnostics | `bin/waypost`, `scripts/brief.mjs`, `scripts/doctor.mjs`, `scripts/sessions.mjs`, `scripts/ready.mjs`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, `tests/harness.test.mjs`, `scripts/team-diagnostics.mjs`, `scripts/team-cli.mjs` |
+| WP-21 | Bound each CLI migration stage and measure the final layout | `bin/waypost.mjs`, `tests/helpers/cli-namespace.mjs`, `tests/helpers/cli-static-closure.mjs`, `tests/helpers/cli-modules.mjs` |
 | WP-21 | Bounded compressed Codex rollout accounting | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Budgeted sealed-source evaluation route | `scripts/evaluation-source.mjs`, `scripts/codex-evaluation-surface.mjs`, `scripts/team-host.mjs`, `scripts/team-cli.mjs`, `scripts/team-subscription.mjs`, `scripts/team-transport.mjs`, `scripts/team-native-action.mjs`, `tests/evaluation-source.test.mjs`, `tests/evaluation-transport.test.mjs`, `tests/team-host.test.mjs`, `tests/team-subscription.test.mjs` |
 | WP-21 | Check every CLI module before the first split | `tests/helpers/cli-modules.mjs`, `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs` |

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-21T03:40:08.308Z
+generated_at: 2026-10-21T13:40:48.586Z
 
 ---
 
@@ -102,6 +102,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
 | epics/WP-21/epic.md | Source an agent can read in one pass | epic | in-progress |
+| epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | Bound each CLI migration stage and measure the final layout | story | done |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | Bounded compressed Codex rollout accounting | story | done |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | Budgeted sealed-source evaluation route | story | done |
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | Check every CLI module before the first split | story | done |
@@ -340,6 +341,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
@@ -361,6 +363,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md |
 | epics/WP-21/epic.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
@@ -381,6 +384,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | ops/paired-token-economy-experiment-with-blind-acceptance.md |
 | epics/WP-21/epic.md | wikilink | ops/proposed-revision-3-of-the-sealed-source-token-pilot.md |
 | epics/WP-21/epic.md | wikilink | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md |
+| epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | mdlink | epics/WP-21/epic.md |
