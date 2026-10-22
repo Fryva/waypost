@@ -3,17 +3,17 @@ type: story
 id: "story-validate-sealed-source-collisions-before-filesystem-reads"
 epic: "WP-21"
 title: "Validate sealed-source collisions before filesystem reads"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 external_refs: {}
 tags: []
 code_refs: ["scripts/evaluation-source.mjs", "tests/evaluation-source.test.mjs"]
 specs: []
 started_at: "2026-10-21T14:42:43.244Z"
-closed_at: null
+closed_at: "2026-10-22T00:58:07.242Z"
 plan_updated_at: "2026-10-21T14:42:43.244Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-10-21T14:42:43.244Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-21](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -38,7 +38,9 @@ Full Ubuntu CI for prepared CLI stage a (445c446) exposed a pre-existing sealed-
 
 - [x] Retain failed CI evidence and reproduce the collision-before-I/O contract on all filesystems.
 - [x] Separate complete collision preflight from immutable source reads, preserving existing validation and limits.
-- [ ] Run focused regressions, obtain fresh independent review and publish the fix for full matrix verification.
+- [x] Run focused regressions, obtain fresh independent review and publish the fix for full matrix verification.
+
+Evidence for the final gate: full Ubuntu Node20/22/24 run [39699932934](https://github.com/Fryva/waypost/actions/runs/39699932934) at49aac3b, zero failures; fresh sealed_collision_reviewer accepts all criteria with no findings.
 
 ## Implementation Plan
 
@@ -56,12 +58,15 @@ Fresh sealed_collision_planner confirmed the existing broker placement and the u
 
 - [x] Case-colliding or duplicate manifest entries are rejected with source-case-collision before any manifest-file lookup, independently of file existence and input order; valid sibling paths still seal. — evidence: five new cases in evaluation-source.test.mjs; red26tests/4fail before fix, green63pass across full source/transport.
 - [x] Existing immutable reads, hash/symlink/path/size safeguards and callback/search semantics pass focused regression checks; CLI entry/core bytes stay unchanged. — evidence: focused-fixed.log exit0/63pass/0fail/0skip; source-fixed.json161input hashes unchanged after run, entry/core identities still match445c446.
-- [ ] Fresh independent reviewer accepts the bounded fix and retained source-bound evidence; stage-a closure and stage b remain gated by a new fully successful Ubuntu Node20/22/24 CI revision.
+- [x] Fresh independent reviewer accepts the bounded fix and retained source-bound evidence; stage-a closure and stage b remain gated by a new fully successful Ubuntu Node20/22/24 CI revision.
+
+Evidence for the final gate: full Ubuntu Node20/22/24 run [39699932934](https://github.com/Fryva/waypost/actions/runs/39699932934) at49aac3b, zero failures; fresh sealed_collision_reviewer accepts all criteria with no findings.
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Separated complete manifest collision preflight from the existing file-reading loop, preserving path/hash/type/symlink/size/immutable-source safeguards. Five portable regressions cover absent case variants, duplicate entries, conflicting directory prefixes, an earlier missing unrelated file and valid siblings; four new cases failed before the fix even on macOS.
+
+Prepared codec1728fd passed focused source+transport63/63; final source-equivalent49aac3b passed full Ubuntu20.20.2/22.23.3/24.22.0 tests and vault gates ([run39699932934](https://github.com/Fryva/waypost/actions/runs/39699932934)):1940/1943/1943pass, zero failures,3skips each; doctor0issues2existingWP18warnings. Fresh reviewer independently accepted all3AC and source/log identities. Earlier failed/cancelled CI logs remain historical evidence. No new native inference, allowance change, measured token savings or quota attribution.
 
 ## Technical Notes
 
@@ -77,6 +82,6 @@ Observed CI: Node22 job119275405748, run39615531635, full1941tests/1937pass/1fai
 
 ---
 
-*Last updated: 2026-10-21*
+*Last updated: 2026-10-22*
 
-Prepared fix evidence (primary checkout .waypost/experiments/wp21-source-collisions-20261021/): source-red.json/regression-before.log prove four new cases fail on unchanged broker regardless of filesystem case behavior,26tests22pass4fail0skip. source-fixed.json/focused-fixed.log bind full source+transport63tests63pass0fail0skip,46.650s on Node25.6.1/macOSarm64. All161inputs unchanged through each run. Syntax checks and git diff --check pass. No full corrected CI or token-savings claim; Fresh sealed_collision_reviewer accepts prepared commit with no code findings:6file+6evidence+161source hashes independently verified and inverse-loop reconstruction matches HEAD. Full corrected Ubuntu20/22/24 CI still pending; story stays in-progress.
+Prepared fix evidence (primary checkout .waypost/experiments/wp21-source-collisions-20261021/): source-red.json/regression-before.log prove four new cases fail on unchanged broker regardless of filesystem case behavior,26tests22pass4fail0skip. source-fixed.json/focused-fixed.log bind full source+transport63tests63pass0fail0skip,46.650s on Node25.6.1/macOSarm64. All161inputs unchanged through each run. Syntax checks and git diff --check pass. No full corrected CI or token-savings claim; Fresh sealed_collision_reviewer accepts prepared commit with no code findings:6file+6evidence+161source hashes independently verified and inverse-loop reconstruction matches HEAD. Full corrected CI was pending at prepared review; final run39699932934 and fresh acceptance now satisfy that gate.
