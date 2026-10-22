@@ -53,15 +53,22 @@ no LLM involved.
 
 ## One CLI
 
-`bin/waypost` is the dispatcher: it owns every write to disk, while the scripts in
-`scripts/` stay pure compute printing JSON. That is exactly why doctor can re-run
-a generator and compare the result with what is on disk.
+`bin/waypost` is the stable shim; `bin/waypost.mjs` dispatches commands and statically
+imports shared state and helpers from `bin/cli/core.mjs`. Generators that doctor
+re-runs stay pure so it can compare their output with disk. Writes belong to
+`bin/` and scripts owning stores or `--write` modes: reconcile, presence, sessions,
+commit, agents/skills install, launcher, `doctor --fix` and team commands.
 
 See the [CLI reference](cli-reference.md) for commands and option details.
 
 The [accepted CLI split decision](vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md)
-sets the migration gates. The current entry remains monolithic until the guarded
-implementation lands; acceptance alone does not establish token savings.
+sets permanent UTF-8 ceilings:14000bytes for the entry and24000 for each module.
+The13998-byte entry statically imports only core from the CLI tree; commands load
+lazily from20 modules in `bin/cli/`. Core owns inherited identity, the live clock
+and lazy authority state. Module ownership is acyclic and covered by namespace,
+syntax/import and closure guards. The16000-byte module threshold is advisory;
+clean-plan and auto-clean remain below the hard24000-byte ceiling. Source size
+changes alone do not establish token savings.
 
 `waypost brief` keeps folder paths, kinds and counts in the default orientation;
 `--full` adds their README descriptions and the reading tutorial. JSON facts keep
@@ -301,7 +308,8 @@ dependencies are used. Archive reads are capped at 8 MiB compressed and 64 MiB
 decompressed per pass, with a 64 MiB maximum Zstandard window. Headers are probed
 before project filtering; unrelated archive tails are not integrity-checked.
 Matching archives require a successful full decode including the trailer and
-consumption of every input byte. Ignored tails or additional unsupported compressed
+consumption of every input byte. Fully decoded concatenated frames are counted
+together. Ignored tails or additional unsupported compressed
 members invalidate the context rather than hide observations. Hashes
 cover the original compressed bytes. Decode/read/limit failures quarantine matching
 contexts, including valid replay copies, and leave full totals unknown.

@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-21T13:40:48.375Z
+generated_at: 2026-10-22T05:59:14.958Z
 
 ---
 
@@ -92,8 +92,16 @@ generated_at: 2026-10-21T13:40:48.375Z
 - [x] [[epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period|WP-21: Scope unknown-prefix diagnostics to the requested period]] #p2 #done
 - [x] [[epics/WP-21/stories/story-check-every-cli-module-before-the-first-split|WP-21: Check every CLI module before the first split]] #p2 #done
 - [x] [[epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout|WP-21: Bound each CLI migration stage and measure the final layout]] #p2 #done
+- [x] [[epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions|WP-21: Check safe Zstandard member handling across Node versions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard|WP-21: Exclude non-code text from the bounded CLI namespace guard]] #p2 #done
+- [x] [[epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a|WP-21: Extract shared CLI core as migration stage a]] #p2 #done
 - [x] [[epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration|WP-21: Map CLI dependencies and shared-state ownership before migration]] #p2 #done
+- [x] [[epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads|WP-21: Validate sealed-source collisions before filesystem reads]] #p2 #done
+- [x] [[epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f|WP-21: Complete thin CLI entry as final migration stage f]] #p2 #done
+- [x] [[epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c|WP-21: Extract capacity and size command modules as migration stage c]] #p2 #done
+- [x] [[epics/WP-21/stories/story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e|WP-21: Extract cleanup application and clean command modules as migration stage e]] #p2 #done
+- [x] [[epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d|WP-21: Extract cleanup planning and deletion modules as migration stage d]] #p2 #done
+- [x] [[epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b|WP-21: Extract orientation and vault command modules as migration stage b]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

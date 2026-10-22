@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-21T13:40:48.586Z
+generated_at: 2026-10-22T05:59:15.346Z
 
 ---
 
@@ -106,10 +106,17 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | Bounded compressed Codex rollout accounting | story | done |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | Budgeted sealed-source evaluation route | story | done |
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | Check every CLI module before the first split | story | done |
+| epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | Check safe Zstandard member handling across Node versions | story | done |
+| epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | Complete thin CLI entry as final migration stage f | story | done |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | Distinguish evaluation moderation rejection causes | story | done |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | Evaluation accepts bounded moderation metadata | story | done |
 | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | Exclude non-code text from the bounded CLI namespace guard | story | done |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | Execute paired token economy smoke under the owner allocation | story | in-progress |
+| epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c.md | Extract capacity and size command modules as migration stage c | story | done |
+| epics/WP-21/stories/story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e.md | Extract cleanup application and clean command modules as migration stage e | story | done |
+| epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md | Extract cleanup planning and deletion modules as migration stage d | story | done |
+| epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md | Extract orientation and vault command modules as migration stage b | story | done |
+| epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md | Extract shared CLI core as migration stage a | story | done |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | Bounded paired smoke protocol for token economy | story | done |
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | Freeze and guard the CLI namespace before modularization | story | done |
 | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | Keep brief folder descriptions behind full mode | story | done |
@@ -123,6 +130,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | Scope unknown-prefix diagnostics to the requested period | story | done |
 | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md | Targeted evidence reads and reproducible role handoffs | story | done |
 | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | The team code loads only for story --write, and the CLI entry is an .mjs the code index sees | story | done |
+| epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md | Validate sealed-source collisions before filesystem reads | story | done |
 | epics/WP-22/epic.md | The owner's global rules on every machine and harness | epic | planned |
 | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md | A source on another machine reaches each VM through a local cache | story | planned |
 | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | Each machine replies in its own user's language | story | planned |
@@ -345,10 +353,17 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md |
@@ -362,13 +377,20 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md |
 | epics/WP-21/epic.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md |
@@ -388,6 +410,8 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | mdlink | epics/WP-21/epic.md |
@@ -395,6 +419,11 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md |
+| epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | mdlink | epics/WP-21/epic.md |
@@ -408,6 +437,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md |
 | epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md |
 | epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md |

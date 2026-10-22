@@ -50,9 +50,9 @@ Heavy work (a build, a full test suite, a simulator/emulator boot, a whole-disk
 scan, a background agent that builds or tests) always runs through
 `waypost run --heavy`, never directly; refused = exit 75 (`waypost prompt heavy`).
 
-Every write to disk is made by the dispatcher `bin/waypost`; the scripts under
-`scripts/` are pure compute printing JSON. Never hand-edit a derived view: it is
-regenerated.
+Generators re-run by doctor stay pure. Writes live in `bin/` and scripts owning
+stores or `--write` modes (reconcile, presence, sessions, commit, agents/skills
+install, launcher, `doctor --fix`, team-*). Never hand-edit derived views.
 
 ## Agent roles (the same roles in every harness)
 
