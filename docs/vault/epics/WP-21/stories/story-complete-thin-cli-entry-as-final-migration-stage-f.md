@@ -3,7 +3,7 @@ type: story
 id: "story-complete-thin-cli-entry-as-final-migration-stage-f"
 epic: "WP-21"
 title: "Complete thin CLI entry as final migration stage f"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-10-22
@@ -13,7 +13,7 @@ tags: []
 code_refs: ["bin/waypost.mjs", "bin/cli/core.mjs", "bin/cli/auto-clean.mjs", "bin/cli/run.mjs", "bin/cli/setup.mjs", "tests/harness.test.mjs", "tests/scripts.test.mjs", "tests/slots.test.mjs", "tests/cleanup.test.mjs", "tests/limit.test.mjs", "docs/how-it-works.md", "docs/vault/adr/setup-asks-the-running-harness-not-only-the-projects-files.md", "docs/vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md"]
 specs: []
 started_at: "2026-10-22T04:59:00.682Z"
-closed_at: null
+closed_at: "2026-10-22T05:59:14.102Z"
 plan_updated_at: "2026-10-22T04:59:00.682Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-10-22T04:59:00.682Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-21](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -38,7 +38,7 @@ Execute accepted final cohesion revision f after stage e passed full exact-tree 
 
 - [x] Reconstruct exact stage-f candidate from frozen baseline; install only entry/auto-clean/run/setup, preserving17existingmodules and accepted ownership.
 - [x] Enforce final14000/24000caps,21fileinventory and core-only static CLI closure; preserve namespace/state/import/early-routing guards and meaningful run/setup/cleanup regressions.
-- [ ] Obtain source-bound local checks, independent prepared review and full exact-tree Ubuntu20/22/24 CI, then independent final acceptance and lifecycle closure.
+- [x] Obtain source-bound local checks, independent prepared review and full exact-tree Ubuntu20/22/24 CI, then independent final acceptance and lifecycle closure. — evidence: CI39728661785 and independent closure-review-verdict.json.
 
 ## Implementation Plan
 
@@ -53,16 +53,16 @@ Read-only planner confirmed exact final candidate/DAG,17unchanged modules, inher
 <!-- How do we know we're done? Each criterion testable. Checked only with
      evidence at close: - [x] <criterion> — evidence: <test | command | file:line> -->
 
-- [ ] Entry and three new modules match accepted final candidate, all17previousmodules/moved bodies/shared state/startup semantics remain unchanged, entry<=14000UTF-8bytes/everymodule<=24000, exact21CLI files with core-only static CLI dependency closure and acyclic ownership graph.
-- [ ] Permanent final budgets/inventory/namespace/syntax/import/closure/core-state and meaningful lazy/early dispatch/run/setup/cleanup/limit/slot regressions pass. Documentation/package/shim/root discovery/ADR pointers describe final layout accurately; advisory16000 remains distinct, no private evidence ships.
-- [ ] Independent reviewer accepts prepared code, full Ubuntu Node20/22/24 npm-test/bind/doctor CI passes exact prepared tree, and independent closure acceptance verifies final requirements. Primary main isolated; no measured savings/quota attribution or native pilot/allowance change.
+- [x] Entry and three new modules match accepted final candidate, all17previousmodules/moved bodies/shared state/startup semantics remain unchanged, entry<=14000UTF-8bytes/everymodule<=24000, exact21CLI files with core-only static CLI dependency closure and acyclic ownership graph. — evidence: accepted candidate/namespace/closure guards, 17 unchanged modules and 413 source hashes independently verified; tests/harness.test.mjs; private candidate-reconstruction.json and closure-review-verdict.json.
+- [x] Permanent final budgets/inventory/namespace/syntax/import/closure/core-state and meaningful lazy/early dispatch/run/setup/cleanup/limit/slot regressions pass. Documentation/package/shim/root discovery/ADR pointers describe final layout accurately; advisory16000 remains distinct, no private evidence ships. — evidence: local525tests/520pass/0fail/5skips, 22syntax/3parity/pack checks; full CI39728661785; tests/harness.test.mjs, tests/scripts.test.mjs and private verification.json.
+- [x] Independent reviewer accepts prepared code, full Ubuntu Node20/22/24 npm-test/bind/doctor CI passes exact prepared tree, and independent closure acceptance verifies final requirements. Primary main isolated; no measured savings/quota attribution or native pilot/allowance change. — evidence: independent prepared and closure acceptance, all3ACmet/no findings; CI39728661785 at bf5fdd05d1083d69da0c6197d675f10c062699d4, checkedmerge/head tree d71a6fd9cc924b0684e3214f6a461daa40641bd6; primary main91c00c8 clean.
 
 ## Final Summary
 
 <!-- Written at the done gate (waypost story close): what changed, why,
      tests executed, risks and follow-ups. -->
 
-Prepared local verification: Node25.6.1/macOS eight affected suites exit0:525tests/520pass/0fail/5platform skips,161986.161875ms. All413source and4additional policy/docs inputs stable. Initial heavy admission refused75 before tests (two live Rust/Android jobs), preserved separately; later normal capacity admission succeeded, never forced. Before run,22syntax checks passed;3command parity and packshim+entry+20modules/no privateevidence passed on unchanged source. Final guards enforce13998<=14000,20modules<=24000,exact21files and entry staticCLI closure exactlycore. Direct early-deleter syntax failure and unbound/await/pre-session handler controls pass. All17previousmodules unchanged. Independent review and full Ubuntu20/22/24 CI still pending; no final closure or measured savings yet. Evidence primary .waypost/experiments/wp21-cli-stage-f-20261022/.
+Prepared local verification: Node25.6.1/macOS eight affected suites exit0:525tests/520pass/0fail/5platform skips,161986.161875ms. All413source and4additional policy/docs inputs stable. Initial heavy admission refused75 before tests (two live Rust/Android jobs), preserved separately; later normal capacity admission succeeded, never forced. Before run,22syntax checks passed;3command parity and packshim+entry+20modules/no privateevidence passed on unchanged source. Final guards enforce13998<=14000,20modules<=24000,exact21files and entry staticCLI closure exactlycore. Direct early-deleter syntax failure and unbound/await/pre-session handler controls pass. All17previousmodules unchanged. Independent prepared-code review accepted/no findings; separate fresh closure acceptance verifies all3originalAC,13prepared+13closureEvidence+413source+4policy identities and all3original GitHub job log hashes. Full Ubuntu CI39728661785 SUCCESS at bf5fdd05d1083d69da0c6197d675f10c062699d4: Node20.20.2 1951tests/1948pass/0fail/3skip,1286493.225682ms; Node22.23.3 1954tests/1951pass/0fail/3skip,1157383.78849ms; Node24.22.0 1954tests/1951pass/0fail/3skip,874353.493735ms. All npm-test/bind/doctor steps pass (doctor0issues2oldWP18warnings). Actual checkout aac9449f867aea3da508ff64cc29ab373fcf22b7 in all logs; its tree equals head d71a6fd9cc924b0684e3214f6a461daa40641bd6. All413source and4policy/docs inputs unchanged. Original patch/manifests retained; verified own candidate216246bytes and packcache1255522bytes removed. Primary main91c00c8 remains clean. No measured token savings/quota/nativepilot/allowance changes. Evidence primary .waypost/experiments/wp21-cli-stage-f-20261022/.
 
 ## Technical Notes
 

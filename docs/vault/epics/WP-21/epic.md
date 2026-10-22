@@ -69,12 +69,12 @@ The measurement increment is tracked by
 - [x] Step 0: `version`, `help`, `run`, `capacity`, `size`, `clean` work with a deliberately broken team module; `story --write` still refuses a team-bound story.
 - [x] Step 0, manual (codegraph is an external tool): `codegraph query` finds functions of `bin/waypost.mjs`.
 - [ ] A committed classifier (Node, in `scripts/tokens.mjs`) counts navigation turns on `bin/(waypost|cli/)` with cache weights; classifier and baseline are now committed below, while the comparable post-split cohort and target remain to be stated. Existing coverage and API-price proxies do not establish causal savings.
-- [ ] Split: the entry ≤ 14 KB; every `bin/cli/*.mjs` ≤ 24 KB, pinned by a test.
-- [ ] Split: the free-identifier test and the import-every-module test pass; `node --check` covers `bin/cli`.
-- [ ] Split: `help`, `version` and an unknown command are byte-identical before and after; the suite is green on Node 20/22/24 at every step.
-- [ ] Split: a CLI test "team-bound story → refuse" exists before the gate moves.
-- [ ] Split: guards of other ADRs naming the entry are re-scoped; pointer comments updated.
-- [ ] `npm pack --dry-run` lists `bin/waypost.mjs` (done in step 0) and `bin/cli/` after the split.
+- [x] Split: the entry ≤ 14 KB; every `bin/cli/*.mjs` ≤ 24 KB, pinned by a test. — evidence: the six independently accepted CLI stages below, final CI39728661785 and source-bound parity/pack/guard checks.
+- [x] Split: the free-identifier test and the import-every-module test pass; `node --check` covers `bin/cli`. — evidence: the six independently accepted CLI stages below, final CI39728661785 and source-bound parity/pack/guard checks.
+- [x] Split: `help`, `version` and an unknown command are byte-identical before and after; the suite is green on Node 20/22/24 at every step. — evidence: the six independently accepted CLI stages below, final CI39728661785 and source-bound parity/pack/guard checks.
+- [x] Split: a CLI test "team-bound story → refuse" exists before the gate moves. — evidence: the six independently accepted CLI stages below, final CI39728661785 and source-bound parity/pack/guard checks.
+- [x] Split: guards of other ADRs naming the entry are re-scoped; pointer comments updated. — evidence: the six independently accepted CLI stages below, final CI39728661785 and source-bound parity/pack/guard checks.
+- [x] `npm pack --dry-run` lists `bin/waypost.mjs` (done in step 0) and `bin/cli/` after the split. — evidence: the six independently accepted CLI stages below, final CI39728661785 and source-bound parity/pack/guard checks.
 
 ## Offline measurement baseline (2026-10-15)
 
@@ -292,4 +292,9 @@ Affected accounting fixtures100/100 passed on Node25.6.1/macOS. Offline old/new 
 
 ## Cleanup application and clean CLI production stage e verified
 
-[[story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e|Extract cleanup application and clean command modules as migration stage e]] is independently accepted after full Ubuntu [CI39721995520](https://github.com/Fryva/waypost/actions/runs/39721995520) atac6a0cb: Node20.20.2 1947pass, Node22.23.3/24.21.0 1950pass each, zero failures and3skips each; vault gates0issues2oldWP18warnings. Entry50513/core14613bytes, newclean-apply/clean, fixed51000/24000ceilings. Fifteenpreviousmodules unchanged,13functions identical; consent/selection/setup/clock/recheck/logging/finally semantics preserved. All410source inputs stable; merge/head tree equal. Fresh closure reviewer accepts all3AC/no findings. Only finalstage f and its full matrix remain before final integration; main isolated, final14000entry and measured savings future, native pilot/budget unchanged.
+[[story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e|Extract cleanup application and clean command modules as migration stage e]] is independently accepted after full Ubuntu [CI39721995520](https://github.com/Fryva/waypost/actions/runs/39721995520) atac6a0cb: Node20.20.2 1947pass, Node22.23.3/24.21.0 1950pass each, zero failures and3skips each; vault gates0issues2oldWP18warnings. Entry50513/core14613bytes, newclean-apply/clean, fixed51000/24000ceilings. Fifteenpreviousmodules unchanged,13functions identical; consent/selection/setup/clock/recheck/logging/finally semantics preserved. All410source inputs stable; merge/head tree equal. Fresh closure reviewer accepts all3AC/no findings. At that stage-e checkpoint finalstage f remained; the accepted final stage below supersedes that status. Main isolated; measured savings remain unknown, native pilot/budget unchanged.
+
+
+## Thin CLI production final stage f verified
+
+[[story-complete-thin-cli-entry-as-final-migration-stage-f|Complete thin CLI entry as final migration stage f]] is independently accepted after full Ubuntu [CI39728661785](https://github.com/Fryva/waypost/actions/runs/39728661785) atbf5fdd0: Node20.20.2 1948pass, Node22.23.3/24.22.0 1951pass each, zero failures and3skips each; every npm-test/bind/doctor step succeeds (vault0issues2oldWP18warnings). Entry13998/fixed14000bytes,20modules/hard24000,largest18016,exact21CLI files and core-only static CLI closure. Seventeenpreviousmodules unchanged;14moved declarations and main dispatch changes match accepted candidate. Permanent namespace/syntax/import/ownership/live-state/closure/early/lazy guards preserved. Local525tests/520pass/0fail/5skip;22syntax/3parity/pack checks pass. All413source+4policy/docs hashes stable; checkedmerge/head tree d71a6fd9cc924b0684e3214f6a461daa40641bd6 equal. Fresh closure reviewer independently verifies all3AC/no findings and GitHub job log hashes. The six CLI production stages are complete in the isolated PR branch; main remains unchanged pending integration. Larger library/source decomposition and comparable post-split measurement remain separate work. Actual token savings/subscription attribution unknown; no nativepilot/allowance change.
