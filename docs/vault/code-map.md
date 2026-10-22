@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-21T15:17:41.981Z
+generated_at: 2026-10-22T01:15:01.712Z
 
 ---
 
@@ -63,6 +63,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Evaluation accepts bounded moderation metadata | `scripts/codex-evaluation-surface.mjs`, `scripts/team-transport.mjs`, `tests/evaluation-transport.test.mjs` |
 | WP-21 | Exclude non-code text from the bounded CLI namespace guard | `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `bin/waypost.mjs`, `tests/fixtures/cli-namespace.json` |
 | WP-21 | Execute paired token economy smoke under the owner allocation | `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md`, `docs/vault/ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md`, `scripts/team-host.mjs`, `scripts/team-transport.mjs`, `docs/vault/ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md` |
+| WP-21 | Extract orientation and vault command modules as migration stage b | `bin/waypost.mjs`, `bin/cli/core.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/team-cli.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/setup-asks-the-running-harness-not-only-the-projects-files.md`, `bin/cli/status.mjs`, `bin/cli/help.mjs`, `bin/cli/brief.mjs`, `bin/cli/bind.mjs`, `bin/cli/views.mjs`, `bin/cli/artifacts.mjs`, `bin/cli/profile.mjs`, `bin/cli/mcp-config.mjs` |
 | WP-21 | Extract shared CLI core as migration stage a | `bin/waypost.mjs`, `bin/cli/core.mjs`, `tests/harness.test.mjs`, `AGENTS.md`, `docs/how-it-works.md`, `docs/vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md`, `docs/vault/adr/setup-asks-the-running-harness-not-only-the-projects-files.md` |
 | WP-21 | Bounded paired smoke protocol for token economy | `docs/vault/ops/paired-token-economy-experiment-with-blind-acceptance.md` |
 | WP-21 | Freeze and guard the CLI namespace before modularization | `tests/helpers/cli-namespace.mjs`, `tests/fixtures/cli-namespace.json`, `tests/fixtures/cli-namespace-baseline.mjs.gz`, `tests/harness.test.mjs` |

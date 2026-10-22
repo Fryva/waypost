@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-22T00:59:40.554Z
+generated_at: 2026-10-22T01:05:29.158Z
 
 ---
 
@@ -111,6 +111,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | Evaluation accepts bounded moderation metadata | story | done |
 | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | Exclude non-code text from the bounded CLI namespace guard | story | done |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | Execute paired token economy smoke under the owner allocation | story | in-progress |
+| epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md | Extract orientation and vault command modules as migration stage b | story | in-progress |
 | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md | Extract shared CLI core as migration stage a | story | done |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | Bounded paired smoke protocol for token economy | story | done |
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | Freeze and guard the CLI namespace before modularization | story | done |
@@ -353,6 +354,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
@@ -403,6 +405,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | wikilink | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md |
+| epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | mdlink | epics/WP-21/epic.md |

@@ -800,6 +800,86 @@ function makeRaceRepo(raceContent, binSource = join(REPO, "bin")) {
   return tmp;
 }
 
+// Exercise the real dispatcher on independent copies, with all writable state
+// kept in the fixture. Corrupt lazy imports, never the eagerly imported core.
+function lazyDispatchFixture() {
+  const root = makeRaceRepo("unused");
+  const scratch = mkdtempSync(join(tmpdir(), "waypost-lazy-state-"));
+  const env = { ...ambientEnv(), HOME: scratch, USERPROFILE: scratch,
+    XDG_STATE_HOME: scratch, XDG_CONFIG_HOME: scratch, XDG_CACHE_HOME: scratch,
+    LOCALAPPDATA: scratch, APPDATA: scratch, WAYPOST_PROJECT_DIR: scratch,
+    WAYPOST_HOME: root, WAYPOST_NO_BEAT: "1", WAYPOST_NO_STATE_MIGRATION: "1" };
+  return { root, invoke: (...args) => spawnSync(process.execPath,
+    [join(root, "bin", "waypost"), ...args],
+    { encoding: "utf8", cwd: scratch, env, timeout: 15000 }) };
+}
+
+test("CLI lazy dispatch names the requested module on direct syntax failure", () => {
+  const { root, invoke } = lazyDispatchFixture();
+  writeFileSync(join(root, "bin", "cli", "help.mjs"), "export const broken = ;\n");
+  const result = invoke("help");
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /requested \.\/cli\/help\.mjs:/);
+});
+
+test("CLI lazy dispatch keeps requested-module identity for a broken dependency", () => {
+  const { root, invoke } = lazyDispatchFixture();
+  const dependency = join(root, "bin", "cli", "lazy-broken.mjs");
+  writeFileSync(join(root, "bin", "cli", "help.mjs"),
+    'import "./lazy-broken.mjs"; export function help() {}\n');
+  writeFileSync(dependency, "export const broken = ;\n");
+  const result = invoke("help");
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /requested \.\/cli\/help\.mjs:/);
+  assert.doesNotMatch(result.stderr, /requested \.\/cli\/lazy-broken\.mjs/);
+  const syntax = spawnSync(process.execPath, ["--check", dependency],
+    { encoding: "utf8", env: ambientEnv(), timeout: 15000 });
+  assert.equal(syntax.status, 1, syntax.stderr);
+  assert.match(syntax.stderr, /lazy-broken\.mjs/);
+});
+
+test("CLI early MCP configuration route reports its requested lazy module", () => {
+  const { root, invoke } = lazyDispatchFixture();
+  writeFileSync(join(root, "bin", "cli", "mcp-config.mjs"), "export const broken = ;\n");
+  const result = invoke("team-mcp-config");
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /requested \.\/cli\/mcp-config\.mjs:/);
+});
+
+test("CLI lazy dispatch preserves handler errors without an import label", () => {
+  const { root, invoke } = lazyDispatchFixture();
+  writeFileSync(join(root, "bin", "cli", "help.mjs"),
+    'export function help() { throw new Error("HANDLER_SENTINEL"); }\n');
+  const result = invoke("help");
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.stderr.trim(), "waypost: HANDLER_SENTINEL");
+  assert.doesNotMatch(result.stderr, /requested /);
+});
+
+test("CLI lazy dispatch calls handlers without a module receiver", () => {
+  const { root, invoke } = lazyDispatchFixture();
+  writeFileSync(join(root, "bin", "cli", "help.mjs"),
+    'export function help() { if (this !== undefined) throw new Error("bound receiver"); console.log("UNBOUND_OK"); }\n');
+  const result = invoke("help");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), "UNBOUND_OK");
+});
+
+test("CLI lazy story dispatch awaits handler rejection and preserves arguments", () => {
+  const { root, invoke } = lazyDispatchFixture();
+  writeFileSync(join(root, "bin", "cli", "artifacts.mjs"), [
+    'export async function handleStory(args) {',
+    '  if (this !== undefined) throw new Error("bound receiver");',
+    '  await new Promise(resolve => setTimeout(resolve, 5));',
+    '  throw new Error("ASYNC_SENTINEL:" + JSON.stringify(args));',
+    '}',
+  ].join("\n"));
+  const result = invoke("story", "fixture", "--write");
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.stderr.trim(), 'waypost: ASYNC_SENTINEL:["fixture","--write"]');
+  assert.doesNotMatch(result.stderr, /requested /);
+});
+
 test("CLI module race fixture copies real nested modules and isolates dependency faults", () => {
   const source = mkdtempSync(join(tmpdir(), "ps-race-source-"));
   mkdirSync(join(source, "cli/nested"), { recursive: true });

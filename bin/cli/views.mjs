@@ -1,0 +1,145 @@
+// Waypost CLI: views.
+import { parseFrontmatter } from "../../scripts/lib.mjs";
+import { fail, flag, opt, positionals, readConfig, run, runJson } from "./core.mjs";
+import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+
+// ─── derived views ─────────────────────────────────────────────────────
+
+const DERIVED = { kanban: "kanban", graph: "graph", codemap: "codemap" };
+
+// A graph or an index grows with the vault: at 200 artifacts graph.md is ~13k
+// tokens and an index ~10k. Reading either whole to answer one question is the
+// single largest avoidable cost on a big project, so the CLI answers the
+// question instead — the derived views stay the source, this is just a lens.
+function handleGraphQuery(target, args) {
+  const cfg = readConfig();
+  if (!cfg || !cfg.vault_path) fail("no bound vault — run `waypost bind <vault-path>` first");
+  const p = join(cfg.vault_path, "graph.md");
+  if (!existsSync(p)) fail("no graph.md yet — run `waypost graph`");
+  const needle = target.replace(/\\/g, "/").replace(/^\.\//, "");
+  const lines = readFileSync(p, "utf8").split("\n");
+  const hits = lines.filter((l) => l.includes(needle) && l.startsWith("|"));
+  if (!hits.length) {
+    fail(`no node or edge mentions "${needle}" in graph.md.\n`
+      + "       Nodes are keyed by vault-relative path (adr/foo.md), not by slug.");
+  }
+  const node = hits.filter((l) => !/\|\s*(supersedes|superseded_by|covers|covered_by|contains|part_of|links|link)\s*\|/i.test(l));
+  const edges = hits.filter((l) => !node.includes(l));
+  process.stdout.write(`${needle}\n`);
+  for (const l of node) process.stdout.write(`  ${l.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").replace(/\s*\|\s*/g, " · ")}\n`);
+  if (edges.length) {
+    process.stdout.write(`\nedges (${edges.length}):\n`);
+    for (const l of edges.slice(0, 60)) {
+      process.stdout.write(`  ${l.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").replace(/\s*\|\s*/g, " → ")}\n`);
+    }
+    if (edges.length > 60) process.stdout.write(`  …and ${edges.length - 60} more\n`);
+  }
+}
+
+// Vault-wide search that returns pointers, not documents: path, title, status
+// and the matching line. The alternative an agent falls back to is grep plus a
+// handful of full-file reads.
+function handleSearch(args) {
+  const cfg = readConfig();
+  if (!cfg || !cfg.vault_path) fail("no bound vault — run `waypost bind <vault-path>` first");
+  const terms = positionals(args);
+  if (!terms.length) fail('search "<text>" [--kind adr|spec|epic|story|…] [--limit 20]');
+  const kind = opt(args, "--kind");
+  const limitRaw = opt(args, "--limit", "20");
+  const limit = Number(limitRaw);
+  if (!Number.isInteger(limit) || limit <= 0) fail(`--limit must be a positive integer, got "${limitRaw}"`);
+  const re = new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
+  const out = [];
+  // iCloud leaves a placeholder — ".<name>.icloud" — for a file evicted from
+  // local storage; the real name never appears in the listing until it syncs
+  // back down. Counted, not searched: its content is not on disk to match.
+  const notDownloaded = [];
+  const walk = (dir, rel) => {
+    let names = [];
+    try { names = readdirSync(dir); } catch { return; }
+    for (const n of names) {
+      if (n.startsWith(".")) {
+        const icloud = /^\.(.+)\.icloud$/.exec(n);
+        if (icloud) notDownloaded.push(rel ? `${rel}/${icloud[1]}` : icloud[1]);
+        continue;
+      }
+      const abs = join(dir, n);
+      const r = rel ? `${rel}/${n}` : n;
+      let lst; try { lst = lstatSync(abs); } catch { continue; }
+      // A symlinked directory is never descended into: cheap protection
+      // against a cycle (a directory symlinked into itself or an ancestor),
+      // at the cost of not walking a legitimate symlinked subtree. A
+      // symlinked FILE falls through to the same read path as a real one.
+      if (lst.isSymbolicLink()) {
+        let target; try { target = statSync(abs); } catch { continue; }
+        if (target.isDirectory()) continue;
+      } else if (lst.isDirectory()) {
+        walk(abs, r);
+        continue;
+      } else if (!lst.isFile()) {
+        continue;
+      }
+      if (!n.endsWith(".md")) continue;
+      if (["kanban.md", "graph.md", "code-map.md"].includes(n)) continue;
+      let text; try { text = readFileSync(abs, "utf8"); } catch { continue; }
+      // parseFrontmatter, not an inline \n-only regex: a CRLF or BOM file
+      // (the exact shape doctor's own cross-OS checks exist to catch before
+      // it is fixed) used to read as "no frontmatter at all" here, so
+      // `--kind` silently dropped every match and title/status came back
+      // from the filename instead of the artifact's own fields.
+      const fm = parseFrontmatter(text).data;
+      if (kind && String(fm.type ?? "") !== kind) continue;
+      const lines = text.split("\n");
+      const hitLine = lines.findIndex((l) => re.test(l));
+      if (hitLine === -1 && !re.test(r)) continue;
+      out.push({ path: r, title: String(fm.title ?? "") || n, status: fm.status == null ? "" : String(fm.status),
+        line: hitLine === -1 ? null : `${hitLine + 1}: ${lines[hitLine].trim().slice(0, 120)}` });
+    }
+  };
+  walk(cfg.vault_path, "");
+  if (!out.length) { process.stdout.write("no match\n"); }
+  else {
+    for (const h of out.slice(0, limit)) {
+      process.stdout.write(`${h.path}${h.status ? `  (${h.status})` : ""}\n  ${h.title}\n`
+        + (h.line ? `  ${h.line}\n` : ""));
+    }
+    if (out.length > limit) process.stdout.write(`…and ${out.length - limit} more (--limit)\n`);
+  }
+  if (notDownloaded.length) {
+    process.stdout.write(`${notDownloaded.length} file(s) not downloaded from iCloud — open them once to sync\n`);
+  }
+}
+
+function handleDerived(cmd, args) {
+  if (flag(args, "--json")) { process.stdout.write(run(cmd, [], { capture: true })); return; }
+  const out = runJson("reconcile", ["--write", "--only", DERIVED[cmd]]);
+  const target = out[cmd] || {};
+  if (target.error) fail(`${cmd}: ${target.error}`);
+  if (target.skipped) { process.stdout.write(`${cmd}: ${target.skipped}\n`); return; }
+  process.stdout.write(`${target.written ? "written" : "unchanged"} ${target.path || cmd}\n`);
+}
+
+// `waypost reconcile` is listed beside kanban/graph/codemap, so it answers in
+// the same voice — a line per view — instead of the raw JSON its programmatic
+// callers (draft, commit, the merge driver) consume. `--json` still yields that
+// shape for anyone composing it.
+function handleReconcile(args) {
+  if (flag(args, "--json")) { process.stdout.write(run("reconcile", args.filter((a) => a !== "--json"), { capture: true })); return; }
+  const wrote = flag(args, "--write");
+  const out = runJson("reconcile", args);
+  const line = (label, t) => {
+    if (!t) return;
+    if (t.error) { process.stdout.write(`  ${label}: error — ${t.error}\n`); return; }
+    if (t.skipped) { process.stdout.write(`  ${label}: ${t.skipped}\n`); return; }
+    process.stdout.write(`  ${label}: ${t.written ? "written" : "unchanged"}${t.path ? ` ${t.path}` : ""}\n`);
+  };
+  process.stdout.write(`${wrote ? "reconciled" : "dry run (nothing written; add --write)"}\n`);
+  line("kanban", out.kanban);
+  line("code-map", out.codemap);
+  line("graph", out.graph);
+  for (const idx of out.indexes || []) line(idx.path || "index", idx);
+  if (out.summary && out.summary.failed > 0) process.exitCode = 1;
+}
+
+export { DERIVED, handleGraphQuery, handleSearch, handleDerived, handleReconcile };
