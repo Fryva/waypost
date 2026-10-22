@@ -1499,12 +1499,12 @@ test("project standing context keeps the CLI reference within a character budget
     `project instructions are ${instructions.length} chars — command reference belongs on demand`);
 });
 
-test("CLI migration stage c keeps fixed entry and module byte ceilings", () => {
+test("CLI migration stage d keeps fixed entry and module byte ceilings", () => {
   const files = collectNamespaceFiles(REPO);
-  assert.deepEqual(files.map(f => f.path), ["bin/waypost.mjs", "bin/cli/artifacts.mjs", "bin/cli/bind.mjs", "bin/cli/brief.mjs", "bin/cli/capacity.mjs", "bin/cli/core.mjs", "bin/cli/help.mjs", "bin/cli/mcp-config.mjs", "bin/cli/profile.mjs", "bin/cli/size.mjs", "bin/cli/slots.mjs", "bin/cli/status.mjs", "bin/cli/views.mjs"],
+  assert.deepEqual(files.map(f => f.path), ["bin/waypost.mjs", "bin/cli/artifacts.mjs", "bin/cli/bind.mjs", "bin/cli/brief.mjs", "bin/cli/capacity.mjs", "bin/cli/clean-plan.mjs", "bin/cli/core.mjs", "bin/cli/deleter.mjs", "bin/cli/help.mjs", "bin/cli/mcp-config.mjs", "bin/cli/profile.mjs", "bin/cli/remove.mjs", "bin/cli/size.mjs", "bin/cli/slots.mjs", "bin/cli/status.mjs", "bin/cli/views.mjs"],
     "advance the explicit stage inventory only after the previous revision passes CI");
   for (const file of files) {
-    const ceiling = file.path === "bin/waypost.mjs" ? 118000 : 24000;
+    const ceiling = file.path === "bin/waypost.mjs" ? 79000 : 24000;
     const bytes = Buffer.byteLength(file.source, "utf8");
     assert.ok(bytes <= ceiling, `${file.path}: ${bytes} bytes exceeds ${ceiling}`);
   }

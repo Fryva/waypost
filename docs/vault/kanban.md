@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-22T02:29:31.342Z
+generated_at: 2026-10-22T02:36:20.431Z
 
 ---
 
@@ -42,6 +42,7 @@ generated_at: 2026-10-22T02:29:31.342Z
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
 - [ ] [[epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation|WP-21: Execute paired token economy smoke under the owner allocation]] #p2
+- [ ] [[epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d|WP-21: Extract cleanup planning and deletion modules as migration stage d]] #p2
 
 ## Review
 

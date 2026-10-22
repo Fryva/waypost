@@ -809,7 +809,7 @@ function lazyDispatchFixture() {
     XDG_STATE_HOME: scratch, XDG_CONFIG_HOME: scratch, XDG_CACHE_HOME: scratch,
     LOCALAPPDATA: scratch, APPDATA: scratch, WAYPOST_PROJECT_DIR: scratch,
     WAYPOST_HOME: root, WAYPOST_NO_BEAT: "1", WAYPOST_NO_STATE_MIGRATION: "1" };
-  return { root, invoke: (...args) => spawnSync(process.execPath,
+  return { root, scratch, invoke: (...args) => spawnSync(process.execPath,
     [join(root, "bin", "waypost"), ...args],
     { encoding: "utf8", cwd: scratch, env, timeout: 15000 }) };
 }
@@ -844,6 +844,30 @@ test("CLI early MCP configuration route reports its requested lazy module", () =
   const result = invoke("team-mcp-config");
   assert.equal(result.status, 1, result.stderr);
   assert.match(result.stderr, /requested \.\/cli\/mcp-config\.mjs:/);
+});
+
+test("CLI early internal deletion awaits an unbound handler before session startup", () => {
+  const { root, scratch, invoke } = lazyDispatchFixture();
+  // Stage d retains static bridge imports from this module. Keep them valid
+  // while replacing only the copied early handler; no real removal is called.
+  writeFileSync(join(root, "bin", "cli", "deleter.mjs"), [
+    'export function purgeLeftovers() { throw new Error("unexpected bridge"); }',
+    'export function renameForRemoval() { throw new Error("unexpected bridge"); }',
+    'export function spawnDeleter() { throw new Error("unexpected bridge"); }',
+    'export async function handleInternalDelete(args) {',
+    '  if (this !== undefined) throw new Error("bound receiver");',
+    '  for (const key of ["WAYPOST_HARNESS", "WAYPOST_SESSION_ID", "WAYPOST_PROC"]) {',
+    '    if (process.env[key] !== undefined) throw new Error("session startup ran");',
+    '  }',
+    '  await new Promise(resolve => setTimeout(resolve, 5));',
+    '  throw new Error("EARLY_DELETE_SENTINEL:" + JSON.stringify(args));',
+    '}',
+  ].join("\n"));
+  const result = invoke("__waypost-delete", "fixture", "--project", "sentinel");
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr.trim(), 'waypost: EARLY_DELETE_SENTINEL:["fixture","--project","sentinel"]');
+  assert.deepEqual(readdirSync(scratch), [], "early deletion creates no session or machine state");
 });
 
 test("CLI lazy dispatch preserves handler errors without an import label", () => {

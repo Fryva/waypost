@@ -62,10 +62,10 @@ commit, agents/skills install, launcher, `doctor --fix` and team commands.
 See the [CLI reference](cli-reference.md) for commands and option details.
 
 The [accepted CLI split decision](vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md)
-sets the migration gates. Stage c retains shared core and eight orientation/vault
-modules, and extracts slot infrastructure plus capacity and size commands into
-three more modules under the temporary118000-byte entry ceiling. Remaining
-command bodies stay in the entry until later verified stages.
+sets the migration gates. Stage d also extracts cleanup planning, removal and
+detached deletion into three modules under the temporary79000-byte entry ceiling.
+Shared core and the eleven previous command/infrastructure modules remain
+unchanged. Remaining command bodies stay in the entry until later verified stages.
 The final entry ceiling is14000bytes; acceptance and source size changes alone
 do not establish token savings.
 
