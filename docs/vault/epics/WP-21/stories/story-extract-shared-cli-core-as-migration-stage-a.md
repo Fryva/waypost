@@ -3,17 +3,17 @@ type: story
 id: "story-extract-shared-cli-core-as-migration-stage-a"
 epic: "WP-21"
 title: "Extract shared CLI core as migration stage a"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 external_refs: {}
 tags: []
 code_refs: ["bin/waypost.mjs", "bin/cli/core.mjs", "tests/harness.test.mjs", "AGENTS.md", "docs/how-it-works.md", "docs/vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md", "docs/vault/adr/setup-asks-the-running-harness-not-only-the-projects-files.md"]
 specs: []
 started_at: "2026-10-21T13:52:24.017Z"
-closed_at: null
+closed_at: "2026-10-22T00:59:39.646Z"
 plan_updated_at: "2026-10-21T13:52:24.017Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-10-21T13:52:24.017Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-21](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -38,7 +38,9 @@ Execute only cohesion revision a of the owner-accepted CLI split: move the revie
 
 - [x] Apply exact accepted stage-a source patch and verify body/state/startup invariants.
 - [x] Add meaningful permanent guards and update truthful documentation/ADR scopes.
-- [ ] Obtain source-bound local checks and independent precommit review, then exact-SHA Ubuntu20/22/24 full CI before closure/next stage.
+- [x] Obtain source-bound local checks and independent precommit review, then exact-SHA Ubuntu20/22/24 full CI before closure/next stage.
+
+Final gate evidence: full exact-tree Ubuntu20/22/24 [CI39699932934](https://github.com/Fryva/waypost/actions/runs/39699932934) at49aac3b; fresh cli_core_precommit_reviewer accepts all criteria with no open findings.
 
 ## Implementation Plan
 
@@ -59,18 +61,23 @@ Fresh cli_core_stage_planner inspected the source/tests and grounded this plan i
 
 - [x] Production entry/core match reviewed stage-a identities after the documented top-level comment correction and retain canonical ownership. Only ROOT depth differs within moved bodies; inherited capture, startup order, shared live bindings/lazy authority cache, shim and package interface remain intact. — evidence: exact entry identity, inverse comment proof for core and local CLI migration core state/closure tests.
 - [x] Permanent size/namespace/syntax/import/static-closure/live-state guards and affected runtime/race/team regression checks pass. Truthful write docs/target-specific ADR scopes remain within standing budget; package dry-run includes core. No private evidence dependency ships. — evidence:404pass0fail5platform skips in affected files, pack includes core, doctor0issues2oldWP18warnings;161source hashes stable.
-- [ ] Fresh reviewer accepts the prepared code and exact-SHA full UbuntuNode20/22/24 npm-test/vault CI is green before closure or stage b. Main remains isolated until accepted merge, with no native pilot/allowance or measured-token-savings claim.
+- [x] Fresh reviewer accepts the prepared code and exact-SHA full UbuntuNode20/22/24 npm-test/vault CI is green before closure or stage b. Main remains isolated until accepted merge, with no native pilot/allowance or measured-token-savings claim.
+
+Final gate evidence: full exact-tree Ubuntu20/22/24 [CI39699932934](https://github.com/Fryva/waypost/actions/runs/39699932934) at49aac3b; fresh cli_core_precommit_reviewer accepts all criteria with no open findings.
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Extracted the shared CLI infrastructure into bin/cli/core.mjs in the isolated codex/cli-modularization worktree. Entry is190748bytes and core14613bytes, within the temporary191000/24000ceilings. Original function bodies/startup order are preserved except the accepted ROOT-depth correction; inherited captures, live clock state and lazy authority each retain one owner. Permanent size/namespace/module/closure/state guards, truthful write documentation and targeted ADR scopes accompany the move. Shim/package interface and primary main are unchanged.
+
+Full Ubuntu [CI39699932934](https://github.com/Fryva/waypost/actions/runs/39699932934) at49aac3b is green: Node20.20.2 1940pass/0fail/3skip; Node22.23.3 and24.22.0 1943pass/0fail/3skip each. All npm-test/bind/doctor steps succeed; doctor0issues/2existingWP18warnings. Head and synthetic PR merge have identical tree138a0c6095c64739ea9c4397bd9143ecc683d03e. Core/entry/harness are unchanged since445c446; separately reviewed prerequisites fixed the discovered Linux manifest-collision order and cross-runtime Zstandard test expectation. Fresh reviewer verified all11file/10evidence/161source hashes and accepted all3AC. Local404pass/5platformskip and package evidence remain valid for the unchanged core.
+
+Related compatibility histories are closed through their lifecycle gates. The next five cohesion revisions retain their own complete Node20/22/24 gates; final14000entry target and token savings are not yet achieved. No native pilot or allowance change.
 
 ## Technical Notes
 
-Precommit review accepted prepared code with CI pending and found2nits. Relative moduleUrl test calls were corrected to include absolute REPO; old test reproduced1failure from /private/tmp and final3migration tests pass there. A misleading top-level removal-ownership comment was corrected without changing a function body. Final core14613bytes SHA2362ba34127126bf60d65ee4940ecdae240f124bacf8c11e40375ec9ce95f975; restoring only that paragraph reproduces accepted candidate14698/SHA295140336ba360d264efd1a1f84ee91d70c2129f8cad168ee6cbedd8866e6d66. Entry190748/SHAfdab937affbb7fdeef44fc1e84931612fa501ebd4dfba62cc5de287c7d3e69f5 unchanged. Final affected5file rerun again409tests404pass0fail5platform skips in128.86seconds;161source hashes stable. pack-final includes14613-byte core. Final evidence uses source-after-review.json/local-final.log/local-verification-final.json/foreign-cwd-final.log/comment-correction.json; original results/reproduction are retained separately. Fresh cli_core_precommit_reviewer accepted the final prepared code with no remaining code findings; AC3/full exact-SHA CI remains pending.
+Precommit review accepted prepared code with CI pending and found2nits. Relative moduleUrl test calls were corrected to include absolute REPO; old test reproduced1failure from /private/tmp and final3migration tests pass there. A misleading top-level removal-ownership comment was corrected without changing a function body. Final core14613bytes SHA2362ba34127126bf60d65ee4940ecdae240f124bacf8c11e40375ec9ce95f975; restoring only that paragraph reproduces accepted candidate14698/SHA295140336ba360d264efd1a1f84ee91d70c2129f8cad168ee6cbedd8866e6d66. Entry190748/SHAfdab937affbb7fdeef44fc1e84931612fa501ebd4dfba62cc5de287c7d3e69f5 unchanged. Final affected5file rerun again409tests404pass0fail5platform skips in128.86seconds;161source hashes stable. pack-final includes14613-byte core. Final evidence uses source-after-review.json/local-final.log/local-verification-final.json/foreign-cwd-final.log/comment-correction.json; original results/reproduction are retained separately. Fresh cli_core_precommit_reviewer accepted the final prepared code with no remaining code findings; AC3/full exact-SHA CI was pending at prepared review; final run39699932934 and fresh acceptance now satisfy it.
 
-Prepared code is in codex/cli-modularization worktree only, not primary main. Initial affected-file run onNode25.6.1/macOSarm64:409tests/404pass/0fail/5platform skips in124.98seconds (superseded by final rerun above). All3new CLI migration guards pass; Linux OOM/systemd and sleep-specific fixtures are the5skips. Unchanged slots/cleanup/race/team tests pass. Source161input hashes stable; npm pack dry-run contains core14698bytes; no package archive/dependency created. AGENTS17075characters remains under existing17100ceiling. Doctor0issues2oldWP18warnings. Evidence in primary checkout .waypost/experiments/wp21-cli-core-20261021/: source-final.json, local-first.log, local-verification.json, pack.json, doctor-pre-review.log. Independent precommit review is accepted; full exact-SHA Ubuntu20/22/24 CI remains pending; no stage b or done status until that gate passes.
+Prepared code is in codex/cli-modularization worktree only, not primary main. Initial affected-file run onNode25.6.1/macOSarm64:409tests/404pass/0fail/5platform skips in124.98seconds (superseded by final rerun above). All3new CLI migration guards pass; Linux OOM/systemd and sleep-specific fixtures are the5skips. Unchanged slots/cleanup/race/team tests pass. Source161input hashes stable; npm pack dry-run contains core14698bytes; no package archive/dependency created. AGENTS17075characters remains under existing17100ceiling. Doctor0issues2oldWP18warnings. Evidence in primary checkout .waypost/experiments/wp21-cli-core-20261021/: source-final.json, local-first.log, local-verification.json, pack.json, doctor-pre-review.log. Independent precommit review is accepted; Full exact-SHA CI was pending at preparation; run39699932934 now passes and final fresh acceptance permits closure/next stage after related closures.
 
 <!-- Implementation hints, constraints, gotchas. -->
 
@@ -84,4 +91,4 @@ Prepared code is in codex/cli-modularization worktree only, not primary main. In
 
 ---
 
-*Last updated: 2026-10-21*
+*Last updated: 2026-10-22*
