@@ -422,14 +422,37 @@ test("Codex invalid compressed headers and runtime codec support remain explicit
   assert.equal(r.native_totals.all.total_tokens, null);
 });
 
-for (const kind of Object.keys(compressors)) test(`Codex ${kind} cannot silently accept trailing bytes or an ignored second member`, async () => {
+for (const kind of Object.keys(compressors)) test(`Codex ${kind} cannot silently accept trailing bytes or an ignored second member`, async t => {
   for (const member of [false, true]) {
     const f = fixture();
     const path = archive(f, "tail", [event(at(0), usage()), event(at(1), usage(100))], kind);
     const suffix = member ? compressors[kind](Buffer.from(JSON.stringify(event(at(2), usage(150))) + "\n")) : Buffer.from("UNTRUSTED-TRAILER");
     writeFileSync(path, Buffer.concat([readFileSync(path), suffix]));
     const r = await f.report();
-    if (kind === "gz" && member) {
+    if (kind === "zst" && member) {
+      t.diagnostic(`Zstandard concatenation outcome: ${r.native_totals.all.total_tokens === null ? "quarantined" : "decoded"}`);
+      assert.equal(r.coverage.compressed_files_skipped, 0);
+      assert.equal(r.provenance.input_files.length, 1);
+      const input = r.provenance.input_files[0];
+      assert.equal(input.compression, "zst");
+      if (r.native_totals.all.total_tokens !== null) {
+        assert.equal(r.native_totals.all.total_tokens, 150);
+        assert.equal(r.native_totals.all.observed_total_tokens, 150);
+        assert.equal(r.coverage.compressed_files_decoded, 1);
+        assert.equal(r.coverage.compressed_files_failed, 0);
+        assert.equal(input.readable, true);
+        assert.equal(input.archive_error, null);
+        assert.equal(input.sha256, createHash("sha256").update(readFileSync(path)).digest("hex"));
+      } else {
+        assert.equal(r.native_totals.all.observed_total_tokens, 0);
+        assert.equal(r.coverage.compressed_files_decoded, 0);
+        assert.equal(r.coverage.compressed_files_failed, 1);
+        assert.equal(r.coverage.unreadable_matching_files, 1);
+        assert.equal(input.readable, false);
+        assert.equal(input.sha256, null);
+        assert.ok(["archive-trailing-data", "archive-decode-or-read-error"].includes(input.archive_error));
+      }
+    } else if (kind === "gz" && member) {
       assert.equal(r.native_totals.all.total_tokens, 150);
       assert.equal(r.coverage.compressed_files_decoded, 1);
     } else {

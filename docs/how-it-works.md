@@ -305,7 +305,8 @@ dependencies are used. Archive reads are capped at 8 MiB compressed and 64 MiB
 decompressed per pass, with a 64 MiB maximum Zstandard window. Headers are probed
 before project filtering; unrelated archive tails are not integrity-checked.
 Matching archives require a successful full decode including the trailer and
-consumption of every input byte. Ignored tails or additional unsupported compressed
+consumption of every input byte. Fully decoded concatenated frames are counted
+together. Ignored tails or additional unsupported compressed
 members invalidate the context rather than hide observations. Hashes
 cover the original compressed bytes. Decode/read/limit failures quarantine matching
 contexts, including valid replay copies, and leave full totals unknown.

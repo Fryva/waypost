@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-21T14:42:44.240Z
+generated_at: 2026-10-21T15:17:41.981Z
 
 ---
 
@@ -58,6 +58,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Bounded compressed Codex rollout accounting | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Budgeted sealed-source evaluation route | `scripts/evaluation-source.mjs`, `scripts/codex-evaluation-surface.mjs`, `scripts/team-host.mjs`, `scripts/team-cli.mjs`, `scripts/team-subscription.mjs`, `scripts/team-transport.mjs`, `scripts/team-native-action.mjs`, `tests/evaluation-source.test.mjs`, `tests/evaluation-transport.test.mjs`, `tests/team-host.test.mjs`, `tests/team-subscription.test.mjs` |
 | WP-21 | Check every CLI module before the first split | `tests/helpers/cli-modules.mjs`, `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs` |
+| WP-21 | Check safe Zstandard member handling across Node versions | `tests/token-codex.test.mjs`, `scripts/token-codex.mjs`, `docs/how-it-works.md` |
 | WP-21 | Distinguish evaluation moderation rejection causes | `scripts/codex-evaluation-surface.mjs`, `tests/evaluation-transport.test.mjs` |
 | WP-21 | Evaluation accepts bounded moderation metadata | `scripts/codex-evaluation-surface.mjs`, `scripts/team-transport.mjs`, `tests/evaluation-transport.test.mjs` |
 | WP-21 | Exclude non-code text from the bounded CLI namespace guard | `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `bin/waypost.mjs`, `tests/fixtures/cli-namespace.json` |
