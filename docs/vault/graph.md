@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-22T16:28:55.581Z
+generated_at: 2026-10-22T17:01:52.260Z
 
 ---
 
@@ -149,6 +149,7 @@ full typed neighborhood, both directions, in one call.
 | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md | Revision 3 compatibility controls under the unchanged allowance | runbook | active |
 | ops/run-waypost-from-a-checkout-another-operating-system-edits.md | Run waypost from a checkout another operating system edits | runbook | active |
 | ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
+| research/administrative-only-waypost-usage-with-useful-work-excluded.md | Administrative-only Waypost usage with useful work excluded | research | draft |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
 | research/post-integration-token-accounting-checkpoint.md | Post-integration token accounting checkpoint | research | draft |
 | specs/cross-harness-team-coordination-protocol.md | Cross-harness team coordination protocol | spec | active |
@@ -472,6 +473,7 @@ full typed neighborhood, both directions, in one call.
 | ops/paired-token-economy-experiment-with-blind-acceptance.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
 | ops/proposed-revision-3-of-the-sealed-source-token-pilot.md | wikilink | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md |
 | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md | wikilink | ops/proposed-revision-3-of-the-sealed-source-token-pilot.md |
+| research/administrative-only-waypost-usage-with-useful-work-excluded.md | wikilink | research/post-integration-token-accounting-checkpoint.md |
 | research/post-integration-token-accounting-checkpoint.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | research/post-integration-token-accounting-checkpoint.md | wikilink | adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md |
 | research/post-integration-token-accounting-checkpoint.md | wikilink | epics/WP-21/epic.md |

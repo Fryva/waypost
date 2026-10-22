@@ -9,6 +9,7 @@
 | File | Title | Status | Date |
 |------|-------|--------|------|
 | [agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift](./agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md) | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | final | 2026-09-04 |
+| [administrative-only-waypost-usage-with-useful-work-excluded](./administrative-only-waypost-usage-with-useful-work-excluded.md) | Administrative-only Waypost usage with useful work excluded | draft | 2026-10-22 |
 | [post-integration-token-accounting-checkpoint](./post-integration-token-accounting-checkpoint.md) | Post-integration token accounting checkpoint | draft | 2026-10-22 |
 
 ---
