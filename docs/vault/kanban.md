@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-22T05:59:14.958Z
+generated_at: 2026-10-22T23:00:10.958Z
 
 ---
 
@@ -98,6 +98,7 @@ generated_at: 2026-10-22T05:59:14.958Z
 - [x] [[epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration|WP-21: Map CLI dependencies and shared-state ownership before migration]] #p2 #done
 - [x] [[epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads|WP-21: Validate sealed-source collisions before filesystem reads]] #p2 #done
 - [x] [[epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f|WP-21: Complete thin CLI entry as final migration stage f]] #p2 #done
+- [x] [[epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals|WP-21: Condense default brief orientation without hiding safety signals]] #p2 #done
 - [x] [[epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c|WP-21: Extract capacity and size command modules as migration stage c]] #p2 #done
 - [x] [[epics/WP-21/stories/story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e|WP-21: Extract cleanup application and clean command modules as migration stage e]] #p2 #done
 - [x] [[epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d|WP-21: Extract cleanup planning and deletion modules as migration stage d]] #p2 #done

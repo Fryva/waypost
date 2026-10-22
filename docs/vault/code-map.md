@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-22T05:00:18.675Z
+generated_at: 2026-10-22T22:55:27.163Z
 
 ---
 
@@ -60,6 +60,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Check every CLI module before the first split | `tests/helpers/cli-modules.mjs`, `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs` |
 | WP-21 | Check safe Zstandard member handling across Node versions | `tests/token-codex.test.mjs`, `scripts/token-codex.mjs`, `docs/how-it-works.md` |
 | WP-21 | Complete thin CLI entry as final migration stage f | `bin/waypost.mjs`, `bin/cli/core.mjs`, `bin/cli/auto-clean.mjs`, `bin/cli/run.mjs`, `bin/cli/setup.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/slots.test.mjs`, `tests/cleanup.test.mjs`, `tests/limit.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/setup-asks-the-running-harness-not-only-the-projects-files.md`, `docs/vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md` |
+| WP-21 | Condense default brief orientation without hiding safety signals | `scripts/brief.mjs`, `scripts/lib.mjs`, `tests/predicates.test.mjs`, `tests/harness.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Distinguish evaluation moderation rejection causes | `scripts/codex-evaluation-surface.mjs`, `tests/evaluation-transport.test.mjs` |
 | WP-21 | Evaluation accepts bounded moderation metadata | `scripts/codex-evaluation-surface.mjs`, `scripts/team-transport.mjs`, `tests/evaluation-transport.test.mjs` |
 | WP-21 | Exclude non-code text from the bounded CLI namespace guard | `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `bin/waypost.mjs`, `tests/fixtures/cli-namespace.json` |

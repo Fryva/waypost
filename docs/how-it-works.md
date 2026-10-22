@@ -70,7 +70,7 @@ syntax/import and closure guards. The16000-byte module threshold is advisory;
 clean-plan and auto-clean remain below the hard24000-byte ceiling. Source size
 changes alone do not establish token savings.
 
-`waypost brief` keeps folder paths, kinds and counts in the default orientation;
+`waypost brief` lists folder paths, kinds and counts in the default orientation;
 `--full` adds their README descriptions and the reading tutorial. JSON facts keep
 the full detail in either mode.
 

@@ -1240,6 +1240,43 @@ test("skeleton compact folders retain custom and empty folders, counts and all o
   assert.equal(JSON.stringify(facts), before, "rendering does not mutate facts");
 });
 
+test("skeleton folder list preserves facts and changes only folder markup", () => {
+  const folders = [
+    { path: "decisions", kind: "decision", counts: { artifacts: 0 }, readme: "# Decisions\n\nA | B\n" },
+    { path: "deliveries", kind: "epic", counts: { epics: 5, stories: 48 }, readme: null },
+    { path: "custom", kind: "unknown", readme: null },
+    { path: "releases", kind: "epic", counts: { epics: 1 }, readme: null },
+  ];
+  const section = (text) => text.match(/## Where things live[\s\S]*?(?=## In flight now)/)[0];
+  const outside = (text) => text.replace(section(text), "");
+  for (const inFlight of [
+    { status: "timeout" },
+    { status: "ok", entries: Array.from({ length: 6 }, (_, i) => ({ epic: "PS-1", title: `Work ${i}` })), total: 6 },
+  ]) {
+    const facts = factsFor({ folders, inFlight });
+    const before = JSON.stringify(facts);
+    const table = renderVaultSkeleton(facts, { folderPurposes: false });
+    assert.equal(section(table), "## Where things live\n\n" +
+      "| Folder | Kind | Count |\n|---|---|---|\n" +
+      "| `decisions/` | decision | 0 |\n" +
+      "| `deliveries/` | epic | 5 epics · 48 stories |\n" +
+      "| `custom/` | unknown | 0 |\n" +
+      "| `releases/` | epic | 1 epics · 0 stories |\n\n");
+    const list = renderVaultSkeleton(facts, { folderPurposes: false, folderList: true });
+    assert.equal(section(list), "## Where things live\n\n" +
+      "- `decisions/` decision: 0\n" +
+      "- `deliveries/` epic: 5 epics · 48 stories\n" +
+      "- `custom/` unknown: 0\n" +
+      "- `releases/` epic: 1 epics · 0 stories\n\n");
+    assert.equal(outside(list), outside(table));
+    const full = renderVaultSkeleton(facts);
+    assert.equal(full, renderVaultSkeleton(facts, { folderList: false }));
+    assert.equal(outside(list), outside(full));
+    assert.ok(renderVaultSkeleton(facts, { folderList: true }).includes("- `decisions/` decision: 0; A \\| B\n"));
+    assert.equal(JSON.stringify(facts), before);
+  }
+});
+
 test("skeleton contract 5: counts are per folder, and epics report stories separately", () => {
   const out = renderVaultSkeleton(factsFor({
     folders: [

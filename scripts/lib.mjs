@@ -1544,7 +1544,7 @@ export async function gatherVaultFacts(cfg, opts = {}) {
   };
 }
 
-export function renderVaultSkeleton(facts, { folderPurposes = true } = {}) {
+export function renderVaultSkeleton(facts, { folderPurposes = true, folderList = false } = {}) {
   const f = facts || {};
   const L = [];
 
@@ -1582,12 +1582,17 @@ export function renderVaultSkeleton(facts, { folderPurposes = true } = {}) {
   // Contract 4 — one row per layout folder, iterated, never listed literally.
   L.push("## Where things live");
   L.push("");
-  L.push(`| Folder | Kind | Count |${folderPurposes ? " Purpose |" : ""}`);
-  L.push(`|---|---|---|${folderPurposes ? "---|" : ""}`);
+  if (!folderList) {
+    L.push(`| Folder | Kind | Count |${folderPurposes ? " Purpose |" : ""}`);
+    L.push(`|---|---|---|${folderPurposes ? "---|" : ""}`);
+  }
   for (const folder of f.folders || []) {
     L.push(
-      `| \`${folder.path}/\` | ${folder.kind} | ${renderCount(folder.counts)} |` +
-        (folderPurposes ? ` ${folderPurpose(folder.readme, folder.kind)} |` : ""),
+      folderList
+        ? `- \`${folder.path}/\` ${folder.kind}: ${renderCount(folder.counts)}` +
+          (folderPurposes ? `; ${folderPurpose(folder.readme, folder.kind)}` : "")
+        : `| \`${folder.path}/\` | ${folder.kind} | ${renderCount(folder.counts)} |` +
+          (folderPurposes ? ` ${folderPurpose(folder.readme, folder.kind)} |` : ""),
     );
   }
   L.push("");

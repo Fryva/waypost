@@ -1347,7 +1347,7 @@ test("brief is the session-start packet, on demand and without a hook", () => {
   const out = waypost(proj, ["brief"]).stdout;
   assert.ok(out.includes(vault), "it names the vault it is orienting in");
   assert.match(out, /## Where things live/);
-  assert.match(out, /\| `adr\/` \| adr \|/, "folders come from the layout");
+  assert.match(out, /- `adr\/` adr: /, "folders come from the layout");
   assert.ok(!out.includes("Use Postgres"), "a skeleton carries no artifact content");
 });
 
@@ -1356,8 +1356,8 @@ test("brief keeps folder descriptions behind full mode without reducing JSON fac
   writeFileSync(join(vault, "adr", "README.md"), "# Decisions\n\nContext A | B for decisions.\n");
   const compact = waypost(proj, ["brief", "--no-install"]).stdout;
   const full = waypost(proj, ["brief", "--full", "--no-install"]).stdout;
-  assert.match(compact, /\| Folder \| Kind \| Count \|\n/);
-  assert.match(compact, /\| `adr\/` \| adr \| 0 \|\n/);
+  assert.ok(!compact.includes("| Folder | Kind | Count |"));
+  assert.match(compact, /- `adr\/` adr: 0\n/);
   assert.ok(!compact.includes("Context A"));
   assert.match(compact, /waypost brief --full/);
   assert.ok(full.includes("| Folder | Kind | Count | Purpose |"));

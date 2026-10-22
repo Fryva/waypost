@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-22T17:59:14.212Z
+generated_at: 2026-10-22T23:00:11.167Z
 
 ---
 
@@ -108,6 +108,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | Check every CLI module before the first split | story | done |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | Check safe Zstandard member handling across Node versions | story | done |
 | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | Complete thin CLI entry as final migration stage f | story | done |
+| epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md | Condense default brief orientation without hiding safety signals | story | done |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | Distinguish evaluation moderation rejection causes | story | done |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | Evaluation accepts bounded moderation metadata | story | done |
 | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | Exclude non-code text from the bounded CLI namespace guard | story | done |
@@ -359,6 +360,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
@@ -417,6 +419,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | mdlink | epics/WP-21/epic.md |
