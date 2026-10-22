@@ -1,0 +1,152 @@
+{
+  "W": {
+    "files_sha256": {
+      "README.md": "cc1a4dbc945673554a24afec47f0f9476f1219993f57ebd4ea82e27839827b7c",
+      "SECURITY.md": "b786d4931a168a94d257444633a89890fd1923879c886fd77952f94a8ec7e2d4",
+      "package.json": "16089970894d8f1fe3eb1eada1dd221fce369fa4570d869d142b961f0a9bab49",
+      "public/app.js": "3412716ba487f3003b9641351e90840bac0ac26cecdf559298f755925c2a4c5d",
+      "public/index.html": "012f1cae5caa692ee5d9448499f6e1d872ce113d62bafa07d29712481aa90fd6",
+      "public/style.css": "bc948b9a3a68fbfaf14dae54e17878b56babe83c9f2974e7c89def4ef6650f13",
+      "server.mjs": "5ea92f66784f98bbbb5333bb7c8e4da48cdf3ca8c7f536b3aeac053186bbd145",
+      "test.mjs": "15e6478562e7794b12e4b66bf372d80c425be8d5b95a1cab612b33ae6e18220c"
+    },
+    "checks": [
+      {
+        "name": "missing-token notice",
+        "pass": true,
+        "observed": "Missing/invalid access-token notice, disabledcontrols."
+      },
+      {
+        "name": "empty state",
+        "pass": true,
+        "observed": "Ready0notes, no-notes message."
+      },
+      {
+        "name": "create Alpha/First, save/list",
+        "pass": true,
+        "observed": "Alpha/First saved;1note/list/select."
+      },
+      {
+        "name": "select/edit to Second and persist",
+        "pass": true,
+        "observed": "Body Second saved, reselected after discard and exported as Second."
+      },
+      {
+        "name": "search match/no match",
+        "pass": true,
+        "observed": "absent=>0notes+clear empty message;Alpha=>1note."
+      },
+      {
+        "name": "dirty New note/cancel/discard handling",
+        "pass": true,
+        "observed": "Unsaved draft prompts Discard changes/Cancel;Cancel retainsUnsaved;Discard opens blank editor."
+      },
+      {
+        "name": "delete cancel then confirm",
+        "pass": true,
+        "observed": "Cancel preservesAlpha;Confirm delete removesAlpha."
+      },
+      {
+        "name": "export/restore with confirmation",
+        "pass": true,
+        "observed": "Export JSON containedAlpha/Second;Confirm import after deletion restoredAlpha/Second."
+      },
+      {
+        "name": "malicious title displayed literally/no executable image",
+        "pass": true,
+        "observed": "Malicious img title visible as literalbutton;textBody literal;DOM imgcount0."
+      },
+      {
+        "name": "same-tab reload retains access and persisted notes",
+        "pass": true,
+        "observed": "Reload withoutfragment succeeds;2savednotes listed."
+      },
+      {
+        "name": "error feedback does not erase input",
+        "pass": true,
+        "observed": "Actual notes.json replaced bydirectory caused500;alert visible,Recovery/Keep this draft retained;restorefile+retry saves3rdnote."
+      },
+      {
+        "name": "desktop and360px no horizontal overflow",
+        "pass": true,
+        "observed": "Desktop1280 nooverflow;360px clientWidth=scrollWidth=360, screenshot verified."
+      }
+    ],
+    "pass": true
+  },
+  "N": {
+    "files_sha256": {
+      "README.md": "095f5c12190cfc26d2ceec072ceaefb34b96efe44af1572b59e870eecc38b081",
+      "SECURITY.md": "2e588d59ac2a72ed5d1bcd8ac97f37a532a2d6daec9ecdc3a6f46b2b8ef0e778",
+      "package.json": "982a5999df91f3b990e9249287014fbab3d4d66d0e661428054f63c195c506b1",
+      "public/app.js": "142468a0c4b984c8ac8f21d04d591f0d9978a0e6b0531f609979e4bfc1aac506",
+      "public/index.html": "61a428b451ef5de116821d6f682318f9e09446bc518a9a5a670010a8b5060103",
+      "public/style.css": "ac73d03cab29774a1118d3c0aab6140e30eddfc1a461a5fba7e222d518faa51d",
+      "server.mjs": "7fa5bab3e4ca27b61795ac3f167faa1e03d49a4298c24a46e924e1b93dadae1c",
+      "test.mjs": "6bc2b6a7e7afceec08d8c638c433f728642c9199390a3fe153278c83a03b9fee"
+    },
+    "checks": [
+      {
+        "name": "missing-token notice",
+        "pass": true,
+        "observed": "Missing/invalid access-token notice, disabledcontrols."
+      },
+      {
+        "name": "empty state",
+        "pass": true,
+        "observed": "Ready0notes, no-notes message."
+      },
+      {
+        "name": "create Alpha/First, save/list",
+        "pass": true,
+        "observed": "Alpha/First saved;1note/list/select."
+      },
+      {
+        "name": "select/edit to Second and persist",
+        "pass": true,
+        "observed": "Body Second saved, reselected after discard and exported as Second."
+      },
+      {
+        "name": "search match/no match",
+        "pass": true,
+        "observed": "absent=>0notes+clear empty message;Alpha=>1note."
+      },
+      {
+        "name": "dirty New note/cancel/discard handling",
+        "pass": true,
+        "observed": "Unsaved draft prompts Discard changes/Cancel;Cancel retainsUnsaved;Discard opens blank editor."
+      },
+      {
+        "name": "delete cancel then confirm",
+        "pass": true,
+        "observed": "Cancel preservesAlpha;Confirm delete removesAlpha."
+      },
+      {
+        "name": "export/restore with confirmation",
+        "pass": true,
+        "observed": "Export JSON containedAlpha/Second;Confirm import after deletion restoredAlpha/Second."
+      },
+      {
+        "name": "malicious title displayed literally/no executable image",
+        "pass": true,
+        "observed": "Malicious img title visible as literalbutton;textBody literal;DOM imgcount0."
+      },
+      {
+        "name": "same-tab reload retains access and persisted notes",
+        "pass": true,
+        "observed": "Reload withoutfragment succeeds;2savednotes listed."
+      },
+      {
+        "name": "error feedback does not erase input",
+        "pass": true,
+        "observed": "Actual notes.json replaced bydirectory caused500;alert visible,Recovery/Keep this draft retained;restorefile+retry saves3rdnote."
+      },
+      {
+        "name": "desktop and360px no horizontal overflow",
+        "pass": true,
+        "observed": "Desktop1280 nooverflow;360px clientWidth=scrollWidth=360, screenshot verified."
+      }
+    ],
+    "pass": true
+  }
+}

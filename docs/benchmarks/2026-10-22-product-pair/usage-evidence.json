@@ -1,0 +1,166 @@
+[
+  {
+    "stage": "product_w_plan",
+    "native_total": {
+      "input_tokens": 83524,
+      "cached_input_tokens": 78336,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1152,
+      "reasoning_output_tokens": 74,
+      "total_tokens": 84676
+    },
+    "response_count": 2,
+    "response_cumulatives_verified": true,
+    "actual_models": [
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      }
+    ],
+    "source_sha256": "0854d643e8d93df7ad7d40f0719e41fd977e5e004dc7ad9928dc3b7a860bce7a",
+    "source_stable": true,
+    "stored_tool_deliveries_complete_after_repairs": true,
+    "tool_read_count": 1,
+    "visible_delivery_failures_reported": false
+  },
+  {
+    "stage": "product_w_author",
+    "native_total": {
+      "input_tokens": 221033,
+      "cached_input_tokens": 202496,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 36858,
+      "reasoning_output_tokens": 5097,
+      "total_tokens": 257891
+    },
+    "response_count": 4,
+    "response_cumulatives_verified": true,
+    "actual_models": [
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      },
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      }
+    ],
+    "source_sha256": "9b8a9f47bf1e8fdd4616482f329b8237eb953cae4474c2f0d74b8e87e4c20c48",
+    "source_stable": true,
+    "stored_tool_deliveries_complete_after_repairs": true,
+    "tool_read_count": 2,
+    "visible_delivery_failures_reported": false
+  },
+  {
+    "stage": "product_n_author",
+    "native_total": {
+      "input_tokens": 267702,
+      "cached_input_tokens": 248704,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 25417,
+      "reasoning_output_tokens": 672,
+      "total_tokens": 293119
+    },
+    "response_count": 5,
+    "response_cumulatives_verified": true,
+    "actual_models": [
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      },
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      }
+    ],
+    "source_sha256": "93d3948b0f6cf65061a4d5c287fa11d5b32164172721cc3ee048cced303950b2",
+    "source_stable": true,
+    "stored_tool_deliveries_complete_after_repairs": true,
+    "tool_read_count": 3,
+    "visible_delivery_failures_reported": false
+  },
+  {
+    "stage": "product_w_review",
+    "native_total": {
+      "input_tokens": 344352,
+      "cached_input_tokens": 306688,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1741,
+      "reasoning_output_tokens": 990,
+      "total_tokens": 346093
+    },
+    "response_count": 6,
+    "response_cumulatives_verified": true,
+    "actual_models": [
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      },
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      },
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      }
+    ],
+    "source_sha256": "bc11d53fd1c45f718ee6d0946cf3f2cdbaf2eaac619e3846467503955cdf7447",
+    "source_stable": true,
+    "stored_tool_deliveries_complete_after_repairs": true,
+    "tool_read_count": 3,
+    "visible_delivery_failures_reported": true
+  },
+  {
+    "stage": "product_w_recheck",
+    "native_total": {
+      "input_tokens": 207824,
+      "cached_input_tokens": 183552,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1347,
+      "reasoning_output_tokens": 820,
+      "total_tokens": 209171
+    },
+    "response_count": 4,
+    "response_cumulatives_verified": true,
+    "actual_models": [
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      },
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      }
+    ],
+    "source_sha256": "5ae5ea177b31c0e6df5ef8e95178e5ec03acb5f237076d28cd89a00e087229bd",
+    "source_stable": true,
+    "stored_tool_deliveries_complete_after_repairs": true,
+    "tool_read_count": 2,
+    "visible_delivery_failures_reported": true
+  },
+  {
+    "stage": "product_blind_judge",
+    "native_total": {
+      "input_tokens": 283344,
+      "cached_input_tokens": 247680,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1307,
+      "reasoning_output_tokens": 931,
+      "total_tokens": 284651
+    },
+    "response_count": 5,
+    "response_cumulatives_verified": true,
+    "actual_models": [
+      {
+        "model": "gpt-6.1-sol",
+        "effort": "medium"
+      }
+    ],
+    "source_sha256": "7c72c462a274eae4fe426aca555d976da1da52238bd49d08113c2f12edcc7e79",
+    "source_stable": true,
+    "stored_tool_deliveries_complete_after_repairs": true,
+    "tool_read_count": 4,
+    "visible_delivery_failures_reported": false
+  }
+]

@@ -1,0 +1,30 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.5; background: #f3f5f4; color: #172a26; }
+* { box-sizing: border-box; }
+body { max-width: 1100px; margin: 0 auto; padding: 24px; }
+header p { color: #50665f; margin-top: 0; }
+h1 { margin-bottom: 0; }
+h2 { font-size: 1.2rem; margin-top: 0; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 20px; }
+section { background: #fff; border: 1px solid #cad8d1; border-radius: 12px; padding: 20px; min-width: 0; }
+.backup { grid-column: 1 / -1; }
+label { display: block; margin-top: 12px; margin-bottom: 4px; font-weight: 600; }
+input, textarea { display: block; width: 100%; min-width: 0; font: inherit; color: inherit; background: #fff; border: 1px solid #839e92; border-radius: 6px; padding: 10px; }
+textarea { resize: vertical; }
+button { font: inherit; color: #fff; background: #205d48; border: 1px solid #205d48; border-radius: 6px; padding: 9px 14px; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; }
+button:hover { background: #164633; }
+button:disabled { opacity: .55; cursor: wait; }
+:focus-visible { outline: 3px solid #b27612; outline-offset: 3px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+#new { margin-top: 14px; }
+#notes { list-style: none; padding: 0; }
+#notes li { margin: 8px 0; }
+#notes button { width: 100%; text-align: left; color: #205d48; background: #edf5ef; }
+#notes button[aria-pressed="true"] { border: 2px solid #205d48; font-weight: 700; }
+#confirmation { margin-top: 18px; border: 2px solid #987018; border-radius: 8px; padding: 14px; background: #fff8e6; }
+#error { color: #9b2433; overflow-wrap: anywhere; }
+#status { min-height: 1.5em; }
+footer { font-size: .9rem; color: #50665f; margin-top: 24px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 650px) { body { padding: 14px; } main { grid-template-columns: minmax(0, 1fr); } section { padding: 16px; } }
+@media (prefers-color-scheme: dark) { :root { background: #13231f; color: #e6efea; } section { background: #1c3029; border-color: #537768; } input, textarea { background: #12251d; color: #e6efea; } header p, footer { color: #b7cabe; } #notes button { color: #e1f2e8; background: #264c3b; } #notes button[aria-pressed="true"] { border-color: #b3d5bf; } #confirmation { background: #3c3219; } #error { color: #ffadb7; } }

@@ -1,0 +1,74 @@
+{
+  "model": "gpt-6.1-sol",
+  "effort": "medium",
+  "totals": {
+    "W": {
+      "input_tokens": 247098,
+      "cached_input_tokens": 195968,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 2279,
+      "reasoning_output_tokens": 261,
+      "total_tokens": 249377
+    },
+    "N": {
+      "input_tokens": 79898,
+      "cached_input_tokens": 78336,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1484,
+      "reasoning_output_tokens": 516,
+      "total_tokens": 81382
+    },
+    "shared": {
+      "input_tokens": 82036,
+      "cached_input_tokens": 78336,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 316,
+      "reasoning_output_tokens": 124,
+      "total_tokens": 82352
+    }
+  },
+  "quality": {
+    "W_first_pass_tests": [
+      214,
+      214
+    ],
+    "N_first_pass_tests": [
+      214,
+      214
+    ],
+    "blind_equivalent": true,
+    "W_repairs": 0,
+    "N_repairs": 0,
+    "W_internal_review": "pass, no material findings",
+    "blind": {
+      "X": {
+        "pass": true,
+        "findings": []
+      },
+      "Y": {
+        "pass": true,
+        "findings": []
+      },
+      "equivalent_quality": true,
+      "reason": "Оба решения соответствуют контракту: полностью проверяют формы входных данных до проверки графа, используют Map для идентификаторов, соблюдают порядок приоритетов и границы батчей, возвращают все незавершённые вершины при цикле и не изменяют вход. Материальных дефектов не обнаружено. Повторный обход всех вершин в Y является допустимым различием производительности и не снижает качество приёмки."
+    }
+  },
+  "difference_W_minus_N": 167995,
+  "W_over_N": 3.0642771128750828,
+  "overhead_relative_to_N_percent": 206.4277112875083,
+  "saving_relative_to_N_percent": -206.4277112875083,
+  "measured_all_with_shared": 413111,
+  "owner_cap": 1000000,
+  "symmetric_half_shared_allocation": {
+    "W": 290553.0,
+    "N": 122558.0,
+    "W_over_N": 2.3707387522642343
+  },
+  "source_hashes": {
+    "acceptance.mjs": "87bfcc74f7e57221fb7b85da28d53b11a35edde338a181e77d00738fff126e4b",
+    "with-waypost.mjs": "76b111ba346a4c8db71bfd7d7730f259ee8e29e1b7e8f38346c40ec042ae9467",
+    "without-waypost.mjs": "6d43ff617946c0a0e1a456cb37bea1f83fb97115417d80a484416104c92a0a5a",
+    "task.md": "aab1661a06bb91c6831fb67968539e21a858a7fe2acdfedd130801c0101c9e50",
+    "protocol.md": "52442437b8d9c21b590e95c3a91b7ea060d48a3250a097f8e252ca0cf26a56bd"
+  }
+}

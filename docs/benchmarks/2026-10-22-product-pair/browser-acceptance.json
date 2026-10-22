@@ -1,0 +1,18 @@
+{
+  "required": [
+    "missing-token notice",
+    "empty state",
+    "create Alpha/First, save/list",
+    "select/edit to Second and persist",
+    "search match/no match",
+    "dirty New note/cancel/discard handling",
+    "delete cancel then confirm",
+    "export/restore with confirmation",
+    "malicious title displayed literally/no executable image",
+    "same-tab reload retains access and persisted notes",
+    "error feedback does not erase input",
+    "desktop and360px no horizontal overflow"
+  ],
+  "same_for_both": true,
+  "source_feedback_only": "failed journey name plus actual observation, no implementation hints"
+}

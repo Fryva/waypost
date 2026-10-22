@@ -1,0 +1,23 @@
+# Security model
+
+Local Notes handles untrusted note text and pasted backup JSON, malicious browser origins, DNS rebinding attempts, and local HTTP clients that do not possess the access token. It assumes a trusted operating system, account, browser, package files, and data-directory ancestors. It is a single-owner local tool, with no TLS, multi-user authentication, encryption at rest, or claim of a production security audit. A compromised account, browser extension, OS, or process able to inspect files or memory can read notes or steal the token.
+
+## Implemented boundaries
+
+The HTTP server binds only to IPv4 loopback. Every request must have the exact bound `127.0.0.1:<port>` Host, preventing requests addressed to attacker-controlled hostnames. Every API route requires a 64-character hexadecimal `X-Local-Token`. Equal-length token strings are compared using the platform constant-time comparison function. Query parameters, cookies and JSON fields never authenticate a request. Token comparison is case-sensitive even though either hex letter case is permitted in a supplied token.
+
+A present Origin must exactly match the local origin; POST, PATCH and DELETE always require that Origin. The server exposes no permissive CORS headers. These checks supplement token authentication; loopback binding alone is not authentication, and Origin can be forged by a non-browser client. The cryptographically random CLI token is regenerated at startup. Keep the printed URL private; do not paste it into public messages or screenshots. No request URLs or note contents are logged by the application. Terminal history, browser history and external monitoring tools are outside its control.
+
+The browser reads the token from the fragment, immediately removes the fragment, and retains only the token in same-origin sessionStorage for same-tab reloads. Note data is not stored in browser storage. Anyone with access to that browser tab or its session storage may obtain the token. Closing the tab and stopping the server reduces exposure; restart invalidates the old CLI token.
+
+User text is inserted only through textContent or form-control value. No HTML from notes or backups is executed. Scripts and styles are packaged external files. CSP restricts resources to the local origin, blocks inline scripts and styles, framing, objects, forms, and base-URI injection. Responses also use nosniff and no-referrer. API responses disable caching. The server serves only three fixed static paths, never maps a request path to a filesystem path, and exposes no directory listing.
+
+JSON is decoded with fatal UTF-8 validation and validated with exact field sets, types, lengths, canonical UUIDs and timestamps, unique import IDs, and collection size limits. Request buffering is bounded while streaming; oversize requests receive 413 and their remaining data is discarded. Error responses contain generic messages rather than stacks, internal paths, tokens or note content. Import is all-or-nothing. UI confirmations precede deletion, import, and abandoning dirty edits.
+
+## Filesystem and atomicity
+
+New data directories and files use restrictive POSIX modes (0700 and 0600). Existing directory permissions are left to the owner, and Windows does not provide equivalent protection from these mode bits. Startup refuses a symlink data directory or notes.json and rejects corrupt or invalid existing data without resetting it. Writes check notes.json before writing and again before replacement; a detected symlink causes rejection and its target is not modified. File access is not designed to defeat a malicious local account racing filesystem changes. Trusted directory ancestors and a trusted account are required.
+
+Each write uses an exclusively created, randomly named temporary file in the data directory and atomic rename onto notes.json. New state is published to memory and success returned only after rename succeeds. Failed writes leave prior in-memory state available and attempt to clean only their owned temporary file. Concurrent mutations within one process are serialized. Run only one process for a given data directory; there is no cross-process lock.
+
+Atomic rename prevents a partial JSON file from replacing the previous store on a process crash. The implementation does not fsync files or the directory and therefore does not promise power-loss durability. A hard crash may leave a temporary file; cleanup failures or filesystem faults can also leave one. Storage hardware failure, manual deletion, and valid but mistaken imports remain risks. Keep independent backups, protect their plaintext contents, and verify restoration periodically. The app has no cloud backup, sync, undo history, or recovery service.

@@ -1,0 +1,263 @@
+{
+  "date": "2026-10-22",
+  "product": "Local Notes1.0",
+  "status": "equal final required-quality acceptance passed",
+  "quality": {
+    "both_own_npm_test": true,
+    "both_fixed_tests": {
+      "tests": 92,
+      "passed": 92,
+      "failed": 0
+    },
+    "both_supplemental_date_order": true,
+    "both_supplemental_identifiers": {
+      "tests": 9,
+      "passed": 9,
+      "failed": 0
+    },
+    "both_registered_live_browser_journeys": true,
+    "one_product_repair_round_each": true,
+    "blind_assessment": {
+      "X": {
+        "verdict": "pass",
+        "findings": []
+      },
+      "Y": {
+        "verdict": "pass",
+        "findings": []
+      },
+      "equivalent_required_quality": true,
+      "limitations": [
+        "\u041e\u0446\u0435\u043d\u043a\u0430 \u043e\u0441\u043d\u043e\u0432\u0430\u043d\u0430 \u043d\u0430 \u043f\u0440\u0435\u0434\u043e\u0441\u0442\u0430\u0432\u043b\u0435\u043d\u043d\u043e\u043c \u0438\u0441\u0445\u043e\u0434\u043d\u043e\u043c \u043a\u043e\u0434\u0435 \u0438 \u043f\u0440\u0438\u0432\u044f\u0437\u0430\u043d\u043d\u044b\u0445 \u043a \u043d\u0435\u043c\u0443 \u043e\u0442\u0447\u0451\u0442\u0430\u0445 \u043e\u043f\u0435\u0440\u0430\u0442\u043e\u0440\u0430; \u0441\u0430\u043c\u043e\u0441\u0442\u043e\u044f\u0442\u0435\u043b\u044c\u043d\u043e \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0438 \u043d\u0435 \u0437\u0430\u043f\u0443\u0441\u043a\u0430\u043b\u0438\u0441\u044c.",
+        "\u0414\u043b\u044f \u043e\u0431\u043e\u0438\u0445 \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u043e\u0432 \u043e\u0442\u0447\u0451\u0442\u044b \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0430\u044e\u0442 92 \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0438, \u0434\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u044b\u0435 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0438, \u0443\u0441\u043f\u0435\u0448\u043d\u044b\u0439 npm test \u0438 \u043e\u0434\u0438\u043d\u0430\u043a\u043e\u0432\u044b\u0435 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u043d\u044b\u0435 \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0438.",
+        "\u041a\u043e\u043d\u0435\u0447\u043d\u044b\u0439 \u043d\u0430\u0431\u043e\u0440 \u043f\u0440\u043e\u0432\u0435\u0440\u043e\u043a \u0438 \u0430\u043d\u0430\u043b\u0438\u0437 \u0438\u0441\u0445\u043e\u0434\u043d\u0438\u043a\u043e\u0432 \u043d\u0435 \u0434\u043e\u043a\u0430\u0437\u044b\u0432\u0430\u044e\u0442 \u043e\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0438\u0435 \u0432\u0441\u0435\u0445 \u0432\u043e\u0437\u043c\u043e\u0436\u043d\u044b\u0445 \u0443\u044f\u0437\u0432\u0438\u043c\u043e\u0441\u0442\u0435\u0439."
+      ]
+    }
+  },
+  "stages": [
+    {
+      "stage": "product_w_plan",
+      "native": {
+        "input_tokens": 83524,
+        "cached_input_tokens": 78336,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1152,
+        "reasoning_output_tokens": 74,
+        "total_tokens": 84676
+      },
+      "responses": 2,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        }
+      ],
+      "source_sha256": "0854d643e8d93df7ad7d40f0719e41fd977e5e004dc7ad9928dc3b7a860bce7a"
+    },
+    {
+      "stage": "product_w_author",
+      "native": {
+        "input_tokens": 221033,
+        "cached_input_tokens": 202496,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 36858,
+        "reasoning_output_tokens": 5097,
+        "total_tokens": 257891
+      },
+      "responses": 4,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        },
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        }
+      ],
+      "source_sha256": "9b8a9f47bf1e8fdd4616482f329b8237eb953cae4474c2f0d74b8e87e4c20c48"
+    },
+    {
+      "stage": "product_w_review",
+      "native": {
+        "input_tokens": 344352,
+        "cached_input_tokens": 306688,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1741,
+        "reasoning_output_tokens": 990,
+        "total_tokens": 346093
+      },
+      "responses": 6,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        },
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        },
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        }
+      ],
+      "source_sha256": "bc11d53fd1c45f718ee6d0946cf3f2cdbaf2eaac619e3846467503955cdf7447"
+    },
+    {
+      "stage": "product_w_recheck",
+      "native": {
+        "input_tokens": 207824,
+        "cached_input_tokens": 183552,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1347,
+        "reasoning_output_tokens": 820,
+        "total_tokens": 209171
+      },
+      "responses": 4,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        },
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        }
+      ],
+      "source_sha256": "5ae5ea177b31c0e6df5ef8e95178e5ec03acb5f237076d28cd89a00e087229bd"
+    },
+    {
+      "stage": "product_n_author",
+      "native": {
+        "input_tokens": 267702,
+        "cached_input_tokens": 248704,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 25417,
+        "reasoning_output_tokens": 672,
+        "total_tokens": 293119
+      },
+      "responses": 5,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        },
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        }
+      ],
+      "source_sha256": "93d3948b0f6cf65061a4d5c287fa11d5b32164172721cc3ee048cced303950b2"
+    },
+    {
+      "stage": "product_blind_judge",
+      "native": {
+        "input_tokens": 283344,
+        "cached_input_tokens": 247680,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1307,
+        "reasoning_output_tokens": 931,
+        "total_tokens": 284651
+      },
+      "responses": 5,
+      "models": [
+        {
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        }
+      ],
+      "source_sha256": "7c72c462a274eae4fe426aca555d976da1da52238bd49d08113c2f12edcc7e79"
+    }
+  ],
+  "W": {
+    "input_tokens": 856733,
+    "cached_input_tokens": 771072,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 41098,
+    "reasoning_output_tokens": 6981,
+    "total_tokens": 897831
+  },
+  "N": {
+    "input_tokens": 267702,
+    "cached_input_tokens": 248704,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 25417,
+    "reasoning_output_tokens": 672,
+    "total_tokens": 293119
+  },
+  "shared": {
+    "input_tokens": 283344,
+    "cached_input_tokens": 247680,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 1307,
+    "reasoning_output_tokens": 931,
+    "total_tokens": 284651
+  },
+  "all_product": {
+    "input_tokens": 1407779,
+    "cached_input_tokens": 1267456,
+    "cache_write_input_tokens": 0,
+    "output_tokens": 67822,
+    "reasoning_output_tokens": 8584,
+    "total_tokens": 1475601
+  },
+  "difference_W_minus_N": 604712,
+  "ratio_W_over_N": 3.0630255971124356,
+  "percent_more_vs_N": 206.30255971124356,
+  "shared_half_allocation": {
+    "W": 1040156.5,
+    "N": 435444.5,
+    "ratio": 2.3887234768150707
+  },
+  "unsuccessful_W_delivery_calls": 296580,
+  "delivery_failure_caveat": "Included in W primary total. Not a clean estimate of normal Waypost workflow; subtracting failed calls does not remove repeated-history effects.",
+  "prior_microbenchmark": 413111,
+  "all_measured_comparisons": 1888712,
+  "approved_ceiling": 2000000,
+  "remaining": 111288,
+  "preparation_operator": "separate; exact cutoff receipts, later tail unknown/notzero",
+  "runtime": "Node25.6.1/macOS",
+  "measurement_scope": "explicit workflow packet simulation; same ambient native harness, not removal of every background Waypost token",
+  "limitations": [
+    "Single small complete product, not a general complex-product/security savings estimate.",
+    "Finite tests and source assessment are not proof of no vulnerabilities.",
+    "Fixed W-first order and cache effects; no billing/quota conversion.",
+    "Supplemental chronological regression derived from W review, then applied equally to N; this couples the arms through acceptance evidence.",
+    "Delivery amendments and tooling failures prevent a clean causal workflow coefficient."
+  ],
+  "preparation_cutoff": {
+    "operator": {
+      "cutoff": "2026-10-22T19:05:02.977Z",
+      "native": {
+        "input_tokens": 36304497,
+        "cached_input_tokens": 35958528,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 144511,
+        "reasoning_output_tokens": 67712,
+        "total_tokens": 36449008
+      },
+      "responses": 218,
+      "errors": [],
+      "later_tail_known": false
+    },
+    "protocol_criticism_both_experiments_native": {
+      "input_tokens": 1205722,
+      "cached_input_tokens": 1128448,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 7927,
+      "reasoning_output_tokens": 4408,
+      "total_tokens": 1213649
+    },
+    "publication_critic_native": {
+      "input_tokens": 3258258,
+      "cached_input_tokens": 3038336,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 7680,
+      "reasoning_output_tokens": 2140,
+      "total_tokens": 3265938
+    },
+    "known_combined_lower_bound": 42817307,
+    "caveat": "Operator cutoff includes both experiments from initiating request through statedtime; later operator/report tail excluded unknown/notzero. Protocol criticism includes original467903 once. Publication criticism separately metered after cutoff and added once. Native input+output includes cached subset, not subscription quota."
+  }
+}

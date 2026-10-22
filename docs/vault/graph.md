@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-22T17:01:52.260Z
+generated_at: 2026-10-22T17:59:14.212Z
 
 ---
 
@@ -151,7 +151,9 @@ full typed neighborhood, both directions, in one call.
 | ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
 | research/administrative-only-waypost-usage-with-useful-work-excluded.md | Administrative-only Waypost usage with useful work excluded | research | draft |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
+| research/paired-implementation-simulation-with-equal-acceptance.md | Paired implementation simulation with equal acceptance | research | draft |
 | research/post-integration-token-accounting-checkpoint.md | Post-integration token accounting checkpoint | research | draft |
+| research/product-level-paired-evaluation-with-security-and-release-acceptance.md | Product-level paired evaluation with security and release acceptance | research | draft |
 | specs/cross-harness-team-coordination-protocol.md | Cross-harness team coordination protocol | spec | active |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | Objective native configuration calibration for protocol roles | spec | draft |
 

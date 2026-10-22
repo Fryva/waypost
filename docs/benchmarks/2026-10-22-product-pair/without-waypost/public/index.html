@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Notes</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header><h1>Local Notes</h1><p>Your notes, on this computer.</p></header>
+  <p id="status" role="status" aria-live="polite">Opening notes…</p>
+  <p id="error" role="alert"></p>
+  <fieldset id="controls">
+    <legend class="visually-hidden">Notes workspace</legend>
+    <main>
+      <section aria-labelledby="library-heading">
+        <h2 id="library-heading">Library</h2>
+        <label for="search">Search</label>
+        <input id="search" type="search" maxlength="200" placeholder="Search title or body">
+        <button id="new" type="button">New note</button>
+        <p id="empty"></p>
+        <ul id="notes"></ul>
+      </section>
+      <section aria-labelledby="editor-heading">
+        <h2 id="editor-heading">New note</h2>
+        <form id="editor">
+          <label for="title">Title</label>
+          <input id="title" maxlength="120" required autocomplete="off">
+          <label for="body">Body</label>
+          <textarea id="body" maxlength="4000" rows="12"></textarea>
+          <div class="actions"><button id="save" type="submit">Save</button><button id="delete" type="button" disabled>Delete</button></div>
+        </form>
+        <div id="confirmation" hidden>
+          <p id="confirmation-message"></p>
+          <div class="actions"><button id="confirm" type="button"></button><button id="cancel" type="button">Cancel</button></div>
+        </div>
+      </section>
+      <section class="backup" aria-labelledby="backup-heading">
+        <h2 id="backup-heading">Backup and restore</h2>
+        <p>Export all notes here. Copy the JSON to a safe place. Import replaces all saved notes and any unsaved edits after confirmation.</p>
+        <label for="backup">Backup JSON</label>
+        <textarea id="backup" rows="7" spellcheck="false"></textarea>
+        <div class="actions"><button id="export" type="button">Export</button><button id="import" type="button">Import</button></div>
+      </section>
+    </main>
+  </fieldset>
+  <footer>No cloud sync. Keep your own backups. Close the terminal server with Ctrl+C.</footer>
+</body>
+</html>

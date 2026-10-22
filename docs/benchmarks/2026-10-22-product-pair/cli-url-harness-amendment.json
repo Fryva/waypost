@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-22T18:25:33.035591+00:00",
+  "reason": "Harness incorrectly rejected valid root URL /#token=; accept optional slash. Original contract unchanged. Discovered after W-v1 dispatch/validation, before N dispatch. No author repair. Applies identically to both arms.",
+  "old_sha256": "29689b371e4fbef79b108ff83f081596107d1530bef043fea54586b0d28a2e68",
+  "new_sha256": "1d60da563ff41343dd68a74be2bf35ad64029347239bc60e60cded32bedc99e0",
+  "original_validation": "W-v1-validation.json",
+  "original_log": "W-v1-external.log"
+}

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Local Notes</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="page-header">
+    <div><p class="eyebrow">YOUR PRIVATE WORKSPACE</p><h1>Local Notes</h1></div>
+    <p>Small thoughts. Safely kept on this computer.</p>
+  </header>
+  <main>
+    <div id="status" role="status" aria-live="polite">Connecting to your notes…</div>
+    <div id="error" role="alert" hidden></div>
+    <noscript>This application requires JavaScript to access your local notes.</noscript>
+    <div class="workspace">
+      <aside aria-label="Notes library">
+        <div class="section-heading"><h2>Library</h2><button id="new" type="button">New note</button></div>
+        <label for="search">Search</label>
+        <input id="search" type="search" maxlength="200" placeholder="Find a title or a thought">
+        <p id="count" class="muted"></p>
+        <p id="empty">No notes yet. Choose New note to begin.</p>
+        <ul id="notes" aria-label="Notes"></ul>
+      </aside>
+      <section class="editor" aria-labelledby="editor-heading">
+        <div class="section-heading"><h2 id="editor-heading">New note</h2><span id="dirty" class="muted"></span></div>
+        <form id="editor-form">
+          <label for="title">Title</label>
+          <input id="title" name="title" required maxlength="120" autocomplete="off" placeholder="Give your note a title">
+          <label for="body">Body</label>
+          <textarea id="body" name="body" maxlength="4000" rows="13" placeholder="A little space to think…"></textarea>
+          <p id="metadata" class="muted">Up to 120 title characters and 4000 body characters.</p>
+          <div class="actions"><button id="save" type="submit" class="primary">Save</button><button id="delete" type="button" class="danger" disabled>Delete</button></div>
+        </form>
+      </section>
+    </div>
+    <section id="confirmation" class="confirmation" aria-labelledby="confirmation-heading" hidden>
+      <h2 id="confirmation-heading">Confirm action</h2>
+      <p id="confirmation-text"></p>
+      <div class="actions"><button id="confirm" type="button" class="danger"></button><button id="cancel" type="button">Cancel</button></div>
+    </section>
+    <section class="backup" aria-labelledby="backup-heading">
+      <div class="section-heading"><h2 id="backup-heading">Your backup</h2><span class="muted">Keep a copy somewhere safe</span></div>
+      <p>Export includes every saved note, regardless of search. Import replaces all notes, including the current unsaved draft.</p>
+      <label for="backup">Backup JSON</label>
+      <textarea id="backup" rows="5" spellcheck="false" placeholder="Export here, or paste a Local Notes backup to restore"></textarea>
+      <div class="actions"><button id="export" type="button">Export</button><button id="import" type="button">Import</button></div>
+    </section>
+  </main>
+  <footer>Local storage · No trackers · No cloud connection</footer>
+</body>
+</html>

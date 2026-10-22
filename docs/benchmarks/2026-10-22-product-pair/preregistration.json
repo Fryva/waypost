@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-22T18:05:29.346943+00:00",
+  "files": {
+    "task.txt": "84a0063bd7a975fcf63642a1a7e3ccdc7b51a55968b09578ca23fd9b9deb9a66",
+    "protocol.md": "14cd28432458099f8378a839fa65e3471fbdf898d2d82ab34d934bc9c5d25d9a",
+    "acceptance.mjs.txt": "29689b371e4fbef79b108ff83f081596107d1530bef043fea54586b0d28a2e68",
+    "browser-acceptance.json": "eab1a46bb2caeddbe27e1012a9ae671cd61c4b2dadba75f100a5de8aefa1de8d",
+    "repair-template.txt": "691f6d886b6cae30739c68d2665f493643c2b68fa2823f0f1752fb6671f7b7c5",
+    "package-output.txt": "8a77869c138fda3806ab9f94ffa156f833b32151663d5019a25fa9d7b93ce584",
+    "planner-role.txt": "5a324ab53c128e9202c0d6b0b3c536ea9997da7cf2626c4609ef3f204e620a7e",
+    "reviewer-role.txt": "65f1731880a5393217c412ec6061e9ad12c0b88d89eb6b0b8f25aee04727686c",
+    "story-packet.md": "67033d9c4714a9824a1c67ba8f92f24387f81c61cd6a7f3462f1c9bd9ddc451c",
+    "orientation.txt": "fb4f9cadb1d2e3a7f2e67fa83efefd39f7544137e9143ec2cc917f8bdaf95c49"
+  },
+  "product_calls_started": 0,
+  "prior_measured_tokens": 413111,
+  "remaining_comparison_tokens": 586889,
+  "prelaunch_refinement_at": "2026-10-22T18:08:35.996580+00:00",
+  "prelaunch_refinement_reason": "Independent critic: add true accumulated state cap controls for create/PATCH and CLI smoke; clarify canonical JSON size before inference"
+}

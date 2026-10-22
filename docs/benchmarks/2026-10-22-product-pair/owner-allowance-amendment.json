@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-22T18:30:02.496275+00:00",
+  "owner_approved_comparison_ceiling": 1500000,
+  "previous_ceiling": 1000000,
+  "already_measured": 689300,
+  "remaining_at_approval": 810700,
+  "preparation_operator": "separate, disclosed",
+  "reason": "Owner approval after reviewer packet truncation; count unsuccessful89961review, retry in original reviewer context, unchanged acceptance"
+}
