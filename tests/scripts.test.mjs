@@ -1103,6 +1103,59 @@ test("bin/waypost search --limit rejects a non-integer instead of silently print
   assert.match(bad.stderr, /--limit/);
 });
 
+test("bin/waypost search: exact title hits appear once with their original line locator", () => {
+  const { proj, vault } = makeVaultProject();
+  const path = join(vault, "adr", "compact.md");
+  const long = "Findable " + "я".repeat(150);
+  for (const [title, scalar] of [
+    ["Findable title", "Findable title"],
+    ["Findable title", '"Findable title"'],
+    ["Findable title", "'Findable title'"],
+    ['Findable "quote"', JSON.stringify('Findable "quote"')],
+    ["Findable user's note", "'Findable user''s note'"],
+    [long, JSON.stringify(long)],
+  ]) for (const [bom, eol] of [["", "\n"], ["\ufeff", "\r\n"]]) {
+    writeFileSync(path, bom + ["---", "type: adr", `title: ${scalar}`, "status: accepted", "---", "", "body"].join(eol));
+    const r = runBinRaw(proj, ["search", "Findable", "--kind", "adr"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `adr/compact.md  (accepted)\n  ${title} (line 3)\n`);
+  }
+});
+
+test("bin/waypost search: body, ambiguous metadata and path hits retain their snippets", () => {
+  const { proj, vault } = makeVaultProject();
+  const path = join(vault, "adr", "fallback.md");
+  for (const [content, query, expected] of [
+    ['---\ntype: adr\ntitle: "Findable" # explanation\n---\n', "Findable", '  Findable\n  3: title: "Findable" # explanation\n'],
+    ['---\ntype: adr\ntitle: "Findable" junk\n---\n', "Findable", '  Findable\n  3: title: "Findable" junk\n'],
+    ['---\ntype: adr\ntitle: "Findable\n---\n', "Findable", '  "Findable\n  3: title: "Findable\n'],
+    ['---\ntype: adr\ntitle: |\n  Findable\n---\n', "title:", '  |\n  3: title: |\n'],
+    ['---\ntype: adr\ntitle: First Findable\ntitle: Final\n---\n', "Findable", '  Final\n  3: title: First Findable\n'],
+    ['---\ntype: adr\ntitle: "Findable"\n---\ntitle: Findable\n', "title: Findable", '  Findable\n  5: title: Findable\n'],
+    ['---\ntype: adr\ntitle: Other\n---\nFindable body\n', "Findable", '  Other\n  5: Findable body\n'],
+    ['---\ntype: adr\ntitle: Other\ntags: Findable\n---\n', "Findable", '  Other\n  4: tags: Findable\n'],
+    ['---\ntype: adr\ntitle: ""\n---\nFindable body\n', "Findable", '  fallback.md\n  5: Findable body\n'],
+    ['---\ntype: adr\n---\nFindable body\n', "Findable", '  fallback.md\n  4: Findable body\n'],
+    ['---\ntype: adr\ntitle: Other\n---\n', "fallback.md", '  Other\n'],
+  ]) {
+    writeFileSync(path, content);
+    const r = runBinRaw(proj, ["search", query, "--kind", "adr"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, "adr/fallback.md\n" + expected);
+  }
+});
+
+test("bin/waypost search: compact titles preserve limit, ordering, literal terms and iCloud notice", () => {
+  const { proj, vault } = makeVaultProject();
+  for (const name of ["a", "b"]) writeFileSync(join(vault, "adr", `${name}.md`),
+    `---\ntype: adr\ntitle: "Findable [literal] ${name}"\n---\n`);
+  writeFileSync(join(vault, "adr", ".evicted.md.icloud"), "");
+  const r = runBinRaw(proj, ["search", "[literal]", "--kind", "adr", "--limit", "1"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, "adr/a.md\n  Findable [literal] a (line 3)\n" +
+    "…and 1 more (--limit)\n1 file(s) not downloaded from iCloud — open them once to sync\n");
+});
+
 test("bin/waypost search: a symlinked directory is never descended into, so a cycle cannot hang the walk (P3-3, G-13)", () => {
   const { proj, vault } = makeVaultProject();
   const loopDir = join(vault, "adr", "loop");

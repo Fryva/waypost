@@ -88,12 +88,20 @@ function handleSearch(args) {
       // it is fixed) used to read as "no frontmatter at all" here, so
       // `--kind` silently dropped every match and title/status came back
       // from the filename instead of the artifact's own fields.
-      const fm = parseFrontmatter(text).data;
+      const { data: fm, body } = parseFrontmatter(text);
       if (kind && String(fm.type ?? "") !== kind) continue;
       const lines = text.split("\n");
       const hitLine = lines.findIndex((l) => re.test(l));
       if (hitLine === -1 && !re.test(r)) continue;
+      // Only collapse an exact title scalar inside the parsed header. Ambiguous
+      // syntax and body text keep their original snippet, including comments.
+      const scalar = hitLine < 0 ? null : /^title:\s*(.*?)\r?$/.exec(lines[hitLine])?.[1].trim();
+      const titleLine = scalar != null && typeof fm.title === "string" && fm.title !== "" && !/[\r\n]/.test(fm.title) &&
+        hitLine > 0 && hitLine < text.slice(0, text.length - body.length).split("\n").length - 1 &&
+        (scalar === JSON.stringify(fm.title) || scalar === `'${fm.title.replace(/'/g, "''")}'` ||
+          (!/^["'|>]/.test(scalar) && scalar === fm.title)) ? hitLine + 1 : null;
       out.push({ path: r, title: String(fm.title ?? "") || n, status: fm.status == null ? "" : String(fm.status),
+        titleLine,
         line: hitLine === -1 ? null : `${hitLine + 1}: ${lines[hitLine].trim().slice(0, 120)}` });
     }
   };
@@ -101,8 +109,8 @@ function handleSearch(args) {
   if (!out.length) { process.stdout.write("no match\n"); }
   else {
     for (const h of out.slice(0, limit)) {
-      process.stdout.write(`${h.path}${h.status ? `  (${h.status})` : ""}\n  ${h.title}\n`
-        + (h.line ? `  ${h.line}\n` : ""));
+      process.stdout.write(`${h.path}${h.status ? `  (${h.status})` : ""}\n  ${h.title}${h.titleLine ? ` (line ${h.titleLine})` : ""}\n`
+        + (h.line && !h.titleLine ? `  ${h.line}\n` : ""));
     }
     if (out.length > limit) process.stdout.write(`…and ${out.length - limit} more (--limit)\n`);
   }

@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-22T23:00:10.958Z
+generated_at: 2026-10-22T23:56:35.142Z
 
 ---
 
@@ -97,6 +97,7 @@ generated_at: 2026-10-22T23:00:10.958Z
 - [x] [[epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a|WP-21: Extract shared CLI core as migration stage a]] #p2 #done
 - [x] [[epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration|WP-21: Map CLI dependencies and shared-state ownership before migration]] #p2 #done
 - [x] [[epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads|WP-21: Validate sealed-source collisions before filesystem reads]] #p2 #done
+- [x] [[epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search|WP-21: Avoid duplicate title snippets in vault search]] #p2 #done
 - [x] [[epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f|WP-21: Complete thin CLI entry as final migration stage f]] #p2 #done
 - [x] [[epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals|WP-21: Condense default brief orientation without hiding safety signals]] #p2 #done
 - [x] [[epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c|WP-21: Extract capacity and size command modules as migration stage c]] #p2 #done
