@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-22T02:36:20.699Z
+generated_at: 2026-10-22T04:09:31.287Z
 
 ---
 
@@ -112,7 +112,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | Exclude non-code text from the bounded CLI namespace guard | story | done |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | Execute paired token economy smoke under the owner allocation | story | in-progress |
 | epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c.md | Extract capacity and size command modules as migration stage c | story | done |
-| epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md | Extract cleanup planning and deletion modules as migration stage d | story | in-progress |
+| epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md | Extract cleanup planning and deletion modules as migration stage d | story | done |
 | epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md | Extract orientation and vault command modules as migration stage b | story | done |
 | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md | Extract shared CLI core as migration stage a | story | done |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | Bounded paired smoke protocol for token economy | story | done |
@@ -382,6 +382,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c.md |
+| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
