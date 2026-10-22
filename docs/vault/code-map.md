@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-22T02:36:45.128Z
+generated_at: 2026-10-22T04:13:35.629Z
 
 ---
 
@@ -64,6 +64,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Exclude non-code text from the bounded CLI namespace guard | `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `bin/waypost.mjs`, `tests/fixtures/cli-namespace.json` |
 | WP-21 | Execute paired token economy smoke under the owner allocation | `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md`, `docs/vault/ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md`, `scripts/team-host.mjs`, `scripts/team-transport.mjs`, `docs/vault/ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md` |
 | WP-21 | Extract capacity and size command modules as migration stage c | `bin/waypost.mjs`, `bin/cli/core.mjs`, `bin/cli/slots.mjs`, `bin/cli/capacity.mjs`, `bin/cli/size.mjs`, `tests/harness.test.mjs`, `tests/slots.test.mjs`, `tests/sizes.test.mjs`, `tests/cleanup.test.mjs`, `docs/how-it-works.md`, `tests/limit.test.mjs` |
+| WP-21 | Extract cleanup application and clean command modules as migration stage e | `bin/waypost.mjs`, `bin/cli/core.mjs`, `bin/cli/clean-apply.mjs`, `bin/cli/clean.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/cleanup.test.mjs`, `tests/limit.test.mjs`, `tests/slots.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Extract cleanup planning and deletion modules as migration stage d | `bin/waypost.mjs`, `bin/cli/core.mjs`, `bin/cli/clean-plan.mjs`, `bin/cli/remove.mjs`, `bin/cli/deleter.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/cleanup.test.mjs`, `tests/limit.test.mjs`, `tests/slots.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md` |
 | WP-21 | Extract orientation and vault command modules as migration stage b | `bin/waypost.mjs`, `bin/cli/core.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/team-cli.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/setup-asks-the-running-harness-not-only-the-projects-files.md`, `bin/cli/status.mjs`, `bin/cli/help.mjs`, `bin/cli/brief.mjs`, `bin/cli/bind.mjs`, `bin/cli/views.mjs`, `bin/cli/artifacts.mjs`, `bin/cli/profile.mjs`, `bin/cli/mcp-config.mjs` |
 | WP-21 | Extract shared CLI core as migration stage a | `bin/waypost.mjs`, `bin/cli/core.mjs`, `tests/harness.test.mjs`, `AGENTS.md`, `docs/how-it-works.md`, `docs/vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md`, `docs/vault/adr/setup-asks-the-running-harness-not-only-the-projects-files.md` |
