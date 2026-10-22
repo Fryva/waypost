@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-22T00:58:08.455Z
+generated_at: 2026-10-22T00:58:58.886Z
 
 ---
 
@@ -42,7 +42,6 @@ generated_at: 2026-10-22T00:58:08.455Z
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
 - [ ] [[epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation|WP-21: Execute paired token economy smoke under the owner allocation]] #p2
-- [ ] [[epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions|WP-21: Check safe Zstandard member handling across Node versions]] #p2
 - [ ] [[epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a|WP-21: Extract shared CLI core as migration stage a]] #p2
 
 ## Review
@@ -94,6 +93,7 @@ generated_at: 2026-10-22T00:58:08.455Z
 - [x] [[epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period|WP-21: Scope unknown-prefix diagnostics to the requested period]] #p2 #done
 - [x] [[epics/WP-21/stories/story-check-every-cli-module-before-the-first-split|WP-21: Check every CLI module before the first split]] #p2 #done
 - [x] [[epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout|WP-21: Bound each CLI migration stage and measure the final layout]] #p2 #done
+- [x] [[epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions|WP-21: Check safe Zstandard member handling across Node versions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard|WP-21: Exclude non-code text from the bounded CLI namespace guard]] #p2 #done
 - [x] [[epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration|WP-21: Map CLI dependencies and shared-state ownership before migration]] #p2 #done
 - [x] [[epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads|WP-21: Validate sealed-source collisions before filesystem reads]] #p2 #done

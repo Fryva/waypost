@@ -3,17 +3,17 @@ type: story
 id: "story-check-safe-zstandard-member-handling-across-node-versions"
 epic: "WP-21"
 title: "Check safe Zstandard member handling across Node versions"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
 external_refs: {}
 tags: []
 code_refs: ["tests/token-codex.test.mjs", "scripts/token-codex.mjs", "docs/how-it-works.md"]
 specs: []
 started_at: "2026-10-21T15:17:41.034Z"
-closed_at: null
+closed_at: "2026-10-22T00:58:57.708Z"
 plan_updated_at: "2026-10-21T15:17:41.034Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-10-21T15:17:41.034Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-21](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -38,7 +38,9 @@ Corrected full CI atc1728fd passed Node20/22 but Node24.22.0 failed one Zstandar
 
 - [x] Independently ground runtime-dependent valid-member behavior in existing contracts and retained CI evidence.
 - [x] Add minimal portable assertions that reject silent partial counts and retain malformed-tail refusal; clarify documentation if needed.
-- [ ] Verify relevant accounting regressions, obtain fresh review and full corrected Ubuntu20/22/24 CI before closure or stage b.
+- [x] Verify relevant accounting regressions, obtain fresh review and full corrected Ubuntu20/22/24 CI before closure or stage b.
+
+Evidence for the final gate: full Ubuntu Node20/22/24 [run39699932934](https://github.com/Fryva/waypost/actions/runs/39699932934) at49aac3b is green; fresh sealed_collision_reviewer accepts all criteria, including both observed Zstandard outcomes.
 
 ## Implementation Plan
 
@@ -56,12 +58,15 @@ Fresh sealed_collision_planner independently grounded this test/documentation co
 
 - [x] Valid concatenated Zstandard input either contributes all expected native spans with full original-byte provenance or is explicitly quarantined with no trusted partial spans; silently accepting only the first member remains a failure. Malformed junk tails remain failures for every supported codec. — evidence: strict zst member assertions in tests/token-codex.test.mjs, unchanged negative junk/Brotli and gzip-success branches, local100pass; Node25 diagnosed quarantine only, corrected successful zst branch awaits CI.
 - [x] Existing archive byte-consumption/hash/limits/identity/replay/privacy/native-counter safeguards remain unchanged; focused accounting regressions pass, and CLI entry/core remain unchanged. — evidence: source-final.json161stable inputs differ fromc1728fd only in tests/token-codex.test.mjs; accounting-tests.log100pass0fail0skip,8.303s, syntax/diff checks exit0.
-- [ ] Fresh reviewer accepts the bounded compatibility change; a new fully successful exact-tree Ubuntu Node20/22/24 matrix is required before closing this story, the collision-fix story, core stage a or starting stage b.
+- [x] Fresh reviewer accepts the bounded compatibility change; a new fully successful exact-tree Ubuntu Node20/22/24 matrix is required before closing this story, the collision-fix story, core stage a or starting stage b.
+
+Evidence for the final gate: full Ubuntu Node20/22/24 [run39699932934](https://github.com/Fryva/waypost/actions/runs/39699932934) at49aac3b is green; fresh sealed_collision_reviewer accepts all criteria, including both observed Zstandard outcomes.
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+Corrected an overstrict Zstandard concatenation expectation without changing the production reader. A valid second frame must yield all 150 expected native tokens with complete original-byte provenance, or explicit quarantine with zero trusted observations; partial 100-token results remain forbidden. Existing gzip success, all malformed-tail/Brotli rejection, size limits and single-frame parity/privacy assertions remain intact. Documentation now clarifies full valid concatenation.
+
+Final local accounting tests passed 100/100; Node25.6.1 diagnosed quarantine. Full Ubuntu [CI39699932934](https://github.com/Fryva/waypost/actions/runs/39699932934) at49aac3b passed Node20.20.2 (1940 pass), Node22.23.3/24.22.0 (1943 pass each), zero failures and3skips each; doctor0issues/2existingWP18warnings. Both corrected Zstandard paths were observed: Node22 quarantined, Node24 decoded with all strict counters/hash assertions passing. Fresh reviewer accepted all3AC and exact-source evidence. No production change, native pilot, budget mutation or measured savings claim.
 
 ## Technical Notes
 
@@ -77,6 +82,6 @@ Original corrected run39620458834: Node20 successful1943tests/1940pass/3skip and
 
 ---
 
-*Last updated: 2026-10-21*
+*Last updated: 2026-10-22*
 
-Prepared validation: first accounting run100pass0fail0skip in9.640s; final run after adding outcome diagnostics100pass0fail0skip in8.303s onNode25.6.1/macOSarm64. Final log explicitly reports Zstandard concatenation outcome: quarantined. No claim the corrected successful zst branch was exercised locally. Source161hashes stable, only test input differs fromc1728fd; production reader SHA17068f69bf365ef0d5a86c8121106415fd3800bafad6b23572169d154ffc985a unchanged. Initial capacity0 memory/CPU conditions were respected by heavy --wait30s; commands started only after admission. Evidence primary .waypost/experiments/wp21-zstd-compat-20261021/. Fresh sealed_collision_reviewer accepts the prepared commit with no code findings;6file+1requirement+13evidence+161source hashes independently verified. Only new full exact-tree Ubuntu20/22/24 CI remains pending; all three stories remain in-progress and stage b stays closed.
+Prepared validation: first accounting run100pass0fail0skip in9.640s; final run after adding outcome diagnostics100pass0fail0skip in8.303s onNode25.6.1/macOSarm64. Final log explicitly reports Zstandard concatenation outcome: quarantined. No claim the corrected successful zst branch was exercised locally. Source161hashes stable, only test input differs fromc1728fd; production reader SHA17068f69bf365ef0d5a86c8121106415fd3800bafad6b23572169d154ffc985a unchanged. Initial capacity0 memory/CPU conditions were respected by heavy --wait30s; commands started only after admission. Evidence primary .waypost/experiments/wp21-zstd-compat-20261021/. Fresh sealed_collision_reviewer accepts the prepared commit with no code findings;6file+1requirement+13evidence+161source hashes independently verified. At prepared review the new full CI was pending; final run39699932934 and fresh acceptance now satisfy that gate. Core stage a has its own separate closure.
