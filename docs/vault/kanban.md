@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-22T01:51:36.394Z
+generated_at: 2026-10-22T02:29:31.342Z
 
 ---
 
@@ -42,7 +42,6 @@ generated_at: 2026-10-22T01:51:36.394Z
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
 - [ ] [[epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation|WP-21: Execute paired token economy smoke under the owner allocation]] #p2
-- [ ] [[epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c|WP-21: Extract capacity and size command modules as migration stage c]] #p2
 
 ## Review
 
@@ -98,6 +97,7 @@ generated_at: 2026-10-22T01:51:36.394Z
 - [x] [[epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a|WP-21: Extract shared CLI core as migration stage a]] #p2 #done
 - [x] [[epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration|WP-21: Map CLI dependencies and shared-state ownership before migration]] #p2 #done
 - [x] [[epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads|WP-21: Validate sealed-source collisions before filesystem reads]] #p2 #done
+- [x] [[epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c|WP-21: Extract capacity and size command modules as migration stage c]] #p2 #done
 - [x] [[epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b|WP-21: Extract orientation and vault command modules as migration stage b]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
