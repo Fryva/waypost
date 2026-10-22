@@ -1499,12 +1499,12 @@ test("project standing context keeps the CLI reference within a character budget
     `project instructions are ${instructions.length} chars — command reference belongs on demand`);
 });
 
-test("CLI migration stage e keeps fixed entry and module byte ceilings", () => {
+test("CLI migration stage f keeps fixed entry and module byte ceilings", () => {
   const files = collectNamespaceFiles(REPO);
-  assert.deepEqual(files.map(f => f.path), ["bin/waypost.mjs", "bin/cli/artifacts.mjs", "bin/cli/bind.mjs", "bin/cli/brief.mjs", "bin/cli/capacity.mjs", "bin/cli/clean-apply.mjs", "bin/cli/clean-plan.mjs", "bin/cli/clean.mjs", "bin/cli/core.mjs", "bin/cli/deleter.mjs", "bin/cli/help.mjs", "bin/cli/mcp-config.mjs", "bin/cli/profile.mjs", "bin/cli/remove.mjs", "bin/cli/size.mjs", "bin/cli/slots.mjs", "bin/cli/status.mjs", "bin/cli/views.mjs"],
+  assert.deepEqual(files.map(f => f.path), ["bin/waypost.mjs", "bin/cli/artifacts.mjs", "bin/cli/auto-clean.mjs", "bin/cli/bind.mjs", "bin/cli/brief.mjs", "bin/cli/capacity.mjs", "bin/cli/clean-apply.mjs", "bin/cli/clean-plan.mjs", "bin/cli/clean.mjs", "bin/cli/core.mjs", "bin/cli/deleter.mjs", "bin/cli/help.mjs", "bin/cli/mcp-config.mjs", "bin/cli/profile.mjs", "bin/cli/remove.mjs", "bin/cli/run.mjs", "bin/cli/setup.mjs", "bin/cli/size.mjs", "bin/cli/slots.mjs", "bin/cli/status.mjs", "bin/cli/views.mjs"],
     "advance the explicit stage inventory only after the previous revision passes CI");
   for (const file of files) {
-    const ceiling = file.path === "bin/waypost.mjs" ? 51000 : 24000;
+    const ceiling = file.path === "bin/waypost.mjs" ? 14000 : 24000;
     const bytes = Buffer.byteLength(file.source, "utf8");
     assert.ok(bytes <= ceiling, `${file.path}: ${bytes} bytes exceeds ${ceiling}`);
   }
@@ -1514,7 +1514,8 @@ test("CLI migration core has no transitive entry or command dependency", () => {
   const core = inspectStaticClosure(REPO, "bin/cli/core.mjs", ambientEnv());
   assert.deepEqual(core.files.filter(path => path.startsWith("bin/")), ["bin/cli/core.mjs"]);
   const entry = inspectStaticClosure(REPO, "bin/waypost", ambientEnv());
-  assert.ok(entry.files.includes("bin/cli/core.mjs"), "entry captures inherited state through static core import");
+  assert.deepEqual(entry.files.filter(path => path.startsWith("bin/cli/")), ["bin/cli/core.mjs"],
+    "the final entry statically imports only core from the CLI tree");
 });
 
 test("CLI migration core preserves inherited capture, live clock and lazy authority state", () => {

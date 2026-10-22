@@ -62,12 +62,13 @@ commit, agents/skills install, launcher, `doctor --fix` and team commands.
 See the [CLI reference](cli-reference.md) for commands and option details.
 
 The [accepted CLI split decision](vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md)
-sets the migration gates. Stage e also extracts cleanup application and the clean
-command into two modules under the temporary51000-byte entry ceiling. Shared core
-and the fourteen previous command/infrastructure modules remain unchanged.
-Remaining command bodies stay in the entry until the final verified stage.
-The final entry ceiling is14000bytes; acceptance and source size changes alone
-do not establish token savings.
+sets permanent UTF-8 ceilings:14000bytes for the entry and24000 for each module.
+The13998-byte entry statically imports only core from the CLI tree; commands load
+lazily from20 modules in `bin/cli/`. Core owns inherited identity, the live clock
+and lazy authority state. Module ownership is acyclic and covered by namespace,
+syntax/import and closure guards. The16000-byte module threshold is advisory;
+clean-plan and auto-clean remain below the hard24000-byte ceiling. Source size
+changes alone do not establish token savings.
 
 `waypost brief` keeps folder paths, kinds and counts in the default orientation;
 `--full` adds their README descriptions and the reading tutorial. JSON facts keep

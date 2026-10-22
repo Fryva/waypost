@@ -846,14 +846,20 @@ test("CLI early MCP configuration route reports its requested lazy module", () =
   assert.match(result.stderr, /requested \.\/cli\/mcp-config\.mjs:/);
 });
 
+test("CLI early internal deletion names its lazy module on syntax failure", () => {
+  const { root, scratch, invoke } = lazyDispatchFixture();
+  writeFileSync(join(root, "bin", "cli", "deleter.mjs"), "export const broken = ;\n");
+  const result = invoke("__waypost-delete");
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /requested \.\/cli\/deleter\.mjs:/);
+  assert.deepEqual(readdirSync(scratch), [], "failed early import creates no session or machine state");
+});
+
 test("CLI early internal deletion awaits an unbound handler before session startup", () => {
   const { root, scratch, invoke } = lazyDispatchFixture();
-  // Stage d retains static bridge imports from this module. Keep them valid
-  // while replacing only the copied early handler; no real removal is called.
+  // Replace only the copied early handler; no real removal is called.
   writeFileSync(join(root, "bin", "cli", "deleter.mjs"), [
-    'export function purgeLeftovers() { throw new Error("unexpected bridge"); }',
-    'export function renameForRemoval() { throw new Error("unexpected bridge"); }',
-    'export function spawnDeleter() { throw new Error("unexpected bridge"); }',
     'export async function handleInternalDelete(args) {',
     '  if (this !== undefined) throw new Error("bound receiver");',
     '  for (const key of ["WAYPOST_HARNESS", "WAYPOST_SESSION_ID", "WAYPOST_PROC"]) {',

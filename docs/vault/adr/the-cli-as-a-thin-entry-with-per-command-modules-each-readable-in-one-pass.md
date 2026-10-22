@@ -9,7 +9,7 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["bin/cli/core.mjs", "bin/waypost", "bin/waypost.mjs", "package.json", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "tests/slots.test.mjs", "tests/team-cli.test.mjs", ".github/workflows/ci.yml", "AGENTS.md", "docs/how-it-works.md"]
+code_refs: ["bin/cli/core.mjs", "bin/cli/", "bin/waypost", "bin/waypost.mjs", "package.json", "tests/scripts.test.mjs", "tests/sizes.test.mjs", "tests/harness.test.mjs", "tests/slots.test.mjs", "tests/team-cli.test.mjs", ".github/workflows/ci.yml", "AGENTS.md", "docs/how-it-works.md"]
 review_status: reviewed
 reviewed_at: 2026-10-19
 deciders: "Ivan Morozov (project owner); explicitly approved 2026-10-19"
