@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-23T01:56:37.310Z
+generated_at: 2026-10-23T02:07:36.755Z
 
 ---
 
@@ -156,6 +156,7 @@ full typed neighborhood, both directions, in one call.
 | ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md | Verify a harness live: the whole waypost loop in one session | runbook | active |
 | research/administrative-only-waypost-usage-with-useful-work-excluded.md | Administrative-only Waypost usage with useful work excluded | research | draft |
 | research/agent-tooling-landscape-september-2026-standards-task-graphs-orchestrators-adr-drift.md | Agent tooling landscape, September 2026: standards, task graphs, orchestrators, ADR drift | research | final |
+| research/offline-tokenization-of-compact-command-outputs.md | Offline tokenization of compact command outputs | research | draft |
 | research/paired-implementation-simulation-with-equal-acceptance.md | Paired implementation simulation with equal acceptance | research | draft |
 | research/post-integration-token-accounting-checkpoint.md | Post-integration token accounting checkpoint | research | draft |
 | research/product-level-paired-evaluation-with-security-and-release-acceptance.md | Product-level paired evaluation with security and release acceptance | research | draft |
@@ -491,6 +492,13 @@ full typed neighborhood, both directions, in one call.
 | ops/proposed-revision-3-of-the-sealed-source-token-pilot.md | wikilink | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md |
 | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md | wikilink | ops/proposed-revision-3-of-the-sealed-source-token-pilot.md |
 | research/administrative-only-waypost-usage-with-useful-work-excluded.md | wikilink | research/post-integration-token-accounting-checkpoint.md |
+| research/offline-tokenization-of-compact-command-outputs.md | mdlink | adr/0008-token-budget.md |
+| research/offline-tokenization-of-compact-command-outputs.md | mdlink | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md |
+| research/offline-tokenization-of-compact-command-outputs.md | mdlink | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md |
+| research/offline-tokenization-of-compact-command-outputs.md | mdlink | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md |
+| research/offline-tokenization-of-compact-command-outputs.md | mdlink | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md |
+| research/offline-tokenization-of-compact-command-outputs.md | mdlink | epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries.md |
+| research/offline-tokenization-of-compact-command-outputs.md | out-of-scope | ../../benchmarks/2026-10-23-command-output-tokenization/results.json |
 | research/post-integration-token-accounting-checkpoint.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | research/post-integration-token-accounting-checkpoint.md | wikilink | adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md |
 | research/post-integration-token-accounting-checkpoint.md | wikilink | epics/WP-21/epic.md |

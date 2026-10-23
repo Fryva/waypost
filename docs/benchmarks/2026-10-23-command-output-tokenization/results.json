@@ -1,0 +1,180 @@
+{
+  "tokenizerVersion": "0.14.0",
+  "tokenizerMetadataSha256": "109505bdbc80beec96078e4b80649a55454f628eaea43865d306282abc66469d",
+  "networkAttempts": 0,
+  "nativeInferenceCallsByThisRunner": 0,
+  "cases": [
+    {
+      "id": "brief-folder-list",
+      "semantics": "same folder facts",
+      "measurementSha256": "684fa9b7c54d667b8c63de8f43d68b2002add653825fb89195d6f265ec1fd3f9",
+      "inputs": {
+        "before": {
+          "path": ".waypost/experiments/wp21-brief-list-20261022/compact-before.txt",
+          "sha256": "ab0ba3e231572fab03d44229df017337b145e8f64949c25ddd52879cb6c67b89",
+          "bytes": 1110,
+          "characters": 1097
+        },
+        "after": {
+          "path": ".waypost/experiments/wp21-brief-list-20261022/compact-after.txt",
+          "sha256": "2066747c45c0b326becebfcde29e1885a476d98461379b333402177d0a1a6e09",
+          "bytes": 1030,
+          "characters": 1017
+        }
+      },
+      "encodings": {
+        "o200k_base": {
+          "before": 311,
+          "after": 289,
+          "saved": 22,
+          "reductionPercent": 7.07395498392283
+        },
+        "cl100k_base": {
+          "before": 312,
+          "after": 290,
+          "saved": 22,
+          "reductionPercent": 7.051282051282051
+        }
+      }
+    },
+    {
+      "id": "search-title",
+      "semantics": "same title/path/status/line",
+      "measurementSha256": "aaedd0a3d339781ffe9a1905f9566fc3c600c5ef1915b18fe4d19e67147ef9f1",
+      "inputs": {
+        "before": {
+          "path": ".waypost/experiments/wp21-search-title-20261022/before.txt",
+          "sha256": "b1bc009ae7166d54ee0cdaf04b7bfe8b16b2c1f693810aa7fba487a34a590d1c",
+          "bytes": 159,
+          "characters": 159
+        },
+        "after": {
+          "path": ".waypost/experiments/wp21-search-title-20261022/after.txt",
+          "sha256": "8abdf432e68c373668f3e20c4fc59208fcdaf84fcf548ca5c0e98715d95ddcd6",
+          "bytes": 101,
+          "characters": 101
+        }
+      },
+      "encodings": {
+        "o200k_base": {
+          "before": 41,
+          "after": 27,
+          "saved": 14,
+          "reductionPercent": 34.146341463414636
+        },
+        "cl100k_base": {
+          "before": 41,
+          "after": 27,
+          "saved": 14,
+          "reductionPercent": 34.146341463414636
+        }
+      }
+    },
+    {
+      "id": "graph-edge-cap",
+      "semantics": "cap restoration: 94 edges become 60 shown and 34 named as remainder",
+      "measurementSha256": "3cacea9eef295618c432174d273c8fac3693f3ad70f199c8b81573722f2216ce",
+      "inputs": {
+        "before": {
+          "path": ".waypost/experiments/wp21-graph-query-20261022/before.txt",
+          "sha256": "0139637ca10253c4f61856ddf417771d428803e9255998eee161ffab7c79392f",
+          "bytes": 11617,
+          "characters": 11426
+        },
+        "after": {
+          "path": ".waypost/experiments/wp21-graph-query-20261022/after.txt",
+          "sha256": "8243bc80c19e203f909a57ea4551d456062a8f40328a7795ec124908be28251b",
+          "bytes": 7709,
+          "characters": 7464
+        }
+      },
+      "encodings": {
+        "o200k_base": {
+          "before": 3729,
+          "after": 2432,
+          "saved": 1297,
+          "reductionPercent": 34.78144274604452
+        },
+        "cl100k_base": {
+          "before": 3660,
+          "after": 2386,
+          "saved": 1274,
+          "reductionPercent": 34.80874316939891
+        }
+      }
+    },
+    {
+      "id": "doctor-file-prefix",
+      "semantics": "same findings and full messages",
+      "measurementSha256": "7bbe21d08834f25020346856f4df1d7b10f790ab4dd4194463b1884985b5e541",
+      "inputs": {
+        "before": {
+          "path": ".waypost/experiments/wp21-doctor-path-20261023/before.txt",
+          "sha256": "9cfc8360ce36e947dda4cf271b544f6a2360a60a32a6dc5ca6037c616b8dd8a5",
+          "bytes": 2763,
+          "characters": 2719
+        },
+        "after": {
+          "path": ".waypost/experiments/wp21-doctor-path-20261023/after.txt",
+          "sha256": "7b0fe234512d8f667631bf7003e5a04001a6bbc25cff67bae3732a9681c6a2ba",
+          "bytes": 2479,
+          "characters": 2443
+        }
+      },
+      "encodings": {
+        "o200k_base": {
+          "before": 701,
+          "after": 629,
+          "saved": 72,
+          "reductionPercent": 10.271041369472183
+        },
+        "cl100k_base": {
+          "before": 700,
+          "after": 628,
+          "saved": 72,
+          "reductionPercent": 10.285714285714286
+        }
+      }
+    },
+    {
+      "id": "graph-endpoints",
+      "semantics": "same 60 directed triples and remainder",
+      "measurementSha256": "9c06f229dd9b869bf01a9d454cfa4e5ea8c53b2c97228a86b484ecf9a8660aa3",
+      "inputs": {
+        "before": {
+          "path": ".waypost/experiments/wp21-graph-endpoints-20261023/before.txt",
+          "sha256": "7ac4a1ba7a6f0e2b2437398541955086205802e7be7015e68188061458077ff9",
+          "bytes": 7750,
+          "characters": 7505
+        },
+        "after": {
+          "path": ".waypost/experiments/wp21-graph-endpoints-20261023/after.txt",
+          "sha256": "edce57ce946b0b250205ed9014d27c2be6f8fe34a191190c85a6daa63866fdd0",
+          "bytes": 6370,
+          "characters": 6365
+        }
+      },
+      "encodings": {
+        "o200k_base": {
+          "before": 2444,
+          "after": 1844,
+          "saved": 600,
+          "reductionPercent": 24.549918166939445
+        },
+        "cl100k_base": {
+          "before": 2398,
+          "after": 1798,
+          "saved": 600,
+          "reductionPercent": 25.020850708924105
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Counts raw UTF-8 CLI text using named public encodings, without chat framing, tools, reasoning, cached input or future rereads.",
+    "Neither encoding is asserted to match the current Codex model. These are not native usage receipts or subscription percentages.",
+    "Independent examples have different inputs and frequencies; do not sum their percentages or infer a whole-workflow saving.",
+    "Graph cap restoration omits 34 edge rows while naming the remainder; it is not lossless full-output compression.",
+    "Operator and independent review consume tokens separately and are not metered by this runner."
+  ]
+}

@@ -13,6 +13,7 @@
 | [paired-implementation-simulation-with-equal-acceptance](./paired-implementation-simulation-with-equal-acceptance.md) | Paired implementation simulation with equal acceptance | draft | 2026-10-22 |
 | [post-integration-token-accounting-checkpoint](./post-integration-token-accounting-checkpoint.md) | Post-integration token accounting checkpoint | draft | 2026-10-22 |
 | [product-level-paired-evaluation-with-security-and-release-acceptance](./product-level-paired-evaluation-with-security-and-release-acceptance.md) | Product-level paired evaluation with security and release acceptance | draft | 2026-10-22 |
+| [offline-tokenization-of-compact-command-outputs](./offline-tokenization-of-compact-command-outputs.md) | Offline tokenization of compact command outputs | draft | 2026-10-23 |
 
 ---
 
