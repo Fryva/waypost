@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-23T04:20:36.525Z
+generated_at: 2026-10-23T04:27:18.808Z
 
 ---
 
@@ -110,6 +110,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | Check every CLI module before the first split | story | done |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | Check safe Zstandard member handling across Node versions | story | done |
 | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md | Compact repeated graph endpoints without losing directions | story | done |
+| epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md | Compact the default brief derived-view guidance | story | done |
 | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | Complete thin CLI entry as final migration stage f | story | done |
 | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md | Condense default brief orientation without hiding safety signals | story | done |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | Distinguish evaluation moderation rejection causes | story | done |
@@ -368,6 +369,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md |
@@ -432,6 +434,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | mdlink | epics/WP-21/epic.md |

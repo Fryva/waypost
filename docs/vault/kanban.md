@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-23T04:20:36.310Z
+generated_at: 2026-10-23T04:27:18.593Z
 
 ---
 
@@ -106,6 +106,7 @@ generated_at: 2026-10-23T04:20:36.310Z
 - [x] [[epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b|WP-21: Extract orientation and vault command modules as migration stage b]] #p2 #done
 - [x] [[epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings|WP-21: Avoid repeated file paths in doctor findings]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions|WP-21: Compact repeated graph endpoints without losing directions]] #p2 #done
+- [x] [[epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance|WP-21: Compact the default brief derived-view guidance]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics|WP-21: Isolate doctor report formatting without changing diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries|WP-21: Recognize all graph edge kinds in bounded queries]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done

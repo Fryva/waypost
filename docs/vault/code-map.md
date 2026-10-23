@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-23T04:17:04.129Z
+generated_at: 2026-10-23T04:24:38.321Z
 
 ---
 
@@ -62,6 +62,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Check every CLI module before the first split | `tests/helpers/cli-modules.mjs`, `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs` |
 | WP-21 | Check safe Zstandard member handling across Node versions | `tests/token-codex.test.mjs`, `scripts/token-codex.mjs`, `docs/how-it-works.md` |
 | WP-21 | Compact repeated graph endpoints without losing directions | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
+| WP-21 | Compact the default brief derived-view guidance | `scripts/brief.mjs`, `tests/harness.test.mjs` |
 | WP-21 | Complete thin CLI entry as final migration stage f | `bin/waypost.mjs`, `bin/cli/core.mjs`, `bin/cli/auto-clean.mjs`, `bin/cli/run.mjs`, `bin/cli/setup.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/slots.test.mjs`, `tests/cleanup.test.mjs`, `tests/limit.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/setup-asks-the-running-harness-not-only-the-projects-files.md`, `docs/vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md` |
 | WP-21 | Condense default brief orientation without hiding safety signals | `scripts/brief.mjs`, `scripts/lib.mjs`, `tests/predicates.test.mjs`, `tests/harness.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Distinguish evaluation moderation rejection causes | `scripts/codex-evaluation-surface.mjs`, `tests/evaluation-transport.test.mjs` |

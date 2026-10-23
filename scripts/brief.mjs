@@ -89,9 +89,9 @@ function condense(text) {
     keep.push(line);
   }
   return keep.join("\n").replace(/\n{3,}/g, "\n\n").replace(/\s*$/, "\n")
-    + "\nDerived: `kanban.md`, `code-map.md`, `graph.md` are regenerated from frontmatter —"
-    + " query `graph.md` by vault-relative path (`waypost graph --for <path>`), never read it whole."
-    + " `waypost brief --full` explains the descent order.\n";
+    + "\nRegenerated from frontmatter: `kanban.md`, `code-map.md`, `graph.md`."
+    + " Query: `waypost graph --for <path>` (vault-relative path); never read graph whole."
+    + " Descent: `waypost brief --full`.\n";
 }
 
 // Who else is working on this vault right now — the first thing that matters

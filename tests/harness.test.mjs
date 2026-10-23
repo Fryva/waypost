@@ -1359,7 +1359,12 @@ test("brief keeps folder descriptions behind full mode without reducing JSON fac
   assert.ok(!compact.includes("| Folder | Kind | Count |"));
   assert.match(compact, /- `adr\/` adr: 0\n/);
   assert.ok(!compact.includes("Context A"));
-  assert.match(compact, /waypost brief --full/);
+  const hint = compact.split("\n").find(line => line.startsWith("Regenerated from frontmatter:"));
+  assert.equal(hint, "Regenerated from frontmatter: `kanban.md`, `code-map.md`, `graph.md`."
+    + " Query: `waypost graph --for <path>` (vault-relative path); never read graph whole."
+    + " Descent: `waypost brief --full`.");
+  assert.ok(hint.length <= 185, `default derived-view guidance is ${hint.length} chars`);
+  assert.ok(!full.includes(hint), "the compact hint belongs only to default text");
   assert.ok(full.includes("| Folder | Kind | Count | Purpose |"));
   assert.ok(full.includes("Context A \\| B for decisions."));
   const facts = (args) => JSON.parse(waypost(proj, ["brief", "--json", "--no-install", ...args]).stdout);
