@@ -21,6 +21,7 @@
 //      reporting tool); the plain-text report exits 1 when an issue-level
 //      finding exists, so `waypost doctor && ...` sees failures.
 
+import { renderDoctorReport } from "./doctor-report.mjs";
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, accessSync, constants } from "node:fs";
 import { join, basename, resolve, dirname, relative } from "node:path";
 import { homedir, platform } from "node:os";
@@ -1957,25 +1958,11 @@ export function runStartupChecks(cfg, proj, budgetMs = 150) {
 
 // ─── CLI ───────────────────────────────────────────────────────────────
 
-function icon(level) {
-  return level === "issue" ? "✖" : level === "warn" ? "⚠" : "ℹ";
-}
-
 function report(findings, groups) {
-  const ver = waypostVersion();
-  const lines = [`waypost doctor — v${ver || "?"}, ${new Date().toISOString().slice(0, 10)}`];
-  for (const g of groups) {
-    const fs = findings.filter((f) => f.group === g);
-    lines.push("", `## ${g} (${fs.filter((f) => f.level === "issue").length} issue(s), ${fs.filter((f) => f.level === "warn").length} warning(s))`);
-    if (!fs.length) lines.push("  ✓ clean");
-    for (const f of fs) {
-      lines.push(`  ${icon(f.level)} [${f.check}] ${f.message}${f.file && !f.message.startsWith(`${f.file}: `) ? `  — ${f.file}` : ""}`);
-    }
-  }
-  const issues = findings.filter((f) => f.level === "issue").length;
-  const warns = findings.filter((f) => f.level === "warn").length;
-  lines.push("", `Summary: ${issues} issue(s), ${warns} warning(s). ${issues ? "Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault)." : "Vault and wiring look healthy."}`);
-  return lines.join("\n");
+  return renderDoctorReport(findings, groups, {
+    version: waypostVersion(),
+    date: new Date().toISOString().slice(0, 10),
+  });
 }
 
 // ─── Repairs (--fix, install group only) ───────────────────────────────

@@ -74,6 +74,10 @@ changes alone do not establish token savings.
 `--full` adds their README descriptions and the reading tutorial. JSON facts keep
 the full detail in either mode.
 
+Doctor's text renderer lives in `scripts/doctor-report.mjs`. It formats supplied
+findings and version/date metadata without loading diagnostic checks or reading
+the filesystem; `scripts/doctor.mjs` supplies live metadata and owns CLI behavior.
+
 ## Agent roles across harnesses
 
 One definition per role — `agents/<role>.md` with neutral frontmatter
