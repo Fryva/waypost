@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-22T23:56:35.142Z
+generated_at: 2026-10-23T01:32:40.194Z
 
 ---
 
@@ -104,6 +104,7 @@ generated_at: 2026-10-22T23:56:35.142Z
 - [x] [[epics/WP-21/stories/story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e|WP-21: Extract cleanup application and clean command modules as migration stage e]] #p2 #done
 - [x] [[epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d|WP-21: Extract cleanup planning and deletion modules as migration stage d]] #p2 #done
 - [x] [[epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b|WP-21: Extract orientation and vault command modules as migration stage b]] #p2 #done
+- [x] [[epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries|WP-21: Recognize all graph edge kinds in bounded queries]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

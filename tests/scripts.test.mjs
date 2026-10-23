@@ -610,6 +610,47 @@ test("graph.mjs golden: three story shapes are nodes; typed edges normalized, de
   assert.ok(g1.stats.nodes >= 8 && g1.stats.edges >= 7);
 });
 
+test("bin/waypost graph query: generated modern relations remain typed edges", () => {
+  const { proj, vault } = seedGraphFixture();
+  const graph = runIn(proj, "graph.mjs", []);
+  writeFileSync(join(vault, "graph.md"), graph.content);
+  const r = runBinRaw(proj, ["graph", "--for", "adr/new-way.md"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^adr\/new-way\.md\n  adr\/new-way\.md · /);
+  assert.match(r.stdout, /\nedges \(\d+\):\n/);
+  assert.match(r.stdout, /adr\/new-way\.md → dead → missing-target/);
+  assert.match(r.stdout, /adr\/new-way\.md → ambiguous → dup \(matches:/);
+  assert.match(r.stdout, /specs\/covering\.md → spec-implements-adr → adr\/new-way\.md/);
+});
+
+test("bin/waypost graph query: section identity bounds all edge kinds and preserves nodes on LF and CRLF", () => {
+  const { proj, vault } = makeVaultProject();
+  const target = "adr/center.md";
+  const kinds = ["epic-contains", "spec-covers", "spec-implements-adr", "wikilink", "mdlink", "dead", "ambiguous", "out-of-scope", "future-kind", "supersedes"];
+  for (const count of [0, 60, 61, 65]) for (const eol of ["\n", "\r\n"]) {
+    const edges = Array.from({ length: count }, (_, i) => i % 2
+      ? [target, kinds[i % kinds.length], `adr/item-${i}.md`]
+      : [`adr/item-${i}.md`, kinds[i % kinds.length], target]);
+    writeFileSync(join(vault, "graph.md"), ["## Nodes", "", "| Path | Title | Type | Status |",
+      `| ${target} | links | adr | accepted |`, "", "## Edges", "", "| From | Kind | To |",
+      ...edges.map(cells => `| ${cells.join(" | ")} |`), ""].join(eol));
+    const r = runBinRaw(proj, ["graph", "--for", ".\\adr\\center.md"]);
+    assert.equal(r.status, 0, r.stderr);
+    const expected = `${target}\n  ${target} · links · adr · accepted\n` + (count
+      ? `\nedges (${count}):\n` + edges.slice(0, 60).map(cells => `  ${cells.join(" → ")}\n`).join("") +
+        (count > 60 ? `  …and ${count - 60} more\n` : "") : "");
+    assert.equal(r.stdout, expected);
+  }
+  const missing = runBinRaw(proj, ["graph", "--for", "adr/not-here.md"]);
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /no node or edge mentions "adr\/not-here\.md"/);
+  assert.match(missing.stderr, /Nodes are keyed by vault-relative path/);
+  rmSync(join(vault, "graph.md"));
+  const absent = runBinRaw(proj, ["graph", "--for", target]);
+  assert.notEqual(absent.status, 0);
+  assert.match(absent.stderr, /no graph.md yet/);
+});
+
 test("reconcile graph: bare skips while absent, explicit creates, repairs edits, idempotent; grep contract holds (contract 1 + ACs)", () => {
   const { proj, vault } = seedGraphFixture();
   const bare = runIn(proj, "reconcile.mjs", ["--write"]);

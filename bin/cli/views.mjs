@@ -19,13 +19,18 @@ function handleGraphQuery(target, args) {
   if (!existsSync(p)) fail("no graph.md yet — run `waypost graph`");
   const needle = target.replace(/\\/g, "/").replace(/^\.\//, "");
   const lines = readFileSync(p, "utf8").split("\n");
-  const hits = lines.filter((l) => l.includes(needle) && l.startsWith("|"));
-  if (!hits.length) {
+  const node = [], edges = [];
+  let section = "";
+  for (const line of lines) {
+    if (line.startsWith("## ")) section = line.trimEnd();
+    if (line.includes(needle) && line.startsWith("|")) {
+      (section === "## Edges" ? edges : node).push(line);
+    }
+  }
+  if (!node.length && !edges.length) {
     fail(`no node or edge mentions "${needle}" in graph.md.\n`
       + "       Nodes are keyed by vault-relative path (adr/foo.md), not by slug.");
   }
-  const node = hits.filter((l) => !/\|\s*(supersedes|superseded_by|covers|covered_by|contains|part_of|links|link)\s*\|/i.test(l));
-  const edges = hits.filter((l) => !node.includes(l));
   process.stdout.write(`${needle}\n`);
   for (const l of node) process.stdout.write(`  ${l.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").replace(/\s*\|\s*/g, " · ")}\n`);
   if (edges.length) {

@@ -12,7 +12,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 | `waypost story plan\|close <path> [--write]` | story lifecycle gates |
 | `waypost ready [--all]` | stories that are planned, unblocked (`blocked_by`, a draft spec, a proposed ADR) and unclaimed, with the claim command |
 | `waypost kanban` / `graph` / `codemap` | regenerate one derived view |
-| `waypost graph --for <path>` | one artifact's neighbourhood instead of the whole graph |
+| `waypost graph --for <path>` | one artifact's neighbourhood: nodes and up to 60 typed edges, with the full edge count and remainder |
 | `waypost search "<text>"` | vault-wide search returning pointers; exact title matches include their line number without repeating the title |
 | `waypost reconcile [--write]` | rebuild every view and index |
 | `waypost doctor [--install\|--vault [<path>]] [--fix]` | consistency diagnostics; `--vault <path>` checks a vault with no binding (CI on a fresh clone) |

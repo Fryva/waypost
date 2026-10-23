@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-22T23:52:56.028Z
+generated_at: 2026-10-23T01:31:06.457Z
 
 ---
 
@@ -79,6 +79,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Offline Codex token accounting with explicit coverage | `scripts/tokens.mjs`, `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Pin team-bound story refusal before CLI modularization | `tests/team-cli.test.mjs` |
 | WP-21 | Prepare dependency and loader guards for the CLI split | `tests/helpers/cli-static-closure.mjs`, `tests/harness.test.mjs`, `tests/sizes.test.mjs` |
+| WP-21 | Recognize all graph edge kinds in bounded queries | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Recognize explicit inherited parent headers in Codex accounting | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Reproducible token accounting and repeated-read evidence | `scripts/tokens.mjs`, `scripts/token-navigation.mjs`, `tests/tokens.test.mjs`, `tests/token-navigation.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Scope unknown-prefix diagnostics to the requested period | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
