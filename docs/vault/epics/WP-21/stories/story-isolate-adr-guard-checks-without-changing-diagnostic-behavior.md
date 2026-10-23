@@ -103,6 +103,28 @@ JavaScript replacement interpreted dollar-backtick text inside the extracted
 source. It was corrected to callback replacement before fixture execution;
 production sources were unchanged. The failed attempt is retained explicitly.
 
+## CI follow-up: shared child-process environment
+
+Full CI job 120503233651 (Node 24, commit e05b79e) reached 1974 passed,
+1 failed, 3 skipped: the state-migration suite found that the new guard test
+spawns Git without importing the shared tests/env.mjs. The same failure was
+reproduced locally at 31f2fae. tests/doctor-guards.test.mjs now imports that module
+first, setting the existing migration opt-out for its children. The protective
+assertion and production modules are unchanged.
+
+On macOS, complete state-migrate plus guard-module test files now pass on
+Node 20.20.2, 22.23.3 and 24.22.0: each 43 passed, 0 failed, 2 platform skips
+(45 total). This is a focused matrix, not a full-suite success claim. New CI
+confirmation remains pending. The earlier 60-check result above remains a record
+of its narrower original scope. Official runtime archives were SHA256 verified;
+owned temporary runtimes/archives removed (469794877 bytes).
+
+Evidence: `.waypost/experiments/wp21-ci-node24-20261023/` contains the failed CI
+log, local failing reproduction, exact one-line fix identity, runtime provenance,
+three complete logs/source-bound receipts and cleanup record. Independent bugfix
+review: ship, no findings; all seven source hashes and logs verified. Production
+code and budgets are unchanged by this fix.
+
 ## Technical Notes
 
 No new CLI flags, dependencies, model changes, native pilots or historical budget
