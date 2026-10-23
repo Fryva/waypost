@@ -1364,7 +1364,12 @@ async function vaultFindings(proj, check) {
 }
 
 test("doctor guards: forbid, require, not_in, levels by status, bounds and a check that is never run (ADR-0011)", async () => {
-  const { checkGuards } = await import("../scripts/doctor.mjs");
+  const doctor = await import("../scripts/doctor.mjs");
+  const guards = await import("../scripts/doctor-guards.mjs");
+  for (const name of ["checkGuards", "projectFiles", "GUARD_FILE_MAX", "GUARD_FILES_MAX"]) {
+    assert.strictEqual(doctor[name], guards[name], `the old ${name} export keeps its binding`);
+  }
+  const { checkGuards } = doctor;
   const proj = mkdtempSync(join(tmpdir(), "wp-guards-"));
   mkdirSync(join(proj, "src", "a"), { recursive: true }); mkdirSync(join(proj, "services", "x"), { recursive: true });
   writeFileSync(join(proj, "src", "a", "http.ts"), "import x from\n  'axios';\nexport const y = 1;\n", "utf8");

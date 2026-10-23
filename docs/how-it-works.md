@@ -77,6 +77,8 @@ the full detail in either mode.
 Doctor's text renderer lives in `scripts/doctor-report.mjs`. It formats supplied
 findings and version/date metadata without loading diagnostic checks or reading
 the filesystem; `scripts/doctor.mjs` supplies live metadata and owns CLI behavior.
+ADR guard evaluation and its project-file cache live in `scripts/doctor-guards.mjs`;
+Doctor keeps the original public exports and registers the check.
 
 ## Agent roles across harnesses
 
