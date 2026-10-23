@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-23T04:27:18.808Z
+generated_at: 2026-10-23T06:27:08.136Z
 
 ---
 
@@ -135,6 +135,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | Recognize explicit inherited parent headers in Codex accounting | story | done |
 | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | Reproducible token accounting and repeated-read evidence | story | done |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | Scope unknown-prefix diagnostics to the requested period | story | done |
+| epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md | State repeated ADR check execution guidance once per doctor group | story | done |
 | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md | Targeted evidence reads and reproducible role handoffs | story | done |
 | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | The team code loads only for story --write, and the CLI entry is an .mjs the code index sees | story | done |
 | epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md | Validate sealed-source collisions before filesystem reads | story | done |
@@ -394,6 +395,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md |
@@ -462,6 +464,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md | mdlink | epics/WP-21/epic.md |

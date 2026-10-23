@@ -1128,6 +1128,36 @@ test("doctor: exact file prefixes avoid duplicate suffixes without changing find
   assert.ok(!existsSync(marker), "declarative check commands are never executed");
 });
 
+test("doctor: shared ADR check guidance preserves JSON, failing exit and declarative non-execution", () => {
+  const { proj, vault } = makeVaultProject();
+  const marker = join(proj, "shared-check-must-not-run");
+  writeFileSync(join(proj, "danger.mjs"), "unsafe\n");
+  const check = `node -e ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'bad')`)}`;
+  const guards = [{ check, why: "first reason" }, { check, why: "second reason" },
+    { forbid: "unsafe", in: "danger.mjs", why: "reject unsafe" }];
+  writeFileSync(join(vault, "adr", "multi.md"),
+    `---\ntype: adr\nid: multi\ntitle: Multi\nstatus: accepted\ndate: 2026-10-23\nguards: ${JSON.stringify(guards)}\n---\n`);
+  const before = runBinRaw(proj, ["doctor", "--vault", "--json"]);
+  assert.equal(before.status, 0, before.stderr);
+  const findings = JSON.parse(before.stdout);
+  const checks = findings.filter(f => f.check === "adr-guard" && f.level === "info");
+  assert.equal(checks.length, 2);
+  for (const f of checks) assert.ok(f.message.endsWith(" — it runs in the project's own test suite; doctor never executes it."));
+  const human = runBinRaw(proj, ["doctor", "--vault"]);
+  assert.equal(human.status, 1, "the unsafe finding still fails text mode");
+  const lines = human.stdout.split("\n");
+  for (const why of ["first reason", "second reason"]) {
+    assert.ok(lines.includes(`  ℹ [adr-guard] adr/multi.md: check \`${check}\` encodes this decision (${why})`));
+  }
+  assert.equal(lines.filter(l => l === "  ADR check commands run in the project's test suite; doctor never executes them.").length, 1);
+  const issue = findings.find(f => f.check === "adr-guard" && f.level === "issue");
+  assert.ok(lines.includes(`  ✖ [adr-guard] ${issue.message}`));
+  const after = runBinRaw(proj, ["doctor", "--vault", "--json"]);
+  assert.equal(after.status, 0, after.stderr);
+  assert.deepEqual(JSON.parse(after.stdout), findings);
+  assert.ok(!existsSync(marker), "neither declarative command was executed");
+});
+
 test("waypost setup: the repair step prints doctor's own report instead of swallowing it (P1-9, G-10)", () => {
   const proj = mkdtempSync(join(tmpdir(), "ps-setup-"));
   spawnSync("git", ["init", "-q"], { cwd: proj });

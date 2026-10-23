@@ -88,3 +88,75 @@ test("doctor report: formatting uses the supplied date without consulting a cloc
     globalThis.Date = originalDate;
   }
 });
+
+const checkTail = " — it runs in the project's own test suite; doctor never executes it.";
+const checkLegend = "  ADR check commands run in the project's test suite; doctor never executes them.";
+const checkFinding = (id, group = "vault") => ({ group, level: "info", check: "adr-guard",
+  file: `adr/${id}.md`, message: `adr/${id}.md: check \`node ${id}.mjs\` encodes this decision (reason ${id})${checkTail}` });
+
+test("doctor report: one shared note preserves complete commands and reasons for multiple checks", () => {
+  for (const count of [2, 3]) {
+    const findings = Object.freeze(Array.from({ length: count }, (_, i) => Object.freeze(checkFinding(i))));
+    const before = JSON.stringify(findings);
+    const result = renderDoctorReport(findings, ["vault"], { version: "v", date: "fixed" });
+    assert.deepEqual(result.split("\n"), [
+      "waypost doctor — vv, fixed", "", "## vault (0 issue(s), 0 warning(s))",
+      ...Array.from({ length: count }, (_, i) => `  ℹ [adr-guard] adr/${i}.md: check \`node ${i}.mjs\` encodes this decision (reason ${i})`),
+      checkLegend, "", "Summary: 0 issue(s), 0 warning(s). Vault and wiring look healthy.",
+    ]);
+    assert.equal(JSON.stringify(findings), before);
+    assert.ok(!result.endsWith("\n"));
+  }
+});
+
+test("doctor report: zero or one canonical check retains its full message without a legend", () => {
+  for (const findings of [[], [checkFinding("single")]]) {
+    const result = renderDoctorReport(findings, ["vault"], { version: "v", date: "fixed" });
+    assert.ok(!result.includes(checkLegend));
+    if (findings.length) assert.ok(result.includes(`  ℹ [adr-guard] ${findings[0].message}\n`));
+    else assert.ok(result.includes("  ✓ clean\n"));
+  }
+});
+
+test("doctor report: near matches and rule reasons are never shortened alongside canonical checks", () => {
+  const canonical = checkFinding("base");
+  const unchanged = [
+    { ...canonical, level: "warn" },
+    { ...canonical, level: "issue" },
+    { ...canonical, check: "other" },
+    { ...canonical, message: canonical.message + " later" },
+    { ...canonical, message: canonical.message.replace("own test suite", "test suite") },
+    { ...canonical, message: canonical.message.replace("encodes this decision (", "has reason (") },
+    { ...canonical, file: "adr/different.md" },
+    { ...canonical, file: undefined },
+    { ...canonical, message: `would fail: adr/base.md: forbid "unsafe" matched in src/a.mjs — reason${checkTail}` },
+    { ...canonical, message: `would fail: adr/base.md: require "safe" missing in src/a.mjs — reason${checkTail}` },
+  ];
+  const result = renderDoctorReport([checkFinding("a"), ...unchanged, checkFinding("b")], ["vault"], { version: "v", date: "fixed" });
+  const lines = result.split("\n");
+  assert.equal(lines.filter(l => l === checkLegend).length, 1);
+  for (const f of unchanged) {
+    const icon = f.level === "issue" ? "✖" : f.level === "warn" ? "⚠" : "ℹ";
+    const suffix = f.file && !f.message.startsWith(`${f.file}: `) ? `  — ${f.file}` : "";
+    assert.ok(lines.includes(`  ${icon} [${f.check}] ${f.message}${suffix}`), f.message);
+  }
+  const rulesOnly = renderDoctorReport(unchanged.slice(-2), ["vault"], { version: "v", date: "fixed" });
+  assert.ok(!rulesOnly.includes(checkLegend), "matching rule reasons alone never create a legend");
+  for (const f of unchanged.slice(-2)) assert.ok(rulesOnly.includes(f.message));
+  assert.ok(result.includes("## vault (1 issue(s), 1 warning(s))"));
+  assert.ok(result.includes("Summary: 1 issue(s), 1 warning(s)."));
+});
+
+test("doctor report: check sharing is local to displayed groups, including repeated groups", () => {
+  const separate = [checkFinding("a", "one"), checkFinding("b", "two")];
+  const split = renderDoctorReport(separate, ["one", "two"], { version: "v", date: "fixed" });
+  assert.ok(!split.includes(checkLegend));
+  for (const f of separate) assert.ok(split.includes(f.message));
+  const findings = [...separate, checkFinding("c", "one"), checkFinding("d", "hidden"), checkFinding("e", "hidden")];
+  const result = renderDoctorReport(findings, ["one", "two", "one"], { version: "v", date: "fixed" });
+  assert.equal(result.split("\n").filter(l => l === checkLegend).length, 2);
+  assert.ok(result.includes(separate[1].message), "singleton in another group stays complete");
+  assert.ok(!result.includes("adr/d.md"));
+  assert.ok(!result.includes("adr/e.md"));
+  assert.equal(result.split("\n").filter(l => l.startsWith("## one ")).length, 2);
+});

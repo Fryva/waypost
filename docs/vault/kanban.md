@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-23T04:27:18.593Z
+generated_at: 2026-10-23T06:27:07.924Z
 
 ---
 
@@ -109,6 +109,7 @@ generated_at: 2026-10-23T04:27:18.593Z
 - [x] [[epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance|WP-21: Compact the default brief derived-view guidance]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics|WP-21: Isolate doctor report formatting without changing diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries|WP-21: Recognize all graph edge kinds in bounded queries]] #p2 #done
+- [x] [[epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group|WP-21: State repeated ADR check execution guidance once per doctor group]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done
