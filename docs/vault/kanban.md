@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-23T19:14:24.870Z
+generated_at: 2026-10-23T23:45:40.203Z
 
 ---
 
@@ -113,6 +113,7 @@ generated_at: 2026-10-23T19:14:24.870Z
 - [x] [[epics/WP-21/stories/story-isolate-generated-view-consistency-diagnostics|WP-21: Isolate generated view consistency diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics|WP-21: Isolate portable path and line ending diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-specification-link-coverage-and-acceptance-diagnostics|WP-21: Isolate specification link coverage and acceptance diagnostics]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-story-and-epic-lifecycle-diagnostics|WP-21: Isolate story and epic lifecycle diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics|WP-21: Isolate vault artifact discovery and identity diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries|WP-21: Recognize all graph edge kinds in bounded queries]] #p2 #done
 - [x] [[epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group|WP-21: State repeated ADR check execution guidance once per doctor group]] #p2 #done

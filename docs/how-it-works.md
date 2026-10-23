@@ -89,6 +89,8 @@ Specification link, coverage and acceptance checks live in `scripts/doctor-specs
 Doctor retains the public exports and lifecycle checks.
 Generated-view consistency checks live in `scripts/doctor-generated.mjs`, preserving
 the real subprocess generators and public exports through Doctor.
+Story/epic status and lifecycle-gate checks live in `scripts/doctor-lifecycle.mjs`;
+Doctor retains their public exports and guarded-loop registration.
 
 ## Agent roles across harnesses
 
