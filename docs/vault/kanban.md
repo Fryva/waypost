@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-23T01:43:59.923Z
+generated_at: 2026-10-23T01:56:37.099Z
 
 ---
 
@@ -105,6 +105,7 @@ generated_at: 2026-10-23T01:43:59.923Z
 - [x] [[epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d|WP-21: Extract cleanup planning and deletion modules as migration stage d]] #p2 #done
 - [x] [[epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b|WP-21: Extract orientation and vault command modules as migration stage b]] #p2 #done
 - [x] [[epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings|WP-21: Avoid repeated file paths in doctor findings]] #p2 #done
+- [x] [[epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions|WP-21: Compact repeated graph endpoints without losing directions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries|WP-21: Recognize all graph edge kinds in bounded queries]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done

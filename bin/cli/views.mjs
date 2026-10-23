@@ -36,6 +36,17 @@ function handleGraphQuery(target, args) {
   if (edges.length) {
     process.stdout.write(`\nedges (${edges.length}):\n`);
     for (const l of edges.slice(0, 60)) {
+      // The header supplies the queried endpoint. Only canonical, unambiguous
+      // rows can omit it; diagnostic/substring matches keep their full form.
+      const row = /^\| ([^|]+) \| ([^|]+) \| ([^|]+) \|\r?$/.exec(l);
+      if (row && row[2].trim() === row[2] && !row[2].includes(": ")) {
+        const [, from, kind, to] = row;
+        const direction = from === needle ? (to === needle ? "self" : "out") : to === needle ? "in" : null;
+        if (direction) {
+          process.stdout.write(`  ${direction} ${kind}${direction === "self" ? "" : `: ${direction === "out" ? to : from}`}\n`);
+          continue;
+        }
+      }
       process.stdout.write(`  ${l.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").replace(/\s*\|\s*/g, " → ")}\n`);
     }
     if (edges.length > 60) process.stdout.write(`  …and ${edges.length - 60} more\n`);

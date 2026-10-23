@@ -618,9 +618,9 @@ test("bin/waypost graph query: generated modern relations remain typed edges", (
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /^adr\/new-way\.md\n  adr\/new-way\.md · /);
   assert.match(r.stdout, /\nedges \(\d+\):\n/);
-  assert.match(r.stdout, /adr\/new-way\.md → dead → missing-target/);
-  assert.match(r.stdout, /adr\/new-way\.md → ambiguous → dup \(matches:/);
-  assert.match(r.stdout, /specs\/covering\.md → spec-implements-adr → adr\/new-way\.md/);
+  assert.match(r.stdout, /out dead: missing-target/);
+  assert.match(r.stdout, /out ambiguous: dup \(matches:/);
+  assert.match(r.stdout, /in spec-implements-adr: specs\/covering\.md/);
 });
 
 test("bin/waypost graph query: section identity bounds all edge kinds and preserves nodes on LF and CRLF", () => {
@@ -637,7 +637,8 @@ test("bin/waypost graph query: section identity bounds all edge kinds and preser
     const r = runBinRaw(proj, ["graph", "--for", ".\\adr\\center.md"]);
     assert.equal(r.status, 0, r.stderr);
     const expected = `${target}\n  ${target} · links · adr · accepted\n` + (count
-      ? `\nedges (${count}):\n` + edges.slice(0, 60).map(cells => `  ${cells.join(" → ")}\n`).join("") +
+      ? `\nedges (${count}):\n` + edges.slice(0, 60).map(([from, kind, to]) => from === target
+        ? `  out ${kind}: ${to}\n` : `  in ${kind}: ${from}\n`).join("") +
         (count > 60 ? `  …and ${count - 60} more\n` : "") : "");
     assert.equal(r.stdout, expected);
   }
@@ -649,6 +650,37 @@ test("bin/waypost graph query: section identity bounds all edge kinds and preser
   const absent = runBinRaw(proj, ["graph", "--for", target]);
   assert.notEqual(absent.status, 0);
   assert.match(absent.stderr, /no graph.md yet/);
+});
+
+test("bin/waypost graph query: compact directions round-trip and ambiguous rows keep full fallback", () => {
+  const { proj, vault } = makeVaultProject();
+  const target = `epics/${"long-path-".repeat(15)}/stories/story-target.md`;
+  const other = "adr/Путь with spaces.md";
+  const triples = [[target, "future-kind", other], [other, "wikilink", target], [target, "self-kind", target]];
+  const fallback = [
+    [`| ${target}-suffix | wikilink | adr/other.md |`, `  ${target}-suffix → wikilink → adr/other.md`],
+    [`| adr/source.md | ambiguous | dup (matches: ${target}, adr/else.md) |`, `  adr/source.md → ambiguous → dup (matches: ${target}, adr/else.md)`],
+    [`| ${target} | future: typed | other |`, `  ${target} → future: typed → other`],
+    [`| ${target} | wikilink | a | b |`, `  ${target} → wikilink → a → b`],
+    [`| ${target} | wikilink | a \\| b |`, `  ${target} → wikilink → a \\ → b`],
+    [`|${target}|wikilink|other|`, `  ${target} → wikilink → other`],
+  ];
+  for (const eol of ["\n", "\r\n"]) {
+    writeFileSync(join(vault, "graph.md"), ["## Nodes", `| ${target} | Target | story | planned |`,
+      "## Edges", ...triples.map(t => `| ${t.join(" | ")} |`), ...fallback.map(([row]) => row), ""].join(eol));
+    const r = runBinRaw(proj, ["graph", "--for", target]);
+    assert.equal(r.status, 0, r.stderr);
+    const edgeLines = r.stdout.split("\nedges (9):\n")[1].trimEnd().split("\n");
+    assert.deepEqual(edgeLines.slice(0, 3), [`  out future-kind: ${other}`, `  in wikilink: ${other}`, "  self self-kind"]);
+    const recovered = edgeLines.slice(0, 3).map(line => {
+      if (line.startsWith("  self ")) return [target, line.slice(7), target];
+      const [, direction, kind, endpoint] = /^  (out|in) ([^:]+): (.+)$/.exec(line);
+      return direction === "out" ? [target, kind, endpoint] : [endpoint, kind, target];
+    });
+    assert.deepEqual(recovered, triples, "complete directed facts survive compact rendering");
+    assert.deepEqual(edgeLines.slice(3), fallback.map(([, expected]) => expected));
+    assert.ok(r.stdout.startsWith(`${target}\n  ${target} · Target · story · planned\n`));
+  }
 });
 
 test("reconcile graph: bare skips while absent, explicit creates, repairs edits, idempotent; grep contract holds (contract 1 + ACs)", () => {
