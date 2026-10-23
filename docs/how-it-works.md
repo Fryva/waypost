@@ -85,6 +85,8 @@ The shared vault walk, artifact identity, external-ref form and filename checks
 live in `scripts/doctor-artifacts.mjs`; graph keeps its existing Doctor import.
 Portable path and line-ending checks live in `scripts/doctor-portability.mjs`;
 Doctor keeps orchestration and repairs.
+Specification link, coverage and acceptance checks live in `scripts/doctor-specs.mjs`;
+Doctor retains the public exports and lifecycle checks.
 
 ## Agent roles across harnesses
 
