@@ -83,6 +83,8 @@ Artifact code references, supersede links and acceptance review gates live in
 `scripts/doctor-integrity.mjs`, with the same public exports through Doctor.
 The shared vault walk, artifact identity, external-ref form and filename checks
 live in `scripts/doctor-artifacts.mjs`; graph keeps its existing Doctor import.
+Portable path and line-ending checks live in `scripts/doctor-portability.mjs`;
+Doctor keeps orchestration and repairs.
 
 ## Agent roles across harnesses
 
