@@ -87,6 +87,8 @@ Portable path and line-ending checks live in `scripts/doctor-portability.mjs`;
 Doctor keeps orchestration and repairs.
 Specification link, coverage and acceptance checks live in `scripts/doctor-specs.mjs`;
 Doctor retains the public exports and lifecycle checks.
+Generated-view consistency checks live in `scripts/doctor-generated.mjs`, preserving
+the real subprocess generators and public exports through Doctor.
 
 ## Agent roles across harnesses
 

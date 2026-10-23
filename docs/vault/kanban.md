@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-23T18:56:23.952Z
+generated_at: 2026-10-23T19:14:24.870Z
 
 ---
 
@@ -110,6 +110,7 @@ generated_at: 2026-10-23T18:56:23.952Z
 - [x] [[epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior|WP-21: Isolate ADR guard checks without changing diagnostic behavior]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics|WP-21: Isolate artifact integrity checks without changing diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics|WP-21: Isolate doctor report formatting without changing diagnostics]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-generated-view-consistency-diagnostics|WP-21: Isolate generated view consistency diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics|WP-21: Isolate portable path and line ending diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-specification-link-coverage-and-acceptance-diagnostics|WP-21: Isolate specification link coverage and acceptance diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics|WP-21: Isolate vault artifact discovery and identity diagnostics]] #p2 #done
