@@ -81,6 +81,8 @@ ADR guard evaluation and its project-file cache live in `scripts/doctor-guards.m
 Doctor keeps the original public exports and registers the check.
 Artifact code references, supersede links and acceptance review gates live in
 `scripts/doctor-integrity.mjs`, with the same public exports through Doctor.
+The shared vault walk, artifact identity, external-ref form and filename checks
+live in `scripts/doctor-artifacts.mjs`; graph keeps its existing Doctor import.
 
 ## Agent roles across harnesses
 

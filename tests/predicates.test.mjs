@@ -64,6 +64,7 @@ import {
   resolveSelection,
   writeIndexWithRetry,
 } from "../scripts/reconcile.mjs";
+import * as artifactChecks from "../scripts/doctor-artifacts.mjs";
 
 // Every temp dir this file makes goes through here and is removed once its
 // tests finish, so a run leaves nothing behind in $TMPDIR (WP-17).
@@ -609,6 +610,12 @@ test("displayNumberOf: frontmatter number wins, legacy filename number falls bac
 // ─── identity & filename-shape checks (SPEC-002 contracts 4, 7) ────────
 
 const vf = (...rels) => rels.map((rel) => ({ rel, name: rel.split("/").pop() }));
+
+test("doctor artifact exports keep the same public bindings", () => {
+  for (const [name, original] of Object.entries({ walkVaultFiles, checkArtifactIdentity, checkExternalRefsForm, checkArtifactNames })) {
+    assert.strictEqual(original, artifactChecks[name], name);
+  }
+});
 
 test("checkArtifactIdentity: cross-era collision is an issue, digit-leading overlap a warn", () => {
   const layout = loadLayout("engineering");

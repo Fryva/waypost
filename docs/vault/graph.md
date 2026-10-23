@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-23T15:51:14.465Z
+generated_at: 2026-10-23T17:29:28.271Z
 
 ---
 
@@ -127,6 +127,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior.md | Isolate ADR guard checks without changing diagnostic behavior | story | done |
 | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md | Isolate artifact integrity checks without changing diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md | Isolate doctor report formatting without changing diagnostics | story | done |
+| epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md | Isolate vault artifact discovery and identity diagnostics | story | done |
 | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | Keep brief folder descriptions behind full mode | story | done |
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | Keep CLI reference out of standing instructions | story | done |
 | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | Map CLI dependencies and shared-state ownership before migration | story | done |
@@ -389,6 +390,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md |
@@ -460,6 +462,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | mdlink | epics/WP-21/epic.md |
