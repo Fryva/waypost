@@ -1969,7 +1969,7 @@ function report(findings, groups) {
     lines.push("", `## ${g} (${fs.filter((f) => f.level === "issue").length} issue(s), ${fs.filter((f) => f.level === "warn").length} warning(s))`);
     if (!fs.length) lines.push("  ✓ clean");
     for (const f of fs) {
-      lines.push(`  ${icon(f.level)} [${f.check}] ${f.message}${f.file ? `  — ${f.file}` : ""}`);
+      lines.push(`  ${icon(f.level)} [${f.check}] ${f.message}${f.file && !f.message.startsWith(`${f.file}: `) ? `  — ${f.file}` : ""}`);
     }
   }
   const issues = findings.filter((f) => f.level === "issue").length;

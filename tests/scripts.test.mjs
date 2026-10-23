@@ -1061,6 +1061,41 @@ test("doctor: text-mode exit reflects an issue finding; --json stays a reporting
   assert.equal(rJson.status, 0, "json mode (a reporting tool) always exits 0");
 });
 
+test("doctor: exact file prefixes avoid duplicate suffixes without changing findings or exit policy", () => {
+  const { proj, vault } = makeVaultProject();
+  const marker = join(proj, "guard-must-not-run");
+  writeFileSync(join(proj, "danger.mjs"), "unsafe\n");
+  const check = `node -e ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'bad')`)}`;
+  for (const [name, status, guards] of [
+    ["accepted", "accepted", [{ check, why: "declarative only" }, { forbid: "unsafe", in: "danger.mjs", why: "reject unsafe" }]],
+    ["proposed", "proposed", [{ forbid: "unsafe", in: "danger.mjs", why: "preview unsafe" }]],
+    ["malformed", "accepted", [{ check: "never", why: "" }]],
+  ]) writeFileSync(join(vault, "adr", `${name}.md`),
+    `---\ntype: adr\nid: ${name}\ntitle: ${name}\nstatus: ${status}\ndate: 2026-10-23\nguards: ${JSON.stringify(guards)}\n---\n`);
+  const before = runBinRaw(proj, ["doctor", "--vault", "--json"]);
+  assert.equal(before.status, 0, before.stderr);
+  const findings = JSON.parse(before.stdout);
+  const guards = findings.filter(f => f.check === "adr-guard");
+  assert.equal(guards.length, 4);
+  const human = runBinRaw(proj, ["doctor", "--vault"]);
+  assert.equal(human.status, 1, "issue findings still fail in text mode");
+  const lines = human.stdout.split("\n");
+  for (const f of guards) {
+    const icon = f.level === "issue" ? "✖" : f.level === "warn" ? "⚠" : "ℹ";
+    const prefix = f.file === "adr/accepted.md";
+    const expected = `  ${icon} [adr-guard] ${f.message}${prefix ? "" : `  — ${f.file}`}`;
+    assert.ok(lines.includes(expected), `complete finding retained: ${expected}`);
+    if (prefix) assert.ok(!lines.includes(`${expected}  — ${f.file}`));
+  }
+  assert.ok(guards.some(f => f.level === "issue" && f.message.startsWith("adr/accepted.md: ")));
+  assert.ok(guards.some(f => f.message.startsWith("would fail: ")));
+  assert.ok(guards.some(f => f.message.startsWith("adr/malformed.md guard 1: ")));
+  const after = runBinRaw(proj, ["doctor", "--vault", "--json"]);
+  assert.equal(after.status, 0, after.stderr);
+  assert.deepEqual(JSON.parse(after.stdout), findings, "text reporting preserves complete JSON findings");
+  assert.ok(!existsSync(marker), "declarative check commands are never executed");
+});
+
 test("waypost setup: the repair step prints doctor's own report instead of swallowing it (P1-9, G-10)", () => {
   const proj = mkdtempSync(join(tmpdir(), "ps-setup-"));
   spawnSync("git", ["init", "-q"], { cwd: proj });

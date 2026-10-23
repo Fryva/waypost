@@ -15,7 +15,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 | `waypost graph --for <path>` | one artifact's neighbourhood: nodes and up to 60 typed edges, with the full edge count and remainder |
 | `waypost search "<text>"` | vault-wide search returning pointers; exact title matches include their line number without repeating the title |
 | `waypost reconcile [--write]` | rebuild every view and index |
-| `waypost doctor [--install\|--vault [<path>]] [--fix]` | consistency diagnostics; `--vault <path>` checks a vault with no binding (CI on a fresh clone) |
+| `waypost doctor [--install\|--vault [<path>]] [--fix]` | consistency diagnostics; file paths already leading a message are not repeated; `--vault <path>` checks a vault with no binding (CI on a fresh clone) |
 | `waypost diff-refs` | changed files as evidence for `code_refs` |
 | `waypost agents …` | roles: `list`/`show`/`install`/`uninstall`/`register`/`model` |
 | `waypost skills …` | Agent Skills: `install`/`list`/`uninstall`/`validate` — the bundled procedures as standard `SKILL.md`, in the directory each harness discovers |
