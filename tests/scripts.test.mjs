@@ -1413,7 +1413,12 @@ test("doctor guards: forbid, require, not_in, levels by status, bounds and a che
 });
 
 test("doctor code_refs: unresolved is a warning at proposed, an issue at done (ADR-0009)", async () => {
-  const { checkCodeRefs } = await import("../scripts/doctor.mjs");
+  const doctor = await import("../scripts/doctor.mjs");
+  const integrity = await import("../scripts/doctor-integrity.mjs");
+  for (const name of ["checkCodeRefs", "checkSupersedes", "checkAcceptanceGate"]) {
+    assert.strictEqual(doctor[name], integrity[name], `the old ${name} export keeps its binding`);
+  }
+  const { checkCodeRefs } = doctor;
   const proj = mkdtempSync(join(tmpdir(), "wp-refs-"));
   const at = (status) => checkCodeRefs([{ rel: "a.md", kind: "adr", fm: { status, code_refs: '["nope.rs"]' }, body: "" }], proj);
   assert.equal(at("proposed")[0].level, "warn", "a proposed artifact is checked but must not turn a vault red");

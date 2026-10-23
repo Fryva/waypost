@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-23T15:35:45.416Z
+generated_at: 2026-10-23T15:51:14.249Z
 
 ---
 
@@ -108,6 +108,7 @@ generated_at: 2026-10-23T15:35:45.416Z
 - [x] [[epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions|WP-21: Compact repeated graph endpoints without losing directions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance|WP-21: Compact the default brief derived-view guidance]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior|WP-21: Isolate ADR guard checks without changing diagnostic behavior]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics|WP-21: Isolate artifact integrity checks without changing diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics|WP-21: Isolate doctor report formatting without changing diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries|WP-21: Recognize all graph edge kinds in bounded queries]] #p2 #done
 - [x] [[epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group|WP-21: State repeated ADR check execution guidance once per doctor group]] #p2 #done

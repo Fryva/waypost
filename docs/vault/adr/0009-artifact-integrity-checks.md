@@ -9,7 +9,7 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["scripts/doctor.mjs", "scripts/lib.mjs", "scripts/graph.mjs", "bin/waypost", "tests/scripts.test.mjs", "AGENTS.md", "docs/how-it-works.md", "docs/decisions/README.md", "agents/planner.md", "agents/reviewer.md", "prompts/story.md"]
+code_refs: ["scripts/doctor.mjs", "scripts/doctor-integrity.mjs", "tests/doctor-integrity.test.mjs", "scripts/lib.mjs", "scripts/graph.mjs", "bin/waypost", "tests/scripts.test.mjs", "AGENTS.md", "docs/how-it-works.md", "docs/decisions/README.md", "agents/planner.md", "agents/reviewer.md", "prompts/story.md"]
 review_status: reviewed
 reviewed_at: 2026-09-02
 deciders: "Ivan Morozov (project owner); approved 2026-09-03"
