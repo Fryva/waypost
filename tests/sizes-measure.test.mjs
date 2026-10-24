@@ -120,13 +120,16 @@ test("sizes measurement module: all three original scanner guards cover the extr
   const { data } = parseFrontmatter(readFileSync(join(REPO, ADR), "utf8"));
   const guards = JSON.parse(data.guards), scanner = guards.filter(g => g.in === "scripts/sizes*.mjs");
   assert.equal(scanner.length, 3); assert.equal(guards.filter(g => g.in === "scripts/cleanup.mjs").length, 2);
-  const files = ["scripts/sizes.mjs", "scripts/sizes-measure.mjs"];
-  put(files[0], "export const fixture = 1;\n"); put(files[1], "export const fixture = 2;\n");
+  const files = ["scripts/sizes.mjs", "scripts/sizes-measure.mjs", "scripts/sizes-rules.mjs", "scripts/sizes-git.mjs"];
+  for (const file of files) put(file, "export const fixture = 1;\n");
   const artifact = { kind: "adr", rel: "adr/fixture.md", fm: { status: "accepted", guards: JSON.stringify(scanner) } };
   assert.deepEqual(checkGuards([artifact], root, { files }), []);
-  for (const [i, text] of ["rmSync(path);", 'const command = "rm ";', "DerivedData"].entries()) {
-    put(files[1], text);
-    const hits = checkGuards([{ ...artifact, fm: { ...artifact.fm, guards: JSON.stringify([scanner[i]]) } }], root, { files });
-    assert.equal(hits.length, 1); assert.equal(hits[0].level, "issue"); assert.ok(hits[0].message.includes("scripts/sizes-measure.mjs"));
+  for (const file of files) {
+    for (const [i, text] of ["rmSync(path);", 'const command = "rm ";', "DerivedData"].entries()) {
+      put(file, text);
+      const hits = checkGuards([{ ...artifact, fm: { ...artifact.fm, guards: JSON.stringify([scanner[i]]) } }], root, { files });
+      assert.equal(hits.length, 1); assert.equal(hits[0].level, "issue"); assert.ok(hits[0].message.includes(file));
+      put(file, "export const fixture = 1;\n");
+    }
   }
 });

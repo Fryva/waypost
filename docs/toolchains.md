@@ -280,4 +280,7 @@ To fix a wrong path or confidence level: edit the entry, rerun
 
 Item measurement and cache projection live in `scripts/sizes-measure.mjs`;
 `scripts/sizes.mjs` retains their public exports and owns project discovery.
-Both are read-only and covered by the scanner guards in the disk-hygiene ADR.
+Registry matching and owner compilation live in `scripts/sizes-rules.mjs`;
+Git evidence and subprocess charges live in `scripts/sizes-git.mjs`.
+The facade preserves its eleven public exports. All four modules are read-only
+and covered by the unchanged scanner guards in the disk-hygiene ADR.
