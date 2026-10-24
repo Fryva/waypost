@@ -9,7 +9,7 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/doctor.mjs", "scripts/brief.mjs", "scripts/lib.mjs", "tests/presence.test.mjs", "scripts/doctor-portability.mjs", "tests/doctor-portability.test.mjs", "scripts/doctor-coordination.mjs", "tests/doctor-coordination.test.mjs", "scripts/doctor-repairs.mjs", "tests/doctor-repairs.test.mjs", "scripts/presence-process.mjs", "tests/presence-process.test.mjs"]
+code_refs: ["scripts/presence.mjs", "scripts/sessions.mjs", "scripts/commit.mjs", "scripts/doctor.mjs", "scripts/brief.mjs", "scripts/lib.mjs", "tests/presence.test.mjs", "scripts/doctor-portability.mjs", "tests/doctor-portability.test.mjs", "scripts/doctor-coordination.mjs", "tests/doctor-coordination.test.mjs", "scripts/doctor-repairs.mjs", "tests/doctor-repairs.test.mjs", "scripts/presence-process.mjs", "tests/presence-process.test.mjs", "scripts/presence-storage.mjs", "tests/presence-storage.test.mjs"]
 review_status: reviewed
 reviewed_at: 2026-09-01
 deciders: "Ivan Morozov (project owner); approved 2026-09-03"

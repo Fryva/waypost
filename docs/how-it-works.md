@@ -182,6 +182,11 @@ when they are missing, as it does roles (not when the vault policy says
   `--force`: git has no hook before `checkout`/`restore`/`stash`/`reset`/`clean`,
   so an uncommitted edit there is protected only by committing it at once.
 
+Storage classification and coordination path resolution live in
+`scripts/presence-storage.mjs`, including the shared lazy path cache.
+The facade keeps the five original public bindings; readers and writers keep
+their existing primary and legacy locations.
+
 Host process evidence lives in `scripts/presence-process.mjs`;
 `scripts/presence.mjs` preserves its five public bindings alongside coordination.
 The process probe uses a child-only C locale and keeps unknown evidence distinct

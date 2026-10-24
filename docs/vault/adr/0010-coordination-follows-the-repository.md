@@ -9,7 +9,7 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["scripts/presence.mjs", "scripts/sessions.mjs", "scripts/lib.mjs", "scripts/brief.mjs", "bin/waypost", "tests/presence.test.mjs"]
+code_refs: ["scripts/presence.mjs", "scripts/sessions.mjs", "scripts/lib.mjs", "scripts/brief.mjs", "bin/waypost", "tests/presence.test.mjs", "scripts/presence-storage.mjs", "tests/presence-storage.test.mjs"]
 review_status: reviewed
 reviewed_at: 2026-09-04
 deciders: "Ivan Morozov (project owner); approved 2026-09-04 by delegation after the fresh-context critic pass"
