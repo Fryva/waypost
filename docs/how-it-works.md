@@ -191,6 +191,10 @@ Peer liveness, observation persistence and stale-presence pruning live in
 `scripts/presence-liveness.mjs`; the facade preserves the three public bindings.
 Heartbeat and lease writers retain their existing behavior.
 
+Checkout identity, lease path normalization and shared-checkout advice live in
+`scripts/presence-checkout.mjs`; the facade preserves all five public bindings.
+Exact-root and containment checks keep their existing platform semantics.
+
 Host process evidence lives in `scripts/presence-process.mjs`;
 `scripts/presence.mjs` preserves its five public bindings alongside coordination.
 The process probe uses a child-only C locale and keeps unknown evidence distinct
