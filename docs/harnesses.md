@@ -111,7 +111,9 @@ adapter is a convenience on top of it.
 
 The lazy registry loader and shared metadata state live in
 `scripts/agents-registry.mjs`; `scripts/agents.mjs` retains their public imports
-and the existing role and CLI operations.
+and the existing role and CLI operations. Shape rendering, model resolution and
+provenance live in `scripts/agents-render.mjs`, with the same public functions
+re-exported by the facade.
 
 ## Adding or overriding one
 

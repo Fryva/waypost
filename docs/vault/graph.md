@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-24T05:41:04.172Z
+generated_at: 2026-10-24T14:29:19.729Z
 
 ---
 
@@ -133,6 +133,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md | Isolate portable path and line ending diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-remaining-vault-diagnostics-behind-the-doctor-facade.md | Isolate remaining vault diagnostics behind the Doctor facade | story | done |
 | epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md | Isolate repository and runtime diagnostics behind the Doctor facade | story | done |
+| epics/WP-21/stories/story-isolate-role-rendering-behind-the-agents-facade.md | Isolate role rendering behind the agents facade | story | done |
 | epics/WP-21/stories/story-isolate-specification-link-coverage-and-acceptance-diagnostics.md | Isolate specification link coverage and acceptance diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-story-and-epic-lifecycle-diagnostics.md | Isolate story and epic lifecycle diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md | Isolate vault artifact discovery and identity diagnostics | story | done |
@@ -405,6 +406,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-remaining-vault-diagnostics-behind-the-doctor-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-role-rendering-behind-the-agents-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-specification-link-coverage-and-acceptance-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-story-and-epic-lifecycle-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md |
@@ -487,6 +489,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-remaining-vault-diagnostics-behind-the-doctor-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md | wikilink | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md |
+| epics/WP-21/stories/story-isolate-role-rendering-behind-the-agents-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-specification-link-coverage-and-acceptance-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-story-and-epic-lifecycle-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md | mdlink | epics/WP-21/epic.md |
