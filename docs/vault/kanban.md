@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-24T16:39:26.398Z
+generated_at: 2026-10-24T16:59:17.097Z
 
 ---
 
@@ -121,6 +121,7 @@ generated_at: 2026-10-24T16:39:26.398Z
 - [x] [[epics/WP-21/stories/story-isolate-harness-detection-behind-the-agents-facade|WP-21: Isolate harness detection behind the agents facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-harness-installation-diagnostics-from-doctor-orchestration|WP-21: Isolate harness installation diagnostics from Doctor orchestration]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-harness-registry-state-behind-the-agents-facade|WP-21: Isolate harness registry state behind the agents facade]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-item-measurement-behind-the-sizes-facade|WP-21: Isolate item and cache measurement behind the sizes facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade|WP-21: Isolate repository and runtime diagnostics behind the Doctor facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-role-lifecycle-behind-the-agents-facade|WP-21: Isolate role lifecycle behind the agents facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-role-rendering-behind-the-agents-facade|WP-21: Isolate role rendering behind the agents facade]] #p2 #done

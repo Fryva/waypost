@@ -277,3 +277,7 @@ walk shape (a locator, a pattern); most entries need none, since `sure` and
 
 To fix a wrong path or confidence level: edit the entry, rerun
 `npm test`. Nothing outside that one file changes.
+
+Item measurement and cache projection live in `scripts/sizes-measure.mjs`;
+`scripts/sizes.mjs` retains their public exports and owns project discovery.
+Both are read-only and covered by the scanner guards in the disk-hygiene ADR.
