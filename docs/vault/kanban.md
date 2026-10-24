@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-24T14:29:19.475Z
+generated_at: 2026-10-24T14:44:24.736Z
 
 ---
 
@@ -118,6 +118,7 @@ generated_at: 2026-10-24T14:29:19.475Z
 - [x] [[epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics|WP-21: Isolate vault artifact discovery and identity diagnostics]] #p2 #done
 - [x] [[epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries|WP-21: Recognize all graph edge kinds in bounded queries]] #p2 #done
 - [x] [[epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group|WP-21: State repeated ADR check execution guidance once per doctor group]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-harness-detection-behind-the-agents-facade|WP-21: Isolate harness detection behind the agents facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-harness-installation-diagnostics-from-doctor-orchestration|WP-21: Isolate harness installation diagnostics from Doctor orchestration]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-harness-registry-state-behind-the-agents-facade|WP-21: Isolate harness registry state behind the agents facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade|WP-21: Isolate repository and runtime diagnostics behind the Doctor facade]] #p2 #done

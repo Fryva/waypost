@@ -113,7 +113,9 @@ The lazy registry loader and shared metadata state live in
 `scripts/agents-registry.mjs`; `scripts/agents.mjs` retains their public imports
 and the existing role and CLI operations. Shape rendering, model resolution and
 provenance live in `scripts/agents-render.mjs`, with the same public functions
-re-exported by the facade.
+re-exported by the facade. Filesystem/process discovery and the separate consent
+evidence loader live in `scripts/agents-detection.mjs`; their facade exports stay
+the same.
 
 ## Adding or overriding one
 

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-24T14:29:19.729Z
+generated_at: 2026-10-24T14:44:24.955Z
 
 ---
 
@@ -128,6 +128,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md | Isolate artifact integrity checks without changing diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md | Isolate doctor report formatting without changing diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-generated-view-consistency-diagnostics.md | Isolate generated view consistency diagnostics | story | done |
+| epics/WP-21/stories/story-isolate-harness-detection-behind-the-agents-facade.md | Isolate harness detection behind the agents facade | story | done |
 | epics/WP-21/stories/story-isolate-harness-installation-diagnostics-from-doctor-orchestration.md | Isolate harness installation diagnostics from Doctor orchestration | story | done |
 | epics/WP-21/stories/story-isolate-harness-registry-state-behind-the-agents-facade.md | Isolate harness registry state behind the agents facade | story | done |
 | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md | Isolate portable path and line ending diagnostics | story | done |
@@ -401,6 +402,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-generated-view-consistency-diagnostics.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-harness-detection-behind-the-agents-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-harness-installation-diagnostics-from-doctor-orchestration.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-harness-registry-state-behind-the-agents-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md |
@@ -483,6 +485,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-generated-view-consistency-diagnostics.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-isolate-harness-detection-behind-the-agents-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-harness-installation-diagnostics-from-doctor-orchestration.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-harness-registry-state-behind-the-agents-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md | mdlink | epics/WP-21/epic.md |
