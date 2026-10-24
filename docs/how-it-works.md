@@ -182,6 +182,11 @@ when they are missing, as it does roles (not when the vault policy says
   `--force`: git has no hook before `checkout`/`restore`/`stash`/`reset`/`clean`,
   so an uncommitted edit there is protected only by committing it at once.
 
+Host process evidence lives in `scripts/presence-process.mjs`;
+`scripts/presence.mjs` preserves its five public bindings alongside coordination.
+The process probe uses a child-only C locale and keeps unknown evidence distinct
+from a completed process.
+
 ## Guards: decisions that check themselves (ADR-0011)
 
 An accepted ADR may carry `guards` in its frontmatter — flow form, one line,
