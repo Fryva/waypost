@@ -81,7 +81,7 @@ without inferring native-token/runtime/workflow savings.
 
 Implementation complete; independent reviewer ship, no findings/open questions. Doctor30863 ->21036
 UTF-8 bytes; focused10632; combined+805. Two literal blocks/helpers and whole
-baseline reconstruction exact. Six CLI install/vault/startup/fix cases match
+baseline reconstruction exact. Six reporting-only CLI install/vault/startup/--fix --json cases match
 JSON/text/stderr/exits and resulting config; diagnostics preserve all fixture
 file hashes, repairs compared separately then inputs/mtimes restored. Targeted
 heavy run161passed/0failed/0skipped,exit0,45.178seconds Node25.6.1/macOS; seven new
@@ -90,6 +90,12 @@ Syntax/package proof passes,12Doctor modules included. Doctor0
 issues/two existingWP18warnings. No native-token/runtime/workflow savings measured.
 
 ## Technical Notes
+
+Verification correction (2026-10-24): `--fix --json` returns before applyFixes.
+The frozen replay proved reporting parity and unchanged config, not applied repair
+parity. Existing tests exercised actual repairs. The follow-up
+[[story-separate-explicit-doctor-repairs-from-diagnostic-orchestration|Separate explicit Doctor repairs from diagnostic orchestration]]
+adds frozen true text-mode repairs and direct branch snapshots.
 
 Mechanical source extraction under ADR0008; no new architectural choice.
 Base a7d21eb full CI40053786173 still running at start; no new savings claim.

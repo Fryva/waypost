@@ -9,7 +9,7 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["scripts/agents.mjs", "agents/critic.md", "agents/planner.md", "agents/reviewer.md", "agents/librarian.md", "agents/archaeologist.md", "templates/agents-block.md.tmpl", "scripts/doctor.mjs", "tests/harness.test.mjs", "bin/waypost", "scripts/doctor-install.mjs", "tests/doctor-install.test.mjs"]
+code_refs: ["scripts/agents.mjs", "agents/critic.md", "agents/planner.md", "agents/reviewer.md", "agents/librarian.md", "agents/archaeologist.md", "templates/agents-block.md.tmpl", "scripts/doctor.mjs", "tests/harness.test.mjs", "bin/waypost", "scripts/doctor-install.mjs", "tests/doctor-install.test.mjs", "scripts/doctor-repairs.mjs", "tests/doctor-repairs.test.mjs"]
 review_status: reviewed
 reviewed_at: 2026-08-29
 deciders: "Ivan Morozov (project owner); approved 2026-09-03"
