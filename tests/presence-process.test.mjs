@@ -32,9 +32,12 @@ test("presence process module: five shared bindings and the facade namespace sta
   assert.deepEqual(Object.keys(facade).sort(), ["BEAT_INTERVAL_MS", "LIVE_WINDOW_MS", "SHARED_TREE_ADVICE", "acquire", "argv0Of", "beat", "clearPresence", "coordinationDirs", "harnessProcess", "hostSlug", "leaseDir", "osTag", "peers", "presenceDir", "processGone", "processTable", "prunePresence", "readLeases", "release", "selfDescriptor", "sharedTree", "sharedWith", "startTicks", "storageOf", "vaultOffset", "vaultRel", "winnerOf"]);
 });
 
-test("presence process module: import alone starts no subprocess or process-file read", () => {
+test("presence process module: import stays lazy while ordinary source loading is permitted", () => {
   const url = new URL("../scripts/presence-process.mjs", import.meta.url).href;
-  const script = 'import fs from "node:fs"; import cp from "node:child_process"; import {syncBuiltinESMExports} from "node:module"; fs.readFileSync=()=>{throw Error("unexpected read")};cp.spawnSync=()=>{throw Error("unexpected spawn")};syncBuiltinESMExports();await import(' + JSON.stringify(url) + ');console.log("lazy");';
+  // Node 22/24 use readFileSync in the ESM loader itself. Deny process
+  // files, delegate ordinary source reads, and prove both guards still catch
+  // their forbidden operations after the import.
+  const script = 'import fs from "node:fs"; import cp from "node:child_process"; import assert from "node:assert/strict"; import {syncBuiltinESMExports} from "node:module"; const read=fs.readFileSync;let processReads=0,spawns=0;fs.readFileSync=(...args)=>{const path=String(args[0]);if(path.startsWith("/proc/")||path.startsWith("file:///proc/")){processReads++;throw Error("unexpected process read")};return read(...args)};cp.spawnSync=()=>{spawns++;throw Error("unexpected spawn")};syncBuiltinESMExports();const source=new URL(' + JSON.stringify(url) + ');assert.ok(fs.readFileSync(source,"utf8").length);await import(source.href);assert.equal(processReads,0);assert.equal(spawns,0);assert.throws(()=>fs.readFileSync("/proc/waypost-guard-sentinel"),/unexpected process read/);assert.throws(()=>cp.spawnSync("ps"),/unexpected spawn/);assert.equal(processReads,1);assert.equal(spawns,1);console.log("lazy");';
   const r = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr); assert.equal(r.stdout.trim(), "lazy");
 });

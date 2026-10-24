@@ -187,6 +187,10 @@ Storage classification and coordination path resolution live in
 The facade keeps the five original public bindings; readers and writers keep
 their existing primary and legacy locations.
 
+Peer liveness, observation persistence and stale-presence pruning live in
+`scripts/presence-liveness.mjs`; the facade preserves the three public bindings.
+Heartbeat and lease writers retain their existing behavior.
+
 Host process evidence lives in `scripts/presence-process.mjs`;
 `scripts/presence.mjs` preserves its five public bindings alongside coordination.
 The process probe uses a child-only C locale and keeps unknown evidence distinct
