@@ -109,6 +109,10 @@ Any harness not in the table still works, with no adapter at all:
 That is the floor the whole design rests on — a role is a prompt, and every
 adapter is a convenience on top of it.
 
+The lazy registry loader and shared metadata state live in
+`scripts/agents-registry.mjs`; `scripts/agents.mjs` retains their public imports
+and the existing role and CLI operations.
+
 ## Adding or overriding one
 
 Drop a JSON file in `<project>/.waypost/harnesses/<id>.json`. A project entry with

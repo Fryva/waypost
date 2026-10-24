@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-24T04:59:48.107Z
+generated_at: 2026-10-24T05:41:04.172Z
 
 ---
 
@@ -129,6 +129,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md | Isolate doctor report formatting without changing diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-generated-view-consistency-diagnostics.md | Isolate generated view consistency diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-harness-installation-diagnostics-from-doctor-orchestration.md | Isolate harness installation diagnostics from Doctor orchestration | story | done |
+| epics/WP-21/stories/story-isolate-harness-registry-state-behind-the-agents-facade.md | Isolate harness registry state behind the agents facade | story | done |
 | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md | Isolate portable path and line ending diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-remaining-vault-diagnostics-behind-the-doctor-facade.md | Isolate remaining vault diagnostics behind the Doctor facade | story | done |
 | epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md | Isolate repository and runtime diagnostics behind the Doctor facade | story | done |
@@ -400,6 +401,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-generated-view-consistency-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-harness-installation-diagnostics-from-doctor-orchestration.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-harness-registry-state-behind-the-agents-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-remaining-vault-diagnostics-behind-the-doctor-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md |
@@ -480,6 +482,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-generated-view-consistency-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-harness-installation-diagnostics-from-doctor-orchestration.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-isolate-harness-registry-state-behind-the-agents-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-remaining-vault-diagnostics-behind-the-doctor-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md | mdlink | epics/WP-21/epic.md |
