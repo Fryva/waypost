@@ -115,7 +115,9 @@ and the existing role and CLI operations. Shape rendering, model resolution and
 provenance live in `scripts/agents-render.mjs`, with the same public functions
 re-exported by the facade. Filesystem/process discovery and the separate consent
 evidence loader live in `scripts/agents-detection.mjs`; their facade exports stay
-the same.
+the same. Role definitions, their shared cache, metadata/paths and installed-role
+lifecycle live together in `scripts/agents-roles.mjs`; routing and CLI stay in the
+facade.
 
 ## Adding or overriding one
 

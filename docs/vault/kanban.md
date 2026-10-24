@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-24T14:44:24.736Z
+generated_at: 2026-10-24T16:39:26.398Z
 
 ---
 
@@ -122,6 +122,7 @@ generated_at: 2026-10-24T14:44:24.736Z
 - [x] [[epics/WP-21/stories/story-isolate-harness-installation-diagnostics-from-doctor-orchestration|WP-21: Isolate harness installation diagnostics from Doctor orchestration]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-harness-registry-state-behind-the-agents-facade|WP-21: Isolate harness registry state behind the agents facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade|WP-21: Isolate repository and runtime diagnostics behind the Doctor facade]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-role-lifecycle-behind-the-agents-facade|WP-21: Isolate role lifecycle behind the agents facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-role-rendering-behind-the-agents-facade|WP-21: Isolate role rendering behind the agents facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration|WP-21: Separate explicit Doctor repairs from diagnostic orchestration]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
