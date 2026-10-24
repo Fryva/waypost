@@ -91,6 +91,8 @@ Generated-view consistency checks live in `scripts/doctor-generated.mjs`, preser
 the real subprocess generators and public exports through Doctor.
 Story/epic status and lifecycle-gate checks live in `scripts/doctor-lifecycle.mjs`;
 Doctor retains their public exports and guarded-loop registration.
+Remaining vault scan, policy, links and workflow checks live in `scripts/doctor-vault.mjs`;
+Doctor keeps their public bindings, orchestration and repairs.
 
 ## Agent roles across harnesses
 
