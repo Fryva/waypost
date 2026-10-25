@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-25T05:16:05.084Z
+generated_at: 2026-10-25T05:36:59.009Z
 
 ---
 
@@ -102,6 +102,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-reviewed-integration-and-team-aware-story-gates.md | Reviewed integration and team-aware story gates | story | planned |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | Team CLI orientation and deterministic diagnostics | story | planned |
 | epics/WP-21/epic.md | Source an agent can read in one pass | epic | in-progress |
+| epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output.md | Avoid duplicate story references in default ready output | story | done |
 | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md | Avoid duplicate title snippets in vault search | story | done |
 | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md | Avoid repeated file paths in doctor findings | story | done |
 | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | Bound each CLI migration stage and measure the final layout | story | done |
@@ -386,6 +387,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | mdlink | epics/WP-20/epic.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md |
@@ -476,6 +478,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | ops/proposed-revision-3-of-the-sealed-source-token-pilot.md |
 | epics/WP-21/epic.md | wikilink | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md |
 | epics/WP-21/epic.md | wikilink | research/post-integration-token-accounting-checkpoint.md |
+| epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | mdlink | epics/WP-21/epic.md |

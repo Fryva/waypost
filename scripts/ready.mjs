@@ -113,7 +113,7 @@ function main() {
   if (args.includes("--json")) { process.stdout.write(JSON.stringify(view, null, 2) + "\n"); return; }
   if (!view.ready.length) process.stdout.write("nothing is ready: every planned story is blocked, waits on its spec or ADR, or is claimed, or there is none — `waypost ready --all` shows why\n");
   for (const r of view.ready) {
-    process.stdout.write(`${r.priority.padEnd(3)} ${r.ref.padEnd(44)} ${r.title}\n    waypost story plan ${r.rel} --write\n`);
+    process.stdout.write(`${r.priority.padEnd(3)} ${args.includes("--all") ? r.ref.padEnd(44) : r.ref.split("/")[0]} ${r.title}\n    waypost story plan ${r.rel} --write\n`);
   }
   if (args.includes("--all")) {
     for (const r of view.blocked) {

@@ -1171,6 +1171,52 @@ test("draft adr records who drafted it; a guard in an accepted ADR reaches docto
 
 // ─── ready work (WP-15) ─────────────────────────────────────────────────
 
+test("ready default omits duplicate refs while detailed modes keep their exact identities", () => {
+  const { proj, vault } = bound();
+  const long = "story-" + "long-".repeat(20) + "tail";
+  const entries = [
+    ["A", "story-a", "Same title", "p0", "planned", { epic: "WRONG" }],
+    ["B", "story-b", "Same title", "p0", "planned", {}],
+    ["A", long, "Заголовок 😀", "p2", "planned", {}],
+    ["A", "story-no-title", null, "p3", "planned", {}],
+    ["A", "story-blocked", "Blocked", "p1", "planned", { blocked_by: ["A/story-missing"] }],
+    ["A", "story-claimed", "Claimed", "p1", "planned", {}],
+    ["A", "story-done", "Done", "p1", "done", {}],
+  ];
+  for (const [epic, stem, title, priority, status, extra] of entries) {
+    const dir = join(vault, "epics", epic, "stories"); mkdirSync(dir, { recursive: true });
+    const fm = { type: "story", epic, title, priority, status, ...extra };
+    if (title === null) delete fm.title;
+    writeFileSync(join(dir, `${stem}.md`), "---\n" + Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join("\n") + "\n---\n");
+  }
+  waypost(proj, ["sessions", "--touch", "--claim", "A/story-claimed"], { session: "other-ready" });
+  const json = waypost(proj, ["ready", "--json"]).stdout;
+  const rows = JSON.parse(json);
+  assert.deepEqual(rows.ready.map(r => r.ref), ["A/story-a", "B/story-b", `A/${long}`, "A/story-no-title"]);
+  assert.equal(rows.ready[0].epic, "WRONG", "raw metadata remains available unchanged");
+  assert.equal(waypost(proj, ["ready", "--all", "--json"]).stdout, json);
+  const compact = waypost(proj, ["ready"]).stdout;
+  const all = waypost(proj, ["ready", "--all"]).stdout;
+  const headings = compact.split("\n").filter(l => l && !l.startsWith("    "));
+  assert.deepEqual(headings, ["p0  A Same title", "p0  B Same title", "p2  A Заголовок 😀", "p3  A story-no-title"]);
+  assert.ok(headings.join("\n").length <= 80, "default heading budget does not grow with story slugs");
+  const commands = text => text.split("\n").filter(l => l.startsWith("    "));
+  assert.deepEqual(commands(compact), rows.ready.map(r => `    waypost story plan ${r.rel} --write`));
+  assert.deepEqual(commands(all), commands(compact), "duplicate titles retain separate exact commands");
+  let expected = rows.ready.map(r => `${r.priority.padEnd(3)} ${r.ref.padEnd(44)} ${r.title}\n    waypost story plan ${r.rel} --write\n`).join("");
+  expected += `p1  ${"A/story-blocked".padEnd(44)} blocked: A/story-missing names no story\n`;
+  const claim = rows.claimed[0]; assert.equal(claim.ref, "A/story-claimed");
+  expected += `p1  ${claim.ref.padEnd(44)} claimed by other-ready on ${claim.claimed_by.host}\n`;
+  assert.equal(all, expected, "detailed ready, blocked and claimed rows preserve legacy formatting");
+});
+
+test("ready empty output stays explicit in default and detailed modes", () => {
+  const { proj } = bound();
+  const expected = "nothing is ready: every planned story is blocked, waits on its spec or ADR, or is claimed, or there is none — `waypost ready --all` shows why\n";
+  assert.equal(waypost(proj, ["ready"]).stdout, expected);
+  assert.equal(waypost(proj, ["ready", "--all"]).stdout, expected);
+});
+
 test("blocked_by, waypost ready, a board that shows blocked, next ranking, and doctor on bad dependencies", () => {
   const { proj, vault } = bound();
   waypost(proj, ["draft", "epic", "PS-1", "Epic", "--write"]);

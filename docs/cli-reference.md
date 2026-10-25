@@ -10,7 +10,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 | `waypost brief` | orientation packet at the start of work (compact cleanup status; `--full` for the tutorial and expanded cleanup labels) |
 | `waypost draft <kind> "<title>" [--write]` | draft an artifact; `--write` creates it and reconciles |
 | `waypost story plan\|close <path> [--write]` | story lifecycle gates |
-| `waypost ready [--all]` | stories that are planned, unblocked (`blocked_by`, a draft spec, a proposed ADR) and unclaimed, with the claim command |
+| `waypost ready [--all]` | stories that are planned, unblocked (`blocked_by`, a draft spec, a proposed ADR) and unclaimed, with the exact claim command; headings show epic and title (`--all` retains full story references and blockers) |
 | `waypost kanban` / `graph` / `codemap` | regenerate one derived view |
 | `waypost graph --for <path>` | nodes and up to 60 typed edges; `in`/`out`/`self` are relative to the header path; full count and remainder retained |
 | `waypost search "<text>"` | vault-wide search returning pointers; exact title matches include their line number without repeating the title; hidden matches get a centered excerpt within 120 UTF-16 units including truncation markers (long matches may be clipped) |

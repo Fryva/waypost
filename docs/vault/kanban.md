@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-25T05:16:04.763Z
+generated_at: 2026-10-25T05:36:58.358Z
 
 ---
 
@@ -131,6 +131,7 @@ generated_at: 2026-10-25T05:16:04.763Z
 - [x] [[epics/WP-21/stories/story-isolate-role-rendering-behind-the-agents-facade|WP-21: Isolate role rendering behind the agents facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration|WP-21: Separate explicit Doctor repairs from diagnostic orchestration]] #p2 #done
 - [x] [[epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner|WP-21: Separate project matching and Git evidence from the size scanner]] #p2 #done
+- [x] [[epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output|WP-21: Avoid duplicate story references in default ready output]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-cleanup-status-in-default-brief|WP-21: Compact cleanup status in default brief]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report|WP-21: Compact repeated declarative checks in the default Doctor report]] #p2 #done
 - [x] [[epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget|WP-21: Keep search matches visible within the existing excerpt budget]] #p2 #done
