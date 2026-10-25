@@ -179,10 +179,11 @@ export function runStartupChecks(cfg, proj, budgetMs = 150) {
 
 // ─── CLI ───────────────────────────────────────────────────────────────
 
-function report(findings, groups) {
+function report(findings, groups, { compactChecks = false } = {}) {
   return renderDoctorReport(findings, groups, {
     version: waypostVersion(),
     date: new Date().toISOString().slice(0, 10),
+    compactChecks,
   });
 }
 
@@ -199,6 +200,7 @@ function main() {
   const args = process.argv.slice(2);
   const wantJson = args.includes("--json");
   const wantFix = args.includes("--fix");
+  const wantFull = args.includes("--full");
   const startup = args.includes("--startup");
   let install = args.includes("--install");
   let vault = args.includes("--vault");
@@ -257,7 +259,7 @@ function main() {
     process.stdout.write(JSON.stringify(findings, null, 2) + "\n");
     return;
   }
-  process.stdout.write(report(findings, groups) + "\n");
+  process.stdout.write(report(findings, groups, { compactChecks: !wantFull && !wantFix }) + "\n");
   // Text mode only, and only when NOT repairing — --json/--startup stay a
   // reporting tool (exit 0 always), matching upstream ADR-005's "a script
   // parses the JSON, a human reads the text" split. Without this,

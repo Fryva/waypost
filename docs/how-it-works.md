@@ -77,6 +77,12 @@ the full detail in either mode.
 Doctor's text renderer lives in `scripts/doctor-report.mjs`. It formats supplied
 findings and version/date metadata without loading diagnostic checks or reading
 the filesystem; `scripts/doctor.mjs` supplies live metadata and owns CLI behavior.
+Ordinary text groups two or more canonical declarative ADR check notes into one
+count; repeat the same command with `--full` to see commands and reasons.
+Warnings, issues and other information stay complete. `--fix` keeps the full
+pre-repair report; JSON and startup diagnostics are unchanged. Programmatic
+rendering remains full unless its caller opts into `compactChecks`.
+
 ADR guard evaluation and its project-file cache live in `scripts/doctor-guards.mjs`;
 Doctor keeps the original public exports and registers the check.
 Artifact code references, supersede links and acceptance review gates live in

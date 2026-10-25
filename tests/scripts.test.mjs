@@ -1143,7 +1143,14 @@ test("doctor: shared ADR check guidance preserves JSON, failing exit and declara
   const checks = findings.filter(f => f.check === "adr-guard" && f.level === "info");
   assert.equal(checks.length, 2);
   for (const f of checks) assert.ok(f.message.endsWith(" — it runs in the project's own test suite; doctor never executes it."));
-  const human = runBinRaw(proj, ["doctor", "--vault"]);
+  const compact = runBinRaw(proj, ["doctor", "--vault"]);
+  assert.equal(compact.status, 1);
+  assert.ok(compact.stdout.includes("2 declarative checks (not executed). Repeat this command with `--full`"));
+  assert.ok(!compact.stdout.includes("first reason"));
+  assert.ok(!compact.stdout.includes("second reason"));
+  const issueFinding = findings.find(f => f.check === "adr-guard" && f.level === "issue");
+  assert.ok(compact.stdout.includes(`  ✖ [adr-guard] ${issueFinding.message}`));
+  const human = runBinRaw(proj, ["doctor", "--vault", "--full"]);
   assert.equal(human.status, 1, "the unsafe finding still fails text mode");
   const lines = human.stdout.split("\n");
   for (const why of ["first reason", "second reason"]) {
@@ -1155,7 +1162,20 @@ test("doctor: shared ADR check guidance preserves JSON, failing exit and declara
   const after = runBinRaw(proj, ["doctor", "--vault", "--json"]);
   assert.equal(after.status, 0, after.stderr);
   assert.deepEqual(JSON.parse(after.stdout), findings);
-  assert.ok(!existsSync(marker), "neither declarative command was executed");
+  for (const flags of [["--full", "--json"], ["--fix", "--json"]]) {
+    const machine = runBinRaw(proj, ["doctor", "--vault", ...flags]);
+    assert.equal(machine.status, 0, machine.stderr);
+    assert.deepEqual(JSON.parse(machine.stdout), findings);
+  }
+  const startup = runBinRaw(proj, ["doctor", "--startup"]);
+  const fullStartup = runBinRaw(proj, ["doctor", "--startup", "--full"]);
+  assert.equal(startup.status, fullStartup.status);
+  assert.deepEqual(JSON.parse(startup.stdout), JSON.parse(fullStartup.stdout));
+  const repair = runBinRaw(proj, ["doctor", "--vault", "--fix"]);
+  assert.equal(repair.status, 0, repair.stderr);
+  for (const why of ["first reason", "second reason"]) assert.ok(repair.stdout.includes(why));
+  assert.ok(repair.stdout.includes("## repairs"));
+  assert.ok(!existsSync(marker), "default/full/JSON/startup/repair never execute declarative commands");
 });
 
 test("waypost setup: the repair step prints doctor's own report instead of swallowing it (P1-9, G-10)", () => {

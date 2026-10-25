@@ -13,19 +13,27 @@ function declarativeCheck(f) {
     && f.message.endsWith(`)${CHECK_TAIL}`);
 }
 
-export function renderDoctorReport(findings, groups, { version, date }) {
+export function renderDoctorReport(findings, groups, { version, date, compactChecks = false }) {
   const ver = version;
   const lines = [`waypost doctor — v${ver || "?"}, ${date}`];
   for (const g of groups) {
     const fs = findings.filter((f) => f.group === g);
     lines.push("", `## ${g} (${fs.filter((f) => f.level === "issue").length} issue(s), ${fs.filter((f) => f.level === "warn").length} warning(s))`);
     if (!fs.length) lines.push("  ✓ clean");
-    const shareCheckNote = fs.filter(declarativeCheck).length >= 2;
+    const checkCount = fs.filter(declarativeCheck).length;
+    const shareCheckNote = checkCount >= 2;
+    const foldChecks = compactChecks && shareCheckNote;
+    let checksShown = false;
     for (const f of fs) {
+      if (foldChecks && declarativeCheck(f)) {
+        if (!checksShown) lines.push(`  ℹ [adr-guard] ${checkCount} declarative checks (not executed). Repeat this command with \`--full\` for commands and reasons.`);
+        checksShown = true;
+        continue;
+      }
       const message = shareCheckNote && declarativeCheck(f) ? f.message.slice(0, -CHECK_TAIL.length) : f.message;
       lines.push(`  ${icon(f.level)} [${f.check}] ${message}${f.file && !f.message.startsWith(`${f.file}: `) ? `  — ${f.file}` : ""}`);
     }
-    if (shareCheckNote) lines.push("  ADR check commands run in the project's test suite; doctor never executes them.");
+    if (shareCheckNote && !foldChecks) lines.push("  ADR check commands run in the project's test suite; doctor never executes them.");
   }
   const issues = findings.filter((f) => f.level === "issue").length;
   const warns = findings.filter((f) => f.level === "warn").length;

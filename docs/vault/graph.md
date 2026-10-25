@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-24T20:44:42.934Z
+generated_at: 2026-10-25T03:54:31.366Z
 
 ---
 
@@ -109,6 +109,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | Budgeted sealed-source evaluation route | story | done |
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | Check every CLI module before the first split | story | done |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | Check safe Zstandard member handling across Node versions | story | done |
+| epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md | Compact repeated declarative checks in the default Doctor report | story | done |
 | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md | Compact repeated graph endpoints without losing directions | story | done |
 | epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md | Compact the default brief derived-view guidance | story | done |
 | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | Complete thin CLI entry as final migration stage f | story | done |
@@ -390,6 +391,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md |
@@ -477,6 +479,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | mdlink | epics/WP-21/epic.md |

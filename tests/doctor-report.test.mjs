@@ -160,3 +160,77 @@ test("doctor report: check sharing is local to displayed groups, including repea
   assert.ok(!result.includes("adr/e.md"));
   assert.equal(result.split("\n").filter(l => l.startsWith("## one ")).length, 2);
 });
+
+const compactCheckLine = count => `  ℹ [adr-guard] ${count} declarative checks (not executed). Repeat this command with \`--full\` for commands and reasons.`;
+const compactMetadata = Object.freeze({ version: "v", date: "fixed", compactChecks: true });
+
+test("doctor compact checks: opt-in preserves zero/singleton reports and default API compatibility", () => {
+  for (const count of [0, 1]) {
+    const findings = Array.from({ length: count }, (_, i) => checkFinding(i));
+    assert.equal(renderDoctorReport(findings, ["vault"], compactMetadata),
+      renderDoctorReport(findings, ["vault"], { version: "v", date: "fixed" }));
+  }
+  const findings = [checkFinding("a"), checkFinding("b")];
+  const full = renderDoctorReport(findings, ["vault"], { version: "v", date: "fixed" });
+  assert.equal(renderDoctorReport(findings, ["vault"], { version: "v", date: "fixed", compactChecks: false }), full);
+  assert.ok(full.includes(checkLegend));
+});
+
+test("doctor compact checks: first-slot count preserves interleaved warnings/issues/other information", () => {
+  const a = checkFinding("same");
+  const findings = Object.freeze([
+    Object.freeze({ group: "vault", level: "info", check: "policy", message: "Before checks." }),
+    Object.freeze(a),
+    Object.freeze({ group: "vault", level: "warn", check: "safety", message: "Keep this warning.", file: "src/a.mjs" }),
+    Object.freeze({ ...a }),
+    Object.freeze({ group: "vault", level: "issue", check: "safety", message: "Keep this issue." }),
+    Object.freeze({ group: "vault", level: "trace", check: "custom", message: "Keep unknown level." }),
+  ]);
+  const before = JSON.stringify(findings);
+  assert.deepEqual(renderDoctorReport(findings, ["vault"], compactMetadata).split("\n"), [
+    "waypost doctor — vv, fixed", "", "## vault (1 issue(s), 1 warning(s))",
+    "  ℹ [policy] Before checks.", compactCheckLine(2),
+    "  ⚠ [safety] Keep this warning.  — src/a.mjs",
+    "  ✖ [safety] Keep this issue.", "  ℹ [custom] Keep unknown level.", "",
+    "Summary: 1 issue(s), 1 warning(s). Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault).",
+  ]);
+  assert.equal(JSON.stringify(findings), before);
+});
+
+test("doctor compact checks: canonical-looking warnings and malformed/rule messages never fold", () => {
+  const canonical = checkFinding("base");
+  const unchanged = [
+    { ...canonical, level: "warn" }, { ...canonical, level: "issue" },
+    { ...canonical, level: "trace" }, { ...canonical, check: "other" },
+    { ...canonical, file: "adr/another.md" }, { ...canonical, file: undefined },
+    { ...canonical, message: canonical.message + " later" },
+    { ...canonical, message: canonical.message.replace("encodes this decision (", "has reason (") },
+    { ...canonical, message: `would fail: adr/base.md: forbid "unsafe" matched in src/a.mjs — reason${checkTail}` },
+    { ...canonical, message: `adr/base.md guard 1: malformed check${checkTail}` },
+  ];
+  const findings = [checkFinding("a"), ...unchanged, checkFinding("b")];
+  const result = renderDoctorReport(findings, ["vault"], compactMetadata);
+  assert.equal(result.split("\n").filter(l => l === compactCheckLine(2)).length, 1);
+  for (const f of unchanged) assert.ok(result.includes(f.message), f.message);
+  assert.ok(!result.includes(checkLegend));
+});
+
+test("doctor compact checks: thresholds are local to displayed and repeated groups", () => {
+  const findings = Object.freeze([checkFinding("a", "one"), checkFinding("b", "one"),
+    checkFinding("c", "two"), checkFinding("d", "hidden"), checkFinding("e", "hidden")].map(Object.freeze));
+  const groups = Object.freeze(["one", "two", "one"]), before = JSON.stringify({ findings, groups, compactMetadata });
+  const result = renderDoctorReport(findings, groups, compactMetadata);
+  assert.equal(result.split("\n").filter(l => l === compactCheckLine(2)).length, 2);
+  assert.ok(result.includes(findings[2].message)); assert.ok(!result.includes("adr/d.md"));
+  assert.equal(JSON.stringify({ findings, groups, compactMetadata }), before);
+});
+
+test("doctor compact checks: repeated declarative output stays within a fixed character budget", () => {
+  for (const count of [2, 20, 200]) {
+    const findings = Array.from({ length: count }, (_, i) => checkFinding(String(i) + "x".repeat(500)));
+    const result = renderDoctorReport(findings, ["vault"], compactMetadata);
+    assert.ok(result.length <= 360, `compact check report exceeded 360 characters: ${result.length}`);
+    assert.equal(result.split("\n").filter(l => l === compactCheckLine(count)).length, 1);
+    assert.ok(renderDoctorReport(findings, ["vault"], { version: "v", date: "fixed" }).length > result.length * 4);
+  }
+});
