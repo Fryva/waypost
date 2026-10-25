@@ -53,6 +53,27 @@ function handleGraphQuery(target, args) {
   }
 }
 
+function searchExcerpt(line, re) {
+  const text = line.trim();
+  const prefix = text.slice(0, 120);
+  if (text.length <= 120 || re.test(prefix)) return prefix;
+  const match = re.exec(text);
+  // A whitespace-sensitive query may match only before trim: keep its old preview.
+  if (!match) return prefix;
+  let start = Math.max(0, match.index - Math.floor(Math.max(0, 118 - match[0].length) / 2));
+  let end = Math.min(text.length, start + 118);
+  if (end === text.length || text.length - match.index <= 119) {
+    end = text.length;
+    start = Math.max(0, end - 119);
+  } else if (start === 0) {
+    end = 119;
+  }
+  // Keep new window boundaries outside valid surrogate pairs; legacy prefixes stay exact.
+  if (start > 0 && text.codePointAt(start - 1) > 0xffff) start++;
+  if (end > 0 && text.codePointAt(end - 1) > 0xffff) end--;
+  return (start ? "…" : "") + text.slice(start, end) + (end < text.length ? "…" : "");
+}
+
 // Vault-wide search that returns pointers, not documents: path, title, status
 // and the matching line. The alternative an agent falls back to is grep plus a
 // handful of full-file reads.
@@ -118,7 +139,7 @@ function handleSearch(args) {
           (!/^["'|>]/.test(scalar) && scalar === fm.title)) ? hitLine + 1 : null;
       out.push({ path: r, title: String(fm.title ?? "") || n, status: fm.status == null ? "" : String(fm.status),
         titleLine,
-        line: hitLine === -1 ? null : `${hitLine + 1}: ${lines[hitLine].trim().slice(0, 120)}` });
+        line: hitLine === -1 ? null : `${hitLine + 1}: ${searchExcerpt(lines[hitLine], re)}` });
     }
   };
   walk(cfg.vault_path, "");

@@ -13,7 +13,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 | `waypost ready [--all]` | stories that are planned, unblocked (`blocked_by`, a draft spec, a proposed ADR) and unclaimed, with the claim command |
 | `waypost kanban` / `graph` / `codemap` | regenerate one derived view |
 | `waypost graph --for <path>` | nodes and up to 60 typed edges; `in`/`out`/`self` are relative to the header path; full count and remainder retained |
-| `waypost search "<text>"` | vault-wide search returning pointers; exact title matches include their line number without repeating the title |
+| `waypost search "<text>"` | vault-wide search returning pointers; exact title matches include their line number without repeating the title; hidden matches get a centered excerpt within 120 UTF-16 units including truncation markers (long matches may be clipped) |
 | `waypost reconcile [--write]` | rebuild every view and index |
 | `waypost doctor [--install\|--vault [<path>]] [--fix] [--full]` | consistency diagnostics; repeated declarative checks are counted by default; repeat with `--full` for commands and reasons; errors and warnings stay complete; `--vault <path>` checks a vault with no binding (CI on a fresh clone) |
 | `waypost diff-refs` | changed files as evidence for `code_refs` |

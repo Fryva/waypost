@@ -1314,6 +1314,51 @@ test("bin/waypost search: compact titles preserve limit, ordering, literal terms
     "…and 1 more (--limit)\n1 file(s) not downloaded from iCloud — open them once to sync\n");
 });
 
+test("bin/waypost search: hidden matches stay visible within the existing excerpt budget", () => {
+  const { proj, vault } = makeVaultProject();
+  const path = join(vault, "adr", "window.md");
+  const cases = [
+    ["small Needle", ["Needle"], "legacy"],
+    ["Needle" + "x".repeat(300), ["Needle"], "legacy"],
+    ["x".repeat(300) + "Needle" + "y".repeat(300), ["Needle"], "visible"],
+    ["x".repeat(300) + "Needle", ["Needle"], "visible"],
+    ["x".repeat(300) + "[Needle].*+?", ["[needle].*+?"], "visible"],
+    ["x".repeat(300) + "First" + "y".repeat(300) + "Later", ["Later", "First"], "first"],
+    ["    " + "x".repeat(300) + "nEeDlE  ", ["Needle"], "visible"],
+    ["я".repeat(300) + "СкРыТаЯ", ["скрытая"], "visible"],
+    ...[119, 120, 121].map(n => ["x".repeat(n - 6) + "Needle", ["Needle"], n <= 120 ? "legacy" : "visible"]),
+    ["x".repeat(300) + "Q".repeat(119), ["Q".repeat(119)], "visible"],
+    ["x".repeat(300) + "Q".repeat(200), ["Q".repeat(200)], "clipped"],
+    ["x".repeat(144) + "😀" + "x".repeat(55) + "Needle" + "y".repeat(300), ["Needle"], "visible"],
+    ["x".repeat(201) + "Needle" + "y".repeat(55) + "😀" + "z".repeat(300), ["Needle"], "visible"],
+    ["x".repeat(300) + "😀" + "y".repeat(300), ["😀"], "visible"],
+    ["  Needle" + "x".repeat(300), ["  Needle"], "legacy"],
+    ["x".repeat(300) + "Needle  ", ["Needle "], "legacy"],
+  ];
+  for (const [line, query, mode] of cases) for (const eol of ["\n", "\r\n"]) {
+    writeFileSync(path, ["---", "type: adr", "title: Other", "status: accepted", "---", line].join(eol));
+    const r = runBinRaw(proj, ["search", ...query, "--kind", "adr"]);
+    assert.equal(r.status, 0, r.stderr);
+    const excerpt = /^  6: (.*)$/m.exec(r.stdout)?.[1];
+    assert.equal(typeof excerpt, "string", r.stdout);
+    assert.ok(excerpt.length <= 120, `excerpt budget: ${excerpt.length}`);
+    assert.equal(r.stdout, `adr/window.md  (accepted)\n  Other\n  6: ${excerpt}\n`);
+    if (mode === "legacy") assert.equal(excerpt, line.trim().slice(0, 120));
+    else {
+      assert.ok(excerpt.startsWith("…") || excerpt.endsWith("…"), "clipping is marked");
+      assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(excerpt), "no split surrogate pairs");
+      if (mode === "clipped") assert.match(excerpt, /Q{100}/);
+      else assert.ok(excerpt.toLowerCase().includes((mode === "first" ? "First" : query[0]).toLowerCase()), excerpt);
+      if (mode === "first") assert.ok(!excerpt.includes("Later"));
+    }
+  }
+  writeFileSync(path, ["---", "type: adr", "title: Other", "code_refs: [" + "x".repeat(300) + ", scripts/doctor.mjs]", "---"].join("\n"));
+  const r = runBinRaw(proj, ["search", "scripts/doctor.mjs", "--kind", "adr"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /  4: ….*scripts\/doctor\.mjs\]/);
+  assert.ok(/^  4: (.*)$/m.exec(r.stdout)[1].length <= 120);
+});
+
 test("bin/waypost search: a symlinked directory is never descended into, so a cycle cannot hang the walk (P3-3, G-13)", () => {
   const { proj, vault } = makeVaultProject();
   const loopDir = join(vault, "adr", "loop");

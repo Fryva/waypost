@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-25T03:54:31.149Z
+generated_at: 2026-10-25T05:00:46.114Z
 
 ---
 
@@ -132,6 +132,7 @@ generated_at: 2026-10-25T03:54:31.149Z
 - [x] [[epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration|WP-21: Separate explicit Doctor repairs from diagnostic orchestration]] #p2 #done
 - [x] [[epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner|WP-21: Separate project matching and Git evidence from the size scanner]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report|WP-21: Compact repeated declarative checks in the default Doctor report]] #p2 #done
+- [x] [[epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget|WP-21: Keep search matches visible within the existing excerpt budget]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done
