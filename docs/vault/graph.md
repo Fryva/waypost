@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-25T05:36:59.009Z
+generated_at: 2026-10-25T17:23:22.241Z
 
 ---
 
@@ -105,6 +105,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output.md | Avoid duplicate story references in default ready output | story | done |
 | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md | Avoid duplicate title snippets in vault search | story | done |
 | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md | Avoid repeated file paths in doctor findings | story | done |
+| epics/WP-21/stories/story-avoid-repeated-repair-commands-in-adjacent-next-actions.md | Avoid repeated repair commands in adjacent next actions | story | done |
 | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | Bound each CLI migration stage and measure the final layout | story | done |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | Bounded compressed Codex rollout accounting | story | done |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | Budgeted sealed-source evaluation route | story | done |
@@ -390,6 +391,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeated-repair-commands-in-adjacent-next-actions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md |
@@ -481,6 +483,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-avoid-repeated-repair-commands-in-adjacent-next-actions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | mdlink | epics/WP-21/epic.md |

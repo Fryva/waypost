@@ -1,0 +1,532 @@
+[
+  {
+    "name": "empty",
+    "data": {
+      "doctor": {
+        "value": []
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "nothing needs doing: vault consistent, no conflicting session.\nNext feature-sized change starts with `waypost draft story <EPIC> \"<title>\" --write`.\n"
+  },
+  {
+    "name": "singleton",
+    "data": {
+      "doctor": {
+        "value": [
+          {
+            "check": "kanban",
+            "message": "kanban.md stale",
+            "level": "issue"
+          }
+        ]
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "- kanban.md stale\n    waypost reconcile --write\n"
+  },
+  {
+    "name": "three",
+    "data": {
+      "doctor": {
+        "value": [
+          {
+            "check": "kanban",
+            "message": "kanban.md stale",
+            "level": "issue"
+          },
+          {
+            "check": "code-map",
+            "message": "code-map.md stale",
+            "level": "issue"
+          },
+          {
+            "check": "indexes",
+            "message": "index stale",
+            "level": "issue"
+          }
+        ]
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "- kanban.md stale\n- code-map.md stale\n- index stale\n    For these 3:\n    waypost reconcile --write\n"
+  },
+  {
+    "name": "separated",
+    "data": {
+      "doctor": {
+        "value": [
+          {
+            "check": "kanban",
+            "message": "kanban.md stale",
+            "level": "issue"
+          },
+          {
+            "check": "graph",
+            "message": "graph.md stale",
+            "level": "issue"
+          },
+          {
+            "check": "indexes",
+            "message": "index stale",
+            "level": "issue"
+          }
+        ]
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "- kanban.md stale\n    waypost reconcile --write\n- graph.md stale\n    waypost graph\n- index stale\n    waypost reconcile --write\n"
+  },
+  {
+    "name": "priority",
+    "data": {
+      "doctor": {
+        "value": [
+          {
+            "check": "gitignore",
+            "message": "issue",
+            "level": "issue"
+          },
+          {
+            "check": "line-endings",
+            "message": "warning",
+            "level": "warn"
+          }
+        ]
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "- issue\n    waypost doctor --fix\n- warning\n    waypost doctor --fix\n"
+  },
+  {
+    "name": "advice",
+    "data": {
+      "doctor": {
+        "value": [
+          {
+            "check": "code-refs",
+            "message": "bad path 0",
+            "level": "issue"
+          },
+          {
+            "check": "code-refs",
+            "message": "bad path 1",
+            "level": "issue"
+          }
+        ]
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "- bad path 0\n    fix the path, or mark it (waiting)/(planned)/(deleted)\n- bad path 1\n    fix the path, or mark it (waiting)/(planned)/(deleted)\n"
+  },
+  {
+    "name": "null",
+    "data": {
+      "doctor": {
+        "value": [
+          {
+            "check": "unknown",
+            "message": "unknown 0",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 1",
+            "level": "issue"
+          }
+        ]
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "- unknown 0\n- unknown 1\n"
+  },
+  {
+    "name": "nine",
+    "data": {
+      "doctor": {
+        "value": [
+          {
+            "check": "adr-guard",
+            "message": "guard 0",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 1",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 2",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 3",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 4",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 5",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 6",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 7",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 8",
+            "level": "issue"
+          }
+        ]
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "- guard 0\n- guard 1\n- guard 2\n- guard 3\n- guard 4\n- guard 5\n- guard 6\n- guard 7\n    For these 8:\n    waypost doctor\n…and 1 more (waypost doctor)\n"
+  },
+  {
+    "name": "boundary6",
+    "data": {
+      "doctor": {
+        "value": [
+          {
+            "check": "unknown",
+            "message": "unknown 0",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 1",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 2",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 3",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 4",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 5",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 0",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 1",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 2",
+            "level": "issue"
+          }
+        ]
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "- unknown 0\n- unknown 1\n- unknown 2\n- unknown 3\n- unknown 4\n- unknown 5\n- guard 0\n- guard 1\n    For these 2:\n    waypost doctor\n…and 1 more (waypost doctor)\n"
+  },
+  {
+    "name": "boundary7",
+    "data": {
+      "doctor": {
+        "value": [
+          {
+            "check": "unknown",
+            "message": "unknown 0",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 1",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 2",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 3",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 4",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 5",
+            "level": "issue"
+          },
+          {
+            "check": "unknown",
+            "message": "unknown 6",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 0",
+            "level": "issue"
+          },
+          {
+            "check": "adr-guard",
+            "message": "guard 1",
+            "level": "issue"
+          }
+        ]
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "- unknown 0\n- unknown 1\n- unknown 2\n- unknown 3\n- unknown 4\n- unknown 5\n- unknown 6\n- guard 0\n    waypost doctor\n…and 1 more (waypost doctor)\n"
+  },
+  {
+    "name": "claims-ready",
+    "data": {
+      "doctor": {
+        "value": []
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": [
+            {
+              "session": "other",
+              "story": "E/story-0",
+              "harness": "codex",
+              "host": "host"
+            },
+            {
+              "session": "other",
+              "story": "E/story-1",
+              "harness": "codex",
+              "host": "host"
+            }
+          ]
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": [
+            {
+              "title": "Ready 0",
+              "epic": "E",
+              "priority": "p2",
+              "rel": "vault/epics/E/stories/story-0.md"
+            },
+            {
+              "title": "Ready 1",
+              "epic": "E",
+              "priority": "p2",
+              "rel": "vault/epics/E/stories/story-1.md"
+            },
+            {
+              "title": "Ready 2",
+              "epic": "E",
+              "priority": "p2",
+              "rel": "vault/epics/E/stories/story-2.md"
+            },
+            {
+              "title": "Ready 3",
+              "epic": "E",
+              "priority": "p2",
+              "rel": "vault/epics/E/stories/story-3.md"
+            }
+          ]
+        }
+      }
+    },
+    "expected": "- E/story-0 is being worked on by other (codex, host)\n    coordinate before touching it\n- E/story-1 is being worked on by other (codex, host)\n    coordinate before touching it\n- ready: Ready 0 (E, p2)\n    waypost story plan vault/epics/E/stories/story-0.md --write\n- ready: Ready 1 (E, p2)\n    waypost story plan vault/epics/E/stories/story-1.md --write\n- ready: Ready 2 (E, p2)\n    waypost story plan vault/epics/E/stories/story-2.md --write\n"
+  },
+  {
+    "name": "invalid-json",
+    "data": {
+      "doctor": {
+        "raw": "invalid"
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "nothing needs doing: vault consistent, no conflicting session.\nNext feature-sized change starts with `waypost draft story <EPIC> \"<title>\" --write`.\n"
+  },
+  {
+    "name": "producer-exit",
+    "data": {
+      "doctor": {
+        "status": 2,
+        "value": []
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "",
+    "status": 2
+  },
+  {
+    "name": "unbound",
+    "data": {
+      "doctor": {
+        "value": []
+      },
+      "sessions": {
+        "value": {
+          "session_id": "self",
+          "claims": []
+        }
+      },
+      "ready": {
+        "value": {
+          "ready": []
+        }
+      }
+    },
+    "expected": "not bound to a vault yet — run `waypost setup`\n",
+    "unbound": true
+  }
+]

@@ -6,7 +6,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 | Command | What it does |
 |---------|--------------|
 | `waypost setup` | the whole install in one command (`--dry-run` to look first) |
-| `waypost next` | what needs doing now, ranked, with the command for each |
+| `waypost next` | what needs doing now, ranked; adjacent actions sharing a command show it once beneath a counted group |
 | `waypost brief` | orientation packet at the start of work (compact cleanup status; `--full` for the tutorial and expanded cleanup labels) |
 | `waypost draft <kind> "<title>" [--write]` | draft an artifact; `--write` creates it and reconciles |
 | `waypost story plan\|close <path> [--write]` | story lifecycle gates |

@@ -2241,6 +2241,35 @@ test("setup adopts a vault the project already has instead of making a second on
   assert.match(cfg.vault_path, /docs\/vault$/, "an existing vault is found, not duplicated");
 });
 
+test("next shares only adjacent equal-priority command lines after selecting eight actions", () => {
+  const { proj, vault } = bound();
+  writeFileSync(join(vault, ".projectstore.json"), JSON.stringify({ self_install: "off" }));
+  const cases = JSON.parse(readFileSync(join(REPO, "tests", "fixtures", "next-action-cases.json"), "utf8"));
+  const preload = pathToFileURL(join(REPO, "tests", "fixtures", "next-script-responses.mjs")).href;
+  const trace = join(proj, "producer-calls.jsonl");
+  const version = JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")).version;
+  for (const c of cases) {
+    const target = c.unbound ? project() : proj;
+    const env = { WAYPOST_NO_BEAT: "1", NODE_OPTIONS: `--import=${preload}`, NEXT_FIXTURE_ROOT: REPO,
+      NEXT_FIXTURE_DATA: JSON.stringify(c.data), NEXT_FIXTURE_TRACE: trace };
+    for (const args of [["next"], []]) {
+      writeFileSync(trace, "");
+      const r = waypost(target, args, { env, expectFail: !!c.status });
+      assert.equal(r.status, c.status || 0, c.name);
+      assert.equal(r.stderr, "", c.name);
+      let expected = c.expected;
+      if (!args.length && !c.unbound) expected = `waypost ${version} · vault ${vault}\n\n` + expected
+        + (c.status ? "" : "\nwaypost brief (orientation) · waypost help (every command)\n");
+      if (!c.unbound || args.length) assert.equal(r.stdout, expected, c.name + " " + args.join(" "));
+      else assert.match(r.stdout, /not set up[\s\S]*waypost setup/);
+      const calls = readFileSync(trace, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse);
+      assert.deepEqual(calls, (c.unbound ? [] : c.status ? ["doctor"] : ["doctor", "sessions", "ready"])
+        .map(name => ({ name, args: ["--json"] })), "only the original JSON producer calls: " + c.name);
+      if (c.name === "nine" && args.length) assert.ok(r.stdout.length <= 150, "eight visible guard actions keep a fixed text budget");
+    }
+  }
+});
+
 test("`waypost next` ranks what to do, and `waypost` alone answers the two real questions", () => {
   const proj = project();
   assert.match(waypost(proj, []).stdout, /not set up[\s\S]*waypost setup/,

@@ -66,8 +66,17 @@ function handleNext(args) {
     return;
   }
   items.sort((a, b) => a[0] - b[0]);
-  for (const [, what, how] of items.slice(0, 8)) {
-    process.stdout.write(`- ${what}\n${how ? `    ${how}\n` : ""}`);
+  const visible = items.slice(0, 8);
+  for (let i = 0; i < visible.length;) {
+    const [priority, , how] = visible[i];
+    let end = i + 1;
+    if (how && how.startsWith("waypost ")) {
+      while (end < visible.length && visible[end][0] === priority && visible[end][2] === how) end++;
+    }
+    for (const [, what] of visible.slice(i, end)) process.stdout.write(`- ${what}\n`);
+    if (end - i > 1) process.stdout.write(`    For these ${end - i}:\n`);
+    if (how) process.stdout.write(`    ${how}\n`);
+    i = end;
   }
   if (items.length > 8) process.stdout.write(`…and ${items.length - 8} more (waypost doctor)\n`);
 }
