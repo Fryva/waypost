@@ -49,7 +49,8 @@ it are not renamed, so one vault opens in either tool (ADR-0004).
 `scripts/lib.mjs` remains the common facade. Pure frontmatter scalar, flow-list
 and bare-reference parsing lives in `scripts/lib-frontmatter.mjs`; existing
 callers keep importing the facade. Artifact identity, matching and ordering live
-in `scripts/lib-identity.mjs`. Both leaves need no filesystem, process environment,
+in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
+`scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
 ## The verified loop
