@@ -9,7 +9,7 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["agents/critic.md", "templates/agents-block.md.tmpl", "scripts/brief.mjs", "scripts/ready.mjs", "scripts/agents.mjs", "bin/waypost", "bin/cli/views.mjs", "bin/cli/status.mjs", "tests/harness.test.mjs", "tests/limit.test.mjs", "scripts/doctor.mjs", "scripts/doctor-report.mjs", "tests/doctor-report.test.mjs", "tests/scripts.test.mjs", "bin/cli/help.mjs", "docs/cli-reference.md", "docs/how-it-works.md"]
+code_refs: ["agents/critic.md", "templates/agents-block.md.tmpl", "scripts/brief.mjs", "scripts/lib-frontmatter.mjs", "tests/lib-frontmatter.test.mjs", "scripts/ready.mjs", "scripts/agents.mjs", "bin/waypost", "bin/cli/views.mjs", "bin/cli/status.mjs", "tests/harness.test.mjs", "tests/limit.test.mjs", "scripts/doctor.mjs", "scripts/doctor-report.mjs", "tests/doctor-report.test.mjs", "tests/scripts.test.mjs", "bin/cli/help.mjs", "docs/cli-reference.md", "docs/how-it-works.md"]
 review_status: reviewed
 reviewed_at: 2026-09-01
 deciders: "Ivan Morozov (project owner); approved 2026-09-03"

@@ -44,6 +44,13 @@ vault/
 The vault stays compatible with upstream ProjectStore: service file names inside
 it are not renamed, so one vault opens in either tool (ADR-0004).
 
+## Shared helpers
+
+`scripts/lib.mjs` remains the common facade. Pure frontmatter scalar, flow-list
+and bare-reference parsing lives in `scripts/lib-frontmatter.mjs`; existing
+callers keep importing the facade. The leaf needs no filesystem, environment,
+clock or external dependency.
+
 ## The verified loop
 
 task → artifact (ADR / spec / epic / story) → critic → backlog → planner →
