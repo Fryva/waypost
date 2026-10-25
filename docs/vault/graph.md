@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-25T18:25:24.142Z
+generated_at: 2026-10-25T20:22:33.872Z
 
 ---
 
@@ -129,6 +129,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | Bounded paired smoke protocol for token economy | story | done |
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | Freeze and guard the CLI namespace before modularization | story | done |
 | epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior.md | Isolate ADR guard checks without changing diagnostic behavior | story | done |
+| epics/WP-21/stories/story-isolate-artifact-identity-behind-the-shared-library-facade.md | Isolate artifact identity behind the shared library facade | story | done |
 | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md | Isolate artifact integrity checks without changing diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-checkout-identity-and-path-normalization-behind-the-presence-facade.md | Isolate checkout identity and path normalization behind the presence facade | story | done |
 | epics/WP-21/stories/story-isolate-coordination-storage-and-path-resolution-behind-the-presence-facade.md | Isolate coordination storage and path resolution behind the presence facade | story | done |
@@ -416,6 +417,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-artifact-identity-behind-the-shared-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-checkout-identity-and-path-normalization-behind-the-presence-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-coordination-storage-and-path-resolution-behind-the-presence-facade.md |
@@ -512,6 +514,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-isolate-artifact-identity-behind-the-shared-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-checkout-identity-and-path-normalization-behind-the-presence-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-coordination-storage-and-path-resolution-behind-the-presence-facade.md | mdlink | epics/WP-21/epic.md |

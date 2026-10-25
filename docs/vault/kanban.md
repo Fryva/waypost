@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-25T18:25:23.922Z
+generated_at: 2026-10-25T20:22:33.606Z
 
 ---
 
@@ -135,6 +135,7 @@ generated_at: 2026-10-25T18:25:23.922Z
 - [x] [[epics/WP-21/stories/story-avoid-repeated-repair-commands-in-adjacent-next-actions|WP-21: Avoid repeated repair commands in adjacent next actions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-cleanup-status-in-default-brief|WP-21: Compact cleanup status in default brief]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report|WP-21: Compact repeated declarative checks in the default Doctor report]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-artifact-identity-behind-the-shared-library-facade|WP-21: Isolate artifact identity behind the shared library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-pure-frontmatter-parsing-behind-the-shared-library-facade|WP-21: Isolate pure frontmatter parsing behind the shared library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget|WP-21: Keep search matches visible within the existing excerpt budget]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
