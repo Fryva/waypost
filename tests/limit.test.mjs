@@ -104,6 +104,57 @@ function lastLogRecord(home) {
   return JSON.parse(lines[lines.length - 1]);
 }
 
+// Brief is a read-only view of the same setting/outcome; compactness must not hide facts.
+test("brief cleanup: compact text preserves facts and full text keeps the legacy line", () => {
+  const home = tmpRoot("waypost-brief-cleanup-home-");
+  const proj = tmpRoot("waypost-brief-cleanup-proj-");
+  const vault = join(proj, "vault");
+  mkdirSync(join(proj, ".waypost")); mkdirSync(vault);
+  writeFileSync(join(proj, ".waypost", "projectstore.json"), JSON.stringify({ vault_path: "vault", layout: "engineering" }));
+  writeFileSync(join(vault, ".projectstore.json"), JSON.stringify({ self_install: "off" }));
+  const env = machineEnv(home, { WAYPOST_HOME: REPO, WAYPOST_PROJECT_DIR: proj, WAYPOST_HARNESS: "codex", WAYPOST_SESSION_ID: "brief-cleanup-test" });
+  const at = "2026-01-02T03:04:05.000Z";
+  const reason = "another automatic cleanup: blocked — " + "details ".repeat(30);
+  const cases = [
+    [null, null, null], ["{broken", null, null],
+    ["{}", null, "no limit set"], ['{"limit":null}', null, "no limit set"],
+    [{ kind: "free", percent: 11 }, null, "free:11%"],
+    [{ kind: "gb", gb: 5, bytes: 5 * GB }, null, "5 GB per project"],
+    [{ kind: "off" }, null, "off — no automatic cleanup"],
+    [{ kind: "unknown" }, null, "no limit set"],
+    [{ kind: "free", percent: 11 }, { result: "ran", at, time: "ignored", renamed: [{}, {}], stayed: [{}], deadline: true }, "free:11%", `ran (${at}) (stopped at its deadline) — 2 item(s) removed, 1 stayed`],
+    [{ kind: "free", percent: 11 }, { result: "ran", time: at, renamed: 3, stayed: 2 }, "free:11%", `ran (${at}) — 3 item(s) removed, 2 stayed`],
+    [{ kind: "free", percent: 11 }, { result: "skipped", at, reason }, "free:11%", `skipped (${at}) — ${reason}`],
+    [{ kind: "free", percent: 11 }, { result: "failed", reason: "cannot scan" }, "free:11%", "failed — cannot scan"],
+    [{ kind: "free", percent: 11 }, {}, "free:11%", "unknown"],
+    [{ kind: "free", percent: 11 }, { result: "skipped", at, reason: "rotated reason" }, "free:11%", `skipped (${at}) — rotated reason`, true],
+  ];
+  for (const [limit, outcome, label, result, rotated] of cases) {
+    for (const path of [settingPathOf(home), logPathOf(home), logPathOf(home) + ".1"]) rmSync(path, { force: true });
+    if (typeof limit === "string") { mkdirSync(stateDirOf(home), { recursive: true }); writeFileSync(settingPathOf(home), limit); }
+    else if (limit) writeCurrentSetting(home, limit, { written_by: "waypost-state-v2" });
+    if (outcome) writeFileSync(logPathOf(home) + (rotated ? ".1" : ""), JSON.stringify({ kind: "auto", ...outcome }) + "\n" + JSON.stringify({ kind: "apply", result: "ignored" }) + "\n");
+    if (rotated) writeFileSync(logPathOf(home), JSON.stringify({ kind: "apply", result: "ignored" }) + "\n");
+    const snapshot = () => Object.fromEntries(readdirSync(stateDirOf(home)).map(n => [n, readFileSync(join(stateDirOf(home), n), "utf8")]));
+    mkdirSync(stateDirOf(home), { recursive: true });
+    const before = snapshot();
+    const run = (...flags) => { const r = runWaypost(proj, ["brief", "--no-install", "--budget", "5000", ...flags], env); assert.equal(r.status, 0, r.stderr); return r.stdout; };
+    const compact = run(), full = run("--full");
+    const line = text => text.split("\n").find(l => l.startsWith("cleanup limit:"));
+    if (label === null) { assert.equal(line(compact), undefined); assert.equal(line(full), undefined); }
+    else {
+      const date = typeof limit === "string" ? "undefined" : "2026-01-01";
+      const expected = `cleanup limit: ${label} (set ${date})${result ? ` — auto: ${result}` : ""}`;
+      const fullLabel = limit?.kind === "free" ? "free:11% — keep at least 11% of the disk free" : label;
+      assert.equal(line(compact), expected);
+      assert.equal(line(full), `cleanup limit: ${fullLabel} (set ${date})${result ? ` — automatic cleanup: ${result}` : ""}`);
+      if (result?.startsWith("ran") && outcome.time === at) assert.ok(expected.length <= 120, `canonical numeric outcome budget: ${expected.length}`);
+    }
+    assert.deepEqual(JSON.parse(run("--json")), JSON.parse(run("--json", "--full")), "format selection preserves facts");
+    assert.deepEqual(snapshot(), before, "brief never changes setting/log bytes");
+  }
+});
+
 // ─── shared fixtures for the automatic path (commit C) ────────────────────
 
 function sleepMs(ms) {

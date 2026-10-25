@@ -29,21 +29,25 @@ export async function brief(cfg, opts = {}) {
   if(teams.error)facts.team_authority_error=teams.error;
   const changes = vaultChanges(cfg.vault_path);
   if (changes) facts.vault_changes = changes.facts;
-  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) + (changes ? changes.text : "") + teams.text + cleanupLine() };
+  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) + (changes ? changes.text : "") + teams.text + cleanupLine(opts.full) };
 }
 
 // The machine-wide cleanup-limit setting (the amended machine-wide-limit
 // ADR) — one line, and only when a setting actually exists: an unset
 // machine has nothing to say here, and this must never grow the standing
 // context on a project that never touched `waypost clean --limit`.
-function cleanupLine() {
+function cleanupLine(full = false) {
   try {
     const host = hostSlug();
     const setting = readCleanupSetting({ host });
     if (!setting) return "";
-    let line = `\ncleanup limit: ${formatLimit(setting.limit)} (set ${String(setting.set_at).slice(0, 10)})`;
+    const limit = !full && setting.limit?.kind === "free" ? `free:${setting.limit.percent}%` : formatLimit(setting.limit);
+    let line = `\ncleanup limit: ${limit} (set ${String(setting.set_at).slice(0, 10)})`;
     const outcome = readLastAutoCleanup({ host });
-    if (outcome) line += ` — ${formatOutcome(outcome)}`;
+    if (outcome) {
+      const result = formatOutcome(outcome);
+      line += ` — ${full ? result : result.replace(/^automatic cleanup: /, "auto: ")}`;
+    }
     return line + "\n";
   } catch { return ""; }
 }
