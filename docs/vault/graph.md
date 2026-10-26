@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-26T03:28:42.611Z
+generated_at: 2026-10-26T04:05:35.120Z
 
 ---
 
@@ -151,6 +151,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-role-lifecycle-behind-the-agents-facade.md | Isolate role lifecycle behind the agents facade | story | done |
 | epics/WP-21/stories/story-isolate-role-rendering-behind-the-agents-facade.md | Isolate role rendering behind the agents facade | story | done |
 | epics/WP-21/stories/story-isolate-specification-link-coverage-and-acceptance-diagnostics.md | Isolate specification link coverage and acceptance diagnostics | story | done |
+| epics/WP-21/stories/story-isolate-stable-session-identity-derivation-behind-the-library-facade.md | Isolate stable session identity derivation behind the library facade | story | done |
 | epics/WP-21/stories/story-isolate-story-and-epic-lifecycle-diagnostics.md | Isolate story and epic lifecycle diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-the-pure-vault-skeleton-renderer-behind-the-library-facade.md | Isolate the pure vault skeleton renderer behind the library facade | story | done |
 | epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md | Isolate vault artifact discovery and identity diagnostics | story | done |
@@ -445,6 +446,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-role-lifecycle-behind-the-agents-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-role-rendering-behind-the-agents-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-specification-link-coverage-and-acceptance-diagnostics.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-stable-session-identity-derivation-behind-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-story-and-epic-lifecycle-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-the-pure-vault-skeleton-renderer-behind-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md |
@@ -549,6 +551,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-role-lifecycle-behind-the-agents-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-role-rendering-behind-the-agents-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-specification-link-coverage-and-acceptance-diagnostics.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-isolate-stable-session-identity-derivation-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-story-and-epic-lifecycle-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-the-pure-vault-skeleton-renderer-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md | mdlink | epics/WP-21/epic.md |

@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-26T03:28:42.391Z
+generated_at: 2026-10-26T04:05:34.830Z
 
 ---
 
@@ -142,6 +142,7 @@ generated_at: 2026-10-26T03:28:42.391Z
 - [x] [[epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget|WP-21: Keep search matches visible within the existing excerpt budget]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-pure-link-parsing-and-resolution-behind-the-library-facade|WP-21: Isolate pure link parsing and resolution behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-resource-roots-layouts-and-templates-behind-the-library-facade|WP-21: Isolate resource roots layouts and templates behind the library facade]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-stable-session-identity-derivation-behind-the-library-facade|WP-21: Isolate stable session identity derivation behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-vault-graph-node-indexing-behind-the-library-facade|WP-21: Isolate vault graph node indexing behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-vault-policy-and-budgeted-fact-collection-behind-the-library-facade|WP-21: Isolate vault policy and budgeted fact collection behind the library facade]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done

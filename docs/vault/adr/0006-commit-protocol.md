@@ -9,7 +9,7 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["scripts/commit.mjs", "scripts/merge-derived.mjs", "scripts/sessions.mjs", "scripts/doctor.mjs", "bin/waypost", "tests/commits.test.mjs", "scripts/doctor-generated.mjs", "tests/doctor-generated.test.mjs", "scripts/doctor-coordination.mjs", "tests/doctor-coordination.test.mjs", "scripts/doctor-repairs.mjs", "tests/doctor-repairs.test.mjs"]
+code_refs: ["scripts/commit.mjs", "scripts/merge-derived.mjs", "scripts/sessions.mjs", "scripts/lib-session-identity.mjs", "tests/lib-session-identity.test.mjs", "scripts/doctor.mjs", "bin/waypost", "tests/commits.test.mjs", "scripts/doctor-generated.mjs", "tests/doctor-generated.test.mjs", "scripts/doctor-coordination.mjs", "tests/doctor-coordination.test.mjs", "scripts/doctor-repairs.mjs", "tests/doctor-repairs.test.mjs"]
 review_status: reviewed
 reviewed_at: 2026-09-01
 deciders: "Ivan Morozov (project owner); approved 2026-09-03"
