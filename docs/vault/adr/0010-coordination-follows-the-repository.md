@@ -9,7 +9,7 @@ tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["scripts/presence.mjs", "scripts/sessions.mjs", "scripts/lib.mjs", "scripts/brief.mjs", "bin/waypost", "tests/presence.test.mjs", "scripts/presence-storage.mjs", "tests/presence-storage.test.mjs", "scripts/presence-liveness.mjs", "tests/presence-liveness.test.mjs", "scripts/presence-checkout.mjs", "tests/presence-checkout.test.mjs"]
+code_refs: ["scripts/presence.mjs", "scripts/sessions.mjs", "scripts/lib.mjs", "scripts/brief.mjs", "bin/waypost", "tests/presence.test.mjs", "scripts/presence-storage.mjs", "tests/presence-storage.test.mjs", "scripts/presence-liveness.mjs", "tests/presence-liveness.test.mjs", "scripts/presence-checkout.mjs", "tests/presence-checkout.test.mjs", "scripts/lib-legacy-sessions.mjs", "tests/lib-legacy-sessions.test.mjs", "tests/helpers/legacy-session-scenarios.mjs"]
 review_status: reviewed
 reviewed_at: 2026-09-04
 deciders: "Ivan Morozov (project owner); approved 2026-09-04 by delegation after the fresh-context critic pass"
@@ -98,7 +98,7 @@ resolves to its own `.git`, which is the repository whose worktrees can share.
 
 **The legacy session registry does not move.** `<vault>/.projectstore/sessions/`
 is read and written by unmodified upstream ProjectStore on a shared vault
-(`scripts/lib.mjs` above `sessionsDir` says so, and AGENTS.md forbids renaming
+(`scripts/lib-legacy-sessions.mjs` above `sessionsDir` says so, and AGENTS.md forbids renaming
 vault service files). Claims live in presence records, not there, so nothing
 this decision needs is lost by leaving it.
 
