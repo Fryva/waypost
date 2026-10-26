@@ -53,6 +53,8 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/lib-node-index.mjs` builds the graph node universe and its per-call
+lookup maps, preserving discovery order and node references.
 `scripts/lib-vault-policy.mjs` owns the vault policy helpers, including the explicit
 policy writer. `scripts/lib-vault-facts.mjs` owns budgeted fact collection and its
 existing deadline and late-result behavior.
