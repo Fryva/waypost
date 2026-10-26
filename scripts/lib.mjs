@@ -11,7 +11,8 @@ import { readFileSync, writeFileSync, appendFileSync, existsSync, readdirSync, s
 import { readFile as readFileAsync } from "node:fs/promises";
 import { join, dirname, basename, resolve, relative, isAbsolute, sep } from "node:path";
 import { hostname, homedir, userInfo } from "node:os";
-import { fileURLToPath } from "node:url";
+import { pluginRoot, loadLayout, folderByKind } from "./lib-resources.mjs";
+export { pluginRoot, loadLayout, folderByKind, loadTemplate, renderTemplate } from "./lib-resources.mjs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
@@ -33,17 +34,6 @@ export function projectRoot() {
   return process.env.WAYPOST_PROJECT_DIR
     || process.env.CLAUDE_PROJECT_DIR
     || process.cwd();
-}
-
-// The tool root: the directory two levels above scripts/ (i.e. this repo root).
-// fileURLToPath, not URL.pathname: the latter stays percent-encoded, so a
-// checkout path containing a space resolves to a directory that does not exist.
-// WAYPOST_HOME overrides (e.g. a vendored/installed copy); CLAUDE_PLUGIN_ROOT is
-// honoured for a Claude plugin install.
-export function pluginRoot() {
-  return process.env.WAYPOST_HOME
-    || process.env.CLAUDE_PLUGIN_ROOT
-    || dirname(dirname(fileURLToPath(import.meta.url)));
 }
 
 // The project-local config. Cannonical location is .waypost/projectstore.json;
@@ -516,48 +506,6 @@ function sweepOrphanTemps(dir) {
       }
     }
   }
-}
-
-// ─── Layouts ───────────────────────────────────────────────────────────
-
-export function loadLayout(name) {
-  const p = join(pluginRoot(), "scaffold", "layouts", `${name}.json`);
-  if (!existsSync(p)) {
-    throw new Error(`Layout not found: ${name} (expected at ${p})`);
-  }
-  return JSON.parse(readFileSync(p, "utf8"));
-}
-
-export function folderByKind(layout, kind) {
-  return layout.folders.find((f) => f.kind === kind) || null;
-}
-
-// ─── Templates ─────────────────────────────────────────────────────────
-
-export function loadTemplate(lang, name) {
-  const p = join(pluginRoot(), "templates", lang, `${name}.md.tmpl`);
-  if (!existsSync(p)) {
-    throw new Error(`Template not found: templates/${lang}/${name}.md.tmpl`);
-  }
-  return readFileSync(p, "utf8");
-}
-
-// {{x}} substitutes raw; {{x_json}} substitutes JSON.stringify(String(x)) — a
-// valid YAML double-quoted scalar. Frontmatter lines in templates use the
-// _json form so titles containing `"` or `:` cannot corrupt the YAML.
-export function renderTemplate(template, vars) {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-    if (key.endsWith("_json")) {
-      const base = key.slice(0, -5);
-      return base in vars ? JSON.stringify(String(vars[base])) : '""';
-    }
-    if (key in vars) {
-      const v = vars[key];
-      if (Array.isArray(v)) return JSON.stringify(v);
-      return String(v);
-    }
-    return "";
-  });
 }
 
 // ─── Heading / keyword registry (PS-SPEC story-002) ────────────────────
