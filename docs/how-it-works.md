@@ -53,6 +53,8 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/lib-markdown-cells.mjs` owns the shared table-cell pipe escaper and
+reader used by derived views and doctor.
 `scripts/lib-atomic-write.mjs` owns explicit atomic file replacement and its
 same-host orphan sweep. File errors and cleanup policy remain unchanged; this
 writer acts only when called.
