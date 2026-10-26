@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-26T03:53:15.901Z
+generated_at: 2026-10-26T05:27:29.822Z
 
 ---
 
@@ -112,6 +112,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Keep brief folder descriptions behind full mode | `scripts/brief.mjs`, `scripts/lib.mjs`, `tests/predicates.test.mjs`, `tests/harness.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Keep CLI reference out of standing instructions | `AGENTS.md`, `docs/cli-reference.md`, `docs/how-it-works.md`, `tests/harness.test.mjs` |
 | WP-21 | Keep search matches visible within the existing excerpt budget | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
+| WP-21 | Make session identity call-time tests portable across Node runtimes | `tests/lib-session-identity.test.mjs`, `scripts/lib-session-identity.mjs`, `tests/commits.test.mjs` |
 | WP-21 | Map CLI dependencies and shared-state ownership before migration | `bin/waypost.mjs`, `tests/fixtures/cli-namespace.json`, `tests/helpers/cli-namespace.mjs`, `tests/helpers/cli-static-closure.mjs`, `tests/helpers/cli-modules.mjs` |
 | WP-21 | Offline Codex token accounting with explicit coverage | `scripts/tokens.mjs`, `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Pin team-bound story refusal before CLI modularization | `tests/team-cli.test.mjs` |

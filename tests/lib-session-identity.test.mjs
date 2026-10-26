@@ -1,6 +1,9 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {readFileSync} from "node:fs";
+import {readFileSync,mkdtempSync,writeFileSync,rmSync} from "node:fs";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
+import {pathToFileURL} from "node:url";
 import {spawnSync} from "node:child_process";
 import {ambientEnv} from "./env.mjs";
 import * as facade from "../scripts/lib.mjs";
@@ -31,10 +34,44 @@ test("session identity keeps inputs immutable and propagates getter and coercion
   const args=Object.freeze(["node","wp"]),env=Object.freeze({WAYPOST_SESSION_ID:"neutral"});assert.equal(focused.sessionId(args,env),"neutral");assert.deepEqual(args,["node","wp"]);const error=new Error("getter failed");assert.throws(()=>focused.sessionId([],new Proxy({},{get(){throw error}})),e=>e===error);assert.throws(()=>focused.sessionId([],{TERM_SESSION_ID:{toString(){throw error}}}),e=>e===error);assert.throws(()=>focused.sessionIdFlag(null),TypeError);
 });
 
+function callTimeProbe(url) {
+  const code=`import os from "node:os";import {syncBuiltinESMExports} from "node:module";
+    let value="first.host",calls=0,parent=7,reads=0;os.hostname=()=>{calls++;return value};syncBuiltinESMExports();
+    const descriptor=Object.getOwnPropertyDescriptor(process,"ppid");
+    // A JS accessor overrides the native ppid accessor on every supported Node.
+    // Spreading its descriptor into a data property does not work on Node 20/22.
+    Object.defineProperty(process,"ppid",{configurable:true,enumerable:descriptor.enumerable,get(){reads++;return parent}});
+    const m=await import(${JSON.stringify(url)});
+    process.argv=["node","wp","--id","first default"];process.env={};const first=m.sessionId();
+    process.argv=["node","wp"];process.env={WAYPOST_SESSION_ID:"second default"};const second=m.sessionId();const beforeFallback=reads;
+    process.env={WAYPOST_HARNESS:"codex"};parent=123;const firstReadback=process.ppid,beforeThird=reads,third=m.sessionId(),thirdReads=reads-beforeThird;
+    value="last.host";parent=456;const secondReadback=process.ppid,beforeFourth=reads,fourth=m.sessionId(),fourthReads=reads-beforeFourth;
+    Object.defineProperty(process,"ppid",descriptor);
+    console.log(JSON.stringify({first,second,beforeFallback,readbacks:[firstReadback,secondReadback],third,fourth,readCounts:[thirdReads,fourthReads],calls}));`;
+  const r=spawnSync(process.execPath,["--input-type=module","-e",code],{encoding:"utf8",env:ambientEnv()});
+  assert.equal(r.status,0,r.stderr);
+  return JSON.parse(r.stdout);
+}
+function assertCallTime(result) {
+  assert.deepEqual(result,{first:"first_default",second:"second_default",beforeFallback:0,readbacks:[123,456],third:"codex-first-123",fourth:"codex-last-456",readCounts:[1,1],calls:2});
+}
+
 test("session identity defaults, hostname and ppid remain call-time",()=>{
-  const url=new URL("../scripts/lib-session-identity.mjs",import.meta.url).href;
-  const code=`import os from"node:os";import{syncBuiltinESMExports}from"node:module";let value="first.host",calls=0;os.hostname=()=>{calls++;return value};syncBuiltinESMExports();const descriptor=Object.getOwnPropertyDescriptor(process,"ppid"),m=await import(${JSON.stringify(url)});process.argv=["node","wp","--id","first default"];process.env={};const first=m.sessionId();process.argv=["node","wp"];process.env={WAYPOST_SESSION_ID:"second default"};const second=m.sessionId();const beforeFallback=calls;process.env={WAYPOST_HARNESS:"codex"};Object.defineProperty(process,"ppid",{...descriptor,value:123});const third=m.sessionId();value="last.host";Object.defineProperty(process,"ppid",{...descriptor,value:456});const fourth=m.sessionId();console.log(JSON.stringify({first,second,beforeFallback,third,fourth,calls}));`;
-  const r=spawnSync(process.execPath,["--input-type=module","-e",code],{encoding:"utf8",env:ambientEnv()});assert.equal(r.status,0,r.stderr);assert.deepEqual(JSON.parse(r.stdout),{first:"first_default",second:"second_default",beforeFallback:0,third:"codex-first-123",fourth:"codex-last-456",calls:2});
+  assertCallTime(callTimeProbe(new URL("../scripts/lib-session-identity.mjs",import.meta.url).href));
+});
+
+test("session identity call-time check rejects import-time ppid capture with a working mock",t=>{
+  const root=mkdtempSync(join(tmpdir(),"wp-captured-ppid-"));t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const source=readFileSync(new URL("../scripts/lib-session-identity.mjs",import.meta.url),"utf8"),marker="${process.ppid}";
+  assert.equal(source.split(marker).length,2,"mutation fixture must replace exactly the fallback read");
+  const path=join(root,"captured.mjs");
+  writeFileSync(path,"const capturedPpid=process.ppid;\n"+source.replace(marker,"${capturedPpid}"));
+  const result=callTimeProbe(pathToFileURL(path).href);
+  assert.deepEqual(result.readbacks,[123,456],"the mock still works for the negative control");
+  assert.equal(result.beforeFallback,1,"the mutant read ppid at import");
+  assert.deepEqual(result.readCounts,[0,0],"the mutant omits both call-time reads");
+  assert.equal(result.third,"codex-first-7");assert.equal(result.fourth,"codex-last-7");
+  assert.throws(()=>assertCallTime(result),assert.AssertionError);
 });
 
 test("session identity import adds no I/O, hostname probes, writes or timers",()=>{
