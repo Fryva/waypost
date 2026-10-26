@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-26T15:00:11.042Z
+generated_at: 2026-10-26T16:27:56.513Z
 
 ---
 
@@ -141,6 +141,7 @@ generated_at: 2026-10-26T15:00:11.042Z
 - [x] [[epics/WP-21/stories/story-isolate-the-pure-vault-skeleton-renderer-behind-the-library-facade|WP-21: Isolate the pure vault skeleton renderer behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget|WP-21: Keep search matches visible within the existing excerpt budget]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-artifact-slug-generation-and-legacy-numbering-behind-the-library-facade|WP-21: Isolate artifact slug generation and legacy numbering behind the library facade]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-atomic-file-replacement-and-orphan-cleanup-behind-the-library-facade|WP-21: Isolate atomic file replacement and orphan cleanup behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-pure-link-parsing-and-resolution-behind-the-library-facade|WP-21: Isolate pure link parsing and resolution behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-resource-roots-layouts-and-templates-behind-the-library-facade|WP-21: Isolate resource roots layouts and templates behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-stable-session-identity-derivation-behind-the-library-facade|WP-21: Isolate stable session identity derivation behind the library facade]] #p2 #done

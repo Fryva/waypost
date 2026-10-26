@@ -53,6 +53,9 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/lib-atomic-write.mjs` owns explicit atomic file replacement and its
+same-host orphan sweep. File errors and cleanup policy remain unchanged; this
+writer acts only when called.
 `scripts/lib-artifact-names.mjs` generates slugs and retains the legacy numeric
 allocator; modern artifact creation keeps using slugs.
 `scripts/lib-session-identity.mjs` derives stable session IDs with the existing
