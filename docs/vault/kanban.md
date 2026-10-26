@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-26T01:19:00.823Z
+generated_at: 2026-10-26T01:31:47.295Z
 
 ---
 
@@ -140,6 +140,7 @@ generated_at: 2026-10-26T01:19:00.823Z
 - [x] [[epics/WP-21/stories/story-isolate-read-only-vault-file-discovery-behind-the-library-facade|WP-21: Isolate read-only vault file discovery behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-the-pure-vault-skeleton-renderer-behind-the-library-facade|WP-21: Isolate the pure vault skeleton renderer behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget|WP-21: Keep search matches visible within the existing excerpt budget]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-pure-link-parsing-and-resolution-behind-the-library-facade|WP-21: Isolate pure link parsing and resolution behind the library facade]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

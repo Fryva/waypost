@@ -53,6 +53,8 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/lib-links.mjs` owns link parsing and resolution; its caller-owned
+`ctx._fileSet` cache and injected attachment lookup retain their existing behavior.
 `scripts/lib-vault-files.mjs` owns read-only vault discovery, story references,
 containment and activity checks. It reads the filesystem at call time and shares
 its functions through the same facade.

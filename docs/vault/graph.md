@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-26T01:19:01.100Z
+generated_at: 2026-10-26T01:31:47.544Z
 
 ---
 
@@ -143,6 +143,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-peer-liveness-and-pruning-behind-the-presence-facade.md | Isolate peer liveness and pruning behind the presence facade | story | done |
 | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md | Isolate portable path and line ending diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-pure-frontmatter-parsing-behind-the-shared-library-facade.md | Isolate pure frontmatter parsing behind the shared library facade | story | done |
+| epics/WP-21/stories/story-isolate-pure-link-parsing-and-resolution-behind-the-library-facade.md | Isolate pure link parsing and resolution behind the library facade | story | done |
 | epics/WP-21/stories/story-isolate-read-only-vault-file-discovery-behind-the-library-facade.md | Isolate read-only vault file discovery behind the library facade | story | done |
 | epics/WP-21/stories/story-isolate-remaining-vault-diagnostics-behind-the-doctor-facade.md | Isolate remaining vault diagnostics behind the Doctor facade | story | done |
 | epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md | Isolate repository and runtime diagnostics behind the Doctor facade | story | done |
@@ -433,6 +434,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-peer-liveness-and-pruning-behind-the-presence-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-pure-frontmatter-parsing-behind-the-shared-library-facade.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-pure-link-parsing-and-resolution-behind-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-read-only-vault-file-discovery-behind-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-remaining-vault-diagnostics-behind-the-doctor-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md |
@@ -532,6 +534,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-peer-liveness-and-pruning-behind-the-presence-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-pure-frontmatter-parsing-behind-the-shared-library-facade.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-isolate-pure-link-parsing-and-resolution-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-read-only-vault-file-discovery-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-remaining-vault-diagnostics-behind-the-doctor-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md | mdlink | epics/WP-21/epic.md |
