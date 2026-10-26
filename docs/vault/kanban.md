@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-26T05:27:29.730Z
+generated_at: 2026-10-26T06:07:09.758Z
 
 ---
 
@@ -42,7 +42,6 @@ generated_at: 2026-10-26T05:27:29.730Z
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
 - [ ] [[epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation|WP-21: Execute paired token economy smoke under the owner allocation]] #p2
-- [ ] [[epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes|WP-21: Make session identity call-time tests portable across Node runtimes]] #p2
 
 ## Review
 
@@ -146,6 +145,7 @@ generated_at: 2026-10-26T05:27:29.730Z
 - [x] [[epics/WP-21/stories/story-isolate-stable-session-identity-derivation-behind-the-library-facade|WP-21: Isolate stable session identity derivation behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-vault-graph-node-indexing-behind-the-library-facade|WP-21: Isolate vault graph node indexing behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-vault-policy-and-budgeted-fact-collection-behind-the-library-facade|WP-21: Isolate vault policy and budgeted fact collection behind the library facade]] #p2 #done
+- [x] [[epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes|WP-21: Make session identity call-time tests portable across Node runtimes]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

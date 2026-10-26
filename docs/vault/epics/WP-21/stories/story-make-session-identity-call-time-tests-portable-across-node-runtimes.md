@@ -3,7 +3,7 @@ type: story
 id: "story-make-session-identity-call-time-tests-portable-across-node-runtimes"
 epic: "WP-21"
 title: "Make session identity call-time tests portable across Node runtimes"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-10-26
@@ -13,7 +13,7 @@ tags: []
 code_refs: ["tests/lib-session-identity.test.mjs", "scripts/lib-session-identity.mjs", "tests/commits.test.mjs"]
 specs: []
 started_at: "2026-10-26T05:27:28.815Z"
-closed_at: null
+closed_at: "2026-10-26T06:07:08.823Z"
 plan_updated_at: "2026-10-26T05:27:28.815Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-10-26T05:27:28.815Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-21](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -36,7 +36,7 @@ Restore the Node20/22/24 CI matrix after the session identity call-time test obs
 
 - [x] Retain failed CI diagnostics and verify a portable parent-PID accessor on real supported runtimes.
 - [x] Replace only the test mock, add readback/read-count controls and captured-PID mutation negative control.
-- [ ] Verify focused runtime matrix, independent review and successful full CI matrix.
+- [x] Verify focused runtime matrix, independent review and successful full CI matrix.
 
 ## Implementation Plan
 
@@ -44,13 +44,17 @@ CI40267309102: Node20/22 fail only defaults/hostname/ppid test; Node24 passes. R
 
 ## Acceptance Criteria
 
-- [x] Production files/API behavior unchanged; test uses real process accessor with two readback controls, expected call-time values and getter counts, no skip/fallback weakening.
-- [x] Import-time captured-ppid mutant is rejected while controls work; focused tests pass on real Node20/22/24 with retained source/runtime evidence.
-- [ ] Independent reviewer approves, Doctor0/0 and full GitHub Node20/22/24 CI passes; prior failure retained and Memory corrected.
+- [x] Production files/API behavior unchanged; test uses real process accessor with two readback controls, expected call-time values and getter counts, no skip/fallback weakening. — evidence: `production-before.json`, `production-after.json`, focused source/receipts.
+- [x] Import-time captured-ppid mutant is rejected while controls work; focused tests pass on real Node20/22/24 with retained source/runtime evidence. — evidence: `after-runtime-results.json`, `after-node20.log`, `after-node22.log`, `after-node24.log`.
+- [x] Independent reviewer approves, Doctor0/0 and full GitHub Node20/22/24 CI passes; prior failure retained and Memory corrected. — evidence: `review-final.json`, `doctor.json`, `ci-final.json` (CI40274963836), shared Memory topic.
 
 ## Final Summary
 
-Local matrix verified: old test fails Node20.20.2/22.23.4 and passes24.22.1; fixed test and captured-PID mutation negative control pass8/8 with0fail/skip on all three. All scripts/ and bin/ file hashes unchanged. Independent reviewer approves the test-only commit, no findings; full CI gate pending; story remains in-progress. Evidence: `.waypost/experiments/wp21-ci-session-identity-20261026/` (failed CI excerpts, before/after runtime results, production manifests and source identity).
+Fixed the test-only native ppid mock in ad61e03; production code/API unchanged (all121 scripts/bin hashes exact). Old test fails on actual Node20.20.2/22.23.4 and passes24.22.1. Explicit JS accessor installed before module import now provides two working readbacks123/456, zero early PID reads and one per fallback call. Temporary source-copy mutant captures sentinel7 at import and is rejected by the same expectations while its readback controls still work; load errors cannot pass as the negative control.
+
+Focused8/8 pass0fail/skip on each actual20.20.2/22.23.4/24.22.1, with binary version/SHA/stability and source/log identities retained. Full GitHub CI [40274963836](https://github.com/Fryva/waypost/actions/runs/40274963836) at ad61e0336097a559871f5cb0759a180f9dd9a257 completed/success on Node20/22/24, including npm test and vault checks. Independent reviewer verified live CI and unchanged tested source, allAC met, no findings; Doctor0/0. Prior failed CI40267309102 and initial collector reporter-format gap remain documented. Story closed only after complete CI acceptance; administrative closure changes documentation only.
+
+Evidence: `.waypost/experiments/wp21-ci-session-identity-20261026/` (failure excerpts, before/after runtime results, production/source manifests, validation.json, ci-final.json and review-final.json). Shared Memory corrected. Temporary runtime installations/npmcache/raw diagnostics removed601601398 logical bytes; selected logs, hashes, scripts and package locks retained. No project/global runtime dependency change, native pilot or token/runtime/net-saving measurement.
 
 ## Technical Notes
 

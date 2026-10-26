@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-26T05:27:29.956Z
+generated_at: 2026-10-26T06:07:10.104Z
 
 ---
 
@@ -160,7 +160,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | Keep brief folder descriptions behind full mode | story | done |
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | Keep CLI reference out of standing instructions | story | done |
 | epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget.md | Keep search matches visible within the existing excerpt budget | story | done |
-| epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md | Make session identity call-time tests portable across Node runtimes | story | in-progress |
+| epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md | Make session identity call-time tests portable across Node runtimes | story | done |
 | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | Map CLI dependencies and shared-state ownership before migration | story | done |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | Offline Codex token accounting with explicit coverage | story | done |
 | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md | Pin team-bound story refusal before CLI modularization | story | done |
