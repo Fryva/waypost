@@ -53,6 +53,9 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/lib-vault-policy.mjs` owns the vault policy helpers, including the explicit
+policy writer. `scripts/lib-vault-facts.mjs` owns budgeted fact collection and its
+existing deadline and late-result behavior.
 `scripts/lib-resources.mjs` owns tool-root resolution, layout loading and template
 rendering. The heading registry and its per-facade cache remain in `lib.mjs`.
 `scripts/lib-links.mjs` owns link parsing and resolution; its caller-owned
