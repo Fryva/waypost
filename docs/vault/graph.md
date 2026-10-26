@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-26T06:07:10.104Z
+generated_at: 2026-10-26T15:00:11.404Z
 
 ---
 
@@ -131,6 +131,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior.md | Isolate ADR guard checks without changing diagnostic behavior | story | done |
 | epics/WP-21/stories/story-isolate-artifact-identity-behind-the-shared-library-facade.md | Isolate artifact identity behind the shared library facade | story | done |
 | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md | Isolate artifact integrity checks without changing diagnostics | story | done |
+| epics/WP-21/stories/story-isolate-artifact-slug-generation-and-legacy-numbering-behind-the-library-facade.md | Isolate artifact slug generation and legacy numbering behind the library facade | story | done |
 | epics/WP-21/stories/story-isolate-checkout-identity-and-path-normalization-behind-the-presence-facade.md | Isolate checkout identity and path normalization behind the presence facade | story | done |
 | epics/WP-21/stories/story-isolate-coordination-storage-and-path-resolution-behind-the-presence-facade.md | Isolate coordination storage and path resolution behind the presence facade | story | done |
 | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md | Isolate doctor report formatting without changing diagnostics | story | done |
@@ -427,6 +428,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-artifact-identity-behind-the-shared-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-artifact-slug-generation-and-legacy-numbering-behind-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-checkout-identity-and-path-normalization-behind-the-presence-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-coordination-storage-and-path-resolution-behind-the-presence-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md |
@@ -532,6 +534,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-adr-guard-checks-without-changing-diagnostic-behavior.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-artifact-identity-behind-the-shared-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-isolate-artifact-slug-generation-and-legacy-numbering-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-checkout-identity-and-path-normalization-behind-the-presence-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-coordination-storage-and-path-resolution-behind-the-presence-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-doctor-report-formatting-without-changing-diagnostics.md | mdlink | epics/WP-21/epic.md |

@@ -53,6 +53,8 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/lib-artifact-names.mjs` generates slugs and retains the legacy numeric
+allocator; modern artifact creation keeps using slugs.
 `scripts/lib-session-identity.mjs` derives stable session IDs with the existing
 argument/environment precedence; registration and coordination keep their owners.
 `scripts/lib-node-index.mjs` builds the graph node universe and its per-call
