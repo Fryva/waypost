@@ -53,10 +53,12 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/capacity-memory.mjs` owns OS-specific memory measurement and pressure
+fallbacks, using the shared default probe wrappers.
 `scripts/capacity-probes.mjs` owns the default OS/file/command/timer wrappers;
 `scripts/capacity-boot.mjs` owns boot identifiers, authority and comparisons.
 `scripts/capacity-admission.mjs` owns pure heavy-work admission arithmetic and
-refusal reasons; OS-specific measurement and holder discovery remain in `scripts/capacity.mjs`.
+refusal reasons; CPU measurement, orchestration and holder discovery remain in `scripts/capacity.mjs`.
 `scripts/token-collect.mjs` owns Claude transcript discovery, metadata, request
 selection and coverage collection; pricing and report assembly stay in `scripts/tokens.mjs`.
 `scripts/token-requests.mjs` owns request reduction and command-run counting,
