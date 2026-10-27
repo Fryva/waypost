@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-27T22:11:29.897Z
+generated_at: 2026-10-27T22:20:34.792Z
 
 ---
 
@@ -168,6 +168,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-the-pure-vault-skeleton-renderer-behind-the-library-facade.md | Isolate the pure vault skeleton renderer behind the library facade | story | done |
 | epics/WP-21/stories/story-isolate-token-report-table-formatting.md | Isolate token report table formatting | story | done |
 | epics/WP-21/stories/story-isolate-token-request-reduction-and-command-run-counting.md | Isolate token request reduction and command run counting | story | done |
+| epics/WP-21/stories/story-isolate-toolchain-artifact-locators.md | Isolate toolchain artifact locators | story | done |
 | epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md | Isolate vault artifact discovery and identity diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-vault-graph-node-indexing-behind-the-library-facade.md | Isolate vault graph node indexing behind the library facade | story | done |
 | epics/WP-21/stories/story-isolate-vault-policy-and-budgeted-fact-collection-behind-the-library-facade.md | Isolate vault policy and budgeted fact collection behind the library facade | story | done |
@@ -480,6 +481,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-the-pure-vault-skeleton-renderer-behind-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-token-report-table-formatting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-token-request-reduction-and-command-run-counting.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-toolchain-artifact-locators.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-vault-graph-node-indexing-behind-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-vault-policy-and-budgeted-fact-collection-behind-the-library-facade.md |
@@ -602,6 +604,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-the-pure-vault-skeleton-renderer-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-token-report-table-formatting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-token-request-reduction-and-command-run-counting.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-isolate-toolchain-artifact-locators.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-vault-artifact-discovery-and-identity-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-vault-graph-node-indexing-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-vault-policy-and-budgeted-fact-collection-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |

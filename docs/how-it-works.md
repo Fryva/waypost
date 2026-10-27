@@ -46,6 +46,11 @@ it are not renamed, so one vault opens in either tool (ADR-0004).
 
 ## Shared helpers
 
+`scripts/toolchain-locators.mjs` owns artifact locator selection and dispatch;
+registry loading and cache path resolution stay in `scripts/toolchains.mjs`.
+The facade re-exports the stateless locator functions; its mutable registry cache
+and batch-shim pattern remain owned by each queried facade import.
+
 `scripts/lib.mjs` remains the common facade. Pure frontmatter scalar, flow-list
 and bare-reference parsing lives in `scripts/lib-frontmatter.mjs`; existing
 callers keep importing the facade. Artifact identity, matching and ordering live
