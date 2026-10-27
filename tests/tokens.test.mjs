@@ -411,7 +411,7 @@ test("tokens: provenance fingerprints exact transcript, metadata and analyzer by
     assert.equal(file.sha256, digest(join(f.dir, file.path)));
     assert.equal(file.readable, true);
   }
-  assert.deepEqual(out.provenance.analyzer_sources.map((s) => s.path).sort(), ["scripts/token-navigation.mjs", "scripts/tokens.mjs"]);
+  assert.deepEqual(out.provenance.analyzer_sources.map((s) => s.path).sort(), ["scripts/token-navigation.mjs", "scripts/token-table.mjs", "scripts/tokens.mjs"]);
   for (const source of out.provenance.analyzer_sources) assert.equal(source.sha256, digest(join(REPO, source.path)));
   writeFileSync(join(f.dir, "s/subagents/a.meta.json"), JSON.stringify({ agentType: "waypost-reviewer" }));
   const changed = accountingReport(f);
