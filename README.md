@@ -382,6 +382,11 @@ log — architectural changes get an ADR before they get code) first.
 npm test        # the whole suite — pure node, no dependencies, no network
 ```
 
+Any test that spawns child processes must import `./env.mjs` before running them,
+so children inherit the state-migration opt-out. For scoped validation of such
+tests, include `tests/state-migrate.test.mjs`: its existing safety check scans all
+test files for missing environment imports.
+
 CI runs the tests on Node 20, 22 and 24. The test step sets
 `WAYPOST_HEAVY_WAIT=5m` to wait up to five minutes for resource admission.
 The capacity checks and 40-minute job timeout still apply.

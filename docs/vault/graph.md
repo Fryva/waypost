@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-27T22:32:55.585Z
+generated_at: 2026-10-27T23:18:11.134Z
 
 ---
 
@@ -185,6 +185,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | Recognize explicit inherited parent headers in Codex accounting | story | done |
 | epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade.md | Remove orphaned legacy hook commentary from the library facade | story | done |
 | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | Reproducible token accounting and repeated-read evidence | story | done |
+| epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md | Restore isolated environments for extracted module tests | story | done |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | Scope unknown-prefix diagnostics to the requested period | story | done |
 | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md | Separate explicit Doctor repairs from diagnostic orchestration | story | done |
 | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md | Separate project matching and Git evidence from the size scanner | story | done |
@@ -499,6 +500,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md |
@@ -623,6 +625,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md | mdlink | epics/WP-21/epic.md |
