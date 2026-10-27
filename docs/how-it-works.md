@@ -53,6 +53,8 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/capacity-admission.mjs` owns pure heavy-work admission arithmetic and
+refusal reasons; resource probes and measurement remain in `scripts/capacity.mjs`.
 `scripts/token-collect.mjs` owns Claude transcript discovery, metadata, request
 selection and coverage collection; pricing and report assembly stay in `scripts/tokens.mjs`.
 `scripts/token-requests.mjs` owns request reduction and command-run counting,

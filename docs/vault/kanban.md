@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-27T04:22:15.394Z
+generated_at: 2026-10-27T16:50:16.213Z
 
 ---
 
@@ -152,6 +152,7 @@ generated_at: 2026-10-27T04:22:15.394Z
 - [x] [[epics/WP-21/stories/story-isolate-vault-policy-and-budgeted-fact-collection-behind-the-library-facade|WP-21: Isolate vault policy and budgeted fact collection behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes|WP-21: Make session identity call-time tests portable across Node runtimes]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-claude-transcript-collection|WP-21: Isolate Claude transcript collection]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-heavy-work-admission-arithmetic|WP-21: Isolate heavy work admission arithmetic]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-machine-state-and-cleanup-settings-behind-the-library-facade|WP-21: Isolate machine state and cleanup settings behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-token-report-table-formatting|WP-21: Isolate token report table formatting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-token-request-reduction-and-command-run-counting|WP-21: Isolate token request reduction and command run counting]] #p2 #done
