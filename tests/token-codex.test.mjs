@@ -302,7 +302,7 @@ test("Codex CLI is explicit, compact, fingerprinted and rejects unsupported or u
   assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(result.stdout);
   assert.equal(report.measurement.source_harness, "codex");
-  assert.deepEqual(report.provenance.analyzer_sources.map(source => source.path).sort(), ["scripts/token-codex.mjs", "scripts/token-requests.mjs", "scripts/token-table.mjs", "scripts/tokens.mjs"]);
+  assert.deepEqual(report.provenance.analyzer_sources.map(source => source.path).sort(), ["scripts/token-codex.mjs", "scripts/token-collect.mjs", "scripts/token-requests.mjs", "scripts/token-table.mjs", "scripts/tokens.mjs"]);
   for (const source of report.provenance.analyzer_sources) assert.equal(source.sha256, createHash("sha256").update(readFileSync(new URL("../" + source.path, import.meta.url))).digest("hex"));
   assert.equal(report.native_totals.all.total_tokens, 100);
   const short = cli(f, ["--summary"]);
