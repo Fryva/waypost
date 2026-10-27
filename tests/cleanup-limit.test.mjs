@@ -14,21 +14,21 @@ test("cleanup limit leaf preserves aliases, arities and a bounded I/O-free surfa
   const source=readFileSync(new URL("../scripts/cleanup-limit.mjs",import.meta.url),"utf8");assert.ok(Buffer.byteLength(source)<=12000);assert.doesNotMatch(source,/^import |\bprocess\s*\.|\bDate\s*\./m);
 });
 
-test("canonical removal guards detect both cleanup modules without selecting CLI writers",t=>{
+test("canonical removal guards detect every cleanup module without selecting CLI writers",t=>{
   const adr=readFileSync(new URL("../docs/vault/adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md",import.meta.url),"utf8");
   const all=JSON.parse(adr.split("\n").find(line=>line.startsWith("guards: ")).slice(8));
   const guards=all.filter(g=>g.in==="scripts/cleanup*.mjs");assert.equal(guards.length,2);assert.ok(guards.every(g=>typeof g.forbid==="string"));
-  assert.deepEqual(readdirSync(new URL("../scripts/",import.meta.url)).filter(n=>/^cleanup.*\.mjs$/.test(n)).sort(),["cleanup-limit.mjs","cleanup.mjs"]);
+  assert.deepEqual(readdirSync(new URL("../scripts/",import.meta.url)).filter(n=>/^cleanup.*\.mjs$/.test(n)).sort(),["cleanup-limit.mjs","cleanup-selection.mjs","cleanup.mjs"]);
   const root=mkdtempSync(join(tmpdir(),"waypost-cleanup-guard-"));t.after(()=>rmSync(root,{recursive:true,force:true}));
   mkdirSync(join(root,"scripts"));mkdirSync(join(root,"bin","cli"),{recursive:true});
-  const files=["scripts/cleanup.mjs","scripts/cleanup-limit.mjs","bin/cli/remove.mjs"];
+  const files=["scripts/cleanup.mjs","scripts/cleanup-limit.mjs","scripts/cleanup-selection.mjs","bin/cli/remove.mjs"];
   const clean="// inert fixture\n",bad=['rmSync("MUST_NOT_RUN");\n','const command = "rm";\n'];
-  for(const file of files.slice(0,2))writeFileSync(join(root,file),clean);
+  for(const file of files.slice(0,3))writeFileSync(join(root,file),clean);
   // These are inert source strings inspected by regex, never imported or run.
-  writeFileSync(join(root,files[2]),bad.join(""));
+  writeFileSync(join(root,files[3]),bad.join(""));
   const inspect=list=>checkGuards([{kind:"adr",rel:"adr/cleanup.md",body:"",fm:{status:"accepted",guards:JSON.stringify(list)}}],root,{files});
   assert.deepEqual(inspect(guards),[]);
-  for(const file of files.slice(0,2))for(let i=0;i<guards.length;i++){
+  for(const file of files.slice(0,3))for(let i=0;i<guards.length;i++){
     writeFileSync(join(root,file),bad[i]);const findings=inspect([guards[i]]);
     assert.equal(findings.length,1);assert.equal(findings[0].level,"issue");assert.equal(findings[0].check,"adr-guard");assert.ok(findings[0].message.includes("matched in "+file+":1"),findings[0].message);
     writeFileSync(join(root,file),clean);

@@ -54,8 +54,10 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 clock or external dependency.
 
 `scripts/cleanup-limit.mjs` owns pure limit grammar, consent decisions and cleanup
-report formatting; removal remains in the CLI, with both cleanup modules covered
-by the same no-removal ADR guards.
+report formatting. `scripts/cleanup-selection.mjs` owns oldest-first ordering,
+counted totals and eligible picks under a limit, with the shared age constants.
+Classification and rechecks stay in `scripts/cleanup.mjs`; removal remains in the
+CLI. All cleanup computation modules share the same no-removal ADR guards.
 `scripts/capacity-memory.mjs` owns OS-specific memory measurement and pressure
 fallbacks, using the shared default probe wrappers.
 `scripts/capacity-probes.mjs` owns the default OS/file/command/timer wrappers;

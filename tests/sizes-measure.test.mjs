@@ -119,7 +119,7 @@ test("sizes measurement module: all three original scanner guards cover the extr
   const { root, put } = fixture(t);
   const { data } = parseFrontmatter(readFileSync(join(REPO, ADR), "utf8"));
   const guards = JSON.parse(data.guards), scanner = guards.filter(g => g.in === "scripts/sizes*.mjs");
-  assert.equal(scanner.length, 3); assert.equal(guards.filter(g => g.in === "scripts/cleanup.mjs").length, 2);
+  assert.equal(scanner.length, 3); assert.equal(guards.filter(g => g.in === "scripts/cleanup*.mjs").length, 2);
   const files = ["scripts/sizes.mjs", "scripts/sizes-measure.mjs", "scripts/sizes-rules.mjs", "scripts/sizes-git.mjs"];
   for (const file of files) put(file, "export const fixture = 1;\n");
   const artifact = { kind: "adr", rel: "adr/fixture.md", fm: { status: "accepted", guards: JSON.stringify(scanner) } };

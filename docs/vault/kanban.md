@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-27T17:44:23.839Z
+generated_at: 2026-10-27T22:11:29.663Z
 
 ---
 
@@ -157,6 +157,7 @@ generated_at: 2026-10-27T17:44:23.839Z
 - [x] [[epics/WP-21/stories/story-isolate-cleanup-limit-and-consent-decisions|WP-21: Isolate cleanup limit and consent decisions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-heavy-work-admission-arithmetic|WP-21: Isolate heavy work admission arithmetic]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-machine-state-and-cleanup-settings-behind-the-library-facade|WP-21: Isolate machine state and cleanup settings behind the library facade]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-oldest-first-cleanup-selection|WP-21: Isolate oldest-first cleanup selection]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-token-report-table-formatting|WP-21: Isolate token report table formatting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-token-request-reduction-and-command-run-counting|WP-21: Isolate token request reduction and command run counting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade|WP-21: Remove orphaned legacy hook commentary from the library facade]] #p2 #done
