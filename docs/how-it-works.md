@@ -53,6 +53,9 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/cleanup-limit.mjs` owns pure limit grammar, consent decisions and cleanup
+report formatting; removal remains in the CLI, with both cleanup modules covered
+by the same no-removal ADR guards.
 `scripts/capacity-memory.mjs` owns OS-specific memory measurement and pressure
 fallbacks, using the shared default probe wrappers.
 `scripts/capacity-probes.mjs` owns the default OS/file/command/timer wrappers;

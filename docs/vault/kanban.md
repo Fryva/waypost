@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-27T17:25:15.360Z
+generated_at: 2026-10-27T17:44:23.839Z
 
 ---
 
@@ -154,6 +154,7 @@ generated_at: 2026-10-27T17:25:15.360Z
 - [x] [[epics/WP-21/stories/story-isolate-capacity-memory-measurement|WP-21: Isolate capacity memory measurement]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-capacity-probes-and-boot-identity|WP-21: Isolate capacity probes and boot identity]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-claude-transcript-collection|WP-21: Isolate Claude transcript collection]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-cleanup-limit-and-consent-decisions|WP-21: Isolate cleanup limit and consent decisions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-heavy-work-admission-arithmetic|WP-21: Isolate heavy work admission arithmetic]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-machine-state-and-cleanup-settings-behind-the-library-facade|WP-21: Isolate machine state and cleanup settings behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-token-report-table-formatting|WP-21: Isolate token report table formatting]] #p2 #done

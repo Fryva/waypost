@@ -2018,9 +2018,9 @@ test("node --check passes on scripts/cleanup.mjs", () => {
   assert.equal(r.status, 0, r.stderr);
 });
 
-// AC 15 (the disk-hygiene ADR's part): the two guards on scripts/cleanup.mjs
-// select it and pass — no finding for this ADR from doctor at all.
-test("the disk-hygiene ADR's guards select scripts/cleanup.mjs too, and all pass", () => {
+// AC 15 (the disk-hygiene ADR's part): the two cleanup-family guards
+// select owner and leaf and pass — no finding for this ADR from doctor at all.
+test("the disk-hygiene ADR's guards select the cleanup family too, and all pass", () => {
   const r = spawnSync(process.execPath, [Waypost, "doctor", "--json"], {
     encoding: "utf8", cwd: REPO, env: { ...ambientEnv(), WAYPOST_NO_BEAT: "1" },
   });
