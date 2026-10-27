@@ -620,45 +620,4 @@ export function openStoryFrom(storyFrontmatters) {
   return (storyFrontmatters || []).some((fm) => fm && fm.status === "in-progress");
 }
 
-// ── Emitter election (contract 12) ──
-//
-// State is three fixed-name marker files in <sid>.fired/: `fired-1`, `fired-2`
-// and `armed`. Fixed names are the whole mechanism — with process-derived names
-// every contender's create succeeds and every contender emits.
-//
-// `fired-*` are never removed. A discarded conversation CREATES `armed`; the
-// winning emitter deletes it. Clearing `fired-*` on compaction instead (the
-// obvious design, and an earlier draft of the spec) makes the cap unreachable:
-// the directory never holds two, so firings are unbounded at one per
-// compaction cycle.
-
-// Returns true iff THIS process is the emitter for the current armed context.
-//
-// The prize is chosen by state, never by falling through to the next free name.
-// "try fired-1, on EEXIST try fired-2" reads like the same thing and is not: two
-// processes that both observe an empty directory would take one name each and
-// both emit. Deriving the single legal target from the count means exactly one
-// name is contested per context, and O_EXCL awards it to exactly one caller.
-// ── The efficacy log (contract 19) ──
-//
-// Append-only on the write side; the cap is the reader's job. Two sessions
-// firing at the same instant can both append safely, where both truncating
-// would not be safe. `.claude/` is gitignored, so this never travels — doctor
-// must say "on this machine" or a two-machine maintainer reads a zero as
-// "the mechanism is broken".
-
-
-// ── The reminder (contracts 4, 15) ──
-
-
-// ─── Session-name anchor (ADR: the settled-anchor offer) ───────────────
-//
-// The session name is an ADDRESS: peers route to a session by it, and nothing
-// a plugin can call sets it — the authoritative value lives in the harness's
-// memory. So projectstore composes a name and OFFERS it; the person accepts.
-// (Covering research: "The session name is an address".)
-//
-// The whole difficulty is WHEN to speak, and the rule below was selected by
-// replaying nine recorded sessions, not by taste. Naive "offer on every
-
 export { askYesNo } from "./lib-terminal-prompt.mjs";

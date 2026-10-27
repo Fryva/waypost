@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-26T19:00:06.742Z
+generated_at: 2026-10-27T02:39:07.092Z
 
 ---
 
@@ -124,6 +124,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Prepare dependency and loader guards for the CLI split | `tests/helpers/cli-static-closure.mjs`, `tests/harness.test.mjs`, `tests/sizes.test.mjs` |
 | WP-21 | Recognize all graph edge kinds in bounded queries | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Recognize explicit inherited parent headers in Codex accounting | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
+| WP-21 | Remove orphaned legacy hook commentary from the library facade | `scripts/lib.mjs` |
 | WP-21 | Reproducible token accounting and repeated-read evidence | `scripts/tokens.mjs`, `scripts/token-navigation.mjs`, `tests/tokens.test.mjs`, `tests/token-navigation.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Scope unknown-prefix diagnostics to the requested period | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Separate explicit Doctor repairs from diagnostic orchestration | `scripts/doctor.mjs`, `scripts/doctor-repairs.mjs`, `scripts/doctor-coordination.mjs`, `tests/doctor-repairs.test.mjs`, `tests/harness.test.mjs`, `tests/presence.test.mjs`, `tests/commits.test.mjs`, `tests/scripts.test.mjs`, `tests/state-migrate.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/0003-agent-roles-across-harnesses.md`, `docs/vault/adr/0006-commit-protocol.md`, `docs/vault/adr/0007-shared-vault-presence.md`, `docs/vault/epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md` |
