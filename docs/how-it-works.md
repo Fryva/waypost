@@ -46,6 +46,11 @@ it are not renamed, so one vault opens in either tool (ADR-0004).
 
 ## Shared helpers
 
+`scripts/model-strength-fetch.mjs` owns bounded evidence response streaming and
+pagination, using the fetch implementation and validated source/config supplied by
+`scripts/model-strength.mjs`. Source validation, parsing and strength policy stay
+in the owner; the internal transport adds no network work at import.
+
 `scripts/toolchain-locators.mjs` owns artifact locator selection and dispatch;
 registry loading and cache path resolution stay in `scripts/toolchains.mjs`.
 The facade re-exports the stateless locator functions; its mutable registry cache

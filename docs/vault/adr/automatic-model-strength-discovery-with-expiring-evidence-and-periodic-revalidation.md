@@ -9,7 +9,7 @@ tags: ["models", "coordination"]
 external_refs: {}
 supersedes: null
 superseded_by: null
-code_refs: ["scripts/model-strength.mjs","models/strength-sources.json","models/policy.schema.json","scripts/team.mjs","scripts/team-state.mjs","scripts/team-store.mjs","scripts/team-cli.mjs","tests/model-strength.test.mjs","tests/team-periodic.test.mjs"]
+code_refs: ["scripts/model-strength.mjs", "models/strength-sources.json", "models/policy.schema.json", "scripts/team.mjs", "scripts/team-state.mjs", "scripts/team-store.mjs", "scripts/team-cli.mjs", "tests/model-strength.test.mjs", "tests/team-periodic.test.mjs", "scripts/model-strength-fetch.mjs", "tests/model-strength-fetch.test.mjs", "tests/helpers/strength-fetch-scenarios.mjs", "tests/calibration-policy.test.mjs"]
 review_status: reviewed
 reviewed_at: 2026-10-12
 drafted_by: {"harness":"codex","provider":null,"date":"2026-09-30"}
