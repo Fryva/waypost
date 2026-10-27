@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-27T02:40:28.478Z
+generated_at: 2026-10-27T03:04:45.591Z
 
 ---
 
@@ -151,6 +151,7 @@ generated_at: 2026-10-27T02:40:28.478Z
 - [x] [[epics/WP-21/stories/story-isolate-vault-graph-node-indexing-behind-the-library-facade|WP-21: Isolate vault graph node indexing behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-vault-policy-and-budgeted-fact-collection-behind-the-library-facade|WP-21: Isolate vault policy and budgeted fact collection behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes|WP-21: Make session identity call-time tests portable across Node runtimes]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-machine-state-and-cleanup-settings-behind-the-library-facade|WP-21: Isolate machine state and cleanup settings behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade|WP-21: Remove orphaned legacy hook commentary from the library facade]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-27T02:40:28.709Z
+generated_at: 2026-10-27T03:04:45.847Z
 
 ---
 
@@ -143,6 +143,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-host-process-evidence-behind-the-presence-facade.md | Isolate host process evidence behind the presence facade | story | done |
 | epics/WP-21/stories/story-isolate-item-measurement-behind-the-sizes-facade.md | Isolate item and cache measurement behind the sizes facade | story | done |
 | epics/WP-21/stories/story-isolate-legacy-session-file-helpers-behind-the-library-facade.md | Isolate legacy session file helpers behind the library facade | story | done |
+| epics/WP-21/stories/story-isolate-machine-state-and-cleanup-settings-behind-the-library-facade.md | Isolate machine state and cleanup settings behind the library facade | story | done |
 | epics/WP-21/stories/story-isolate-markdown-table-cell-escaping-behind-the-library-facade.md | Isolate Markdown table cell escaping behind the library facade | story | done |
 | epics/WP-21/stories/story-isolate-peer-liveness-and-pruning-behind-the-presence-facade.md | Isolate peer liveness and pruning behind the presence facade | story | done |
 | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md | Isolate portable path and line ending diagnostics | story | done |
@@ -445,6 +446,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-host-process-evidence-behind-the-presence-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-item-measurement-behind-the-sizes-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-legacy-session-file-helpers-behind-the-library-facade.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-machine-state-and-cleanup-settings-behind-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-markdown-table-cell-escaping-behind-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-peer-liveness-and-pruning-behind-the-presence-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md |
@@ -556,6 +558,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-host-process-evidence-behind-the-presence-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-item-measurement-behind-the-sizes-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-legacy-session-file-helpers-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-isolate-machine-state-and-cleanup-settings-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-markdown-table-cell-escaping-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-peer-liveness-and-pruning-behind-the-presence-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-portable-path-and-line-ending-diagnostics.md | mdlink | epics/WP-21/epic.md |
