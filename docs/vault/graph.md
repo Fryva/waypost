@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-27T16:50:16.436Z
+generated_at: 2026-10-27T17:13:12.419Z
 
 ---
 
@@ -133,6 +133,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md | Isolate artifact integrity checks without changing diagnostics | story | done |
 | epics/WP-21/stories/story-isolate-artifact-slug-generation-and-legacy-numbering-behind-the-library-facade.md | Isolate artifact slug generation and legacy numbering behind the library facade | story | done |
 | epics/WP-21/stories/story-isolate-atomic-file-replacement-and-orphan-cleanup-behind-the-library-facade.md | Isolate atomic file replacement and orphan cleanup behind the library facade | story | done |
+| epics/WP-21/stories/story-isolate-capacity-probes-and-boot-identity.md | Isolate capacity probes and boot identity | story | done |
 | epics/WP-21/stories/story-isolate-checkout-identity-and-path-normalization-behind-the-presence-facade.md | Isolate checkout identity and path normalization behind the presence facade | story | done |
 | epics/WP-21/stories/story-isolate-claude-transcript-collection.md | Isolate Claude transcript collection | story | done |
 | epics/WP-21/stories/story-isolate-coordination-storage-and-path-resolution-behind-the-presence-facade.md | Isolate coordination storage and path resolution behind the presence facade | story | done |
@@ -441,6 +442,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-artifact-slug-generation-and-legacy-numbering-behind-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-atomic-file-replacement-and-orphan-cleanup-behind-the-library-facade.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-capacity-probes-and-boot-identity.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-checkout-identity-and-path-normalization-behind-the-presence-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-claude-transcript-collection.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-isolate-coordination-storage-and-path-resolution-behind-the-presence-facade.md |
@@ -558,6 +560,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-isolate-artifact-integrity-checks-without-changing-diagnostics.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-artifact-slug-generation-and-legacy-numbering-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-atomic-file-replacement-and-orphan-cleanup-behind-the-library-facade.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-isolate-capacity-probes-and-boot-identity.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-checkout-identity-and-path-normalization-behind-the-presence-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-claude-transcript-collection.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-isolate-coordination-storage-and-path-resolution-behind-the-presence-facade.md | mdlink | epics/WP-21/epic.md |
