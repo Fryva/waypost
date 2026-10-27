@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-27T04:13:30.607Z
+generated_at: 2026-10-27T04:22:15.394Z
 
 ---
 
@@ -42,7 +42,6 @@ generated_at: 2026-10-27T04:13:30.607Z
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
 - [ ] [[epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation|WP-21: Execute paired token economy smoke under the owner allocation]] #p2
-- [ ] [[epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci|WP-21: Wait for bounded resource admission in CI]] #p2
 
 ## Review
 
@@ -157,6 +156,7 @@ generated_at: 2026-10-27T04:13:30.607Z
 - [x] [[epics/WP-21/stories/story-isolate-token-report-table-formatting|WP-21: Isolate token report table formatting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-token-request-reduction-and-command-run-counting|WP-21: Isolate token request reduction and command run counting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade|WP-21: Remove orphaned legacy hook commentary from the library facade]] #p2 #done
+- [x] [[epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci|WP-21: Wait for bounded resource admission in CI]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

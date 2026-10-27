@@ -3,7 +3,7 @@ type: story
 id: "story-wait-for-bounded-resource-admission-in-ci"
 epic: "WP-21"
 title: "Wait for bounded resource admission in CI"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-10-27
@@ -13,7 +13,7 @@ tags: []
 code_refs: [".github/workflows/ci.yml", "README.md", "scripts/test.mjs", "tests/test-runner.test.mjs"]
 specs: []
 started_at: "2026-10-27T04:13:29.639Z"
-closed_at: null
+closed_at: "2026-10-27T04:22:14.645Z"
 plan_updated_at: "2026-10-27T04:13:29.639Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-10-27T04:13:29.639Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-21](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -36,7 +36,7 @@ CI2976169 Node22 job122002259295 failed before any tests: resource admission saw
 
 - [x] Retain failed-job evidence and verify existing explicit wait contract.
 - [x] Opt only the CI npm-test step into five-minute admission wait; document it.
-- [ ] Validate bounded refusal/default behavior and unchanged runtime, independent review and close.
+- [x] Validate bounded refusal/default behavior and unchanged runtime, independent review and close.
 
 ## Implementation Plan
 
@@ -48,11 +48,11 @@ No new permanent tests for this small configuration change. Reuse existing tests
 
 - [x] Only CI npm-test step opts into5m wait; thresholds/concurrency/local default/timeout40/matrix/release workflow and all executable source/test identities preserved — evidence: `yaml.json`, `source-unchanged.json`, 395input hashes in `.waypost/experiments/wp21-ci-collector-20261027/`.
 - [x] Existing runner tests pass; controlled busy fixture proves immediate refusal without wait and bounded refusal with1s, without spawning the suite; config/Doctor pass with retained source-bound receipts — evidence: `validation.json`, full `tests.tap`, `admission-probe.json` and stdout/stderr; no-wait281ms and1s-wait1312ms both75.
-- [ ] Independent review accepts actual diff and diagnostic evidence; README explains bounded admission wait, cleanup completes before CLI-close; full GitHub matrix status reported honestly after publication.
+- [x] Independent review accepts actual diff and diagnostic evidence; README explains bounded admission wait, cleanup completes before CLI-close; full GitHub matrix status reported honestly after publication — evidence: `review-final.json`, `cleanup.json`, `ci-after-publication.json`; run40449194998 at a323f01 in_progress on all Node20/22/24 npm-test steps, no completed matrix/admission claim.
 
 ## Final Summary
 
-Configured only CI npm-test step with existing WAYPOST_HEAVY_WAIT=5m; README explains bounded admission. Original Node22 startup failure was admission75 before tests, retained node22.log132..134. Matrix/defaults/thresholds/timeout40/release workflow and all395bin/scripts/tests inputs unchanged. Ruby YAML structural comparison permits only that step env. Existing runner tests3pass0fail/skip541.461833ms Node24.22.1, wrapper/child0; controlled busy probes exit75 without wait281.265ms and with1s wait1312.077ms, emptystdout/no suite. Source/config/runtime/runner/log identities retained. Doctor issue/warn/warning0, independent reviewer ship/no findings. Removed3191logicalB owned probe HOME/runner, cleanup receipt retained. Publication CI status and final lifecycle closure pending; do not claim full matrix success.
+Configured only CI npm-test step with existing WAYPOST_HEAVY_WAIT=5m; README explains bounded admission. Original Node22 startup failure was admission75 before tests, retained node22.log132..134. Matrix/defaults/thresholds/timeout40/release workflow and all395bin/scripts/tests inputs unchanged. Ruby YAML structural comparison permits only that step env. Existing runner tests3pass0fail/skip541.461833ms Node24.22.1, wrapper/child0; controlled busy probes exit75 without wait281.265ms and with1s wait1312.077ms, emptystdout/no suite. Source/config/runtime/runner/log identities retained. Doctor issue/warn/warning0, independent reviewer ship/no findings. Removed3191logicalB owned probe HOME/runner, cleanup receipt retained. Published a323f01; newCI40449194998 recorded after publication: all Node20/22/24 jobs and npm-test steps in_progress, no final success or direct admission-log evidence yet. Explicit cleanup and publication-status conditions are fulfilled before CLI-close; no repeat local tests required.
 
 ## Technical Notes
 
