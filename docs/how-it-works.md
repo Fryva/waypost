@@ -53,8 +53,10 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/token-requests.mjs` owns request reduction and command-run counting,
+with rows and counters supplied by the caller.
 `scripts/token-table.mjs` owns numeric and table formatting plus grouped totals
-for the token report. Accounting and mutable pricing remain in `scripts/tokens.mjs`.
+for the token report. Transcript orchestration and mutable pricing remain in `scripts/tokens.mjs`.
 
 `scripts/lib-machine-state.mjs` owns machine-state paths, legacy discovery and
 cleanup-setting readers, including the account and AppData safety checks.
