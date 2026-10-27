@@ -53,6 +53,8 @@ in `scripts/lib-identity.mjs`. Vault navigation rendering lives in
 `scripts/lib-skeleton.mjs`. These leaves need no filesystem, process environment,
 clock or external dependency.
 
+`scripts/lib-terminal-prompt.mjs` owns the per-call readline and timer lifecycle
+used by cleanup confirmations.
 `scripts/lib-legacy-sessions.mjs` owns the upstream-compatible session files
 under `.projectstore/sessions`, used by the sessions CLI. Modern presence keeps
 its existing owner.

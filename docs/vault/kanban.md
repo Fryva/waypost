@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-26T18:42:31.869Z
+generated_at: 2026-10-27T02:22:43.150Z
 
 ---
 
@@ -147,6 +147,7 @@ generated_at: 2026-10-26T18:42:31.869Z
 - [x] [[epics/WP-21/stories/story-isolate-pure-link-parsing-and-resolution-behind-the-library-facade|WP-21: Isolate pure link parsing and resolution behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-resource-roots-layouts-and-templates-behind-the-library-facade|WP-21: Isolate resource roots layouts and templates behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-stable-session-identity-derivation-behind-the-library-facade|WP-21: Isolate stable session identity derivation behind the library facade]] #p2 #done
+- [x] [[epics/WP-21/stories/story-isolate-terminal-confirmation-prompts-behind-the-library-facade|WP-21: Isolate terminal confirmation prompts behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-vault-graph-node-indexing-behind-the-library-facade|WP-21: Isolate vault graph node indexing behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-vault-policy-and-budgeted-fact-collection-behind-the-library-facade|WP-21: Isolate vault policy and budgeted fact collection behind the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes|WP-21: Make session identity call-time tests portable across Node runtimes]] #p2 #done
