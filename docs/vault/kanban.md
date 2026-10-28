@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-28T17:10:38.452Z
+generated_at: 2026-10-28T21:33:03.123Z
 
 ---
 
@@ -171,6 +171,7 @@ generated_at: 2026-10-28T17:10:38.452Z
 - [x] [[epics/WP-21/stories/story-deduplicate-standing-self-install-instructions|WP-21: Deduplicate standing self-install instructions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-codex-report-text-formatting|WP-21: Isolate Codex report text formatting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-keep-standing-reference-details-on-demand|WP-21: Keep standing reference details on demand]] #p2 #done
+- [x] [[epics/WP-21/stories/story-preserve-reconciliation-failure-reports-and-child-status|WP-21: Preserve reconciliation failure reports and child status]] #p2 #done
 - [x] [[epics/WP-21/stories/story-teach-bounded-queries-in-full-vault-orientation|WP-21: Teach bounded queries in full vault orientation]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-28T17:10:38.685Z
+generated_at: 2026-10-28T21:33:03.406Z
 
 ---
 
@@ -187,6 +187,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | Offline Codex token accounting with explicit coverage | story | done |
 | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md | Pin team-bound story refusal before CLI modularization | story | done |
 | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md | Prepare dependency and loader guards for the CLI split | story | done |
+| epics/WP-21/stories/story-preserve-reconciliation-failure-reports-and-child-status.md | Preserve reconciliation failure reports and child status | story | done |
 | epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries.md | Recognize all graph edge kinds in bounded queries | story | done |
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | Recognize explicit inherited parent headers in Codex accounting | story | done |
 | epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade.md | Remove orphaned legacy hook commentary from the library facade | story | done |
@@ -509,6 +510,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-preserve-reconciliation-failure-reports-and-child-status.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade.md |
@@ -641,6 +643,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-preserve-reconciliation-failure-reports-and-child-status.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade.md | mdlink | epics/WP-21/epic.md |

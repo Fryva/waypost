@@ -40,13 +40,15 @@ function fail(msg) {
 // dispatcher validating layouts against its own tree while its scripts read
 // templates from another (O-4) is two versions of the tool in one command
 // line. WAYPOST_HOME still means "tool root" for a script run directly.
-function run(script, args = [], { capture = false } = {}) {
+// returnResult leaves status handling to an explicit caller; spawn errors still fail.
+function run(script, args = [], { capture = false, returnResult = false } = {}) {
   const r = spawnSync(process.execPath, [SCRIPT(script), ...args], {
     encoding: "utf8",
     stdio: capture ? ["inherit", "pipe", "inherit"] : "inherit",
     env: { ...process.env, WAYPOST_HOME: ROOT },
   });
   if (r.error) fail(`${script}: ${r.error.message}`);
+  if (returnResult) return r;
   if (r.status !== 0) process.exit(r.status ?? 1);
   return capture ? r.stdout : "";
 }

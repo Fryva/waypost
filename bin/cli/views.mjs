@@ -168,9 +168,23 @@ function handleDerived(cmd, args) {
 // Reconciliation counts unchanged targets; changes, skips and returned errors
 // keep their details. `--json` preserves the complete per-target records.
 function handleReconcile(args) {
-  if (flag(args, "--json")) { process.stdout.write(run("reconcile", args.filter((a) => a !== "--json"), { capture: true })); return; }
+  if (flag(args, "--json")) { run("reconcile", args.filter((a) => a !== "--json")); return; }
   const wrote = flag(args, "--write");
-  const out = runJson("reconcile", args);
+  const result = run("reconcile", args, { capture: true, returnResult: true });
+  let out;
+  try {
+    out = JSON.parse(result.stdout);
+    if (!out || typeof out !== "object" || Array.isArray(out)
+      || (out.indexes != null && (!Array.isArray(out.indexes)
+        || out.indexes.some(idx => !idx || typeof idx !== "object" || Array.isArray(idx))))) {
+      throw new Error("invalid reconciliation report");
+    }
+  } catch {
+    process.stdout.write(result.stdout || "");
+    process.stderr.write("waypost: reconcile: expected JSON on stdout\n");
+    process.exitCode = result.status === 0 ? 1 : (result.status ?? 1);
+    return;
+  }
   let unchanged = 0;
   const line = (label, t) => {
     if (!t) return;
@@ -180,13 +194,14 @@ function handleReconcile(args) {
     const state = t.written ? "written" : t.changed === true ? "would change" : "unchanged";
     process.stdout.write(`  ${label}: ${state}${t.path ? ` ${t.path}` : ""}\n`);
   };
-  process.stdout.write(`${wrote ? "reconciled" : "dry run (nothing written; add --write)"}\n`);
+  process.stdout.write(`${result.status !== 0 ? "reconciliation failed" : wrote ? "reconciled" : "dry run (nothing written; add --write)"}\n`);
   line("kanban", out.kanban);
   line("code-map", out.codemap);
   line("graph", out.graph);
   for (const idx of out.indexes || []) line(idx.path || "index", idx);
   if (unchanged) process.stdout.write(`  ${unchanged} unchanged (details: --json)\n`);
-  if (out.summary && out.summary.failed > 0) process.exitCode = 1;
+  if (result.status !== 0) process.exitCode = result.status ?? 1;
+  else if (out.summary && out.summary.failed > 0) process.exitCode = 1;
 }
 
 export { DERIVED, handleGraphQuery, handleSearch, handleDerived, handleReconcile };

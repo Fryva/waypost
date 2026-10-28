@@ -1289,6 +1289,18 @@ test("reconcile prose keeps returned errors and child failure status outside the
     "only volatile generated_at content lines are normalized between separate generator calls");
   const failedWrite = runBinRaw(proj, ["reconcile", "--write"]);
   assert.equal(failedWrite.status, 1, "child write failures still propagate");
+  assert.match(failedWrite.stdout, /^reconciliation failed/);
+  assert.ok(failedWrite.stdout.includes("kanban: error —"), "the captured write failure report reaches prose");
+  assert.ok(failedWrite.stdout.includes(`code-map: written ${expected.codemap.path}`), "partial successes stay visible");
+  assert.ok(readFileSync(expected.codemap.path, "utf8").length > 0);
+  const failedJSON = runBinRaw(proj, ["reconcile", "--write", "--json"]);
+  assert.equal(failedJSON.status, 1);
+  const report = JSON.parse(failedJSON.stdout);
+  assert.equal(report.summary.failed, 1);
+  assert.ok(report.kanban.error);
+  assert.equal(report.kanban.path, join(vault, "kanban.md"));
+  assert.ok(report.indexes.length > 0, "failed JSON preserves the whole report");
+  assert.equal(failedJSON.stderr, "", "stdout JSON is not moved to stderr");
 });
 
 test("bin/waypost scaffold --json prints only JSON (P1-11, A-6)", () => {
