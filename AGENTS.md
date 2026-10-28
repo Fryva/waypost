@@ -239,17 +239,15 @@ One project may be driven by several sessions at the same time (ADR-0006):
   rename the service files inside a vault.
 - Preserve the user's uncommitted changes and keep them separate from your own.
 
-<!-- waypost:agents v3 (managed by waypost — edit outside the markers) -->
+<!-- waypost:agents v4 (managed by waypost — edit outside the markers) -->
 ## waypost agent roles
 
-- **Feature-sized work opens a vault artifact before an editor.** Analysis →
-  placement (epic, story) → ADR/spec if the "how" is non-trivial → `waypost-critic`
-  → implementation → `waypost-reviewer`. Feature-sized = about to change several
-  files.
-- **Every role runs in a FRESH context, separate from the author** — spawn the
-  subagent, switch to the mode, or run the command your harness installed
-  (`waypost harnesses`). Where it has none:
-  `<cli> "$(waypost agents show <role>) <target>"`.
+- **Before edits spanning several files, open an epic/story.** Analysis →
+  placement → ADR/spec if design is non-trivial → `waypost-critic` →
+  implementation → `waypost-reviewer`.
+- **Run every role in a FRESH context, separate from the author.** Spawn a
+  subagent, switch to its mode, or run its installed command (`waypost harnesses`).
+  If none: `<cli> "$(waypost agents show <role>) <target>"`.
 - Say so and ask which wins if a session instruction contradicts this block.
 - Name artifacts by their frontmatter `title:` and parent epic.
 - Heavy work: `waypost run --heavy -- <cmd>`; no agents beside it.

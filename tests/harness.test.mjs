@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { detectHarnesses, detectHarness, gateCheck, registry, renderBlock } from "../scripts/agents.mjs";
+import { detectHarnesses, detectHarness, gateCheck, registry, renderBlock, AGENT_BLOCK_VERSION } from "../scripts/agents.mjs";
 import { storedVaultPath, resolveVaultPath } from "../scripts/lib.mjs";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
@@ -700,26 +700,26 @@ test("register writes exactly one routing block and migrates it in place", () =>
 // under an earlier block version through this same drift-and-repair path —
 // not a special case, the same one register/doctor already use for every
 // other block change.
-test("doctor reports an older routing-block version as an issue, and --fix rewrites it in place", () => {
+for (const oldVersion of [1, 3]) test(`doctor reports an older routing-block v${oldVersion} as an issue, and --fix rewrites it in place`, () => {
   const { proj } = bound();
   const agents = join(proj, "AGENTS.md");
   writeFileSync(agents, "# Project rules\n\nkeep me\n", "utf8");
   waypost(proj, ["agents", "register"]);
 
   // Simulate a project registered under an earlier block version by rolling
-  // its marker back to v1, the way an install from before this block change
+  // its marker back to the old version, the way an install from before this block change
   // would actually look on disk.
   const registered = readFileSync(agents, "utf8");
-  writeFileSync(agents, registered.replace(/<!-- waypost:agents v\d+/, "<!-- waypost:agents v1"), "utf8");
+  writeFileSync(agents, registered.replace(/<!-- waypost:agents v\d+/, `<!-- waypost:agents v${oldVersion}`), "utf8");
 
   const findings = JSON.parse(waypost(proj, ["doctor", "--install", "--json"]).stdout);
   const issue = findings.find((f) => f.check === "agents-block" && f.level === "issue");
   assert.ok(issue, "a stale block version is an issue, not merely an info note");
-  assert.match(issue.message, /is v1, expected v\d+/);
+  assert.match(issue.message, new RegExp(`is v${oldVersion}, expected v${AGENT_BLOCK_VERSION}`));
 
   waypost(proj, ["doctor", "--fix"]);
   const fixed = readFileSync(agents, "utf8");
-  assert.ok(!/<!-- waypost:agents v1/.test(fixed), "the stale block was rewritten");
+  assert.equal(fixed.match(/<!-- waypost:agents[\s\S]*?<!-- \/waypost:agents -->/)[0], renderBlock({}).trim(), "the stale block was replaced by the complete current block");
   assert.ok(fixed.includes("Heavy work: `waypost run --heavy -- <cmd>`; no agents beside it."), "the current block carries the rule");
   assert.ok(fixed.includes("keep me"), "surrounding content survives the rewrite");
 });
@@ -1546,7 +1546,7 @@ test("no user-facing message cites an ADR this fork does not have", () => {
 
 test("project standing context keeps the CLI reference within a character budget", () => {
   const instructions = readFileSync(join(REPO, "AGENTS.md"), "utf8");
-  assert.ok(instructions.length < 16100,
+  assert.ok(instructions.length < 16000,
     `project instructions are ${instructions.length} chars — command reference belongs on demand`);
   const blocks = instructions.match(/<!-- waypost:agents[\s\S]*?<!-- \/waypost:agents -->/g) || [];
   assert.equal(blocks.length, 1, "one canonical routing block carries the role rules");
@@ -1937,7 +1937,7 @@ test("the standing context stays small — it is re-read on every turn", () => {
 
   const block = readFileSync(join(proj, "CLAUDE.md"), "utf8")
     .match(/<!-- waypost:agents[\s\S]*?<!-- \/waypost:agents -->/)[0];
-  assert.ok(block.length < 1400, `routing block is ${block.length} chars — it is in every turn`);
+  assert.ok(block.length < 1300, `routing block is ${block.length} chars — it is in every turn`);
   // WP-18 Decision 3: the heavy-work rule reaches every project through this
   // same block, within the same budget above — not a separate, unbudgeted line.
   assert.ok(block.includes("Heavy work: `waypost run --heavy -- <cmd>`; no agents beside it."),

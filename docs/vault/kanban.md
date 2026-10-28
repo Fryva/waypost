@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-28T09:56:02.176Z
+generated_at: 2026-10-28T10:50:15.744Z
 
 ---
 
@@ -165,6 +165,7 @@ generated_at: 2026-10-28T09:56:02.176Z
 - [x] [[epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade|WP-21: Remove orphaned legacy hook commentary from the library facade]] #p2 #done
 - [x] [[epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests|WP-21: Restore isolated environments for extracted module tests]] #p2 #done
 - [x] [[epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci|WP-21: Wait for bounded resource admission in CI]] #p2 #done
+- [x] [[epics/WP-21/stories/story-compact-generated-routing-instructions|WP-21: Compact generated routing instructions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions|WP-21: Deduplicate standing role and harness instructions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-codex-report-text-formatting|WP-21: Isolate Codex report text formatting]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
