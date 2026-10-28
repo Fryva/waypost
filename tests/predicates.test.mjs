@@ -1324,7 +1324,8 @@ test("skeleton contract 7: the payload carries no artifact content", () => {
 
 test("skeleton contracts 8, 11: the graph is taught by path, with its prohibition and the staleness clause", () => {
   const flat = renderVaultSkeleton(factsFor()).replace(/\s+/g, " ");
-  assert.ok(/grep '<vault-relative-path>' graph\.md/.test(flat), "the recipe greps a path");
+  assert.ok(flat.includes("`waypost graph --for <vault-relative-path>`"), "the recipe queries the node by vault-relative path");
+  assert.ok(!flat.includes("grep"), "navigation uses the bounded graph query");
   assert.ok(/never read whole/.test(flat), "the prohibition renders alongside it");
   assert.ok(/a bare slug is not a key/.test(flat), "and says why a slug is not a substitute");
   assert.ok(/regenerated/.test(flat) && /never hand-edited/.test(flat) && /source of truth/.test(flat),
@@ -1339,6 +1340,13 @@ test("skeleton contract 9: all five descent steps render, including the one that
   assert.ok(/Before authoring an ADR or spec, or making an architectural choice — read `adr\/README\.md`/.test(flat),
     "step 4 fires on deciding, not on searching — it is the answer to dropping the dump");
   assert.ok(/fires on \*deciding\*, not on searching/.test(flat));
+  assert.ok(flat.includes('3. **Find an artifact** — `waypost search "<text>" [--kind] [--limit]`'));
+  assert.ok(flat.includes("Open only the artifacts you need."));
+  assert.ok(!flat.includes("One read, complete."), "lookup does not recommend reading the whole index");
+  assert.ok(flat.includes("5. **An artifact's neighbourhood** — `waypost graph --for <vault-relative-path>`"));
+  const custom = renderVaultSkeleton(factsFor({ adrIndex: "decisions/README.md" }));
+  assert.ok(custom.includes("Before authoring an ADR or spec, or making an architectural choice — read `decisions/README.md`"),
+    "query-first lookup does not weaken the layout-specific architectural index requirement");
 });
 
 test("skeleton contract 10: the header carries policy, and absent config renders the documented defaults", () => {

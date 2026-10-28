@@ -1413,6 +1413,9 @@ test("brief keeps folder descriptions behind full mode without reducing JSON fac
   assert.ok(!full.includes(hint), "the compact hint belongs only to default text");
   assert.ok(full.includes("| Folder | Kind | Count | Purpose |"));
   assert.ok(full.includes("Context A \\| B for decisions."));
+  assert.ok(full.includes('`waypost search "<text>" [--kind] [--limit]`'));
+  assert.ok(full.includes("`waypost graph --for <vault-relative-path>`"));
+  assert.ok(!full.includes("One read, complete.") && !full.includes("grep"));
   const facts = (args) => JSON.parse(waypost(proj, ["brief", "--json", "--no-install", ...args]).stdout);
   assert.deepEqual(facts([]), facts(["--full"]), "detail selection affects text only");
 });

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-28T13:26:05.942Z
+generated_at: 2026-10-28T15:17:41.630Z
 
 ---
 
@@ -147,6 +147,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Separate project matching and Git evidence from the size scanner | `scripts/sizes.mjs`, `scripts/sizes-rules.mjs`, `scripts/sizes-git.mjs`, `tests/sizes-rules.test.mjs`, `tests/sizes-git.test.mjs`, `tests/sizes-measure.test.mjs` |
 | WP-21 | State repeated ADR check execution guidance once per doctor group | `scripts/doctor-report.mjs`, `tests/doctor-report.test.mjs`, `tests/scripts.test.mjs` |
 | WP-21 | Targeted evidence reads and reproducible role handoffs | `agents/planner.md`, `agents/critic.md`, `agents/reviewer.md`, `skills/waypost-review/SKILL.md`, `tests/harness.test.mjs`, `docs/how-it-works.md` |
+| WP-21 | Teach bounded queries in full vault orientation | `scripts/lib-skeleton.mjs`, `scripts/brief.mjs`, `tests/predicates.test.mjs`, `tests/lib-skeleton.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | The team code loads only for story --write, and the CLI entry is an .mjs the code index sees | `bin/waypost`, `bin/waypost.mjs`, `tests/scripts.test.mjs`, `tests/sizes.test.mjs`, `CHANGELOG.md` |
 | WP-21 | Validate sealed-source collisions before filesystem reads | `scripts/evaluation-source.mjs`, `tests/evaluation-source.test.mjs` |
 | WP-21 | Wait for bounded resource admission in CI | `.github/workflows/ci.yml`, `README.md`, `scripts/test.mjs`, `tests/test-runner.test.mjs` |

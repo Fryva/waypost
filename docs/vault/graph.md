@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-28T13:35:25.437Z
+generated_at: 2026-10-28T15:20:24.202Z
 
 ---
 
@@ -195,6 +195,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md | Separate project matching and Git evidence from the size scanner | story | done |
 | epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md | State repeated ADR check execution guidance once per doctor group | story | done |
 | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md | Targeted evidence reads and reproducible role handoffs | story | done |
+| epics/WP-21/stories/story-teach-bounded-queries-in-full-vault-orientation.md | Teach bounded queries in full vault orientation | story | done |
 | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | The team code loads only for story --write, and the CLI entry is an .mjs the code index sees | story | done |
 | epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md | Validate sealed-source collisions before filesystem reads | story | done |
 | epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci.md | Wait for bounded resource admission in CI | story | done |
@@ -514,6 +515,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-teach-bounded-queries-in-full-vault-orientation.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci.md |
@@ -643,6 +645,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-teach-bounded-queries-in-full-vault-orientation.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci.md | mdlink | epics/WP-21/epic.md |

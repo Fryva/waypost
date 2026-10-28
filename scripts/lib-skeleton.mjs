@@ -62,9 +62,9 @@ function descentOrder({ kanbanFile, adrIndex, epicFile }) {
   return [
     `1. **What is in flight** — the list below, or \`${kanbanFile}\` for the whole board.`,
     `2. **The epic** — \`${epicFile}\` names its stories and how they map to code.`,
-    "3. **A folder's index** — its `README.md` lists every artifact with title, status and date. One read, complete.",
+    "3. **Find an artifact** — `waypost search \"<text>\" [--kind] [--limit]` returns paths, titles, statuses and matching lines. Open only the artifacts you need.",
     `4. **Before authoring an ADR or spec, or making an architectural choice — read \`${adrIndex}\`.** This step fires on *deciding*, not on searching: it is the one moment the decision index is load-bearing, and skipping it is how a settled question gets re-decided.`,
-    "5. **An artifact's neighbourhood** — `grep '<vault-relative-path>' graph.md` returns its typed links in both directions, in one call.",
+    "5. **An artifact's neighbourhood** — `waypost graph --for <vault-relative-path>` returns its typed links in both directions.",
   ];
 }
 
@@ -155,9 +155,8 @@ export function renderVaultSkeleton(facts, { folderPurposes = true, folderList =
   L.push("");
   L.push(
     "`graph.md` is queried, **never read whole** — it is far larger than this payload's" +
-      " whole budget. Grep it by **vault-relative path**, which is its node key; a bare slug" +
-      " is not a key and returns a flood (on one real vault, 22 lines by path against 101 by" +
-      " slug). `code-map.md` answers where code for an epic already lives — read it before" +
+      " whole budget. Use `waypost graph --for <vault-relative-path>`; a bare slug" +
+      " is not a key. `code-map.md` answers where code for an epic already lives — read it before" +
       " deciding where new code goes.",
   );
 
