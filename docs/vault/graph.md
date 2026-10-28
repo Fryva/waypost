@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-28T10:50:15.981Z
+generated_at: 2026-10-28T13:35:25.437Z
 
 ---
 
@@ -179,6 +179,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | Keep brief folder descriptions behind full mode | story | done |
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | Keep CLI reference out of standing instructions | story | done |
 | epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget.md | Keep search matches visible within the existing excerpt budget | story | done |
+| epics/WP-21/stories/story-keep-standing-reference-details-on-demand.md | Keep standing reference details on demand | story | done |
 | epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md | Make session identity call-time tests portable across Node runtimes | story | done |
 | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | Map CLI dependencies and shared-state ownership before migration | story | done |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | Offline Codex token accounting with explicit coverage | story | done |
@@ -497,6 +498,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-standing-reference-details-on-demand.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
@@ -625,6 +627,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-keep-standing-reference-details-on-demand.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | mdlink | epics/WP-21/epic.md |

@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-28T10:50:15.744Z
+generated_at: 2026-10-28T13:35:25.124Z
 
 ---
 
@@ -168,6 +168,7 @@ generated_at: 2026-10-28T10:50:15.744Z
 - [x] [[epics/WP-21/stories/story-compact-generated-routing-instructions|WP-21: Compact generated routing instructions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions|WP-21: Deduplicate standing role and harness instructions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-codex-report-text-formatting|WP-21: Isolate Codex report text formatting]] #p2 #done
+- [x] [[epics/WP-21/stories/story-keep-standing-reference-details-on-demand|WP-21: Keep standing reference details on demand]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

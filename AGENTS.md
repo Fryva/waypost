@@ -156,19 +156,16 @@ One project may be driven by several sessions at the same time (ADR-0006):
 
 ## Context spend (ADR-0008)
 
-- **Never read derived views whole.** `graph.md` and the indexes grow linearly
-  (~66 and ~51 tokens per artifact). Use `waypost graph --for <path>` and
-  `waypost search "<text>" [--kind] [--limit]`: at 32 artifacts that is 44 and 91
-  tokens against 1119 and 1516, and the gap widens with the vault.
+- **Never read derived views whole.** Use `waypost graph --for <path>` and
+  `waypost search "<text>" [--kind] [--limit]`; historical measurements: ADR-0008.
 - **Detail is behind a flag.** By default commands answer the question:
   `waypost brief` (`--full`), `waypost harnesses` (`--all`), `waypost agents list` (`-v`),
   `waypost draft` without `--write` (`--json`).
 - **Text that enters the standing context needs a budget in a test.** The routing
   block and a role's `summary` are re-read every turn; changes to them are
   checked by the token-economy section of `tests/harness.test.mjs`.
-- **A role is the most expensive operation** ($1.62 for a critic pass on Opus, of
-  which the prompt is 0.08%). Call one for ADRs, specs and story reviews, not for
-  every edit; `waypost agents model default sonnet` cuts it by ~60%.
+- **Use roles for ADRs, specs and story reviews, not every edit.** Model
+  selection commands are above; historical cost measurements: ADR-0008.
 
 ## How to work with the vault
 
@@ -185,14 +182,13 @@ One project may be driven by several sessions at the same time (ADR-0006):
   by hand it is `waypost reconcile --write` (or `waypost graph` if the graph does not
   exist yet).
 - **Before finishing** — `waypost doctor`, and `waypost next` if anything is unclear.
-- **A decision can check itself** (ADR-0011): an ADR may carry
-  `guards: [{"forbid": "<regex>", "in": "<glob>", "not_in": "<glob>", "why": "…"},
-  {"require": "<regex>", "in": "<glob>", "why": "…"}, {"check": "<command>", "why": "…"}]`
-  on one line. `doctor` evaluates `forbid`/`require` over the files the glob
-  selects (issue for `accepted`, "would fail" for `proposed`, nothing for
-  `superseded`); `check` names the project's own fitness command and is never
-  executed. `draft adr --write` records `drafted_by` (harness, provider, date)
-  as the environment asserts it.
+- **ADR guards (ADR-0011):** optional `guards` use one-line JSON. Doctor checks
+  `forbid`/`require` over selected files: issues for `accepted`, "would fail" for
+  `proposed`, ignored for `superseded`. `check` names a project fitness command;
+  Doctor never executes it. For guard fields see
+  `docs/vault/adr/0011-decisions-that-check-themselves.md`.
+  `draft adr --write` records environment-asserted harness/provider/date as
+  `drafted_by`, not verified identity.
 - **Frontmatter is checked, not just stored** (ADR-0009): a `code_refs` path must resolve at any
   status unless annotated `(waiting)`/`(planned)`/`(deleted)`; `supersedes`/`superseded_by` must
   be mutual and land on a real artifact, and the replaced one carries `status: superseded`; with
