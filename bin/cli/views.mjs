@@ -157,7 +157,7 @@ function handleSearch(args) {
 }
 
 function handleDerived(cmd, args) {
-  if (flag(args, "--json")) { process.stdout.write(run(cmd, [], { capture: true })); return; }
+  if (flag(args, "--json")) { run(cmd, []); return; }
   const out = runJson("reconcile", ["--write", "--only", DERIVED[cmd]]);
   const target = out[cmd] || {};
   if (target.error) fail(`${cmd}: ${target.error}`);

@@ -1232,6 +1232,32 @@ test("draft --write names only the views it actually wrote, not a fixed four (E-
   assert.ok(!existsSync(join(proj, "vault", "graph.md")), "…and indeed graph.md was not created");
 });
 
+test("derived JSON previews preserve generator data without writing and ordinary views still write", () => {
+  const { proj, vault } = seedDerivedFixture();
+  const names = { kanban: "kanban.md", graph: "graph.md", codemap: "code-map.md" };
+  for (const [command, name] of Object.entries(names)) {
+    const target = join(vault, name);
+    assert.ok(!existsSync(target));
+    const expected = runIn(proj, `${command}.mjs`, []);
+    const result = runBin(proj, [command, "--json"]);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.path, expected.path);
+    assert.equal(report.path, target);
+    assert.equal(normEq(report.content), normEq(expected.content));
+    assert.deepEqual(report.stats, expected.stats);
+    assert.equal(result.stderr, "");
+    assert.ok(!existsSync(target), "JSON previews never create the derived target");
+  }
+  for (const [command, name] of Object.entries(names)) {
+    const result = runBin(proj, [command]);
+    assert.equal(result.stdout, `written ${join(vault, name)}\n`);
+    assert.ok(existsSync(join(vault, name)), "ordinary view commands still write");
+  }
+  const query = runBin(proj, ["graph", "--for", "adr/caching.md", "--json"]);
+  assert.ok(query.stdout.startsWith("adr/caching.md\n"), "graph query takes precedence over generator JSON preview");
+  assert.ok(!query.stdout.startsWith("{"));
+});
+
 test("`waypost reconcile` counts unchanged targets and keeps pending changes, skips and JSON (E-5)", () => {
   const { proj, vault } = seedDerivedFixture();
   const settled = runIn(proj, "reconcile.mjs", ["--write"]);

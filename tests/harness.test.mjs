@@ -1650,19 +1650,39 @@ test("reconcile failure handling preserves status and malformed output without i
   }
 });
 
-test("reconcile JSON streams large failed child output with stderr separate", () => {
-  const length = 2 * 1024 * 1024;
-  const child = `process.stdout.write(JSON.stringify({error:"fixture",payload:"x".repeat(${length})})+String.fromCharCode(10));process.stderr.write("child error"+String.fromCharCode(10));process.exitCode=7;`;
+for (const command of ["reconcile", "kanban", "graph", "codemap"]) for (const status of [0, 7]) {
+  test(`${command} JSON streams large child output with status ${status}`, () => {
+    const length = 2 * 1024 * 1024;
+    const child = `process.stdout.write(JSON.stringify({error:"fixture",payload:"x".repeat(${length})})+String.fromCharCode(10));process.stderr.write("child error"+String.fromCharCode(10));process.exitCode=${status};`;
+    const request = command === "reconcile" ? ["--write", "--json"] : ["--json", "--unused"];
+    const forwarded = command === "reconcile" ? ["--write"] : [];
+    const call = command === "reconcile" ? `m.handleReconcile(${JSON.stringify(request)});` : `m.handleDerived(${JSON.stringify(command)},${JSON.stringify(request)});`;
+    const code = `import assert from "node:assert/strict";import cp from "node:child_process";import {syncBuiltinESMExports} from "node:module";
+      const spawn=cp.spawnSync;cp.spawnSync=(file,args,opts)=>{assert.equal(file,process.execPath);assert.deepEqual(args,${JSON.stringify([join(REPO,"scripts",`${command}.mjs`),...forwarded])});assert.equal(opts.stdio,"inherit");return spawn(file,["--input-type=module","-e",${JSON.stringify(child)}],opts)};syncBuiltinESMExports();
+      const m=await import(${moduleUrl(REPO,"bin","cli","views.mjs")});${call}`;
+    const r = spawnSync(process.execPath, ["--input-type=module", "-e", code], { encoding: "utf8", maxBuffer: 4 * 1024 * 1024, env: ambientEnv() });
+    assert.equal(r.status, status, r.stderr);
+    const report = JSON.parse(r.stdout);
+    assert.equal(report.error, "fixture");
+    assert.equal(report.payload, "x".repeat(length), "the complete payload survives beyond the old capture limit");
+    assert.equal(r.stdout, JSON.stringify(report) + "\n", "no prefix, suffix or duplicate JSON");
+    assert.equal(r.stderr, "child error\n", "stderr is not mixed into JSON stdout");
+  });
+}
+
+test("derived view non-JSON output keeps reconciliation content captured", () => {
   const code = `import cp from "node:child_process";import {syncBuiltinESMExports} from "node:module";
-    const spawn=cp.spawnSync;cp.spawnSync=(file,args,opts)=>spawn(file,["--input-type=module","-e",${JSON.stringify(child)}],opts);syncBuiltinESMExports();
-    const m=await import(${moduleUrl(REPO,"bin","cli","views.mjs")});m.handleReconcile(["--write","--json"]);`;
-  const r = spawnSync(process.execPath, ["--input-type=module", "-e", code], { encoding: "utf8", maxBuffer: 4 * 1024 * 1024, env: ambientEnv() });
-  assert.equal(r.status, 7, r.stderr);
-  const report = JSON.parse(r.stdout);
-  assert.equal(report.error, "fixture");
-  assert.equal(report.payload, "x".repeat(length), "the complete payload survives beyond the old capture limit");
-  assert.equal(r.stdout, JSON.stringify(report) + "\n", "no prefix, suffix or duplicate JSON");
-  assert.equal(r.stderr, "child error\n", "stderr is not mixed into JSON stdout");
+    const calls=[];cp.spawnSync=(file,args,opts)=>{const command=args.at(-1);calls.push({args,stdio:opts.stdio});return{status:0,stdout:JSON.stringify({[command]:{path:"/v/"+command+".md",written:true,content:"PRIVATE INTERMEDIATE CONTENT"}})}};syncBuiltinESMExports();
+    const m=await import(${moduleUrl(REPO,"bin","cli","views.mjs")});const write=process.stdout.write.bind(process.stdout),rows=[];
+    for(const command of["kanban","graph","codemap"]){let stdout="";process.stdout.write=s=>{stdout+=s;return true};try{m.handleDerived(command,[])}finally{process.stdout.write=write}rows.push({command,stdout,call:calls.at(-1)})}write(JSON.stringify(rows));`;
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", code], { encoding: "utf8", env: ambientEnv() });
+  assert.equal(r.status, 0, r.stderr);
+  for (const row of JSON.parse(r.stdout)) {
+    assert.equal(row.stdout, `written /v/${row.command}.md\n`);
+    assert.deepEqual(row.call.args, [join(REPO, "scripts", "reconcile.mjs"), "--write", "--only", row.command]);
+    assert.deepEqual(row.call.stdio, ["inherit", "pipe", "inherit"]);
+    assert.ok(!row.stdout.includes("PRIVATE"));
+  }
 });
 
 test("CLI migration core has no transitive entry or command dependency", () => {

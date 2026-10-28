@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-28T21:33:03.406Z
+generated_at: 2026-10-28T22:20:55.068Z
 
 ---
 
@@ -197,6 +197,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md | Separate explicit Doctor repairs from diagnostic orchestration | story | done |
 | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md | Separate project matching and Git evidence from the size scanner | story | done |
 | epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md | State repeated ADR check execution guidance once per doctor group | story | done |
+| epics/WP-21/stories/story-stream-explicit-json-previews-for-derived-views.md | Stream explicit JSON previews for derived views | story | done |
 | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md | Targeted evidence reads and reproducible role handoffs | story | done |
 | epics/WP-21/stories/story-teach-bounded-queries-in-full-vault-orientation.md | Teach bounded queries in full vault orientation | story | done |
 | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | The team code loads only for story --write, and the CLI entry is an .mjs the code index sees | story | done |
@@ -520,6 +521,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-stream-explicit-json-previews-for-derived-views.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-teach-bounded-queries-in-full-vault-orientation.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md |
@@ -653,6 +655,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-stream-explicit-json-previews-for-derived-views.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-teach-bounded-queries-in-full-vault-orientation.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md | mdlink | epics/WP-21/epic.md |
