@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-28T15:20:23.935Z
+generated_at: 2026-10-28T16:07:31.121Z
 
 ---
 
@@ -167,6 +167,7 @@ generated_at: 2026-10-28T15:20:23.935Z
 - [x] [[epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci|WP-21: Wait for bounded resource admission in CI]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-generated-routing-instructions|WP-21: Compact generated routing instructions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions|WP-21: Deduplicate standing role and harness instructions]] #p2 #done
+- [x] [[epics/WP-21/stories/story-deduplicate-standing-self-install-instructions|WP-21: Deduplicate standing self-install instructions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-codex-report-text-formatting|WP-21: Isolate Codex report text formatting]] #p2 #done
 - [x] [[epics/WP-21/stories/story-keep-standing-reference-details-on-demand|WP-21: Keep standing reference details on demand]] #p2 #done
 - [x] [[epics/WP-21/stories/story-teach-bounded-queries-in-full-vault-orientation|WP-21: Teach bounded queries in full vault orientation]] #p2 #done

@@ -20,12 +20,10 @@ whatever is mechanical.
 Before analysing a task, planning, editing or running checks:
 
 1. Read this file in full.
-2. Run `waypost brief` — the orientation packet for the bound vault (where things
-   live, what is in flight, in what order to read). It replaces upstream's
-   SessionStart hook. It also installs the roles of the harness it runs in
-   when they are missing or stale, puts the routing block into that harness's
-   own instruction file, and says what it wrote so you commit it
-   (`--no-install` to only read).
+2. Run `waypost brief` for bound-vault locations, in-flight work and reading order.
+   It replaces upstream's SessionStart hook, installs missing or stale roles and
+   skills, and registers routing in its own harness's instruction file. Commit
+   reported writes; `--no-install` skips installation.
 3. Read `docs/vault/adr/README.md` and the related ADRs when the task touches the
    fork's architecture, CLI, roles, layouts, templates or working mechanics.
 4. `waypost next` — what this project needs right now, ranked, with the command for
@@ -68,11 +66,9 @@ live in `harnesses/`; project entries in `.waypost/harnesses/` add or override t
   startup and the body only when a task matches. `waypost skills install` puts
   them where the harness looks (registry data, `docs/harnesses.md`); one copy in
   `.agents/skills/` serves every harness that reads it. Commit them like roles.
-- **A harness that joins later needs no install step.** Its first
-  `waypost brief` renders its roles, installs its skills, registers its instruction file, and
-  `waypost doctor`/`next` count the harness running them as in use, so a
-  session from a new harness is told to install its roles even before that.
-  `waypost setup` still installs for every harness the project shows evidence of.
+- **New harnesses need no install step.** Their first `brief` installs as above.
+  `doctor`/`next` count the running harness as in use even before its first `brief`,
+  prompting role installation. `setup` installs for every harness evidenced by the project.
 - `waypost-planner` — before implementing an epic or story: a plan grounded in how
   previous epics landed in the code (`code_refs`).
 - Roles are read-only by contract: edits are denied by the tool map or sandbox

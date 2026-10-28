@@ -1549,7 +1549,7 @@ test("no user-facing message cites an ADR this fork does not have", () => {
 
 test("project standing context keeps the CLI reference within a character budget", () => {
   const instructions = readFileSync(join(REPO, "AGENTS.md"), "utf8");
-  assert.ok(instructions.length < 15650,
+  assert.ok(instructions.length < 15400,
     `project instructions are ${instructions.length} chars — command reference belongs on demand`);
   const blocks = instructions.match(/<!-- waypost:agents[\s\S]*?<!-- \/waypost:agents -->/g) || [];
   assert.equal(blocks.length, 1, "one canonical routing block carries the role rules");
