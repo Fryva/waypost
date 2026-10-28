@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-28T02:35:32.395Z
+generated_at: 2026-10-28T09:56:02.405Z
 
 ---
 
@@ -117,6 +117,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md | Compact the default brief derived-view guidance | story | done |
 | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | Complete thin CLI entry as final migration stage f | story | done |
 | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md | Condense default brief orientation without hiding safety signals | story | done |
+| epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions.md | Deduplicate standing role and harness instructions | story | done |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | Distinguish evaluation moderation rejection causes | story | done |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | Evaluation accepts bounded moderation metadata | story | done |
 | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | Exclude non-code text from the bounded CLI namespace guard | story | done |
@@ -433,6 +434,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
@@ -555,6 +557,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | mdlink | epics/WP-21/epic.md |

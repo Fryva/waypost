@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { detectHarnesses, detectHarness, gateCheck, registry } from "../scripts/agents.mjs";
+import { detectHarnesses, detectHarness, gateCheck, registry, renderBlock } from "../scripts/agents.mjs";
 import { storedVaultPath, resolveVaultPath } from "../scripts/lib.mjs";
 import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleOf,
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
@@ -1546,8 +1546,11 @@ test("no user-facing message cites an ADR this fork does not have", () => {
 
 test("project standing context keeps the CLI reference within a character budget", () => {
   const instructions = readFileSync(join(REPO, "AGENTS.md"), "utf8");
-  assert.ok(instructions.length < 17100,
+  assert.ok(instructions.length < 16100,
     `project instructions are ${instructions.length} chars — command reference belongs on demand`);
+  const blocks = instructions.match(/<!-- waypost:agents[\s\S]*?<!-- \/waypost:agents -->/g) || [];
+  assert.equal(blocks.length, 1, "one canonical routing block carries the role rules");
+  assert.equal(blocks[0], renderBlock({}).trim(), "root routing rules match the installed template and role summaries");
 });
 
 test("CLI migration stage f keeps fixed entry and module byte ceilings", () => {

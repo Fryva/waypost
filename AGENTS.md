@@ -57,13 +57,10 @@ install, launcher, `doctor --fix`, team-*). Never hand-edit derived views.
 ## Agent roles (the same roles in every harness)
 
 A role is defined once in `agents/<role>.md`; `waypost agents install` renders it
-into the format of whichever harness the project uses. `waypost harnesses` lists
-them — Claude Code, Codex, OpenCode, Kimi Code CLI, Qwen Code, ZCode, CodeBuddy
-Code, DeepSeek Harness, Grok Build, Google Antigravity, QM, Pi, Cursor,
-Windsurf, Cline, Copilot, Gemini CLI, Roo Code, Tongyi Lingma, Trae, iFlow. That list is data, not code: a harness is a JSON file
-in `harnesses/`, and your own goes in `.waypost/harnesses/` (see
-`docs/harnesses.md`). Where a harness has no role concept, `waypost agents show
-<role>` prints the prompt for a separate run.
+for each harness. `waypost harnesses` lists the adapters: their registry records
+live in `harnesses/`; project entries in `.waypost/harnesses/` add or override them
+(see `docs/harnesses.md`). Where a harness has no role concept,
+`waypost agents show <role>` prints the prompt for a separate run.
 
 - **Skills carry the procedures.** The ten bundled skills (`waypost-draft`,
   `-story`, `-review`, `-search`, `-doctor`, `-commit`, and four proactive ones)
@@ -76,16 +73,8 @@ in `harnesses/`, and your own goes in `.waypost/harnesses/` (see
   `waypost doctor`/`next` count the harness running them as in use, so a
   session from a new harness is told to install its roles even before that.
   `waypost setup` still installs for every harness the project shows evidence of.
-- **Every role runs in a fresh context, separate from the author.** Reviewing
-  your own work in your own context removes the entire point of the role.
-- `waypost-critic` — after writing or revising an artifact or a design proposal,
-  before treating it as final.
 - `waypost-planner` — before implementing an epic or story: a plan grounded in how
   previous epics landed in the code (`code_refs`).
-- `waypost-reviewer` — after the code, before commit or story-done: does the diff
-  close the acceptance criteria?
-- `waypost-librarian`, `waypost-archaeologist` — semantic vault curation, and recovering
-  decisions from an existing codebase.
 - Roles are read-only by contract: edits are denied by the tool map or sandbox
   where the harness has one, the shell stays open, and "never write" is carried
   by the role prompt. They propose; writes go through the approval-gated `waypost`
@@ -93,13 +82,9 @@ in `harnesses/`, and your own goes in `.waypost/harnesses/` (see
 - Role models: `waypost agents model default <id>` applies to harnesses with a
   published tier naming (Claude Code); for the others use
   `waypost agents model harness:<name> <id>`. Re-run `waypost agents install` afterwards.
-- A vendor's CLI and a vendor's models are different entries. Moonshot, Zhipu,
-  Alibaba, Tencent, DeepSeek and xAI ship both (`kimi`/`zcode`/`qwen`/
-  `codebuddy`/`dsh`/`grok` are tools; `moonshot`/`glm`/`dashscope`/`deepseek`/
-  `xai` are models); MiniMax ships models only. A harness with no role-file
-  format (`roles.shape: "none"`, as with `dsh`, `qm` and `pi`) still receives the
-  routing block, and a role is reached with
-  `waypost agents show <role>` or through a subagent that harness can spawn.
+- Tools and models have separate registry entries (see `docs/harnesses.md`).
+  Harnesses with `roles.shape: "none"` still receive the routing block; reach a
+  role through `waypost agents show <role>` or a fresh subagent.
 
 ## Working in several harnesses at once
 
