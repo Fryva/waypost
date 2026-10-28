@@ -46,6 +46,10 @@ it are not renamed, so one vault opens in either tool (ADR-0004).
 
 ## Shared helpers
 
+`scripts/token-codex-format.mjs` owns Codex report text rendering, re-exported by
+`scripts/token-codex.mjs`. Rollout decoding and cumulative accounting stay in the
+owner; Codex analyzer provenance fingerprints both source files.
+
 `scripts/model-strength-fetch.mjs` owns bounded evidence response streaming and
 pagination, using the fetch implementation and validated source/config supplied by
 `scripts/model-strength.mjs`. Source validation, parsing and strength policy stay

@@ -297,7 +297,7 @@ async function main() {
     const analyzerRoot = fileURLToPath(new URL("../", import.meta.url));
     report.provenance.project_git = gitState(project);
     report.provenance.analyzer_git = gitState(analyzerRoot);
-    report.provenance.analyzer_sources = ["scripts/tokens.mjs", "scripts/token-codex.mjs", "scripts/token-table.mjs", "scripts/token-requests.mjs", "scripts/token-collect.mjs"].map(path => ({ path, sha256: createHash("sha256").update(readFileSync(join(analyzerRoot, path))).digest("hex") }));
+    report.provenance.analyzer_sources = ["scripts/tokens.mjs", "scripts/token-codex.mjs", "scripts/token-codex-format.mjs", "scripts/token-table.mjs", "scripts/token-requests.mjs", "scripts/token-collect.mjs"].map(path => ({ path, sha256: createHash("sha256").update(readFileSync(join(analyzerRoot, path))).digest("hex") }));
     process.stdout.write(opts.json ? JSON.stringify(report, null, 2) + "\n" : formatCodexReport(report, opts));
     return;
   }
