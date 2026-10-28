@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-28T16:07:31.121Z
+generated_at: 2026-10-28T17:10:38.452Z
 
 ---
 
@@ -166,6 +166,7 @@ generated_at: 2026-10-28T16:07:31.121Z
 - [x] [[epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests|WP-21: Restore isolated environments for extracted module tests]] #p2 #done
 - [x] [[epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci|WP-21: Wait for bounded resource admission in CI]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-generated-routing-instructions|WP-21: Compact generated routing instructions]] #p2 #done
+- [x] [[epics/WP-21/stories/story-compact-unchanged-reconciliation-results-without-hiding-changes|WP-21: Compact unchanged reconciliation results without hiding changes]] #p2 #done
 - [x] [[epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions|WP-21: Deduplicate standing role and harness instructions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-deduplicate-standing-self-install-instructions|WP-21: Deduplicate standing self-install instructions]] #p2 #done
 - [x] [[epics/WP-21/stories/story-isolate-codex-report-text-formatting|WP-21: Isolate Codex report text formatting]] #p2 #done

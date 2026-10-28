@@ -165,25 +165,27 @@ function handleDerived(cmd, args) {
   process.stdout.write(`${target.written ? "written" : "unchanged"} ${target.path || cmd}\n`);
 }
 
-// `waypost reconcile` is listed beside kanban/graph/codemap, so it answers in
-// the same voice — a line per view — instead of the raw JSON its programmatic
-// callers (draft, commit, the merge driver) consume. `--json` still yields that
-// shape for anyone composing it.
+// Reconciliation counts unchanged targets; changes, skips and returned errors
+// keep their details. `--json` preserves the complete per-target records.
 function handleReconcile(args) {
   if (flag(args, "--json")) { process.stdout.write(run("reconcile", args.filter((a) => a !== "--json"), { capture: true })); return; }
   const wrote = flag(args, "--write");
   const out = runJson("reconcile", args);
+  let unchanged = 0;
   const line = (label, t) => {
     if (!t) return;
     if (t.error) { process.stdout.write(`  ${label}: error — ${t.error}\n`); return; }
     if (t.skipped) { process.stdout.write(`  ${label}: ${t.skipped}\n`); return; }
-    process.stdout.write(`  ${label}: ${t.written ? "written" : "unchanged"}${t.path ? ` ${t.path}` : ""}\n`);
+    if (t.changed === false && !t.written) { unchanged++; return; }
+    const state = t.written ? "written" : t.changed === true ? "would change" : "unchanged";
+    process.stdout.write(`  ${label}: ${state}${t.path ? ` ${t.path}` : ""}\n`);
   };
   process.stdout.write(`${wrote ? "reconciled" : "dry run (nothing written; add --write)"}\n`);
   line("kanban", out.kanban);
   line("code-map", out.codemap);
   line("graph", out.graph);
   for (const idx of out.indexes || []) line(idx.path || "index", idx);
+  if (unchanged) process.stdout.write(`  ${unchanged} unchanged (details: --json)\n`);
   if (out.summary && out.summary.failed > 0) process.exitCode = 1;
 }
 

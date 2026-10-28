@@ -1232,15 +1232,63 @@ test("draft --write names only the views it actually wrote, not a fixed four (E-
   assert.ok(!existsSync(join(proj, "vault", "graph.md")), "…and indeed graph.md was not created");
 });
 
-test("`waypost reconcile` answers in the same voice as kanban/graph/codemap, and --json still yields the raw shape (E-5)", () => {
-  const { proj } = makeVaultProject();
-  runBin(proj, ["draft", "adr", "A Thing", "--write"]);
-  const human = runBinRaw(proj, ["reconcile", "--write"]);
-  assert.equal(human.status, 0, human.stderr);
-  assert.match(human.stdout, /^reconciled$/m, "a human summary, not a JSON dump");
-  assert.doesNotThrow(() => { if (human.stdout.trim().startsWith("{")) throw new Error("still JSON"); });
-  const json = runBinRaw(proj, ["reconcile", "--write", "--json"]);
-  assert.doesNotThrow(() => JSON.parse(json.stdout), `--json must still be pure JSON, got:\n${json.stdout}`);
+test("`waypost reconcile` counts unchanged targets and keeps pending changes, skips and JSON (E-5)", () => {
+  const { proj, vault } = seedDerivedFixture();
+  const settled = runIn(proj, "reconcile.mjs", ["--write"]);
+  assert.equal(settled.summary.failed, 0);
+  const machine = runIn(proj, "reconcile.mjs", ["--write"]);
+  const targets = out => [out.kanban, out.codemap, out.graph, ...out.indexes];
+  const unchanged = targets(machine).filter(t => t.changed === false && !t.written && !t.skipped && !t.error).length;
+  assert.ok(unchanged > 2);
+  const human = runBin(proj, ["reconcile", "--write"]);
+  assert.match(human.stdout, /^reconciled\n/);
+  assert.ok(human.stdout.includes(`  ${unchanged} unchanged (details: --json)\n`));
+  assert.ok(human.stdout.includes(`  graph: ${machine.graph.skipped}\n`), "skips stay explicit and do not count as unchanged");
+  assert.ok(!human.stdout.includes(join(vault, "adr", "README.md")), "unchanged index paths stay behind --json");
+  assert.ok(human.stdout.length < 350, `settled fixture output is ${human.stdout.length} chars`);
+  const json = runBin(proj, ["reconcile", "--write", "--json"]);
+  assert.deepEqual(JSON.parse(json.stdout), machine, "the CLI preserves complete generator JSON");
+
+  const board = join(vault, "kanban.md");
+  writeFileSync(board, "broken board\n");
+  const before = targets(machine).filter(t => t.path && existsSync(t.path)).map(t => [t.path, readFileSync(t.path)]);
+  const preview = runBin(proj, ["reconcile"]);
+  assert.match(preview.stdout, /^dry run \(nothing written; add --write\)\n/);
+  assert.ok(preview.stdout.includes(`  kanban: would change ${board}\n`), "pending changes are not called unchanged");
+  assert.ok(preview.stdout.includes(`  ${unchanged - 1} unchanged (details: --json)\n`));
+  for (const [path, bytes] of before) assert.deepEqual(readFileSync(path), bytes, "preview never writes derived targets");
+  const pending = JSON.parse(runBin(proj, ["reconcile", "--json"]).stdout);
+  assert.equal(pending.kanban.changed, true);
+  assert.ok(pending.kanban.content.includes("Ship it"));
+  const applied = runBin(proj, ["reconcile", "--write"]);
+  assert.ok(applied.stdout.includes(`  kanban: written ${board}\n`));
+  assert.ok(applied.stdout.includes(`  ${unchanged - 1} unchanged (details: --json)\n`));
+  assert.equal(normEq(readFileSync(board, "utf8")), normEq(pending.kanban.content));
+});
+
+test("reconcile prose keeps returned errors and child failure status outside the unchanged count", () => {
+  const { proj, vault } = seedDerivedFixture();
+  mkdirSync(join(vault, "kanban.md"));
+  const raw = runInRaw(proj, "reconcile.mjs", []);
+  assert.equal(raw.status, 0, raw.stderr);
+  const expected = JSON.parse(raw.stdout);
+  assert.ok(expected.kanban.error);
+  const human = runBinRaw(proj, ["reconcile"]);
+  assert.equal(human.status, 1, "the prose summary.failed policy is unchanged");
+  assert.ok(human.stdout.includes(`  kanban: error — ${expected.kanban.error}\n`));
+  assert.ok(human.stdout.includes(`  graph: ${expected.graph.skipped}\n`));
+  assert.ok(human.stdout.includes(`  code-map: would change ${expected.codemap.path}\n`));
+  const unchanged = [expected.kanban, expected.codemap, expected.graph, ...expected.indexes]
+    .filter(t => t.changed === false && !t.written && !t.skipped && !t.error).length;
+  assert.equal(human.stdout.includes(`  ${unchanged} unchanged (details: --json)\n`), unchanged > 0);
+  const json = runBinRaw(proj, ["reconcile", "--json"]);
+  assert.equal(json.status, raw.status, "JSON retains the generator compute-mode exit policy");
+  const normalized = value => JSON.parse(JSON.stringify(value, (key, item) =>
+    key === "content" && typeof item === "string" ? normEq(item) : item));
+  assert.deepEqual(normalized(JSON.parse(json.stdout)), normalized(expected),
+    "only volatile generated_at content lines are normalized between separate generator calls");
+  const failedWrite = runBinRaw(proj, ["reconcile", "--write"]);
+  assert.equal(failedWrite.status, 1, "child write failures still propagate");
 });
 
 test("bin/waypost scaffold --json prints only JSON (P1-11, A-6)", () => {

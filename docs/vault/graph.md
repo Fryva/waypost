@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-28T16:07:31.543Z
+generated_at: 2026-10-28T17:10:38.685Z
 
 ---
 
@@ -116,6 +116,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md | Compact repeated declarative checks in the default Doctor report | story | done |
 | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md | Compact repeated graph endpoints without losing directions | story | done |
 | epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md | Compact the default brief derived-view guidance | story | done |
+| epics/WP-21/stories/story-compact-unchanged-reconciliation-results-without-hiding-changes.md | Compact unchanged reconciliation results without hiding changes | story | done |
 | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | Complete thin CLI entry as final migration stage f | story | done |
 | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md | Condense default brief orientation without hiding safety signals | story | done |
 | epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions.md | Deduplicate standing role and harness instructions | story | done |
@@ -437,6 +438,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-unchanged-reconciliation-results-without-hiding-changes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions.md |
@@ -564,6 +566,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-the-default-brief-derived-view-guidance.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-compact-unchanged-reconciliation-results-without-hiding-changes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-condense-default-brief-orientation-without-hiding-safety-signals.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions.md | mdlink | epics/WP-21/epic.md |
