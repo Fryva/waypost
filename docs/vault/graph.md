@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-29T18:45:34.394Z
+generated_at: 2026-10-29T19:34:04.960Z
 
 ---
 
@@ -199,6 +199,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md | Restore isolated environments for extracted module tests | story | done |
 | epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match.md | Retain only requested search results while counting every match | story | done |
 | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md | Reuse link lookup inputs within each readiness calculation | story | done |
+| epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md | Reuse the file lookup set across graph link resolution | story | done |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | Scope unknown-prefix diagnostics to the requested period | story | done |
 | epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames.md | Search source artifacts that share derived view filenames | story | done |
 | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md | Separate explicit Doctor repairs from diagnostic orchestration | story | done |
@@ -531,6 +532,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md |
@@ -673,6 +675,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md | mdlink | epics/WP-21/epic.md |

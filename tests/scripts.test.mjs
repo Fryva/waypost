@@ -5,7 +5,7 @@
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, symlinkSync, rmSync, cpSync, lstatSync, realpathSync } from "node:fs";
+import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, symlinkSync, rmSync, cpSync, lstatSync, realpathSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -608,6 +608,60 @@ test("graph.mjs golden: three story shapes are nodes; typed edges normalized, de
   assert.ok(!g1.content.includes("[["), "plain text — never wikilinks (Obsidian backlink pollution)");
   assert.equal(g1.stats.by_kind["spec-covers"], 2);
   assert.ok(g1.stats.nodes >= 8 && g1.stats.edges >= 7);
+});
+
+test("graph.mjs shared lookup preserves source scopes and refreshes injected membership", async () => {
+  const { vault } = seedGraphFixture();
+  const { buildGraph } = await import("../scripts/graph.mjs");
+  const { loadLayout } = await import("../scripts/lib.mjs");
+  const { walkVaultFiles } = await import("../scripts/doctor.mjs");
+  const put = (rel, extra, body = "") => writeFileSync(join(vault, rel), `---\n${extra}\n---\n\n# T\n${body}`);
+  put("specs/typed-only.md", 'type: spec\nid: "typed-only"\nadr: ["new-way", "old-way", "new-way", "specs/dup.md", "no-adr"]');
+  put("adr/target.md", 'type: adr\nid: "target-adr"');
+  put("specs/target.md", 'type: spec\nid: "target-spec"');
+  put("adr/source.md", 'type: adr\nid: "source-adr"', '[local](./target.md)\n[asset](../image.png)\n[[../loose.md]]');
+  put("specs/source.md", 'type: spec\nid: "source-spec"\nadr: ["../adr/new-way.md"]', '[local](./target.md)');
+  put("adr/fresh-source.md", 'type: adr\nid: "fresh-source"', '[[adr/fresh.md]]');
+  writeFileSync(join(vault, "loose.md"), "not a node\n");
+  writeFileSync(join(vault, "image.png"), "asset");
+  const files = walkVaultFiles(vault), layout = loadLayout("engineering");
+  const sync = () => files.splice(0, files.length, ...walkVaultFiles(vault));
+  const graph = () => buildGraph({ vault_path: vault }, layout, { files });
+  const first = graph();
+  for (const edge of [
+    "| adr/source.md | mdlink | adr/target.md |", "| specs/source.md | mdlink | specs/target.md |",
+    "| adr/source.md | out-of-scope | image.png |", "| adr/source.md | out-of-scope | loose.md |",
+    "| specs/source.md | spec-implements-adr | adr/new-way.md |",
+    "| specs/typed-only.md | out-of-scope | specs/dup.md |", "| specs/typed-only.md | dead | no-adr |",
+    "| adr/fresh-source.md | dead | adr/fresh.md |",
+  ]) assert.ok(first.content.includes(edge), edge);
+  assert.equal(first.content.split("\n").filter(line => line === "| specs/typed-only.md | spec-implements-adr | adr/new-way.md |").length, 1);
+  put("adr/fresh.md", 'type: adr\nid: "fresh"'); sync();
+  assert.ok(graph().content.includes("| adr/fresh-source.md | wikilink | adr/fresh.md |"));
+  renameSync(join(vault, "adr/fresh.md"), join(vault, "adr/renamed.md"));
+  put("adr/fresh-source.md", 'type: adr\nid: "fresh-source"', '[[adr/renamed.md]]'); sync();
+  assert.ok(graph().content.includes("| adr/fresh-source.md | wikilink | adr/renamed.md |"));
+  rmSync(join(vault, "adr/renamed.md")); sync();
+  const last = graph();
+  assert.ok(last.content.includes("| adr/fresh-source.md | dead | adr/renamed.md |"));
+  const walked = buildGraph({ vault_path: vault }, layout);
+  assert.equal(normEq(walked.content), normEq(last.content)); assert.deepEqual(walked.stats, last.stats);
+});
+
+test("graph.mjs structural relations do not prepare generic lookup inputs", async () => {
+  const { vault } = makeVaultProject();
+  const { buildGraph } = await import("../scripts/graph.mjs");
+  const { loadLayout } = await import("../scripts/lib.mjs");
+  const put = (rel, fm) => writeFileSync(join(vault, rel), `---\n${fm}\n---\n`);
+  put("epics/PS-X/epic.md", 'type: epic\nid: "PS-X"');
+  put("epics/PS-X/stories/story-a.md", 'type: story\nid: "story-a"');
+  put("specs/cover.md", 'type: spec\nid: "cover"\nstories: ["PS-X/story-a"]');
+  const files = new Proxy([], { get(target, key, receiver) {
+    if (key === "map") throw new Error("unused file Set prepared");
+    return Reflect.get(target, key, receiver);
+  } });
+  const g = buildGraph({ vault_path: vault }, loadLayout("engineering"), { files });
+  assert.deepEqual(g.stats.by_kind, { "epic-contains": 1, "spec-covers": 1 });
 });
 
 test("bin/waypost graph query: generated modern relations remain typed edges", () => {

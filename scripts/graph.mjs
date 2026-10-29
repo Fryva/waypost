@@ -62,6 +62,14 @@ export function buildGraph(cfg, layout, { files = null } = {}) {
   const vaultFiles = files ?? walkVaultFiles(cfg.vault_path);
   const epicsPath = folderByKind(layout, "epic")?.path ?? null;
 
+  let fileSet;
+  const resolveTarget = (raw, type, ctx) => {
+    if (fileSet) ctx._fileSet = fileSet;
+    const result = resolveLinkTarget(raw, type, ctx);
+    fileSet = ctx._fileSet;
+    return result;
+  };
+
   // Dedup on the (from, kind, to) triple (spec contract 4). The To cell for
   // dead targets is the raw text as written; ambiguous additionally lists
   // every candidate path in the row.
@@ -81,12 +89,11 @@ export function buildGraph(cfg, layout, { files = null } = {}) {
   for (const n of index.nodes) {
     // Body links — kind-unscoped, extracted ONLY from node files: derived
     // views and READMEs are never link sources, so graph.md can never feed
-    // back into itself (spec contract 2). One ctx per node: the resolver
-    // caches its file set on the ctx object, and rebuilding it per link
-    // would be O(links × files) — the growth curve this view exists for.
+    // back into itself (spec contract 2). Contexts keep each source/kind;
+    // their file set is shared lazily across this graph computation.
     const ctx = { sourceRel: n.path, index, files: vaultFiles, exists };
     for (const link of extractLinks(n.body)) {
-      addResolved(n.path, resolveLinkTarget(link.target, link.type, ctx), link.target, { node: link.type });
+      addResolved(n.path, resolveTarget(link.target, link.type, ctx), link.target, { node: link.type });
     }
 
     // Typed frontmatter relations — kind-scoped by their field (spec
@@ -101,28 +108,28 @@ export function buildGraph(cfg, layout, { files = null } = {}) {
         else addResolved(n.path, r, entry);
       }
       for (const entry of refsOf(n.fm, "adr")) {
-        const r = resolveLinkTarget(entry, "ref", refCtx(["adr"]));
+        const r = resolveTarget(entry, "ref", refCtx(["adr"]));
         if (r.outcome === "node") addEdge(n.path, "spec-implements-adr", r.node.path);
         else addResolved(n.path, r, entry);
       }
     }
     if (n.type === "story") {
       for (const entry of refsOf(n.fm, "specs")) {
-        const r = resolveLinkTarget(entry, "ref", refCtx(["spec"]));
+        const r = resolveTarget(entry, "ref", refCtx(["spec"]));
         if (r.outcome === "node") addEdge(r.node.path, "spec-covers", n.path);
         else addResolved(n.path, r, entry);
       }
     }
     if (n.type === "adr") {
       for (const entry of refsOf(n.fm, "supersedes")) {
-        const r = resolveLinkTarget(entry, "ref", refCtx(["adr"]));
+        const r = resolveTarget(entry, "ref", refCtx(["adr"]));
         if (r.outcome === "node") addEdge(n.path, "supersedes", r.node.path);
         else addResolved(n.path, r, entry);
       }
       for (const entry of refsOf(n.fm, "superseded_by")) {
         // Normalized to the superseding ADR as From — one direction, dedup
         // then collapses the two-sided declaration.
-        const r = resolveLinkTarget(entry, "ref", refCtx(["adr"]));
+        const r = resolveTarget(entry, "ref", refCtx(["adr"]));
         if (r.outcome === "node") addEdge(r.node.path, "supersedes", n.path);
         else addResolved(n.path, r, entry);
       }
