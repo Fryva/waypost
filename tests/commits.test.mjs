@@ -242,10 +242,15 @@ test("filtered log pages a pinned history, terminates safely and preserves the a
       const skip = skipped ? Number(skipped.slice(7)) : 0;
       if (skipped) {
         assert.deepEqual(argv.slice(-2), [settings.oid || oid, "--"], "every page uses the original OID even after HEAD moves");
-        assert.equal(size, 200); assert.equal(opts.maxBuffer, 1024 * 1024);
+        assert.ok(Number.isInteger(size) && size >= 1 && size <= 200); assert.equal(opts.maxBuffer, 1024 * 1024);
       } else assert.equal(opts.maxBuffer, undefined, "unfiltered queries keep their existing helper options");
       head = "b".repeat(head.length);
       if (settings.failAt === skip) return settings.failure;
+      if (settings.overflowAbove != null && size > settings.overflowAbove
+        && (settings.overflowFrom == null || skip >= settings.overflowFrom)) {
+        return { status: settings.overflowStatus ?? null, error: { code: "ENOBUFS" },
+          stdout: encode([record(999999, { harness: "wanted", subject: "TRUNCATED MATCH" })]) };
+      }
       return { status: 0, stdout: encode(records.slice(skip, skip + size)) };
     };
     const die = message => { throw new Error(message); };
@@ -282,9 +287,33 @@ test("filtered log pages a pinned history, terminates safely and preserves the a
     { status: 0, error: { code: "ENOBUFS" }, stdout: encode(history.slice(200, 201)) },
   ]) {
     const bad = run([record(1, { harness: "wanted" }), ...history], ["--harness", "wanted", "-n", "2", "--json"], { failAt: 200, failure });
-    assert.ok(bad.error); assert.deepEqual(bad.offsets, [0, 200]);
+    assert.ok(bad.error);
+    if (failure.error?.code === "ENOBUFS") {
+      const attempts = bad.calls.filter(c => c.argv[0] === "log");
+      assert.deepEqual(bad.offsets, [0, ...Array(8).fill(200)]);
+      assert.deepEqual(attempts.slice(1).map(c => Number(c.argv[1].slice(2))), [200, 100, 50, 25, 12, 6, 3, 1]);
+    } else assert.deepEqual(bad.offsets, [0, 200], "non-buffer errors are not retried");
     assert.equal(bad.stdout, "", "a later-page error cannot publish partial matches");
   }
+  for (const overflowStatus of [null, 0]) {
+    const smaller = run(history, ["--harness", "wanted", "-n", "2", "--json"], { overflowAbove: 50, overflowStatus });
+    assert.equal(smaller.error, null);
+    assert.deepEqual(smaller.offsets, [0, 0, 0, 50, 100, 150, 200, 250, 300, 350, 400]);
+    assert.deepEqual(JSON.parse(smaller.stdout).map(row => row.sha), [history[210].sha, history[405].sha], "truncated matching output is never parsed");
+    const later = run(history, ["--harness", "wanted", "-n", "2", "--json"], { overflowAbove: 50, overflowFrom: 200, overflowStatus });
+    assert.equal(later.error, null);
+    assert.deepEqual(later.offsets, [0, 200, 200, 200, 250, 300, 350, 400]);
+    assert.deepEqual(JSON.parse(later.stdout).map(row => row.sha), [history[210].sha, history[405].sha]);
+  }
+  const smallWindow = run(history, ["--harness", "wanted", "-n", "250"], { overflowAbove: 50 });
+  assert.equal(smallWindow.error, null); assert.ok(smallWindow.stdout.includes("2 of the last 250 commits"));
+  const sizeOne = run(history.slice(0, 5), ["--harness", "absent", "-n", "1", "--json"], { overflowAbove: 1 });
+  assert.equal(sizeOne.error, null); assert.deepEqual(JSON.parse(sizeOne.stdout), []);
+  assert.deepEqual(sizeOne.offsets, [...Array(8).fill(0), 1, 2, 3, 4, 5], "a full size-one page is not exhaustion");
+  const tooLarge = run(history, ["--harness", "wanted", "-n", "1", "--json"], { overflowAbove: 0 });
+  assert.ok(tooLarge.error); assert.equal(tooLarge.stdout, ""); assert.deepEqual(tooLarge.offsets, Array(8).fill(0));
+  const unfilteredOverflow = run(history, ["-n", "200", "--json"], { failAt: 0, failure: { status: null, error: { code: "ENOBUFS" } } });
+  assert.ok(unfilteredOverflow.error); assert.equal(unfilteredOverflow.calls.length, 1); assert.equal(unfilteredOverflow.stdout, "");
   const pinBad = run(history, ["--harness", "wanted"], { pinError: { status: 0, stdout: "not-a-commit" } });
   assert.ok(pinBad.error); assert.equal(pinBad.stdout, ""); assert.equal(pinBad.calls.length, 1);
   const sha256 = run(history, ["--harness", "wanted", "-n", "1", "--json"], { oid: "c".repeat(64) });
@@ -336,6 +365,26 @@ test("filtered log finds old matches across a real paged merge history", () => {
     const bad = waypost(proj, ["log", ...args], { expectFail: true });
     assert.notEqual(bad.status, 0); assert.ok(bad.stderr.includes("non-negative safe integer")); assert.equal(bad.stdout, "");
   }
+});
+
+test("filtered log reduces an oversized page without enlarging the capture buffer", () => {
+  const proj = repo();
+  const commit = message => {
+    const result = git(proj, ["commit", "--allow-empty", "-q", "-F", "-"], { input: message });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  for (let i = 0; i < 2; i++) commit(`Large old subject ${i} ` + "x".repeat(600 * 1024));
+  for (let i = 0; i < 19; i++) commit(`Recent small ${i}`);
+  commit("Wanted recent change\n\nWaypost-Harness: wanted\nWaypost-Session: overflow-test");
+  const expected = git(proj, ["rev-parse", "--short", "HEAD"]).stdout.trim();
+  const result = waypost(proj, ["log", "--harness", "wanted", "-n", "1", "--json"]);
+  const rows = JSON.parse(result.stdout);
+  assert.equal(rows.length, 1); assert.equal(rows[0].sha, expected);
+  assert.equal(rows[0].subject, "Wanted recent change");
+  assert.equal(result.stderr, "");
+  const human = waypost(proj, ["log", "--harness", "wanted", "-n", "1"]).stdout;
+  assert.ok(human.includes(expected) && human.includes("Wanted recent change"));
+  assert.ok(!human.includes("Large old subject"), "failed-page content never reaches the report");
 });
 
 test("a story reference is resolved against the vault, so a typo cannot enter the record", () => {

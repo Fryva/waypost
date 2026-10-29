@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-29T03:53:04.629Z
+generated_at: 2026-10-29T04:19:28.550Z
 
 ---
 
@@ -192,6 +192,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-preserve-reconciliation-failure-reports-and-child-status.md | Preserve reconciliation failure reports and child status | story | done |
 | epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries.md | Recognize all graph edge kinds in bounded queries | story | done |
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | Recognize explicit inherited parent headers in Codex accounting | story | done |
+| epics/WP-21/stories/story-reduce-overflowing-log-pages-without-increasing-buffer-limits.md | Reduce overflowing log pages without increasing buffer limits | story | done |
 | epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade.md | Remove orphaned legacy hook commentary from the library facade | story | done |
 | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | Reproducible token accounting and repeated-read evidence | story | done |
 | epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md | Restore isolated environments for extracted module tests | story | done |
@@ -518,6 +519,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-preserve-reconciliation-failure-reports-and-child-status.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reduce-overflowing-log-pages-without-increasing-buffer-limits.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md |
@@ -654,6 +656,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-preserve-reconciliation-failure-reports-and-child-status.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-recognize-all-graph-edge-kinds-in-bounded-queries.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-reduce-overflowing-log-pages-without-increasing-buffer-limits.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-remove-orphaned-legacy-hook-commentary-from-the-library-facade.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md | mdlink | epics/WP-21/epic.md |

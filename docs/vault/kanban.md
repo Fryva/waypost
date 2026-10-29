@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-29T03:53:04.401Z
+generated_at: 2026-10-29T04:19:28.325Z
 
 ---
 
@@ -176,6 +176,7 @@ generated_at: 2026-10-29T03:53:04.401Z
 - [x] [[epics/WP-21/stories/story-teach-bounded-queries-in-full-vault-orientation|WP-21: Teach bounded queries in full vault orientation]] #p2 #done
 - [x] [[epics/WP-21/stories/story-find-filtered-log-matches-beyond-the-initial-history-window|WP-21: Find filtered log matches beyond the initial history window]] #p2 #done
 - [x] [[epics/WP-21/stories/story-group-adjacent-log-metadata-without-hiding-commit-identity|WP-21: Group adjacent log metadata without hiding commit identity]] #p2 #done
+- [x] [[epics/WP-21/stories/story-reduce-overflowing-log-pages-without-increasing-buffer-limits|WP-21: Reduce overflowing log pages without increasing buffer limits]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

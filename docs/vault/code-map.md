@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-29T03:48:08.691Z
+generated_at: 2026-10-29T04:15:14.659Z
 
 ---
 
@@ -144,6 +144,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Preserve reconciliation failure reports and child status | `bin/cli/core.mjs`, `bin/cli/views.mjs`, `scripts/reconcile.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Recognize all graph edge kinds in bounded queries | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Recognize explicit inherited parent headers in Codex accounting | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
+| WP-21 | Reduce overflowing log pages without increasing buffer limits | `scripts/commit.mjs`, `tests/commits.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0006-commit-protocol.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Remove orphaned legacy hook commentary from the library facade | `scripts/lib.mjs` |
 | WP-21 | Reproducible token accounting and repeated-read evidence | `scripts/tokens.mjs`, `scripts/token-navigation.mjs`, `tests/tokens.test.mjs`, `tests/token-navigation.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Restore isolated environments for extracted module tests | `tests/model-strength-fetch.test.mjs`, `tests/toolchain-locators.test.mjs`, `tests/state-migrate.test.mjs`, `tests/env.mjs`, `README.md` |

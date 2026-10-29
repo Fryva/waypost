@@ -384,15 +384,22 @@ function log(argv) {
     + "%x1f%(trailers:key=Waypost-Provider,valueonly,separator=%x2c)"
     + "%x1f%(trailers:key=Waypost-OS,valueonly,separator=%x2c)"
     + "%x1f%(trailers:key=Waypost-Task,valueonly,separator=%x2c)";
-  const readPage = (size, extra = [], opts = {}) => {
-    const r = git(["log", `-n${size}`, format, "--date=short", ...extra], opts);
-    if (!r || r.error || r.status !== 0) die("git log failed — is this a repository with commits?");
-    return (r.stdout || "").split("\n").filter(Boolean).map((line) => {
-      const [sha, author, date, subject, harness, session, story, provider, os, tasks] = line.split("\x1f");
-      return { sha, author, date, subject, harness: harness.trim(), session: session.trim(),
-        story: story.trim(), provider: (provider || "").trim(), os: (os || "").trim(),
-        tasks: (tasks || "").split(",").map((s) => s.trim()).filter(Boolean) };
-    });
+  const readPage = (size, extra = [], opts = {}, retryOverflow = false) => {
+    for (let usedSize = size;;) {
+      const r = git(["log", `-n${usedSize}`, format, "--date=short", ...extra], opts);
+      if (retryOverflow && usedSize > 1 && r?.error?.code === "ENOBUFS") {
+        usedSize = Math.max(1, Math.floor(usedSize / 2));
+        continue;
+      }
+      if (!r || r.error || r.status !== 0) die("git log failed — is this a repository with commits?");
+      const rows = (r.stdout || "").split("\n").filter(Boolean).map((line) => {
+        const [sha, author, date, subject, harness, session, story, provider, os, tasks] = line.split("\x1f");
+        return { sha, author, date, subject, harness: harness.trim(), session: session.trim(),
+          story: story.trim(), provider: (provider || "").trim(), os: (os || "").trim(),
+          tasks: (tasks || "").split(",").map((s) => s.trim()).filter(Boolean) };
+      });
+      return { rows, size: usedSize };
+    }
   };
   const matches = (row) => filters.every(([k, v]) =>
     (k === "Waypost-Story" ? row.story
@@ -402,7 +409,7 @@ function log(argv) {
     && (!task || row.tasks.includes(task));
   const rows = [], window = [];
   if ((!filters.length && !task) || n === 0) {
-    const all = readPage(n);
+    const { rows: all } = readPage(n);
     rows.push(...all.slice(0, n));
     window.push(...all.slice(0, n));
   } else {
@@ -411,9 +418,11 @@ function log(argv) {
     if (!head || head.error || head.status !== 0 || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(revision)) {
       die("git log failed to resolve HEAD");
     }
-    const pageSize = 200;
+    let pageSize = 200;
     for (let skip = 0;;) {
-      const page = readPage(pageSize, [`--skip=${skip}`, revision, "--"], { maxBuffer: 1024 * 1024 });
+      const result = readPage(pageSize, [`--skip=${skip}`, revision, "--"], { maxBuffer: 1024 * 1024 }, true);
+      const page = result.rows;
+      pageSize = result.size;
       for (const row of page) {
         if (window.length < n) window.push(row);
         if (rows.length < n && matches(row)) rows.push(row);
