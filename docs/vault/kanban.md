@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-29T19:53:11.557Z
+generated_at: 2026-10-29T23:26:47.652Z
 
 ---
 
@@ -180,6 +180,7 @@ generated_at: 2026-10-29T19:53:11.557Z
 - [x] [[epics/WP-21/stories/story-reduce-overflowing-log-pages-without-increasing-buffer-limits|WP-21: Reduce overflowing log pages without increasing buffer limits]] #p2 #done
 - [x] [[epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match|WP-21: Retain only requested search results while counting every match]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-file-membership-within-each-doctor-link-check|WP-21: Reuse file membership within each Doctor link check]] #p2 #done
+- [x] [[epics/WP-21/stories/story-reuse-file-membership-within-each-supersede-integrity-check|WP-21: Reuse file membership within each supersede integrity check]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation|WP-21: Reuse link lookup inputs within each readiness calculation]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution|WP-21: Reuse the file lookup set across graph link resolution]] #p2 #done
 - [x] [[epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames|WP-21: Search source artifacts that share derived view filenames]] #p2 #done

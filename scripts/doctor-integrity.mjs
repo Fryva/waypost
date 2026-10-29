@@ -46,8 +46,13 @@ export function checkSupersedes(index, files) {
     seen.add(k);
     out.push(finding("vault", level, "supersedes", message, rel));
   };
-  const resolve = (entry, kind) =>
-    resolveLinkTarget(entry, "ref", { ...ctx, sourceRel: null, kinds: kind ? [kind] : null });
+  const resolve = (entry, kind) => {
+    const scoped = { ...ctx, sourceRel: null, kinds: kind ? [kind] : null };
+    const result = resolveLinkTarget(entry, "ref", scoped);
+    // Keep the resolver-owned lazy membership local to this check.
+    ctx._fileSet ??= scoped._fileSet;
+    return result;
+  };
   const declaresBack = (target, key, self) =>
     refsOf(target.fm, key).some((e) => {
       const r = resolve(e, self.type);
@@ -68,7 +73,7 @@ export function checkSupersedes(index, files) {
           // "not an artifact" was both false and unfixable without deleting the
           // declaration. The graph does not render that edge, which is worth
           // saying — but it is not an error.
-          const anywhere = resolveLinkTarget(entry, "ref", { ...ctx, sourceRel: null, kinds: null });
+          const anywhere = resolve(entry, null);
           if (anywhere.outcome === "node") {
             add("warn", node.path,
               `${key} "${entry}" resolves to ${anywhere.node.path} (kind: ${anywhere.node.type}) — `
