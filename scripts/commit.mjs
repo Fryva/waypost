@@ -399,9 +399,23 @@ function log(argv) {
 
   if (argv.includes("--json")) { process.stdout.write(JSON.stringify(rows, null, 2) + "\n"); return; }
   if (!rows.length) process.stdout.write("no commits match\n");
-  for (const row of rows) {
-    const tag = [row.harness || "—", row.provider || null, row.os || null, row.story || null, ...row.tasks].filter(Boolean).join(" · ");
-    process.stdout.write(`${row.sha}  ${row.date}  ${(tag).padEnd(44)} ${row.subject}\n`);
+  const baseKey = (row) => JSON.stringify([row.date, row.harness, row.provider, row.os]);
+  for (let start = 0; start < rows.length;) {
+    const row = rows[start], key = baseKey(row);
+    let end = start + 1;
+    while (end < rows.length && baseKey(rows[end]) === key) end++;
+    if (end - start === 1) {
+      const tag = [row.harness || "—", row.provider || null, row.os || null, row.story || null, ...row.tasks].filter(Boolean).join(" · ");
+      process.stdout.write(`${row.sha}  ${row.date}  ${(tag).padEnd(44)} ${row.subject}\n`);
+    } else {
+      const base = [row.harness || "—", row.provider || null, row.os || null].filter(Boolean).join(" · ");
+      process.stdout.write(`${row.date}  ${base} [${end - start} commits]\n`);
+      for (const commit of rows.slice(start, end)) {
+        const tag = [commit.story || null, ...commit.tasks].filter(Boolean).join(" · ");
+        process.stdout.write(`  ${commit.sha}  ${tag ? tag + " " : ""}${commit.subject}\n`);
+      }
+    }
+    start = end;
   }
   // Counted over the latest commits before any filter: an untagged commit can never match a
   // --story/--harness/--provider filter, so counting the filtered rows always said 0.

@@ -151,6 +151,76 @@ test("log counts commits without waypost trailers before its filter, so a filter
   assert.match(filtered, /2 of the last 3 commits carry no waypost trailers/, "the base and the plain commit are untagged");
   assert.match(waypost(proj, ["log", "--harness", "cursor"]).stdout, /no commits match[\s\S]*2 of the last 3 commits carry no waypost trailers/);
 });
+test("log groups only adjacent raw base metadata and preserves per-commit audit details", () => {
+  const proj = repo();
+  const base = { date: "2026-01-02", harness: "codex", provider: "openai", os: "linux-6" };
+  const rows = [
+    { ...base, subject: "First  detailed · change " + "full subject ".repeat(20).trim(), story: "PS-1/story-one", tasks: ["EXT-12", "QA-1"], author: "Ada" },
+    { ...base, subject: "Second change", story: "PS-1/story-two", tasks: ["EXT-123", "QA-1"], author: "Boris" },
+    { ...base, provider: "other", subject: "Boundary B" },
+    { ...base, subject: "Return to A", story: "PS-1/story-three" },
+    { ...base, date: "2026-01-03", harness: "date-test", subject: "Date one" },
+    { ...base, date: "2026-01-04", harness: "date-test", subject: "Date two" },
+    { ...base, date: "2026-01-05", subject: "Harness one" },
+    { ...base, date: "2026-01-05", harness: "claude", subject: "Harness two" },
+    { ...base, date: "2026-01-06", harness: "qwen", provider: "", subject: "Provider empty" },
+    { ...base, date: "2026-01-06", harness: "qwen", subject: "Provider set" },
+    { ...base, date: "2026-01-07", harness: "qwen", os: "", subject: "OS empty" },
+    { ...base, date: "2026-01-07", harness: "qwen", subject: "OS set" },
+    { ...base, date: "2026-01-08", harness: "", subject: "Missing harness" },
+    { ...base, date: "2026-01-08", harness: "—", subject: "Rendered harness collision" },
+    { ...base, date: "2026-01-09", provider: "a · b", os: "c", subject: "Tuple collision one" },
+    { ...base, date: "2026-01-09", provider: "a", os: "b · c", subject: "Tuple collision two" },
+  ];
+  for (const [i, row] of rows.slice().reverse().entries()) {
+    const trailers = [
+      ...(row.harness ? [`Waypost-Harness: ${row.harness}`] : []),
+      `Waypost-Session: fixture-${i}`,
+      ...(row.provider ? [`Waypost-Provider: ${row.provider}`] : []),
+      ...(row.os ? [`Waypost-OS: ${row.os}`] : []),
+      ...(row.story ? [`Waypost-Story: ${row.story}`] : []),
+      ...(row.tasks || []).map(task => `Waypost-Task: ${task}`),
+    ];
+    const r = git(proj, ["commit", "--allow-empty", "-qm", row.subject + "\n\n" + trailers.join("\n")], {
+      env: { ...ambientEnv(), GIT_AUTHOR_NAME: row.author || "T", GIT_AUTHOR_EMAIL: "t@example.com",
+        GIT_AUTHOR_DATE: row.date + "T12:00:00+00:00", GIT_COMMITTER_DATE: row.date + "T12:00:00+00:00" },
+    });
+    assert.equal(r.status, 0, r.stderr);
+  }
+  const n = String(rows.length);
+  const jsonBytes = waypost(proj, ["log", "--json", "-n", n]).stdout;
+  const records = JSON.parse(jsonBytes);
+  assert.deepEqual(records.map(row => row.subject), rows.map(row => row.subject));
+  for (const [i, row] of rows.entries()) {
+    const { date, harness, provider, os, story, tasks } = records[i];
+    assert.deepEqual({ date, harness, provider, os, story, tasks },
+      { date: row.date, harness: row.harness, provider: row.provider, os: row.os, story: row.story || "", tasks: row.tasks || [] });
+  }
+  assert.deepEqual(records.map(row => row.sha), git(proj, ["log", "-n" + n, "--format=%h"]).stdout.trim().split("\n"));
+  assert.equal(records[0].author, "Ada"); assert.equal(records[1].author, "Boris");
+  assert.notEqual(records[0].session, records[1].session, "grouping does not assert a shared session/author");
+  const legacy = row => `${row.sha}  ${row.date}  ${[row.harness || "—", row.provider || null, row.os || null, row.story || null, ...row.tasks].filter(Boolean).join(" · ").padEnd(44)} ${row.subject}\n`;
+  const detail = row => `  ${row.sha}  ${[row.story || null, ...row.tasks].filter(Boolean).join(" · ")} ${row.subject}\n`;
+  const heading = "2026-01-02  codex · openai · linux-6 [2 commits]\n";
+  const human = waypost(proj, ["log", "-n", n]).stdout;
+  assert.equal(human, heading + records.slice(0, 2).map(detail).join("") + records.slice(2).map(legacy).join(""),
+    "every row keeps its exact values/order; only the first adjacent pair shares a header");
+  assert.ok(human.length < records.map(legacy).join("").length);
+  assert.equal(waypost(proj, ["log", "-n", "1"]).stdout, legacy(records[0]), "singleton keeps legacy bytes");
+  assert.equal(waypost(proj, ["log", "-n", "2"]).stdout, heading + records.slice(0, 2).map(detail).join(""));
+  assert.equal(waypost(proj, ["log", "--provider", "other", "-n", n]).stdout, legacy(records[2]));
+  assert.equal(waypost(proj, ["log", "--task", "EXT-12", "-n", n]).stdout, legacy(records[0]), "task match stays exact");
+  const selected = [records[0], records[1], records[3]];
+  const selectedText = "2026-01-02  codex · openai · linux-6 [3 commits]\n" + selected.map(row => {
+    const tag = [row.story || null, ...row.tasks].filter(Boolean).join(" · ");
+    return `  ${row.sha}  ${tag ? tag + " " : ""}${row.subject}\n`;
+  }).join("");
+  assert.equal(waypost(proj, ["log", "--provider", "openai", "--story", "PS-1/story", "-n", n]).stdout, selectedText,
+    "adjacency is evaluated after filtering, without sorting");
+  assert.equal(waypost(proj, ["log", "--harness", "not-present", "-n", n]).stdout, "no commits match\n");
+  assert.equal(waypost(proj, ["log", "--json", "-n", n]).stdout, jsonBytes, "human rendering never changes JSON");
+});
+
 test("a story reference is resolved against the vault, so a typo cannot enter the record", () => {
   const proj = repo();
   waypost(proj, ["draft", "story", "PS-1", "Second", "--write"]);

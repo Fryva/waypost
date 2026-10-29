@@ -22,7 +22,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 | `waypost harnesses` | which harnesses are supported, where roles land, how to invoke them |
 | `waypost commit -m "<what>" [--task <id>]` | commit with harness/session/story trailers; `--task` adds an external tracker's id |
 | `waypost merge <ref>` | merge, re-derive the views, then commit |
-| `waypost log [--story\|--task\|--harness]` | history read back through those trailers |
+| `waypost log [--story\|--task\|--harness]` | history through trailers; adjacent records share date/harness/provider/OS headings, with story/tasks kept per commit; `--json` retains full records |
 | `waypost sessions [--touch] [--claim/--release] [--prune [--older-than <span>]]` | active sessions and story claims |
 | `waypost watch` | stay live and see other devices' events |
 | `waypost lease <path…>` | announce the files you are editing right now |
