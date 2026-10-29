@@ -1347,6 +1347,36 @@ test("bin/waypost search --limit rejects a non-integer instead of silently print
   assert.match(bad.stderr, /--limit/);
 });
 
+test("bin/waypost search: negative candidates preserve mixed results and late counts", () => {
+  const { proj, vault } = makeVaultProject();
+  for (let i = 0; i < 30; i++) writeFileSync(join(vault, "adr", `negative-${i}.md`),
+    "---\ntype: adr\ntitle: Noise\nstatus: accepted\n---\n\nunrelated text\n");
+  writeFileSync(join(vault, "adr", "a-title.md"), "---\ntype: adr\ntitle: Selective title\nstatus: accepted\n---\n");
+  writeFileSync(join(vault, "adr", "b-body.md"), "---\ntype: adr\ntitle: Body\nstatus: accepted\n---\n\nSelective body\n");
+  writeFileSync(join(vault, "adr", "c-Selective-path.md"), "---\ntype: adr\ntitle: Path\nstatus: accepted\n---\n");
+  writeFileSync(join(vault, "adr", "d-wrong-kind.md"), "---\ntype: story\ntitle: Selective wrong kind\n---\n");
+  writeFileSync(join(vault, "adr", ".hidden.md"), "Selective hidden\n");
+  writeFileSync(join(vault, "graph.md"), "Selective derived\n");
+  mkdirSync(join(vault, "adr", "zz"));
+  for (const name of ["one", "two"]) writeFileSync(join(vault, "adr", "zz", `.${name}.md.icloud`), "");
+  const r = runBinRaw(proj, ["search", "Selective", "--kind", "adr", "--limit", "2"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, "adr/a-title.md  (accepted)\n  Selective title (line 3)\n"
+    + "adr/b-body.md  (accepted)\n  Body\n  7: Selective body\n"
+    + "…and 1 more (--limit)\n2 file(s) not downloaded from iCloud — open them once to sync\n");
+});
+
+test("bin/waypost search: negative prefilter keeps escaped literals literal", () => {
+  const { proj, vault } = makeVaultProject();
+  const p = join(vault, "adr", "literal-prefilter.md");
+  for (const needle of ["a.b", "[tag]", "a+b", "^start$", "left|right", "\\b", "(group)", "back\\slash", "😀", "\u2028"]) {
+    writeFileSync(p, `---\ntype: adr\ntitle: Plain\nstatus: accepted\n---\n\nLiteral ${needle} suffix\n`);
+    const r = runBinRaw(proj, ["search", needle, "--kind", "adr"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `adr/literal-prefilter.md  (accepted)\n  Plain\n  7: Literal ${needle} suffix\n`);
+  }
+});
+
 test("bin/waypost search: first line scanner preserves LF split semantics", () => {
   const source = readFileSync(join(REPO, "bin", "cli", "views.mjs"), "utf8");
   const start = source.indexOf("function firstSearchLine(");

@@ -140,6 +140,9 @@ function handleSearch(args) {
       if (!n.endsWith(".md")) continue;
       if (excluded.has(abs)) continue;
       let text; try { text = readFileSync(abs, "utf8"); } catch { continue; }
+      // A literal line/path match must also occur in the whole text/path.
+      // This only rejects negatives; line-level matching below remains required.
+      if (!re.test(text) && !re.test(r)) continue;
       // parseFrontmatter, not an inline \n-only regex: a CRLF or BOM file
       // (the exact shape doctor's own cross-OS checks exist to catch before
       // it is fixed) used to read as "no frontmatter at all" here, so
