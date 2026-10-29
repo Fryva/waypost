@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-29T18:24:14.146Z
+generated_at: 2026-10-29T18:45:34.156Z
 
 ---
 
@@ -179,6 +179,7 @@ generated_at: 2026-10-29T18:24:14.146Z
 - [x] [[epics/WP-21/stories/story-group-adjacent-log-metadata-without-hiding-commit-identity|WP-21: Group adjacent log metadata without hiding commit identity]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reduce-overflowing-log-pages-without-increasing-buffer-limits|WP-21: Reduce overflowing log pages without increasing buffer limits]] #p2 #done
 - [x] [[epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match|WP-21: Retain only requested search results while counting every match]] #p2 #done
+- [x] [[epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation|WP-21: Reuse link lookup inputs within each readiness calculation]] #p2 #done
 - [x] [[epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames|WP-21: Search source artifacts that share derived view filenames]] #p2 #done
 - [x] [[epics/WP-21/stories/story-skip-parsing-search-documents-that-cannot-match-the-query|WP-21: Skip parsing search documents that cannot match the query]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done

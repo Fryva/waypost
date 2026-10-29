@@ -50,12 +50,11 @@ export function stories(vault) {
 // settled state: [{kind, ref, status, via?}], status "missing"/"ambiguous"
 // when the reference resolves to no artifact. Resolved by the graph's own
 // resolver, so a link doctor and graph.md accept is the one counted here.
-function designGates(story, vault, index) {
+function designGates(story, vault, index, files, fileSet) {
   if (!story.specs.length) return [];
   const sourceRel = relative(vault, story.path).split("\\").join("/");
-  const files = index.nodes.map((n) => ({ rel: n.path, name: basename(n.path) }));
   const resolve = (ref, kind) => {
-    const r = resolveLinkTarget(ref, "ref", { sourceRel, index, files, kinds: [kind] });
+    const r = resolveLinkTarget(ref, "ref", { sourceRel, index, files, kinds: [kind], _fileSet: fileSet });
     return r.outcome === "node" ? r.node : r.outcome === "ambiguous" ? "ambiguous" : "missing";
   };
   const open = [];
@@ -79,6 +78,8 @@ export function readiness(vault, { claims = null, layout = null } = {}) {
     ? buildNodeIndex({ vault_path: vault }, layout ?? loadLayout(readConfig()?.layout || "engineering")) : null;
   const byRef = new Map(all.map((s) => [s.ref, s]));
   const claimed = new Map((claims ?? claimsOf(vault)).map((c) => [c.story, c]));
+  const files = index ? index.nodes.map((n) => ({ rel: n.path, name: basename(n.path) })) : null;
+  const fileSet = files ? new Set(files.map((f) => f.rel)) : null;
   const rows = all.map((s) => {
     const open = [], unknown = [];
     for (const b of s.blocked_by) {
@@ -87,7 +88,7 @@ export function readiness(vault, { claims = null, layout = null } = {}) {
       else if (!SETTLED.has(t.status)) open.push(b);
     }
     const c = claimed.get(s.ref) || null;
-    const gates = index ? designGates(s, vault, index) : [];
+    const gates = index ? designGates(s, vault, index, files, fileSet) : [];
     const blocked = open.length + unknown.length + gates.length > 0 || s.blocked_by_block_form;
     return {
       ...s, blockers_open: open, blockers_unknown: unknown, design_open: gates,
