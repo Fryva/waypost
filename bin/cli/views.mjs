@@ -1,6 +1,6 @@
 // Waypost CLI: views.
-import { parseFrontmatter } from "../../scripts/lib.mjs";
-import { fail, flag, opt, positionals, readConfig, run, runJson } from "./core.mjs";
+import { loadLayout, parseFrontmatter } from "../../scripts/lib.mjs";
+import { fail, flag, opt, positionals, readConfig, run, runJson, withRegistryHome } from "./core.mjs";
 import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -88,6 +88,13 @@ function handleSearch(args) {
   if (!Number.isInteger(limit) || limit <= 0) fail(`--limit must be a positive integer, got "${limitRaw}"`);
   const re = new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
   const out = [];
+  const excluded = new Set(["kanban.md", "graph.md", "code-map.md"].map(n => join(cfg.vault_path, n)));
+  // Only the actual views are derived; an artifact may share their filename.
+  // Search also works when its optional layout cannot be read.
+  try {
+    const layout = withRegistryHome(() => loadLayout(cfg.layout || "engineering"));
+    if (layout.kanban) excluded.add(join(cfg.vault_path, layout.kanban.file || "kanban.md"));
+  } catch {}
   // iCloud leaves a placeholder — ".<name>.icloud" — for a file evicted from
   // local storage; the real name never appears in the listing until it syncs
   // back down. Counted, not searched: its content is not on disk to match.
@@ -118,7 +125,7 @@ function handleSearch(args) {
         continue;
       }
       if (!n.endsWith(".md")) continue;
-      if (["kanban.md", "graph.md", "code-map.md"].includes(n)) continue;
+      if (excluded.has(abs)) continue;
       let text; try { text = readFileSync(abs, "utf8"); } catch { continue; }
       // parseFrontmatter, not an inline \n-only regex: a CRLF or BOM file
       // (the exact shape doctor's own cross-OS checks exist to catch before

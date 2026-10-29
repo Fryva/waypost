@@ -1347,6 +1347,90 @@ test("bin/waypost search --limit rejects a non-integer instead of silently print
   assert.match(bad.stderr, /--limit/);
 });
 
+test("bin/waypost search: nested source artifacts may share derived view filenames", () => {
+  const { proj, vault } = makeVaultProject();
+  const names = ["code-map.md", "graph.md", "kanban.md"];
+  for (const name of names) {
+    writeFileSync(join(vault, name), "---\ntype: adr\ntitle: DerivedMarker\n---\n");
+    writeFileSync(join(vault, "adr", name), `---\ntype: adr\ntitle: SourceMarker ${name}\nstatus: accepted\n---\n`);
+  }
+  const r = runBinRaw(proj, ["search", "SourceMarker", "--kind", "adr"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, names.map(name => `adr/${name}  (accepted)\n  SourceMarker ${name} (line 3)\n`).join(""));
+  const roots = runBinRaw(proj, ["search", "DerivedMarker"]);
+  assert.equal(roots.status, 0, roots.stderr); assert.equal(roots.stdout, "no match\n");
+  const path = runBinRaw(proj, ["search", "adr/graph.md", "--kind", "adr"]);
+  assert.equal(path.status, 0, path.stderr);
+  assert.equal(path.stdout, "adr/graph.md  (accepted)\n  SourceMarker graph.md\n");
+  const wrongKind = runBinRaw(proj, ["search", "SourceMarker", "--kind", "story"]);
+  assert.equal(wrongKind.status, 0, wrongKind.stderr); assert.equal(wrongKind.stdout, "no match\n");
+  symlinkSync(join(vault, "graph.md"), join(vault, "adr", "alias.md"));
+  const alias = runBinRaw(proj, ["search", "DerivedMarker"]);
+  assert.equal(alias.status, 0, alias.stderr);
+  assert.equal(alias.stdout, "adr/alias.md\n  DerivedMarker (line 3)\n", "file aliases keep lexical path semantics");
+});
+
+function searchToolHome() {
+  const home = mkdtempSync(join(tmpdir(), "waypost-search-tool-"));
+  // Real CLI files give core.ROOT its own tree; shared script imports stay pure.
+  cpSync(join(REPO, "bin"), join(home, "bin"), { recursive: true });
+  symlinkSync(join(REPO, "scripts"), join(home, "scripts"), "dir");
+  symlinkSync(join(REPO, "harnesses"), join(home, "harnesses"), "dir");
+  mkdirSync(join(home, "scaffold", "layouts"), { recursive: true });
+  return home;
+}
+
+test("bin/waypost search: custom boards are excluded by exact native path", () => {
+  const { proj, vault } = makeVaultProject();
+  const home = searchToolHome();
+  writeFileSync(join(vault, "adr", "kanban.md"), "---\ntype: adr\ntitle: BoardMarker source\n---\n");
+  for (const file of ["boards/kanban.md", "boards/../boards/kanban.md", "boards/tasks.md", "boards\\kanban.md", "../outside.md"]) {
+    const target = join(vault, file);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, "---\ntype: adr\ntitle: BoardMarker derived\n---\n");
+    writeFileSync(join(home, "scaffold", "layouts", "engineering.json"), JSON.stringify({ kanban: { file } }));
+    const r = spawnSync(process.execPath, [join(home, "bin", "waypost"), "search", "BoardMarker", "--kind", "adr"], {
+      encoding: "utf8", cwd: REPO, timeout: 15000,
+      env: { ...ENV, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: home, WAYPOST_NO_BEAT: "1" },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, "adr/kanban.md\n  BoardMarker source (line 3)\n", file);
+    rmSync(target);
+  }
+});
+
+test("bin/waypost search: unreadable layouts do not prevent source lookup", () => {
+  const { proj, vault } = makeVaultProject();
+  const home = searchToolHome();
+  writeFileSync(join(vault, "adr", "graph.md"), "---\ntype: adr\ntitle: LayoutMarker\n---\n");
+  writeFileSync(join(vault, "graph.md"), "LayoutMarker root view\n");
+  for (const content of [null, "{broken", "null", JSON.stringify({ kanban: false })]) {
+    const layout = join(home, "scaffold", "layouts", "engineering.json");
+    if (content === null) rmSync(layout, { force: true }); else writeFileSync(layout, content);
+    const r = spawnSync(process.execPath, [join(home, "bin", "waypost"), "search", "LayoutMarker"], {
+      encoding: "utf8", cwd: REPO, timeout: 15000,
+      env: { ...ENV, WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: home, WAYPOST_NO_BEAT: "1" },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, "adr/graph.md\n  LayoutMarker (line 3)\n");
+  }
+});
+
+test("bin/waypost search: foreign tool roots cannot hide canonical source artifacts", () => {
+  const { proj, vault } = makeVaultProject();
+  const foreign = searchToolHome();
+  writeFileSync(join(foreign, "scaffold", "layouts", "engineering.json"), JSON.stringify({ kanban: { file: "adr/graph.md" } }));
+  writeFileSync(join(vault, "adr", "graph.md"), "---\ntype: adr\ntitle: ForeignMarker\n---\n");
+  for (const overrides of [{ WAYPOST_HOME: foreign }, { WAYPOST_HOME: undefined, CLAUDE_PLUGIN_ROOT: foreign }]) {
+    const r = spawnSync(process.execPath, [join(REPO, "bin", "waypost"), "search", "ForeignMarker"], {
+      encoding: "utf8", cwd: REPO, timeout: 15000,
+      env: { ...ENV, WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1", ...overrides },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, "adr/graph.md\n  ForeignMarker (line 3)\n");
+  }
+});
+
 test("bin/waypost search: exact title hits appear once with their original line locator", () => {
   const { proj, vault } = makeVaultProject();
   const path = join(vault, "adr", "compact.md");
