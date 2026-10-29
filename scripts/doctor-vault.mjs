@@ -127,6 +127,8 @@ export function checkWikilinks(cfg, artifacts, vaultFiles = null, nodeIndex = nu
       return [finding("vault", "warn", "wikilink", `Link check skipped — node index failed: ${e.message}`)];
     }
   }
+  // Share the lazy membership cache within this check, keeping source contexts separate.
+  let fileSet;
   for (const a of artifacts) {
     const ctx = {
       sourceRel: a.rel,
@@ -134,8 +136,10 @@ export function checkWikilinks(cfg, artifacts, vaultFiles = null, nodeIndex = nu
       files,
       exists: (rel) => existsSync(join(cfg.vault_path, rel)),
     };
+    if (fileSet) ctx._fileSet = fileSet;
     for (const link of extractLinks(a.body)) {
       const r = resolveLinkTarget(link.target, link.type, ctx);
+      fileSet ??= ctx._fileSet;
       if (r.outcome === "dead") {
         out.push(link.type === "wikilink"
           ? finding("vault", "issue", "wikilink", `Dead wiki-link [[${link.target}]].`, a.rel)

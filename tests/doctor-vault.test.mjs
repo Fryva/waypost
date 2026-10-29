@@ -1,7 +1,7 @@
 import "./env.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, realpathSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, chmodSync, utimesSync } from "node:fs";
+import { mkdtempSync, realpathSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, renameSync, chmodSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -109,6 +109,82 @@ test("doctor vault module: explicit and default link indexes keep full dead and 
   assert.equal(skipped[0].level, "warn");
   assert.match(skipped[0].message, /^Link check skipped — node index failed:/);
   assert.throws(() => focused.checkWikilinks({ ...cfg, vault_path: join(cfg.vault_path, "missing") }, arts), { code: "ENOENT" });
+});
+
+// Observe caller membership preparation without changing the resolver contract.
+function observedFiles(files) {
+  let preparations = 0;
+  const observed = new Proxy(files, { get(target, key, receiver) {
+    if (key === "map") return (...args) => { preparations++; return Array.prototype.map.apply(target, args); };
+    return Reflect.get(target, key, receiver);
+  } });
+  return { files: observed, count: () => preparations };
+}
+const emptyLinkIndex = () => ({ nodes: [], byPath: new Map(), byIdentity: new Map(), byStem: new Map() });
+
+test("doctor vault module: one membership preparation preserves duplicate findings and source scopes", t => {
+  const { put, cfg } = fixture(t);
+  put("vault/adr/local.md", md("adr", "local"));
+  put("vault/adr/topic.md", md("adr", "topic"));
+  put("vault/research/topic.md", md("research", "topic"));
+  put("vault/loose.md", "Outside node scope\n");
+  put("vault/asset.png", "asset");
+  const arts = freeze([
+    { rel: "adr/a.md", body: "[[missing]] [[missing]] [[topic]] [[loose]] [local](./local.md) [bad](./no.md) [asset](../asset.png)" },
+    { rel: "specs/b.md", body: "[[missing]] [local](./local.md)" },
+  ]);
+  const files = freeze(doctor.walkVaultFiles(cfg.vault_path));
+  const before = JSON.stringify({ arts, files });
+  const index = buildNodeIndex(cfg, loadLayout("engineering"));
+  const dead = (file, target, relative = false) => ({ group: "vault", level: "issue", check: relative ? "rel-link" : "wikilink",
+    message: relative ? `Dead relative link (${target}).` : `Dead wiki-link [[${target}]].`, file });
+  const expected = [dead("adr/a.md", "missing"), dead("adr/a.md", "missing"),
+    { group: "vault", level: "warn", check: "wikilink", message: "Ambiguous wiki-link [[topic]] — matches adr/topic.md, research/topic.md; qualify with a path.", file: "adr/a.md" },
+    dead("adr/a.md", "./no.md", true), dead("specs/b.md", "missing"), dead("specs/b.md", "./local.md", true)];
+  for (let call = 0; call < 2; call++) {
+    const observed = observedFiles(files);
+    assert.deepEqual(focused.checkWikilinks(cfg, arts, observed.files, index), expected);
+    assert.ok(observed.count() <= 1, "membership prepared at most once per check");
+  }
+  assert.equal(JSON.stringify({ arts, files }), before);
+});
+
+test("doctor vault module: membership stays lazy, reuses an empty Set and keeps first-error order", t => {
+  const { cfg } = fixture(t);
+  const index = emptyLinkIndex();
+  const sentinel = new Error("unused membership prepared");
+  const cold = new Proxy([], { get(target, key, receiver) {
+    if (key === "map") throw sentinel;
+    return Reflect.get(target, key, receiver);
+  } });
+  assert.deepEqual(focused.checkWikilinks(cfg, [{ rel: "a.md", body: "plain text" }, { rel: "b.md", body: "`[[ignored]]`" }], cold, index), []);
+  assert.throws(() => focused.checkWikilinks(cfg, [{ rel: "a.md", body: null }], cold, index), error => error instanceof TypeError && error !== sentinel);
+  assert.throws(() => focused.checkWikilinks(cfg, [{ rel: "a.md", body: "[[missing]]" }], [null], index), TypeError);
+  const observed = observedFiles([]);
+  const arts = freeze([{ rel: "a.md", body: "[[missing]]" }, { rel: "b.md", body: "[[missing]]" }]);
+  assert.deepEqual(focused.checkWikilinks(cfg, arts, observed.files, index), arts.map(a => ({ group: "vault", level: "issue", check: "wikilink", message: "Dead wiki-link [[missing]].", file: a.rel })));
+  assert.ok(observed.count() <= 1, "empty membership is reusable");
+});
+
+test("doctor vault module: the same files array stays fresh across create, rename and delete", t => {
+  const { cfg, put, vault } = fixture(t);
+  const files = [];
+  const index = emptyLinkIndex();
+  const check = (target, exists) => {
+    files.splice(0, files.length, ...doctor.walkVaultFiles(vault));
+    const arts = freeze([{ rel: "source.md", body: `[[${target}]]` }]);
+    const before = JSON.stringify({ arts, files });
+    assert.deepEqual(focused.checkWikilinks(cfg, arts, files, index), exists ? [] : [{ group: "vault", level: "issue", check: "wikilink", message: `Dead wiki-link [[${target}]].`, file: "source.md" }]);
+    assert.equal(JSON.stringify({ arts, files }), before);
+  };
+  check("notes/fresh.md", false);
+  put("vault/notes/fresh.md", "Not an indexed node\n");
+  check("notes/fresh.md", true);
+  renameSync(join(vault, "notes/fresh.md"), join(vault, "notes/renamed.md"));
+  check("notes/renamed.md", true);
+  check("notes/fresh.md", false);
+  rmSync(join(vault, "notes/renamed.md"));
+  check("notes/renamed.md", false);
 });
 
 test("doctor vault module: missing and block-form dependencies precede the single cycle finding", t => {
