@@ -91,3 +91,71 @@ test("doctor specs module: ambiguous attribution warns once per spec while share
   ]);
   assert.equal(JSON.stringify(input), before);
 });
+
+function observedSpec(rel, fm, body) {
+  let reads = 0;
+  return { spec: Object.freeze({ kind: "spec", rel, fm: freeze(fm), get body() { reads++; return body; } }), reads: () => reads };
+}
+
+test("doctor specs module: aliases reuse rich, absent and empty acceptance without suppressing per-reference findings", () => {
+  const rich = observedSpec("specs/SPEC-001-rules.md", { id: "SPEC-001", stories: '["E/a", "F/b"]' }, "## Acceptance\n- [ ] Shared\n");
+  const absent = observedSpec("specs/SPEC-002-missing.md", { id: "SPEC-002" }, "No section\n");
+  const empty = observedSpec("specs/SPEC-003-empty.md", { id: "SPEC-003" }, "## Acceptance\n\n");
+  const stories = ["epics/E/stories/a.md", "epics/F/stories/b.md"].map((rel, i) => artifact("story", rel,
+    { id: i ? "b" : "a", status: "done", closed_at: "2035-01-01", specs: '["SPEC-001", "rules", "SPEC-002", "missing", "empty"]' }));
+  const input = Object.freeze([rich.spec, absent.spec, empty.spec, ...stories]);
+  const expected = stories.flatMap(story => [
+    ...["SPEC-001", "rules"].map(id => ({ group: "vault", level: "issue", check: "spec-acceptance",
+      message: `Story is done but spec "${id}" acceptance item is unchecked: "Shared".`, file: story.rel })),
+    ...["SPEC-002", "missing"].map(id => ({ group: "vault", level: "warn", check: "spec-acceptance",
+      message: `Covering spec "${id}" has no Acceptance section — its criteria cannot gate this story.`, file: absent.spec.rel })),
+  ]);
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), expected);
+  assert.deepEqual([rich.reads(), absent.reads(), empty.reads()], [1, 1, 1]);
+});
+
+test("doctor specs module: cache keys distinguish artifact objects sharing a path", () => {
+  const first = observedSpec("specs/same.md", { id: "one" }, "## Acceptance\n- [ ] First\n");
+  const second = observedSpec("specs/same.md", { id: "two" }, "## Acceptance\n- [ ] Second\n");
+  const story = artifact("story", "epics/E/stories/a.md", { id: "a", status: "done", closed_at: "2035-01-01", specs: '["one", "two"]' });
+  assert.deepEqual(focused.checkSpecAcceptance(layout, Object.freeze([first.spec, second.spec, story]), required), [
+    { group: "vault", level: "issue", check: "spec-acceptance", message: 'Story is done but spec "one" acceptance item is unchecked: "First".', file: story.rel },
+    { group: "vault", level: "issue", check: "spec-acceptance", message: 'Story is done but spec "two" acceptance item is unchecked: "Second".', file: story.rel },
+  ]);
+  assert.deepEqual([first.reads(), second.reads()], [1, 1]);
+});
+
+test("doctor specs module: ineligible checks do not parse and first body errors keep their identity", () => {
+  const sentinel = new Error("body unavailable");
+  let reads = 0;
+  const spec = Object.freeze({ kind: "spec", rel: "specs/bad.md", fm: freeze({ id: "bad" }), get body() { reads++; throw sentinel; } });
+  const story = artifact("story", "epics/E/stories/a.md", { id: "a", status: "done", closed_at: "2035-01-01", specs: '["bad"]' });
+  assert.deepEqual(focused.checkSpecAcceptance(layout, [spec, story], {}), []);
+  assert.deepEqual(focused.checkSpecAcceptance({ ...layout, folders: [] }, [spec, story], required), []);
+  const skipped = [
+    artifact("story", story.rel, { ...story.fm, status: "in-progress" }),
+    artifact("story", story.rel, { ...story.fm, closed_at: "2010-01-01" }),
+    artifact("story", story.rel, { ...story.fm, specs: '["absent"]' }),
+  ];
+  assert.deepEqual(focused.checkSpecAcceptance(layout, [spec, ...skipped], required), []);
+  assert.equal(reads, 0);
+  for (let call = 0; call < 2; call++) assert.throws(() => focused.checkSpecAcceptance(layout, [spec, story], required), error => error === sentinel);
+  assert.equal(reads, 2);
+});
+
+test("doctor specs module: later checks see changed bodies on the same artifact and array", () => {
+  const spec = { kind: "spec", rel: "specs/rules.md", fm: freeze({ id: "rules" }), body: "" };
+  const story = artifact("story", "epics/E/stories/a.md", { id: "a", status: "done", closed_at: "2035-01-01", specs: '["rules"]' });
+  const input = Object.freeze([spec, story]);
+  for (const [body, expected] of [
+    ["No section", [{ group: "vault", level: "warn", check: "spec-acceptance", message: 'Covering spec "rules" has no Acceptance section — its criteria cannot gate this story.', file: spec.rel }]],
+    ["## Acceptance\n\n", []],
+    ["## Acceptance\n- [ ] Shared\n", [{ group: "vault", level: "issue", check: "spec-acceptance", message: 'Story is done but spec "rules" acceptance item is unchecked: "Shared".', file: story.rel }]],
+    ["## Acceptance\n- [x] Shared\n", []],
+  ]) {
+    spec.body = body;
+    const before = JSON.stringify(input);
+    assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), expected);
+    assert.equal(JSON.stringify(input), before);
+  }
+});

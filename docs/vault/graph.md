@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-29T23:26:47.887Z
+generated_at: 2026-10-29T23:59:31.089Z
 
 ---
 
@@ -188,6 +188,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md | Make session identity call-time tests portable across Node runtimes | story | done |
 | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | Map CLI dependencies and shared-state ownership before migration | story | done |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | Offline Codex token accounting with explicit coverage | story | done |
+| epics/WP-21/stories/story-parse-each-covering-spec-acceptance-once-per-doctor-check.md | Parse each covering spec acceptance once per Doctor check | story | done |
 | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md | Pin team-bound story refusal before CLI modularization | story | done |
 | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md | Prepare dependency and loader guards for the CLI split | story | done |
 | epics/WP-21/stories/story-preserve-reconciliation-failure-reports-and-child-status.md | Preserve reconciliation failure reports and child status | story | done |
@@ -523,6 +524,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-parse-each-covering-spec-acceptance-once-per-doctor-check.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-preserve-reconciliation-failure-reports-and-child-status.md |
@@ -668,6 +670,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-parse-each-covering-spec-acceptance-once-per-doctor-check.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-preserve-reconciliation-failure-reports-and-child-status.md | mdlink | epics/WP-21/epic.md |

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-29T23:24:01.336Z
+generated_at: 2026-10-29T23:56:29.031Z
 
 ---
 
@@ -140,6 +140,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Make session identity call-time tests portable across Node runtimes | `tests/lib-session-identity.test.mjs`, `scripts/lib-session-identity.mjs`, `tests/commits.test.mjs` |
 | WP-21 | Map CLI dependencies and shared-state ownership before migration | `bin/waypost.mjs`, `tests/fixtures/cli-namespace.json`, `tests/helpers/cli-namespace.mjs`, `tests/helpers/cli-static-closure.mjs`, `tests/helpers/cli-modules.mjs` |
 | WP-21 | Offline Codex token accounting with explicit coverage | `scripts/tokens.mjs`, `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
+| WP-21 | Parse each covering spec acceptance once per Doctor check | `scripts/doctor-specs.mjs`, `tests/doctor-specs.test.mjs`, `scripts/doctor.mjs`, `tests/scripts.test.mjs`, `tests/predicates.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Pin team-bound story refusal before CLI modularization | `tests/team-cli.test.mjs` |
 | WP-21 | Prepare dependency and loader guards for the CLI split | `tests/helpers/cli-static-closure.mjs`, `tests/harness.test.mjs`, `tests/sizes.test.mjs` |
 | WP-21 | Preserve reconciliation failure reports and child status | `bin/cli/core.mjs`, `bin/cli/views.mjs`, `scripts/reconcile.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md` |

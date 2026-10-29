@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-29T23:26:47.652Z
+generated_at: 2026-10-29T23:59:30.856Z
 
 ---
 
@@ -177,6 +177,7 @@ generated_at: 2026-10-29T23:26:47.652Z
 - [x] [[epics/WP-21/stories/story-find-filtered-log-matches-beyond-the-initial-history-window|WP-21: Find filtered log matches beyond the initial history window]] #p2 #done
 - [x] [[epics/WP-21/stories/story-find-the-first-search-line-without-splitting-the-entire-document|WP-21: Find the first search line without splitting the entire document]] #p2 #done
 - [x] [[epics/WP-21/stories/story-group-adjacent-log-metadata-without-hiding-commit-identity|WP-21: Group adjacent log metadata without hiding commit identity]] #p2 #done
+- [x] [[epics/WP-21/stories/story-parse-each-covering-spec-acceptance-once-per-doctor-check|WP-21: Parse each covering spec acceptance once per Doctor check]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reduce-overflowing-log-pages-without-increasing-buffer-limits|WP-21: Reduce overflowing log pages without increasing buffer limits]] #p2 #done
 - [x] [[epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match|WP-21: Retain only requested search results while counting every match]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-file-membership-within-each-doctor-link-check|WP-21: Reuse file membership within each Doctor link check]] #p2 #done
