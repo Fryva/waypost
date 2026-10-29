@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-29T03:11:51.256Z
+generated_at: 2026-10-29T03:48:08.691Z
 
 ---
 
@@ -82,6 +82,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Extract cleanup planning and deletion modules as migration stage d | `bin/waypost.mjs`, `bin/cli/core.mjs`, `bin/cli/clean-plan.mjs`, `bin/cli/remove.mjs`, `bin/cli/deleter.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/cleanup.test.mjs`, `tests/limit.test.mjs`, `tests/slots.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md` |
 | WP-21 | Extract orientation and vault command modules as migration stage b | `bin/waypost.mjs`, `bin/cli/core.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/team-cli.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/setup-asks-the-running-harness-not-only-the-projects-files.md`, `bin/cli/status.mjs`, `bin/cli/help.mjs`, `bin/cli/brief.mjs`, `bin/cli/bind.mjs`, `bin/cli/views.mjs`, `bin/cli/artifacts.mjs`, `bin/cli/profile.mjs`, `bin/cli/mcp-config.mjs` |
 | WP-21 | Extract shared CLI core as migration stage a | `bin/waypost.mjs`, `bin/cli/core.mjs`, `tests/harness.test.mjs`, `AGENTS.md`, `docs/how-it-works.md`, `docs/vault/adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md`, `docs/vault/adr/setup-asks-the-running-harness-not-only-the-projects-files.md` |
+| WP-21 | Find filtered log matches beyond the initial history window | `scripts/commit.mjs`, `tests/commits.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0006-commit-protocol.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Bounded paired smoke protocol for token economy | `docs/vault/ops/paired-token-economy-experiment-with-blind-acceptance.md` |
 | WP-21 | Freeze and guard the CLI namespace before modularization | `tests/helpers/cli-namespace.mjs`, `tests/fixtures/cli-namespace.json`, `tests/fixtures/cli-namespace-baseline.mjs.gz`, `tests/harness.test.mjs` |
 | WP-21 | Group adjacent log metadata without hiding commit identity | `scripts/commit.mjs`, `tests/commits.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0006-commit-protocol.md`, `docs/vault/adr/0008-token-budget.md` |

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-29T03:17:37.856Z
+generated_at: 2026-10-29T03:53:04.629Z
 
 ---
 
@@ -130,6 +130,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md | Extract cleanup planning and deletion modules as migration stage d | story | done |
 | epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md | Extract orientation and vault command modules as migration stage b | story | done |
 | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md | Extract shared CLI core as migration stage a | story | done |
+| epics/WP-21/stories/story-find-filtered-log-matches-beyond-the-initial-history-window.md | Find filtered log matches beyond the initial history window | story | done |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | Bounded paired smoke protocol for token economy | story | done |
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | Freeze and guard the CLI namespace before modularization | story | done |
 | epics/WP-21/stories/story-group-adjacent-log-metadata-without-hiding-commit-identity.md | Group adjacent log metadata without hiding commit identity | story | done |
@@ -455,6 +456,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-find-filtered-log-matches-beyond-the-initial-history-window.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-group-adjacent-log-metadata-without-hiding-commit-identity.md |
@@ -589,6 +591,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-find-filtered-log-matches-beyond-the-initial-history-window.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-group-adjacent-log-metadata-without-hiding-commit-identity.md | mdlink | epics/WP-21/epic.md |

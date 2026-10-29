@@ -221,6 +221,123 @@ test("log groups only adjacent raw base metadata and preserves per-commit audit 
   assert.equal(waypost(proj, ["log", "--json", "-n", n]).stdout, jsonBytes, "human rendering never changes JSON");
 });
 
+test("filtered log pages a pinned history, terminates safely and preserves the audit window", () => {
+  const source = readFileSync(join(REPO, "scripts", "commit.mjs"), "utf8");
+  const start = source.indexOf("function log(argv) {");
+  const body = source.slice(start, source.indexOf("\n}\n", start) + 2);
+  assert.ok(body.startsWith("function log(argv) {") && body.endsWith("}"));
+  const oid = "a".repeat(40), NL = String.fromCharCode(10), US = String.fromCharCode(31);
+  const record = (i, extra = {}) => ({ sha: i.toString(16).padStart(7, "0"), author: "A", date: "2026-01-02",
+    subject: "Change " + i, harness: "other", session: "s" + i, story: "PS-1/story-x", provider: "vendor", os: "linux-6", tasks: [], ...extra });
+  const encode = rows => rows.map(row => [row.sha, row.author, row.date, row.subject, row.harness, row.session,
+    row.story, row.provider, row.os, row.tasks.join(",")].join(US)).join(NL);
+  const run = (records, args, settings = {}) => {
+    const calls = []; let stdout = "", error = null, head = settings.oid || oid;
+    const git = (argv, opts = {}) => {
+      calls.push({ argv, opts });
+      if (argv[0] === "rev-parse") return settings.pinError || { status: 0, stdout: head + NL };
+      assert.equal(argv[0], "log");
+      const size = Number(argv.find(value => value.startsWith("-n")).slice(2));
+      const skipped = argv.find(value => value.startsWith("--skip="));
+      const skip = skipped ? Number(skipped.slice(7)) : 0;
+      if (skipped) {
+        assert.deepEqual(argv.slice(-2), [settings.oid || oid, "--"], "every page uses the original OID even after HEAD moves");
+        assert.equal(size, 200); assert.equal(opts.maxBuffer, 1024 * 1024);
+      } else assert.equal(opts.maxBuffer, undefined, "unfiltered queries keep their existing helper options");
+      head = "b".repeat(head.length);
+      if (settings.failAt === skip) return settings.failure;
+      return { status: 0, stdout: encode(records.slice(skip, skip + size)) };
+    };
+    const die = message => { throw new Error(message); };
+    try { Function("git", "die", "process", "return (" + body + ")")(git, die, { stdout: { write: value => { stdout += value; } } })(args); }
+    catch (e) { error = e; }
+    return { calls, stdout, error, offsets: calls.filter(c => c.argv[0] === "log").map(c => Number((c.argv.find(v => v.startsWith("--skip=")) || "--skip=0").slice(7))) };
+  };
+  const history = Array.from({ length: 450 }, (_, i) => record(i + 1, i < 2 ? { harness: "", session: "" } : {}));
+  history[210] = record(211, { harness: "wanted", tasks: ["EXT-12"] });
+  history[405] = record(406, { harness: "wanted", tasks: ["EXT-123"] });
+  const found = run(history, ["--harness", "wanted", "-n", "2", "--json"]);
+  assert.equal(found.error, null); assert.deepEqual(found.offsets, [0, 200, 400]);
+  assert.deepEqual(JSON.parse(found.stdout).map(row => row.sha), [history[210].sha, history[405].sha]);
+  assert.equal(found.calls.filter(c => c.argv[0] === "rev-parse").length, 1);
+  const human = run(history, ["--harness", "wanted", "-n", "2"]);
+  assert.ok(human.stdout.includes("2 of the last 2 commits carry no waypost trailers"), "only the original latest-n window is audited");
+  const largerWindow = run(history, ["--harness", "wanted", "-n", "250"]);
+  assert.equal(largerWindow.error, null);
+  assert.ok(largerWindow.stdout.includes("2 of the last 250 commits"), "audit prefix is collected across page boundaries");
+  const exactTask = run(history, ["--task", "EXT-12", "-n", "2", "--json"]);
+  assert.deepEqual(JSON.parse(exactTask.stdout).map(row => row.sha), [history[210].sha], "partial result after exhaustion keeps exact task matching");
+  const early = run([record(1, { harness: "wanted" }), record(2, { harness: "wanted" }), record(3, { harness: "wanted" }), ...history], ["--harness", "wanted", "-n", "2", "--json"]);
+  assert.equal(early.error, null); assert.deepEqual(early.offsets, [0], "enough matches stop further reads");
+  assert.equal(JSON.parse(early.stdout).length, 2, "a full page cannot overfill the requested match limit");
+  for (const length of [0, 200, 400, 401]) {
+    const none = run(history.slice(0, length).map(row => ({ ...row, harness: "other" })), ["--harness", "absent", "-n", "1", "--json"]);
+    assert.equal(none.error, null); assert.deepEqual(JSON.parse(none.stdout), []);
+    assert.deepEqual(none.offsets, Array.from({ length: Math.floor(length / 200) + 1 }, (_, i) => i * 200));
+  }
+  for (const failure of [
+    { status: 128, stdout: "" }, { status: null, signal: "SIGTERM", stdout: "" },
+    { status: null, error: { code: "ETIMEDOUT" }, stdout: "" },
+    { status: null, error: { code: "ENOBUFS" }, stdout: "truncated" },
+    { status: 0, error: { code: "ENOBUFS" }, stdout: encode(history.slice(200, 201)) },
+  ]) {
+    const bad = run([record(1, { harness: "wanted" }), ...history], ["--harness", "wanted", "-n", "2", "--json"], { failAt: 200, failure });
+    assert.ok(bad.error); assert.deepEqual(bad.offsets, [0, 200]);
+    assert.equal(bad.stdout, "", "a later-page error cannot publish partial matches");
+  }
+  const pinBad = run(history, ["--harness", "wanted"], { pinError: { status: 0, stdout: "not-a-commit" } });
+  assert.ok(pinBad.error); assert.equal(pinBad.stdout, ""); assert.equal(pinBad.calls.length, 1);
+  const sha256 = run(history, ["--harness", "wanted", "-n", "1", "--json"], { oid: "c".repeat(64) });
+  assert.equal(sha256.error, null); assert.equal(JSON.parse(sha256.stdout)[0].sha, history[210].sha);
+  for (const value of ["-1", "1.5", "NaN", "Infinity", "9007199254740992", "", " "]) {
+    const invalid = run(history, ["-n", value, "--harness", "wanted"]);
+    assert.ok(invalid.error?.message.includes("non-negative safe integer")); assert.equal(invalid.calls.length, 0);
+  }
+  assert.ok(run(history, ["-n"]).error);
+  for (const args of [["-n", "0", "--json"], ["--harness", "wanted", "-n", "0", "--json"]]) {
+    const zero = run(history, args); assert.equal(zero.error, null); assert.deepEqual(JSON.parse(zero.stdout), []);
+    assert.equal(zero.calls.length, 1); assert.equal(zero.calls[0].argv[0], "log");
+  }
+  const unfiltered = run(history, ["-n", "2", "--json"]);
+  assert.equal(unfiltered.error, null); assert.equal(unfiltered.calls.length, 1);
+  assert.deepEqual(JSON.parse(unfiltered.stdout).map(row => row.sha), history.slice(0, 2).map(row => row.sha));
+});
+
+test("filtered log finds old matches across a real paged merge history", () => {
+  const proj = repo(), hashes = []; let tick = 0;
+  const commit = (message, saveHash = false) => {
+    const date = new Date(Date.UTC(2026, 0, 1) + tick++ * 1000).toISOString();
+    const r = git(proj, ["commit", "--allow-empty", "-qm", message], {
+      env: { ...ambientEnv(), GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    return saveHash ? git(proj, ["rev-parse", "--short", "HEAD"]).stdout.trim() : undefined;
+  };
+  hashes.push(commit("Deep oldest\n\nWaypost-Harness: deep\nWaypost-Session: deep-s\nWaypost-Task: EXT-12", true));
+  hashes.push(commit("Deep newer\n\nWaypost-Harness: deep\nWaypost-Session: deep-s\nWaypost-Task: EXT-123", true));
+  assert.equal(git(proj, ["checkout", "-qb", "side"]).status, 0);
+  commit("Side one"); commit("Side two");
+  assert.equal(git(proj, ["checkout", "-q", "main"]).status, 0);
+  for (let i = 0; i < 205; i++) commit(`Recent ${i}`);
+  const merged = git(proj, ["merge", "--no-ff", "-qm", "Merge side", "side"]); assert.equal(merged.status, 0, merged.stderr);
+  const native = git(proj, ["log", "--format=%h"]).stdout.trim().split("\n");
+  assert.ok(native.indexOf(hashes[1]) >= 200, "both matching commits lie beyond a complete page");
+  const rows = JSON.parse(waypost(proj, ["log", "--harness", "deep", "-n", "2", "--json"]).stdout);
+  assert.deepEqual(rows.map(row => row.sha), hashes.slice().reverse());
+  const partial = JSON.parse(waypost(proj, ["log", "--harness", "deep", "-n", "3", "--json"]).stdout);
+  assert.deepEqual(partial.map(row => row.sha), hashes.slice().reverse());
+  const exact = JSON.parse(waypost(proj, ["log", "--task", "EXT-12", "-n", "1", "--json"]).stdout);
+  assert.deepEqual(exact.map(row => row.sha), [hashes[0]]);
+  const human = waypost(proj, ["log", "--harness", "deep", "-n", "2"]).stdout;
+  assert.ok(human.includes("2 of the last 2 commits carry no waypost trailers"));
+  const none = waypost(proj, ["log", "--harness", "absent", "-n", "2"]).stdout;
+  assert.ok(none.startsWith("no commits match\n")); assert.ok(none.includes("2 of the last 2 commits"));
+  for (const args of [["-n"], ["-n", "-1"], ["-n", "1.5"], ["-n", "Infinity"]]) {
+    const bad = waypost(proj, ["log", ...args], { expectFail: true });
+    assert.notEqual(bad.status, 0); assert.ok(bad.stderr.includes("non-negative safe integer")); assert.equal(bad.stdout, "");
+  }
+});
+
 test("a story reference is resolved against the vault, so a typo cannot enter the record", () => {
   const proj = repo();
   waypost(proj, ["draft", "story", "PS-1", "Second", "--write"]);

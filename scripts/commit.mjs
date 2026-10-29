@@ -366,7 +366,11 @@ function pluginDir() {
 
 function log(argv) {
   const opt = (name) => { const i = argv.indexOf(name); return i === -1 ? null : argv[i + 1]; };
-  const n = opt("-n") || "20";
+  const nAt = argv.indexOf("-n"), rawN = nAt === -1 ? "20" : argv[nAt + 1];
+  const n = Number(rawN);
+  if (typeof rawN !== "string" || !rawN.trim() || !Number.isSafeInteger(n) || n < 0) {
+    die("-n requires a non-negative safe integer");
+  }
   const task = opt("--task");
   const filters = [
     ["Waypost-Story", opt("--story")],
@@ -375,27 +379,49 @@ function log(argv) {
     ["Waypost-Provider", opt("--provider")],
     ["Waypost-OS", opt("--os")],
   ].filter(([, v]) => v);
-  const r = git(["log", `-n${Number(n) * (filters.length || task ? 20 : 1)}`,
-    "--format=%h%x1f%an%x1f%ad%x1f%s%x1f%(trailers:key=Waypost-Harness,valueonly,separator=%x2c)"
+  const format = "--format=%h%x1f%an%x1f%ad%x1f%s%x1f%(trailers:key=Waypost-Harness,valueonly,separator=%x2c)"
     + "%x1f%(trailers:key=Waypost-Session,valueonly,separator=%x2c)%x1f%(trailers:key=Waypost-Story,valueonly,separator=%x2c)"
     + "%x1f%(trailers:key=Waypost-Provider,valueonly,separator=%x2c)"
     + "%x1f%(trailers:key=Waypost-OS,valueonly,separator=%x2c)"
-    + "%x1f%(trailers:key=Waypost-Task,valueonly,separator=%x2c)",
-    "--date=short"]);
-  if (!r || r.status !== 0) die("git log failed — is this a repository with commits?");
-  const all = (r.stdout || "").split("\n").filter(Boolean).map((line) => {
-    const [sha, author, date, subject, harness, session, story, provider, os, tasks] = line.split("\x1f");
-    return { sha, author, date, subject, harness: harness.trim(), session: session.trim(),
-      story: story.trim(), provider: (provider || "").trim(), os: (os || "").trim(),
-      tasks: (tasks || "").split(",").map((s) => s.trim()).filter(Boolean) };
-  });
-  const rows = all.filter((row) => filters.every(([k, v]) =>
+    + "%x1f%(trailers:key=Waypost-Task,valueonly,separator=%x2c)";
+  const readPage = (size, extra = [], opts = {}) => {
+    const r = git(["log", `-n${size}`, format, "--date=short", ...extra], opts);
+    if (!r || r.error || r.status !== 0) die("git log failed — is this a repository with commits?");
+    return (r.stdout || "").split("\n").filter(Boolean).map((line) => {
+      const [sha, author, date, subject, harness, session, story, provider, os, tasks] = line.split("\x1f");
+      return { sha, author, date, subject, harness: harness.trim(), session: session.trim(),
+        story: story.trim(), provider: (provider || "").trim(), os: (os || "").trim(),
+        tasks: (tasks || "").split(",").map((s) => s.trim()).filter(Boolean) };
+    });
+  };
+  const matches = (row) => filters.every(([k, v]) =>
     (k === "Waypost-Story" ? row.story
       : k === "Waypost-Session" ? row.session
       : k === "Waypost-Provider" ? row.provider : k === "Waypost-OS" ? row.os : row.harness).includes(v))
     // A task id is matched exactly: PROJ-12 is not PROJ-123.
-    && (!task || row.tasks.includes(task)))
-    .slice(0, Number(n));
+    && (!task || row.tasks.includes(task));
+  const rows = [], window = [];
+  if ((!filters.length && !task) || n === 0) {
+    const all = readPage(n);
+    rows.push(...all.slice(0, n));
+    window.push(...all.slice(0, n));
+  } else {
+    const head = git(["rev-parse", "--verify", "HEAD^{commit}"]);
+    const revision = (head?.stdout || "").trim();
+    if (!head || head.error || head.status !== 0 || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(revision)) {
+      die("git log failed to resolve HEAD");
+    }
+    const pageSize = 200;
+    for (let skip = 0;;) {
+      const page = readPage(pageSize, [`--skip=${skip}`, revision, "--"], { maxBuffer: 1024 * 1024 });
+      for (const row of page) {
+        if (window.length < n) window.push(row);
+        if (rows.length < n && matches(row)) rows.push(row);
+      }
+      if (rows.length >= n || page.length < pageSize) break;
+      skip += page.length;
+    }
+  }
 
   if (argv.includes("--json")) { process.stdout.write(JSON.stringify(rows, null, 2) + "\n"); return; }
   if (!rows.length) process.stdout.write("no commits match\n");
@@ -419,7 +445,7 @@ function log(argv) {
   }
   // Counted over the latest commits before any filter: an untagged commit can never match a
   // --story/--harness/--provider filter, so counting the filtered rows always said 0.
-  const window = all.slice(0, Number(n)), untagged = window.filter((r2) => !r2.harness && !r2.session).length;
+  const untagged = window.filter((r2) => !r2.harness && !r2.session).length;
   if (untagged) {
     process.stdout.write(`\n${untagged} of the last ${window.length} commits carry no waypost trailers — committed outside \`waypost commit\`.\n`);
   }
