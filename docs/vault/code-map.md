@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-29T05:02:44.930Z
+generated_at: 2026-10-29T11:44:24.782Z
 
 ---
 
@@ -148,6 +148,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Remove orphaned legacy hook commentary from the library facade | `scripts/lib.mjs` |
 | WP-21 | Reproducible token accounting and repeated-read evidence | `scripts/tokens.mjs`, `scripts/token-navigation.mjs`, `tests/tokens.test.mjs`, `tests/token-navigation.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Restore isolated environments for extracted module tests | `tests/model-strength-fetch.test.mjs`, `tests/toolchain-locators.test.mjs`, `tests/state-migrate.test.mjs`, `tests/env.mjs`, `README.md` |
+| WP-21 | Retain only requested search results while counting every match | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Scope unknown-prefix diagnostics to the requested period | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Search source artifacts that share derived view filenames | `bin/cli/views.mjs`, `scripts/lib-resources.mjs`, `bin/cli/core.mjs`, `scripts/reconcile.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Separate explicit Doctor repairs from diagnostic orchestration | `scripts/doctor.mjs`, `scripts/doctor-repairs.mjs`, `scripts/doctor-coordination.mjs`, `tests/doctor-repairs.test.mjs`, `tests/harness.test.mjs`, `tests/presence.test.mjs`, `tests/commits.test.mjs`, `tests/scripts.test.mjs`, `tests/state-migrate.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/0003-agent-roles-across-harnesses.md`, `docs/vault/adr/0006-commit-protocol.md`, `docs/vault/adr/0007-shared-vault-presence.md`, `docs/vault/epics/WP-21/stories/story-isolate-repository-and-runtime-diagnostics-behind-the-doctor-facade.md` |

@@ -1347,6 +1347,48 @@ test("bin/waypost search --limit rejects a non-integer instead of silently print
   assert.match(bad.stderr, /--limit/);
 });
 
+test("bin/waypost search: bounded results preserve the complete remainder and late iCloud count", () => {
+  const { proj, vault } = makeVaultProject();
+  mkdirSync(join(vault, "adr", "late"));
+  mkdirSync(join(vault, "research"));
+  for (const name of ["a", "b", "c", "late/d", "late/e", "late/f", "late/g"]) {
+    writeFileSync(join(vault, "adr", `${name}.md`), `---\ntype: adr\ntitle: Entry ${name}\nstatus: accepted\n---\n\nTargetMatch body\nTargetMatch again\n`);
+  }
+  writeFileSync(join(vault, "adr", "late", "h-TargetMatch.md"), "---\ntype: adr\ntitle: Path only\n---\n");
+  writeFileSync(join(vault, "adr", "late", "wrong.md"), "---\ntype: story\ntitle: TargetMatch wrong kind\n---\n");
+  writeFileSync(join(vault, "adr", "late", "no-match.md"), "---\ntype: adr\ntitle: Other\n---\n");
+  writeFileSync(join(vault, "adr", "late", ".one.md.icloud"), "");
+  writeFileSync(join(vault, "research", ".two.md.icloud"), "");
+  const r = runBinRaw(proj, ["search", "TargetMatch", "--kind", "adr", "--limit", "2"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, [
+    "adr/a.md  (accepted)\n  Entry a\n  7: TargetMatch body\n",
+    "adr/b.md  (accepted)\n  Entry b\n  7: TargetMatch body\n",
+    "…and 6 more (--limit)\n",
+    "2 file(s) not downloaded from iCloud — open them once to sync\n",
+  ].join(""));
+});
+
+test("bin/waypost search: limits preserve exact, below-limit and default result output", () => {
+  const { proj, vault } = makeVaultProject();
+  const expected = [];
+  for (let i = 0; i < 25; i++) {
+    const mode = i % 3, name = `row-${String(i).padStart(2, "0")}${mode === 2 ? "-BatchNeedle" : ""}.md`;
+    const title = mode === 0 ? `BatchNeedle ${i}` : `Entry ${i}`;
+    writeFileSync(join(vault, "adr", name), `---\ntype: adr\ntitle: ${title}\nstatus: accepted\n---\n\n${mode === 1 ? "BatchNeedle body" : "Other body"}\n`);
+    expected.push(`adr/${name}  (accepted)\n  ${title}${mode === 0 ? " (line 3)" : ""}\n`
+      + (mode === 1 ? "  7: BatchNeedle body\n" : ""));
+  }
+  for (const limit of [1, 24, 25, 26, null]) {
+    const n = limit ?? 20;
+    const r = runBinRaw(proj, ["search", "BatchNeedle", ...(limit == null ? [] : ["--limit", String(limit)])]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, expected.slice(0, n).join("") + (n < 25 ? `…and ${25 - n} more (--limit)\n` : ""));
+  }
+  const empty = runBinRaw(proj, ["search", "AbsentMarker", "--limit", "1"]);
+  assert.equal(empty.status, 0, empty.stderr); assert.equal(empty.stdout, "no match\n");
+});
+
 test("bin/waypost search: nested source artifacts may share derived view filenames", () => {
   const { proj, vault } = makeVaultProject();
   const names = ["code-map.md", "graph.md", "kanban.md"];

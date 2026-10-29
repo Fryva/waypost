@@ -88,6 +88,7 @@ function handleSearch(args) {
   if (!Number.isInteger(limit) || limit <= 0) fail(`--limit must be a positive integer, got "${limitRaw}"`);
   const re = new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
   const out = [];
+  let matched = 0;
   const excluded = new Set(["kanban.md", "graph.md", "code-map.md"].map(n => join(cfg.vault_path, n)));
   // Only the actual views are derived; an artifact may share their filename.
   // Search also works when its optional layout cannot be read.
@@ -98,14 +99,14 @@ function handleSearch(args) {
   // iCloud leaves a placeholder — ".<name>.icloud" — for a file evicted from
   // local storage; the real name never appears in the listing until it syncs
   // back down. Counted, not searched: its content is not on disk to match.
-  const notDownloaded = [];
+  let notDownloaded = 0;
   const walk = (dir, rel) => {
     let names = [];
     try { names = readdirSync(dir); } catch { return; }
     for (const n of names) {
       if (n.startsWith(".")) {
         const icloud = /^\.(.+)\.icloud$/.exec(n);
-        if (icloud) notDownloaded.push(rel ? `${rel}/${icloud[1]}` : icloud[1]);
+        if (icloud) notDownloaded++;
         continue;
       }
       const abs = join(dir, n);
@@ -137,6 +138,8 @@ function handleSearch(args) {
       const lines = text.split("\n");
       const hitLine = lines.findIndex((l) => re.test(l));
       if (hitLine === -1 && !re.test(r)) continue;
+      matched++;
+      if (out.length >= limit) continue;
       // Only collapse an exact title scalar inside the parsed header. Ambiguous
       // syntax and body text keep their original snippet, including comments.
       const scalar = hitLine < 0 ? null : /^title:\s*(.*?)\r?$/.exec(lines[hitLine])?.[1].trim();
@@ -152,14 +155,14 @@ function handleSearch(args) {
   walk(cfg.vault_path, "");
   if (!out.length) { process.stdout.write("no match\n"); }
   else {
-    for (const h of out.slice(0, limit)) {
+    for (const h of out) {
       process.stdout.write(`${h.path}${h.status ? `  (${h.status})` : ""}\n  ${h.title}${h.titleLine ? ` (line ${h.titleLine})` : ""}\n`
         + (h.line && !h.titleLine ? `  ${h.line}\n` : ""));
     }
-    if (out.length > limit) process.stdout.write(`…and ${out.length - limit} more (--limit)\n`);
+    if (matched > out.length) process.stdout.write(`…and ${matched - out.length} more (--limit)\n`);
   }
-  if (notDownloaded.length) {
-    process.stdout.write(`${notDownloaded.length} file(s) not downloaded from iCloud — open them once to sync\n`);
+  if (notDownloaded) {
+    process.stdout.write(`${notDownloaded} file(s) not downloaded from iCloud — open them once to sync\n`);
   }
 }
 

@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-29T05:05:12.407Z
+generated_at: 2026-10-29T11:47:23.073Z
 
 ---
 
@@ -177,6 +177,7 @@ generated_at: 2026-10-29T05:05:12.407Z
 - [x] [[epics/WP-21/stories/story-find-filtered-log-matches-beyond-the-initial-history-window|WP-21: Find filtered log matches beyond the initial history window]] #p2 #done
 - [x] [[epics/WP-21/stories/story-group-adjacent-log-metadata-without-hiding-commit-identity|WP-21: Group adjacent log metadata without hiding commit identity]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reduce-overflowing-log-pages-without-increasing-buffer-limits|WP-21: Reduce overflowing log pages without increasing buffer limits]] #p2 #done
+- [x] [[epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match|WP-21: Retain only requested search results while counting every match]] #p2 #done
 - [x] [[epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames|WP-21: Search source artifacts that share derived view filenames]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
