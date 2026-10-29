@@ -1347,6 +1347,46 @@ test("bin/waypost search --limit rejects a non-integer instead of silently print
   assert.match(bad.stderr, /--limit/);
 });
 
+test("bin/waypost search: first line scanner preserves LF split semantics", () => {
+  const source = readFileSync(join(REPO, "bin", "cli", "views.mjs"), "utf8");
+  const start = source.indexOf("function firstSearchLine(");
+  assert.ok(start >= 0);
+  const end = source.indexOf("\n}\n", start) + 2;
+  const scan = Function(`return (${source.slice(start, end)})`)();
+  const texts = ["", "\n", "\n\n", "a", "a\n", "a\n\n", "Needle", "a\nNeedle",
+    "a\r\nNeedle\r\n", "a\rNeedle", "\ufeff---\nNeedle", "before\u2028Needle\u2029after",
+    "😀\nNeedle 😀", "a\n\ud83d\n\udc00", "[literal]\nNeedle\n"];
+  const patterns = ["", "Needle", "^$", "a", "\\r", "\\n", "a\\nNeedle", "a\\nNeedle|Needle",
+    "😀", "\ud83d", "\udc00", "\\[literal\\]", "\u2028", "\u2029", "^\\ufeff", "Needle$"];
+  for (const text of texts) for (const pattern of patterns) {
+    const lines = text.split("\n");
+    const index = lines.findIndex(line => new RegExp(pattern, "i").test(line));
+    assert.deepEqual(scan(text, new RegExp(pattern, "i")), index < 0 ? null : { index, line: lines[index] },
+      JSON.stringify({ text, pattern }));
+  }
+});
+
+test("bin/waypost search: large documents and multiline literals preserve exact locators", () => {
+  const { proj, vault } = makeVaultProject();
+  const p = join(vault, "adr", "scan.md");
+  const cases = [
+    ["\ufeff" + ["---", "type: adr", "title: Needle early", "status: accepted", "---", ...Array(10000).fill("filler")].join("\r\n"),
+      ["Needle", "--kind", "adr"], "adr/scan.md  (accepted)\n  Needle early (line 3)\n"],
+    ["filler\n".repeat(10000) + "Needle late\n" + "tail\n".repeat(100),
+      ["Needle"], "adr/scan.md\n  scan.md\n  10001: Needle late\n"],
+    ["filler\nNeedle final", ["Needle"], "adr/scan.md\n  scan.md\n  2: Needle final\n"],
+    ["", [""], "adr/scan.md\n  scan.md\n  1: \n"],
+    ["left\nright", ["left\nright"], "no match\n"],
+    ["left\nright\nNeedle fallback", ["left\nright", "Needle"], "adr/scan.md\n  scan.md\n  3: Needle fallback\n"],
+    ["unmatched\nbody", ["scan.md"], "adr/scan.md\n  scan.md\n"],
+  ];
+  for (const [text, args, expected] of cases) {
+    writeFileSync(p, text);
+    const r = runBinRaw(proj, ["search", ...args]);
+    assert.equal(r.status, 0, r.stderr); assert.equal(r.stdout, expected);
+  }
+});
+
 test("bin/waypost search: bounded results preserve the complete remainder and late iCloud count", () => {
   const { proj, vault } = makeVaultProject();
   mkdirSync(join(vault, "adr", "late"));

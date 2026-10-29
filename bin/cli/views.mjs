@@ -53,6 +53,18 @@ function handleGraphQuery(target, args) {
   }
 }
 
+function firstSearchLine(text, re) {
+  let index = 0, start = 0;
+  for (;;) {
+    const end = text.indexOf("\n", start);
+    const line = text.slice(start, end === -1 ? text.length : end);
+    if (re.test(line)) return { index, line };
+    if (end === -1) return null;
+    start = end + 1;
+    index++;
+  }
+}
+
 function searchExcerpt(line, re) {
   const text = line.trim();
   const prefix = text.slice(0, 120);
@@ -135,21 +147,21 @@ function handleSearch(args) {
       // from the filename instead of the artifact's own fields.
       const { data: fm, body } = parseFrontmatter(text);
       if (kind && String(fm.type ?? "") !== kind) continue;
-      const lines = text.split("\n");
-      const hitLine = lines.findIndex((l) => re.test(l));
+      const hit = firstSearchLine(text, re);
+      const hitLine = hit?.index ?? -1;
       if (hitLine === -1 && !re.test(r)) continue;
       matched++;
       if (out.length >= limit) continue;
       // Only collapse an exact title scalar inside the parsed header. Ambiguous
       // syntax and body text keep their original snippet, including comments.
-      const scalar = hitLine < 0 ? null : /^title:\s*(.*?)\r?$/.exec(lines[hitLine])?.[1].trim();
+      const scalar = hitLine < 0 ? null : /^title:\s*(.*?)\r?$/.exec(hit.line)?.[1].trim();
       const titleLine = scalar != null && typeof fm.title === "string" && fm.title !== "" && !/[\r\n]/.test(fm.title) &&
         hitLine > 0 && hitLine < text.slice(0, text.length - body.length).split("\n").length - 1 &&
         (scalar === JSON.stringify(fm.title) || scalar === `'${fm.title.replace(/'/g, "''")}'` ||
           (!/^["'|>]/.test(scalar) && scalar === fm.title)) ? hitLine + 1 : null;
       out.push({ path: r, title: String(fm.title ?? "") || n, status: fm.status == null ? "" : String(fm.status),
         titleLine,
-        line: hitLine === -1 ? null : `${hitLine + 1}: ${searchExcerpt(lines[hitLine], re)}` });
+        line: hitLine === -1 ? null : `${hitLine + 1}: ${searchExcerpt(hit.line, re)}` });
     }
   };
   walk(cfg.vault_path, "");

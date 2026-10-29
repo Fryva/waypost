@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-29T11:47:23.073Z
+generated_at: 2026-10-29T12:49:49.470Z
 
 ---
 
@@ -175,6 +175,7 @@ generated_at: 2026-10-29T11:47:23.073Z
 - [x] [[epics/WP-21/stories/story-stream-explicit-json-previews-for-derived-views|WP-21: Stream explicit JSON previews for derived views]] #p2 #done
 - [x] [[epics/WP-21/stories/story-teach-bounded-queries-in-full-vault-orientation|WP-21: Teach bounded queries in full vault orientation]] #p2 #done
 - [x] [[epics/WP-21/stories/story-find-filtered-log-matches-beyond-the-initial-history-window|WP-21: Find filtered log matches beyond the initial history window]] #p2 #done
+- [x] [[epics/WP-21/stories/story-find-the-first-search-line-without-splitting-the-entire-document|WP-21: Find the first search line without splitting the entire document]] #p2 #done
 - [x] [[epics/WP-21/stories/story-group-adjacent-log-metadata-without-hiding-commit-identity|WP-21: Group adjacent log metadata without hiding commit identity]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reduce-overflowing-log-pages-without-increasing-buffer-limits|WP-21: Reduce overflowing log pages without increasing buffer limits]] #p2 #done
 - [x] [[epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match|WP-21: Retain only requested search results while counting every match]] #p2 #done
