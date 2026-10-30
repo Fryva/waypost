@@ -74,6 +74,40 @@ test("doctor specs module: exact story id beats ambiguous legacy fallback withou
   assert.deepEqual(focused.checkSpecLinks({}, layout, freeze([...ambiguous, winner])), []);
 });
 
+test("doctor specs module: link lists preserve aliases, repeated refs and distinct same-path specs", () => {
+  const first = artifact("spec", "specs/SPEC-001-rules.md", { id: "SPEC-001", stories: '["E/a", "E/a"]' });
+  const second = artifact("spec", first.rel, { id: "other", stories: '[]' });
+  const story = artifact("story", "epics/E/stories/a.md", { id: "a", specs: '["SPEC-001", "rules", "SPEC-001", "other", "other"]' });
+  const input = freeze([first, second, first, story]);
+  const before = JSON.stringify(input);
+  const warning = { group: "vault", level: "warn", check: "spec-links",
+    message: 'Story lists spec "other" but that spec\'s `stories:` does not list it back.', file: story.rel };
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), [warning, warning]);
+  assert.equal(JSON.stringify(input), before);
+});
+
+test("doctor specs module: link checks see coverage and identity edits on the same objects", () => {
+  const spec = { kind: "spec", rel: "specs/rules.md", fm: { id: "rules", stories: '[]' }, body: "" };
+  const story = { kind: "story", rel: "epics/E/stories/a.md", fm: { id: "a", specs: '["rules"]' }, body: "" };
+  const input = [spec, story];
+  const warning = { group: "vault", level: "warn", check: "spec-links",
+    message: 'Story lists spec "rules" but that spec\'s `stories:` does not list it back.', file: story.rel };
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), [warning]);
+  spec.fm.stories = '["E/a"]';
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), []);
+  spec.fm.stories = "invalid list";
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), [warning]);
+  spec.fm.stories = '["E/a"]';
+  spec.fm.id = "renamed";
+  spec.rel = "specs/renamed.md";
+  story.fm.specs = '["renamed"]';
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), []);
+  input.pop();
+  assert.equal(focused.checkSpecLinks({}, layout, input)[0].level, "issue");
+  input.push(story);
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), []);
+});
+
 test("doctor specs module: ambiguous attribution warns once per spec while shared and attributed items keep order", () => {
   const spec = artifact("spec", "specs/rules.md", { id: "rules", status: "active", stories: '["E/story-a", "F/story-a"]' }, "## Acceptance\n\n- [ ] Shared\n- [ ] Own — stories: story-a\n");
   const paths = ["epics/E/stories/story-a.md", "epics/F/stories/story-a.md"];

@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-30T11:47:05.882Z
+generated_at: 2026-10-30T20:30:58.057Z
 
 ---
 
@@ -191,6 +191,7 @@ generated_at: 2026-10-30T11:47:05.882Z
 - [x] [[epics/WP-21/stories/story-group-repeated-owners-in-adjacent-lease-list-rows|WP-21: Group repeated owners in adjacent lease list rows]] #p2 #done
 - [x] [[epics/WP-21/stories/story-group-repeated-owners-in-adjacent-session-editing-rows|WP-21: Group repeated owners in adjacent session editing rows]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-artifact-lookup-within-each-index-consistency-check|WP-21: Reuse artifact lookup within each index consistency check]] #p2 #done
+- [x] [[epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks|WP-21: Reuse parsed coverage lists in spec link checks]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

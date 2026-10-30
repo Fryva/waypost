@@ -119,9 +119,12 @@ export function checkSpecLinks(cfg, layout, artifacts) {
   if (!epicFolder) return out;
   const specs = artifacts.filter((a) => a.kind === "spec");
   const resolveSpec = buildSpecResolver(artifacts, layout);
+  const storiesBySpec = new Map();
 
   for (const spec of specs) {
-    for (const entry of listOf(spec.fm, "stories")) {
+    const entries = listOf(spec.fm, "stories");
+    storiesBySpec.set(spec, entries);
+    for (const entry of entries) {
       const r = resolveSpecStory(entry, artifacts, epicFolder.path);
       if (r.error) {
         out.push(finding("vault", "issue", "spec-links",
@@ -144,7 +147,7 @@ export function checkSpecLinks(cfg, layout, artifacts) {
       } else {
         const epicId = epicIdOf(story.rel, epicFolder.path);
         const stem = storyStemOf(story.rel);
-        const covered = listOf(spec.fm, "stories").some((e) => {
+        const covered = storiesBySpec.get(spec).some((e) => {
           const m = String(e).match(/^([^/]+)\/(.+)$/);
           return m && m[1] === epicId &&
             storyMatchesEntry(m[2], { id: story.fm.id, stem }) > 0;
