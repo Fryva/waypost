@@ -225,7 +225,8 @@ function handleReconcile(args) {
     if (t.skipped) { process.stdout.write(`  ${label}: ${t.skipped}\n`); return; }
     if (t.changed === false && !t.written) { unchanged++; return; }
     const state = t.written ? "written" : t.changed === true ? "would change" : "unchanged";
-    process.stdout.write(`  ${label}: ${state}${t.path ? ` ${t.path}` : ""}\n`);
+    const repeatedPath = typeof t.path === "string" && label === t.path;
+    process.stdout.write(`  ${label}: ${state}${t.path && !repeatedPath ? ` ${t.path}` : ""}\n`);
   };
   process.stdout.write(`${result.status !== 0 ? "reconciliation failed" : wrote ? "reconciled" : "dry run (nothing written; add --write)"}\n`);
   line("kanban", out.kanban);

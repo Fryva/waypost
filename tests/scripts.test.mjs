@@ -1384,6 +1384,26 @@ test("`waypost reconcile` counts unchanged targets and keeps pending changes, sk
   assert.equal(normEq(readFileSync(board, "utf8")), normEq(pending.kanban.content));
 });
 
+test("reconcile prose shows a changed index path once while preserving preview, write and JSON", () => {
+  const { proj, vault } = seedDerivedFixture();
+  const index = join(vault, "adr", "README.md");
+  const stale = readFileSync(index, "utf8");
+  const preview = runBin(proj, ["reconcile", "--only", "indexes=adr"]);
+  assert.ok(preview.stdout.includes(`  ${index}: would change\n`));
+  assert.ok(!preview.stdout.includes(`would change ${index}`));
+  assert.equal(readFileSync(index, "utf8"), stale, "preview never writes");
+  const raw = JSON.parse(runBin(proj, ["reconcile", "--only", "indexes=adr", "--json"]).stdout);
+  const target = raw.indexes.find(t => t.path === index);
+  assert.equal(target.changed, true);
+  assert.equal(typeof target.content, "string");
+  const applied = runBin(proj, ["reconcile", "--only", "indexes=adr", "--write"]);
+  assert.ok(applied.stdout.includes(`  ${index}: written\n`));
+  assert.ok(!applied.stdout.includes(`written ${index}`));
+  assert.equal(readFileSync(index, "utf8"), target.content);
+  const settled = runBin(proj, ["reconcile", "--only", "indexes=adr", "--write"]);
+  assert.ok(settled.stdout.includes("1 unchanged (details: --json)"));
+});
+
 test("reconcile prose keeps returned errors and child failure status outside the unchanged count", () => {
   const { proj, vault } = seedDerivedFixture();
   mkdirSync(join(vault, "kanban.md"));
