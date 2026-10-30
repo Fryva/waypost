@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-29T23:59:30.856Z
+generated_at: 2026-10-30T00:20:17.632Z
 
 ---
 
@@ -186,6 +186,7 @@ generated_at: 2026-10-29T23:59:30.856Z
 - [x] [[epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution|WP-21: Reuse the file lookup set across graph link resolution]] #p2 #done
 - [x] [[epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames|WP-21: Search source artifacts that share derived view filenames]] #p2 #done
 - [x] [[epics/WP-21/stories/story-skip-parsing-search-documents-that-cannot-match-the-query|WP-21: Skip parsing search documents that cannot match the query]] #p2 #done
+- [x] [[epics/WP-21/stories/story-avoid-repeating-exact-graph-node-paths-in-query-output|WP-21: Avoid repeating exact graph node paths in query output]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

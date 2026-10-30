@@ -670,7 +670,7 @@ test("bin/waypost graph query: generated modern relations remain typed edges", (
   writeFileSync(join(vault, "graph.md"), graph.content);
   const r = runBinRaw(proj, ["graph", "--for", "adr/new-way.md"]);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /^adr\/new-way\.md\n  adr\/new-way\.md · /);
+  assert.match(r.stdout, /^adr\/new-way\.md\n  New way · adr · accepted\n/);
   assert.match(r.stdout, /\nedges \(\d+\):\n/);
   assert.match(r.stdout, /out dead: missing-target/);
   assert.match(r.stdout, /out ambiguous: dup \(matches:/);
@@ -690,7 +690,7 @@ test("bin/waypost graph query: section identity bounds all edge kinds and preser
       ...edges.map(cells => `| ${cells.join(" | ")} |`), ""].join(eol));
     const r = runBinRaw(proj, ["graph", "--for", ".\\adr\\center.md"]);
     assert.equal(r.status, 0, r.stderr);
-    const expected = `${target}\n  ${target} · links · adr · accepted\n` + (count
+    const expected = `${target}\n  links · adr · accepted\n` + (count
       ? `\nedges (${count}):\n` + edges.slice(0, 60).map(([from, kind, to]) => from === target
         ? `  out ${kind}: ${to}\n` : `  in ${kind}: ${from}\n`).join("") +
         (count > 60 ? `  …and ${count - 60} more\n` : "") : "");
@@ -733,7 +733,45 @@ test("bin/waypost graph query: compact directions round-trip and ambiguous rows 
     });
     assert.deepEqual(recovered, triples, "complete directed facts survive compact rendering");
     assert.deepEqual(edgeLines.slice(3), fallback.map(([, expected]) => expected));
-    assert.ok(r.stdout.startsWith(`${target}\n  ${target} · Target · story · planned\n`));
+    assert.ok(r.stdout.startsWith(`${target}\n  Target · story · planned\n`));
+  }
+});
+
+test("bin/waypost graph query: exact node metadata inherits the header while mixed fallbacks stay full", () => {
+  const { proj, vault } = makeVaultProject();
+  const target = `epics/${"long-".repeat(20)}/stories/Путь with spaces.md`;
+  const metadata = ["Название 🚀", "future-type", "-"];
+  const canonical = `| ${target} | ${metadata.join(" | ")} |`;
+  const fallback = [
+    [`| ${target}-suffix | Title | story | done |`, `${target}-suffix · Title · story · done`],
+    [`| adr/other.md | ${target} | adr | draft |`, `adr/other.md · ${target} · adr · draft`],
+    [`|${target}|Title|story|done|`, `${target} · Title · story · done`],
+    [`| ${target} | A | story | done | extra |`, `${target} · A · story · done · extra`],
+    [`| ${target} | A | story |`, `${target} · A · story`],
+    [`| ${target} | A \\| B | story | done |`, `${target} · A \\ · B · story · done`],
+    [`| ${target} | A · B | story | done |`, `${target} · A · B · story · done`],
+    [`| ${target} | A · | story | done |`, `${target} · A · · story · done`],
+    [`| ${target} | · B | story | done |`, `${target} · · B · story · done`],
+    [`| ${target} | Title | future·kind | - |`, `${target} · Title · future·kind · -`],
+    [`| ${target} | Title | story · | done |`, `${target} · Title · story · · done`],
+  ];
+  for (const eol of ["\n", "\r\n"]) {
+    writeFileSync(join(vault, "graph.md"), ["## Nodes", canonical, canonical,
+      ...fallback.map(([row]) => row), "## Other", canonical, "## Edges",
+      `| ${target} | self-kind | ${target} |`, ""].join(eol));
+    const r = runBinRaw(proj, ["graph", "--for", target]);
+    assert.equal(r.status, 0, r.stderr);
+    const lines = r.stdout.split("\n");
+    assert.equal(lines[0], target);
+    assert.deepEqual(lines.slice(1, 3), Array(2).fill(`  ${metadata.join(" · ")}`));
+    for (const line of lines.slice(1, 3)) assert.deepEqual([lines[0], ...line.slice(2).split(" · ")], [target, ...metadata]);
+    assert.deepEqual(lines.slice(3, 3 + fallback.length), fallback.map(([, text]) => `  ${text}`));
+    assert.equal(lines[3 + fallback.length], `  ${target} · ${metadata.join(" · ")}`, "the same row in an unknown section stays full");
+    assert.ok(r.stdout.endsWith("\nedges (1):\n  self self-kind\n"));
+    writeFileSync(join(vault, "graph.md"), ["## Nodes", "| Path | Title | Type | Status |", ""].join(eol));
+    const header = runBinRaw(proj, ["graph", "--for", "Path"]);
+    assert.equal(header.status, 0, header.stderr);
+    assert.equal(header.stdout, "Path\n  Path · Title · Type · Status\n");
   }
 });
 

@@ -24,7 +24,8 @@ function handleGraphQuery(target, args) {
   for (const line of lines) {
     if (line.startsWith("## ")) section = line.trimEnd();
     if (line.includes(needle) && line.startsWith("|")) {
-      (section === "## Edges" ? edges : node).push(line);
+      if (section === "## Edges") edges.push(line);
+      else node.push({ line, canonical: section === "## Nodes" });
     }
   }
   if (!node.length && !edges.length) {
@@ -32,7 +33,14 @@ function handleGraphQuery(target, args) {
       + "       Nodes are keyed by vault-relative path (adr/foo.md), not by slug.");
   }
   process.stdout.write(`${needle}\n`);
-  for (const l of node) process.stdout.write(`  ${l.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").replace(/\s*\|\s*/g, " · ")}\n`);
+  for (const { line, canonical } of node) {
+    const row = canonical && /^\| ([^|]+) \| ([^|]*) \| ([^|]*) \| ([^|]*) \|\r?$/.exec(line);
+    const compact = row && row[1] === needle && line.replace(/\r$/, "") !== "| Path | Title | Type | Status |" &&
+      !row.slice(2).some(cell => cell.includes("·"));
+    const display = compact ? row.slice(2).map(cell => cell.trim()).join(" · ")
+      : line.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").replace(/\s*\|\s*/g, " · ");
+    process.stdout.write(`  ${display}\n`);
+  }
   if (edges.length) {
     process.stdout.write(`\nedges (${edges.length}):\n`);
     for (const l of edges.slice(0, 60)) {
