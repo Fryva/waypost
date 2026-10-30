@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-30T20:39:20.083Z
+generated_at: 2026-10-30T20:53:15.581Z
 
 ---
 
@@ -192,6 +192,7 @@ generated_at: 2026-10-30T20:39:20.083Z
 - [x] [[epics/WP-21/stories/story-group-repeated-owners-in-adjacent-session-editing-rows|WP-21: Group repeated owners in adjacent session editing rows]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-artifact-lookup-within-each-index-consistency-check|WP-21: Reuse artifact lookup within each index consistency check]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks|WP-21: Reuse parsed coverage lists in spec link checks]] #p2 #done
+- [x] [[epics/WP-21/stories/story-reuse-repeated-story-resolutions-within-spec-link-checks|WP-21: Reuse repeated story resolutions within spec link checks]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks|WP-21: Reuse story specification lists within link checks]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done

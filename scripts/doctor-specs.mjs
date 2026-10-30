@@ -120,6 +120,7 @@ export function checkSpecLinks(cfg, layout, artifacts) {
   const specs = artifacts.filter((a) => a.kind === "spec");
   const resolveSpec = buildSpecResolver(artifacts, layout);
   const storiesBySpec = new Map();
+  const storyResolutions = new Map();
   const specsByStory = new Map();
   const specsOf = (story) => {
     if (!specsByStory.has(story)) specsByStory.set(story, listOf(story.fm, "specs"));
@@ -130,7 +131,10 @@ export function checkSpecLinks(cfg, layout, artifacts) {
     const entries = listOf(spec.fm, "stories");
     storiesBySpec.set(spec, entries);
     for (const entry of entries) {
-      const r = resolveSpecStory(entry, artifacts, epicFolder.path);
+      if (!storyResolutions.has(entry)) {
+        storyResolutions.set(entry, resolveSpecStory(entry, artifacts, epicFolder.path));
+      }
+      const r = storyResolutions.get(entry);
       if (r.error) {
         out.push(finding("vault", "issue", "spec-links",
           `Spec "${spec.fm.id}" stories entry "${entry}" does not resolve: ${r.error}.`, spec.rel));
