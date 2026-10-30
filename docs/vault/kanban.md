@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-30T20:53:15.581Z
+generated_at: 2026-10-30T21:03:35.106Z
 
 ---
 
@@ -191,6 +191,7 @@ generated_at: 2026-10-30T20:53:15.581Z
 - [x] [[epics/WP-21/stories/story-group-repeated-owners-in-adjacent-lease-list-rows|WP-21: Group repeated owners in adjacent lease list rows]] #p2 #done
 - [x] [[epics/WP-21/stories/story-group-repeated-owners-in-adjacent-session-editing-rows|WP-21: Group repeated owners in adjacent session editing rows]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-artifact-lookup-within-each-index-consistency-check|WP-21: Reuse artifact lookup within each index consistency check]] #p2 #done
+- [x] [[epics/WP-21/stories/story-reuse-covered-story-lists-within-acceptance-checks|WP-21: Reuse covered story lists within acceptance checks]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks|WP-21: Reuse parsed coverage lists in spec link checks]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-repeated-story-resolutions-within-spec-link-checks|WP-21: Reuse repeated story resolutions within spec link checks]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks|WP-21: Reuse story specification lists within link checks]] #p2 #done

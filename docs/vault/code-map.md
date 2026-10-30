@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-30T20:51:03.405Z
+generated_at: 2026-10-30T21:01:44.782Z
 
 ---
 
@@ -156,6 +156,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Restore isolated environments for extracted module tests | `tests/model-strength-fetch.test.mjs`, `tests/toolchain-locators.test.mjs`, `tests/state-migrate.test.mjs`, `tests/env.mjs`, `README.md` |
 | WP-21 | Retain only requested search results while counting every match | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse artifact lookup within each index consistency check | `scripts/doctor-generated.mjs`, `tests/doctor-generated.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
+| WP-21 | Reuse covered story lists within acceptance checks | `scripts/doctor-specs.mjs`, `tests/doctor-specs.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse file membership within each Doctor link check | `scripts/doctor-vault.mjs`, `scripts/doctor.mjs`, `scripts/lib-links.mjs`, `tests/doctor-vault.test.mjs`, `tests/lib-links.test.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse file membership within each supersede integrity check | `scripts/doctor-integrity.mjs`, `tests/doctor-integrity.test.mjs`, `scripts/doctor.mjs`, `scripts/lib-links.mjs`, `tests/lib-links.test.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md`, `docs/vault/adr/0009-artifact-integrity-checks.md` |
 | WP-21 | Reuse link lookup inputs within each readiness calculation | `scripts/ready.mjs`, `scripts/lib-links.mjs`, `scripts/lib-node-index.mjs`, `tests/ready.test.mjs`, `tests/lib-links.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `scripts/kanban.mjs`, `docs/vault/adr/0008-token-budget.md` |

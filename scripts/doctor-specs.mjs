@@ -232,6 +232,7 @@ export function checkSpecAcceptance(layout, artifacts, vaultCfg) {
   const resolveSpec = buildSpecResolver(artifacts, layout);
   const ambiguousReported = new Set(); // spec-scoped: one finding per spec+item
   const acceptanceItems = new Map(); // lazy, artifact-scoped, including null and empty results
+  const coveredStories = new Map();
 
   for (const story of artifacts.filter((a) => a.kind === "story")) {
     if (String(story.fm.status || "").toLowerCase() !== "done") continue;
@@ -249,7 +250,8 @@ export function checkSpecAcceptance(layout, artifacts, vaultCfg) {
           `Covering spec "${id}" has no Acceptance section — its criteria cannot gate this story.`, spec.rel));
         continue;
       }
-      const coveredEntries = listOf(spec.fm, "stories");
+      if (!coveredStories.has(spec)) coveredStories.set(spec, listOf(spec.fm, "stories"));
+      const coveredEntries = coveredStories.get(spec);
       for (const item of items) {
         let applies;
         if (item.stories === null) {

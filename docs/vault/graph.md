@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-30T20:53:16.128Z
+generated_at: 2026-10-30T21:03:35.355Z
 
 ---
 
@@ -204,6 +204,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md | Restore isolated environments for extracted module tests | story | done |
 | epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match.md | Retain only requested search results while counting every match | story | done |
 | epics/WP-21/stories/story-reuse-artifact-lookup-within-each-index-consistency-check.md | Reuse artifact lookup within each index consistency check | story | done |
+| epics/WP-21/stories/story-reuse-covered-story-lists-within-acceptance-checks.md | Reuse covered story lists within acceptance checks | story | done |
 | epics/WP-21/stories/story-reuse-file-membership-within-each-doctor-link-check.md | Reuse file membership within each Doctor link check | story | done |
 | epics/WP-21/stories/story-reuse-file-membership-within-each-supersede-integrity-check.md | Reuse file membership within each supersede integrity check | story | done |
 | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md | Reuse link lookup inputs within each readiness calculation | story | done |
@@ -548,6 +549,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-artifact-lookup-within-each-index-consistency-check.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-covered-story-lists-within-acceptance-checks.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-file-membership-within-each-doctor-link-check.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-file-membership-within-each-supersede-integrity-check.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md |
@@ -702,6 +704,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-restore-isolated-environments-for-extracted-module-tests.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-artifact-lookup-within-each-index-consistency-check.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-reuse-covered-story-lists-within-acceptance-checks.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-file-membership-within-each-doctor-link-check.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-file-membership-within-each-supersede-integrity-check.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md | mdlink | epics/WP-21/epic.md |

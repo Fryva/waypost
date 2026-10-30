@@ -254,6 +254,43 @@ test("doctor specs module: ineligible checks do not parse and first body errors 
   assert.equal(reads, 2);
 });
 
+test("doctor specs module: acceptance coverage distinguishes same-path objects and refreshes changed lists", () => {
+  const body = "## Acceptance\n- [ ] Own — stories: a\n";
+  const first = { kind: "spec", rel: "specs/same.md", fm: { id: "one", stories: '["E/a"]' }, body };
+  const second = artifact("spec", first.rel, { id: "two", stories: '["F/a"]' }, body);
+  const story = artifact("story", "epics/E/stories/a.md", { id: "a", status: "done", closed_at: "2035-01-01", specs: '["one", "two", "one"]' });
+  const input = [first, second, story];
+  const issue = { group: "vault", level: "issue", check: "spec-acceptance",
+    message: 'Story is done but spec "one" acceptance item is unchecked: "Own — stories: a".', file: story.rel };
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), [issue, issue]);
+  first.fm.stories = '["F/a"]';
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), []);
+  first.fm.stories = '["E/a", "F/a"]';
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), [
+    { group: "vault", level: "warn", check: "ambiguous-attribution",
+      message: 'Spec "one" acceptance item attributes bare id(s) "a" that match more than one covered epic — qualify as <epic-id>/<story-id>.', file: first.rel }, issue, issue]);
+  first.fm.stories = '[]';
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), []);
+});
+
+test("doctor specs module: missing acceptance skips coverage parsing but empty acceptance preserves first error", () => {
+  let reads = 0;
+  const sentinel = new Error("coverage unavailable");
+  const spec = { kind: "spec", rel: "specs/rules.md", fm: { id: "rules", get stories() { reads++; throw sentinel; } }, body: "No criteria\n" };
+  const story = artifact("story", "epics/E/stories/a.md", { id: "a", status: "done", closed_at: "2035-01-01", specs: '["rules", "rules"]' });
+  const input = [spec, story];
+  const warning = { group: "vault", level: "warn", check: "spec-acceptance",
+    message: 'Covering spec "rules" has no Acceptance section — its criteria cannot gate this story.', file: spec.rel };
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), [warning, warning]);
+  assert.equal(reads, 0);
+  spec.body = "## Acceptance\n\n";
+  assert.throws(() => focused.checkSpecAcceptance(layout, input, required), error => error === sentinel);
+  assert.equal(reads, 1);
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, {}), []);
+  assert.deepEqual(focused.checkSpecAcceptance({ ...layout, folders: [] }, input, required), []);
+  assert.equal(reads, 1);
+});
+
 test("doctor specs module: later checks see changed bodies on the same artifact and array", () => {
   const spec = { kind: "spec", rel: "specs/rules.md", fm: freeze({ id: "rules" }), body: "" };
   const story = artifact("story", "epics/E/stories/a.md", { id: "a", status: "done", closed_at: "2035-01-01", specs: '["rules"]' });
