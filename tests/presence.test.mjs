@@ -10,7 +10,7 @@ import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, readd
 import { join, dirname, delimiter } from "node:path";
 import { tmpdir, hostname, platform } from "node:os";
 import { spawnSync, spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   beat, peers, acquire, release, readLeases, winnerOf, storageOf, presenceDir, leaseDir, vaultRel,
   prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset, processGone, processTable, startTicks, coordinationDirs,
@@ -484,6 +484,64 @@ test("lease list keeps the legacy prefix before a malformed path and JSON still 
   const json = run(["--json"]);
   assert.equal(json.status, 0, json.stderr);
   assert.deepEqual(JSON.parse(json.stdout).map(r => r.path), ["first.md", 7, "never.md"]);
+});
+
+test("sessions groups adjacent editing owners while preserving own/stale filters, JSON and shared-checkout warning", () => {
+  const { proj, vault } = project();
+  const owner = "codex-foreign-long-session-identity";
+  const future = "2035-01-01T00:00:00.000Z";
+  peerFile(vault, { session: owner, host: "remote-workstation", harness: "codex", at: future, project_root: proj });
+  peerFile(vault, { session: "other", host: "otherbox", harness: "cursor", at: future });
+  peerFile(vault, { session: "self", host: "selfbox", harness: "codex", at: future });
+  peerFile(vault, { session: "sleeping", at: "2010-01-01T00:00:00.000Z" });
+  leaseFile(vault, { path: "aa.md", session: owner, host: "remote-workstation", harness: "codex" });
+  leaseFile(vault, { path: "ab-owned.md", session: "self", host: "selfbox", harness: "codex" });
+  leaseFile(vault, { path: "bb-Путь with spaces.md", session: owner, host: "remote-workstation", harness: "codex" });
+  const dir = ldir(vault);
+  const original = readdirSync(dir).find(n => n.startsWith("aa.md.remote."));
+  writeFileSync(join(dir, "ac.conflicted copy.json"), readFileSync(join(dir, original)));
+  leaseFile(vault, { path: "cc.md", session: "other", host: "otherbox", harness: "cursor" });
+  leaseFile(vault, { path: "yy-stale.md", session: "sleeping" });
+  leaseFile(vault, { path: "zz.md", session: owner, host: "remote-workstation", harness: "codex" });
+  const clock = join(proj, "fixed-clock.mjs");
+  writeFileSync(clock, 'const NativeDate=Date;globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:["2026-10-30T12:00:00.000Z"]))}static now(){return NativeDate.parse("2026-10-30T12:00:00.000Z")}};');
+  const run = args => spawnSync(process.execPath, [Waypost, "sessions", ...args], {
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "self", WAYPOST_NO_BEAT: "1", NODE_OPTIONS: `--import=${pathToFileURL(clock).href}` },
+  });
+  const warm = run(["--json"]);
+  assert.equal(warm.status, 0, warm.stderr);
+  const json = run(["--json"]);
+  assert.equal(json.status, 0, json.stderr);
+  const out = JSON.parse(json.stdout);
+  assert.ok(out.leases.some(r => r.mine && r.path === "ab-owned.md"));
+  assert.ok(out.leases.every(r => r.path !== "yy-stale.md"));
+  const visible = out.leases.filter(r => !r.mine);
+  assert.deepEqual(visible.map(r => r.path), ["aa.md", "aa.md", "bb-Путь with spaces.md", "cc.md", "zz.md"]);
+  const expected = `  editing: (${owner} on remote-workstation) [3 leases]\n` +
+    visible.slice(0, 3).map(r => `    ${r.path}\n`).join("") +
+    visible.slice(3).map(r => `  editing: ${r.path}  (${r.session} on ${r.host})\n`).join("");
+  const human = run([]);
+  assert.equal(human.status, 0, human.stderr);
+  assert.ok(human.stdout.includes(expected));
+  assert.ok(!human.stdout.includes("editing: ab-owned.md"));
+  assert.ok(human.stdout.indexOf("shared checkout:") > human.stdout.indexOf(expected));
+  assert.match(human.stdout, /same project root/);
+  const repeated = run(["--json"]);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal(repeated.stdout, json.stdout, "displaying editing groups preserves the full JSON snapshot");
+});
+
+test("sessions editing retains numeric path interpolation without lease-list padEnd behavior", () => {
+  const { proj, vault } = project();
+  peerFile(vault, { session: "owner", host: "remote", at: "2035-01-01T00:00:00.000Z" });
+  const dir = ldir(vault);
+  mkdirSync(dir, { recursive: true });
+  for (const [i, path] of ["first.md", 7, "last.md"].entries()) writeFileSync(join(dir, `${i}.json`), JSON.stringify({ session: "owner", host: "remote", harness: "codex", path }));
+  const r = spawnSync(process.execPath, [Waypost, "sessions"], {
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "self", WAYPOST_NO_BEAT: "1" },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(r.stdout.includes("  editing: first.md  (owner on remote)\n  editing: 7  (owner on remote)\n  editing: last.md  (owner on remote)\n"));
 });
 
 test("a claim survives 10 minutes of silence — live in claimsOf's 30-minute window, stale in plain presence (C-2)", () => {

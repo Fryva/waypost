@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-30T10:23:18.097Z
+generated_at: 2026-10-30T11:05:00.740Z
 
 ---
 
@@ -90,6 +90,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Freeze and guard the CLI namespace before modularization | `tests/helpers/cli-namespace.mjs`, `tests/fixtures/cli-namespace.json`, `tests/fixtures/cli-namespace-baseline.mjs.gz`, `tests/harness.test.mjs` |
 | WP-21 | Group adjacent log metadata without hiding commit identity | `scripts/commit.mjs`, `tests/commits.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0006-commit-protocol.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Group repeated owners in adjacent lease list rows | `scripts/presence.mjs`, `tests/presence.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md`, `docs/vault/adr/0007-shared-vault-presence.md`, `docs/vault/adr/0010-coordination-follows-the-repository.md` |
+| WP-21 | Group repeated owners in adjacent session editing rows | `scripts/sessions.mjs`, `tests/presence.test.mjs`, `tests/presence-liveness.test.mjs`, `tests/presence-storage.test.mjs`, `tests/presence-checkout.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md`, `docs/vault/adr/0007-shared-vault-presence.md`, `docs/vault/adr/0010-coordination-follows-the-repository.md` |
 | WP-21 | Isolate ADR guard checks without changing diagnostic behavior | `scripts/doctor.mjs`, `scripts/doctor-guards.mjs`, `tests/doctor-guards.test.mjs`, `tests/scripts.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/0011-decisions-that-check-themselves.md` |
 | WP-21 | Isolate artifact identity behind the shared library facade | `scripts/lib.mjs`, `scripts/lib-identity.mjs`, `tests/lib-identity.test.mjs`, `tests/lib-frontmatter.test.mjs`, `tests/predicates.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Isolate artifact integrity checks without changing diagnostics | `scripts/doctor.mjs`, `scripts/doctor-integrity.mjs`, `tests/doctor-integrity.test.mjs`, `tests/scripts.test.mjs`, `docs/how-it-works.md`, `docs/vault/adr/0009-artifact-integrity-checks.md` |

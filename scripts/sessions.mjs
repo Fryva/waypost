@@ -214,8 +214,25 @@ function main() {
     process.stdout.write(`${s.self ? "*" : " "} ${String(s.id).padEnd(22)} ${String(s.harness || "?").padEnd(9)}`
       + ` ${String(`${s.host}/${s.os}`).padEnd(20)}${s.claim ? ` story:${s.claim}` : ""}\n`);
   }
-  for (const l of out.leases.filter((x) => !x.mine)) {
-    process.stdout.write(`  editing: ${l.path}  (${l.session} on ${l.host})\n`);
+  const editing = out.leases.filter((x) => !x.mine);
+  const legacyEditing = l => `  editing: ${l.path}  (${l.session} on ${l.host})\n`;
+  const oneLine = value => typeof value === "string" && value.length > 0 && !/[\r\n]/.test(value);
+  const groupable = l => oneLine(l.path) && oneLine(l.session) && oneLine(l.host) &&
+    (l.harness == null || typeof l.harness === "string" && !/[\r\n]/.test(l.harness));
+  for (let i = 0; i < editing.length;) {
+    const l = editing[i];
+    let end = i + 1;
+    if (groupable(l)) {
+      while (end < editing.length && groupable(editing[end]) && editing[end].session === l.session &&
+        editing[end].host === l.host && editing[end].harness === l.harness) end++;
+    }
+    if (end - i === 1) { process.stdout.write(legacyEditing(l)); i++; continue; }
+    const group = editing.slice(i, end);
+    const full = group.map(legacyEditing).join("");
+    const compact = `  editing: (${l.session} on ${l.host}) [${group.length} leases]\n` +
+      group.map(row => `    ${row.path}\n`).join("");
+    process.stdout.write(compact.length < full.length ? compact : full);
+    i = end;
   }
   if (out.shared_tree.shared) {
     process.stdout.write(`\n⚠️  shared checkout: ${sharedWith(shared)} — ${SHARED_TREE_ADVICE}\n`);

@@ -23,7 +23,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 | `waypost commit -m "<what>" [--task <id>]` | commit with harness/session/story trailers; `--task` adds an external tracker's id |
 | `waypost merge <ref>` | merge, re-derive the views, then commit |
 | `waypost log [--story\|--task\|--harness]` | history through trailers; adjacent records share date/harness/provider/OS headings, with story/tasks kept per commit; `--json` retains full records; filtered history is paged at one pinned HEAD until `-n` matches or exhaustion, shrinking overflowing pages without raising the capture limit (`-n`: nonnegative safe integer, default 20) |
-| `waypost sessions [--touch] [--claim/--release] [--prune [--older-than <span>]]` | active sessions and story claims |
+| `waypost sessions [--touch] [--claim/--release] [--prune [--older-than <span>]]` | active sessions and story claims; adjacent editing rows share identical raw owners when shorter, with full paths and all safety warnings retained; `--json` stays complete |
 | `waypost watch` | stay live and see other devices' events |
 | `waypost lease <path…>` | announce the files you are editing right now; `lease list` groups adjacent identical owners when shorter, retaining every path and mine/live flag; `--json` retains full records |
 | `waypost storage` | what the vault is stored on and how far behind presence can be |
