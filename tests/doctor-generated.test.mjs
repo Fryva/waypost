@@ -63,6 +63,50 @@ test("doctor generated module: full index findings preserve escaped pipes, order
   assert.equal(JSON.stringify({ layout, arts }), before);
 });
 
+test("doctor generated module: index lookup keeps the first duplicate and refreshes the same array", t => {
+  const root = fixture(t);
+  mkdirSync(join(root, "adr"));
+  mkdirSync(join(root, "specs"));
+  const row = "| [rules](./rules.md) | Rules | accepted | date |\n";
+  writeFileSync(join(root, "adr/README.md"), row + row);
+  writeFileSync(join(root, "specs/README.md"), "| [s](./s.md) | Spec | active | date |\n");
+  const cfg = { vault_path: root };
+  const layout = freeze({ folders: [{ path: "adr", kind: "adr" }, { path: "specs", kind: "spec" }] });
+  const first = { kind: "adr", rel: "adr/rules.md", fm: { title: "Rules", status: "accepted" } };
+  const arts = [first,
+    { kind: "adr", rel: "adr/rules.md", fm: { title: "Wrong duplicate", status: "draft" } },
+    { kind: "spec", rel: "specs/s.md", fm: { title: "Spec", status: "active" } }];
+  assert.deepEqual(focused.checkIndexes(cfg, layout, arts), []);
+  first.fm.status = "proposed";
+  const changed = { group: "vault", level: "issue", check: "index",
+    message: 'adr/README.md lists "rules" as "accepted" but its frontmatter says "proposed".', file: "adr/rules.md" };
+  assert.deepEqual(focused.checkIndexes(cfg, layout, arts), [changed, changed]);
+  first.fm.status = "accepted";
+  arts.splice(1, 1);
+  first.rel = "adr/renamed.md";
+  const missing = { group: "vault", level: "issue", check: "index",
+    message: 'adr/README.md row "rules" points at a missing file: rules.md', file: "adr/README.md" };
+  assert.deepEqual(focused.checkIndexes(cfg, layout, arts), [missing, missing,
+    { group: "vault", level: "warn", check: "index", message: "adr/renamed.md is not listed in adr/README.md's index.", file: "adr/renamed.md" }]);
+  first.rel = "adr/rules.md";
+  assert.deepEqual(focused.checkIndexes(cfg, layout, arts), []);
+});
+
+test("doctor generated module: no parsed index rows require no artifact lookup", t => {
+  const root = fixture(t);
+  const cfg = { vault_path: root };
+  const layout = { folders: [{ path: "adr", kind: "adr" }] };
+  // Missing README skips artifacts entirely, including lookup preparation.
+  assert.deepEqual(focused.checkIndexes(cfg, layout, null), []);
+  mkdirSync(join(root, "adr"));
+  writeFileSync(join(root, "adr/README.md"), "No index rows\n");
+  const art = { kind: "other", get rel() { throw new Error("unexpected lookup"); } };
+  assert.deepEqual(focused.checkIndexes(cfg, layout, [art]), []);
+  writeFileSync(join(root, "adr/README.md"), "| [absent](./absent.md) | Absent | draft | date |\n");
+  assert.deepEqual(focused.checkIndexes(cfg, layout, []), [{ group: "vault", level: "issue", check: "index",
+    message: 'adr/README.md row "absent" points at a missing file: absent.md', file: "adr/README.md" }]);
+});
+
 test("doctor generated module: localized headers remain valid and extra columns retain full warning", t => {
   const root = fixture(t);
   mkdirSync(join(root, "adr"));

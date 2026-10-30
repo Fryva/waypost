@@ -42,6 +42,7 @@ export function checkKanbanSync(cfg) {
 export function checkIndexes(cfg, layout, artifacts) {
   const out = [];
   const vault = cfg.vault_path;
+  let byRel;
   // The title cell tolerates an escaped `\|` (reconcile/draft escape a `|`
   // in a title so it cannot split the row into an extra column) — `[^|]+`
   // alone would stop at the escaped pipe and misread the rest of the row as
@@ -60,7 +61,12 @@ export function checkIndexes(cfg, layout, artifacts) {
     for (const row of rows) {
       const rel = `${folder.path}/${row.target}`;
       indexed.add(rel);
-      const art = artifacts.find((a) => a.rel === rel);
+      if (!byRel) {
+        byRel = new Map();
+        // Keep find's first match when the snapshot contains duplicate paths.
+        for (const a of artifacts) if (!byRel.has(a.rel)) byRel.set(a.rel, a);
+      }
+      const art = byRel.get(rel);
       if (!art) {
         out.push(finding("vault", "issue", "index",
           `${folder.path}/README.md row "${row.label}" points at a missing file: ${row.target}`, `${folder.path}/README.md`));
