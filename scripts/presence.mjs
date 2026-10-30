@@ -338,8 +338,24 @@ function main() {
       const rows = readLeases(vault, { self: sid });
       if (json) { process.stdout.write(JSON.stringify(rows, null, 2) + "\n"); return; }
       if (!rows.length) { process.stdout.write("no leases\n"); return; }
-      for (const l of rows) {
-        process.stdout.write(`${l.mine ? "*" : " "} ${l.live ? "live " : "stale"} ${l.path.padEnd(40)} ${l.session} on ${l.host} (${l.harness || "?"})\n`);
+      const legacy = l => `${l.mine ? "*" : " "} ${l.live ? "live " : "stale"} ${l.path.padEnd(40)} ${l.session} on ${l.host} (${l.harness || "?"})\n`;
+      const oneLine = value => typeof value === "string" && value.length > 0 && !/[\r\n]/.test(value);
+      const groupable = l => oneLine(l.path) && oneLine(l.session) && oneLine(l.host) &&
+        (l.harness == null || typeof l.harness === "string" && !/[\r\n]/.test(l.harness));
+      for (let i = 0; i < rows.length;) {
+        const l = rows[i];
+        let end = i + 1;
+        if (groupable(l)) {
+          while (end < rows.length && groupable(rows[end]) && rows[end].session === l.session &&
+            rows[end].host === l.host && rows[end].harness === l.harness) end++;
+        }
+        if (end - i === 1) { process.stdout.write(legacy(l)); i++; continue; }
+        const group = rows.slice(i, end);
+        const full = group.map(legacy).join("");
+        const compact = `${l.session} on ${l.host} (${l.harness || "?"}) [${group.length} leases]\n` +
+          group.map(row => `  ${row.mine ? "*" : " "} ${row.live ? "live " : "stale"} ${row.path}\n`).join("");
+        process.stdout.write(compact.length < full.length ? compact : full);
+        i = end;
       }
       return;
     }

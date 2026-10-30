@@ -435,6 +435,57 @@ test("`waypost lease <path>` and `waypost lease --json` both work in the documen
   assert.ok(Array.isArray(rows) && rows.some((r) => r.path === "adr/x.md" && r.mine));
 });
 
+test("lease list groups adjacent owners without losing flags, duplicates or singleton rows", () => {
+  const { proj, vault } = project();
+  const owner = "codex-owner-with-a-long-session-identity";
+  peerFile(vault, { session: owner, host: "remote-workstation", at: new Date(Date.now() + 3600000).toISOString() });
+  leaseFile(vault, { path: "aa.md", session: owner, host: "remote-workstation", harness: "codex" });
+  leaseFile(vault, { path: "bb-Путь with spaces.md", session: owner, host: "remote-workstation", harness: "codex" });
+  const dir = ldir(vault);
+  const original = readdirSync(dir).find(n => n.startsWith("aa.md.remote."));
+  writeFileSync(join(dir, "ab.conflicted copy.json"), readFileSync(join(dir, original)));
+  leaseFile(vault, { path: "cc.md", session: "other", host: "otherbox", harness: "cursor" });
+  leaseFile(vault, { path: "zz.md", session: owner, host: "remote-workstation", harness: "codex" });
+  const run = args => spawnSync(process.execPath, [Waypost, "lease", "list", ...args], {
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: owner, WAYPOST_NO_BEAT: "1" },
+  });
+  const json = run(["--json"]);
+  assert.equal(json.status, 0, json.stderr);
+  const rows = JSON.parse(json.stdout);
+  assert.deepEqual(rows.map(r => r.path), ["aa.md", "aa.md", "bb-Путь with spaces.md", "cc.md", "zz.md"]);
+  assert.ok(rows.some(r => r.conflicted_copy));
+  assert.ok(rows.slice(0, 3).every(r => r.mine && r.live));
+  const human = run([]);
+  assert.equal(human.status, 0, human.stderr);
+  const legacy = r => `${r.mine ? "*" : " "} ${r.live ? "live " : "stale"} ${r.path.padEnd(40)} ${r.session} on ${r.host} (${r.harness || "?"})\n`;
+  const expected = `${owner} on remote-workstation (codex) [3 leases]\n` +
+    rows.slice(0, 3).map(r => `  * live  ${r.path}\n`).join("") + rows.slice(3).map(legacy).join("");
+  assert.equal(human.stdout, expected);
+  const repeated = run(["--json"]);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal(repeated.stdout, json.stdout, "formatting leaves complete JSON records unchanged");
+});
+
+test("lease list keeps the legacy prefix before a malformed path and JSON still returns records", () => {
+  const { proj, vault } = project();
+  const dir = ldir(vault);
+  mkdirSync(dir, { recursive: true });
+  const owner = { session: "owner", host: "remote", harness: "codex" };
+  writeFileSync(join(dir, "001.json"), JSON.stringify({ ...owner, path: "first.md" }));
+  writeFileSync(join(dir, "002.json"), JSON.stringify({ ...owner, path: 7 }));
+  writeFileSync(join(dir, "003.json"), JSON.stringify({ ...owner, path: "never.md" }));
+  const run = args => spawnSync(process.execPath, [Waypost, "lease", "list", ...args], {
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "self", WAYPOST_NO_BEAT: "1" },
+  });
+  const human = run([]);
+  assert.notEqual(human.status, 0);
+  assert.equal(human.stdout, `  stale ${"first.md".padEnd(40)} owner on remote (codex)\n`);
+  assert.match(human.stderr, /padEnd is not a function/);
+  const json = run(["--json"]);
+  assert.equal(json.status, 0, json.stderr);
+  assert.deepEqual(JSON.parse(json.stdout).map(r => r.path), ["first.md", 7, "never.md"]);
+});
+
 test("a claim survives 10 minutes of silence — live in claimsOf's 30-minute window, stale in plain presence (C-2)", () => {
   const { proj, vault } = project();
   withProject(proj, () => {
