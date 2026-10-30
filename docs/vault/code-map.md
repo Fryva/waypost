@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-30T20:28:59.584Z
+generated_at: 2026-10-30T20:36:53.818Z
 
 ---
 
@@ -160,6 +160,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Reuse file membership within each supersede integrity check | `scripts/doctor-integrity.mjs`, `tests/doctor-integrity.test.mjs`, `scripts/doctor.mjs`, `scripts/lib-links.mjs`, `tests/lib-links.test.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md`, `docs/vault/adr/0009-artifact-integrity-checks.md` |
 | WP-21 | Reuse link lookup inputs within each readiness calculation | `scripts/ready.mjs`, `scripts/lib-links.mjs`, `scripts/lib-node-index.mjs`, `tests/ready.test.mjs`, `tests/lib-links.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `scripts/kanban.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse parsed coverage lists in spec link checks | `scripts/doctor-specs.mjs`, `tests/doctor-specs.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
+| WP-21 | Reuse story specification lists within link checks | `scripts/doctor-specs.mjs`, `tests/doctor-specs.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse the file lookup set across graph link resolution | `scripts/graph.mjs`, `scripts/lib-links.mjs`, `scripts/lib-node-index.mjs`, `scripts/doctor.mjs`, `tests/scripts.test.mjs`, `tests/lib-links.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Scope unknown-prefix diagnostics to the requested period | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Search source artifacts that share derived view filenames | `bin/cli/views.mjs`, `scripts/lib-resources.mjs`, `bin/cli/core.mjs`, `scripts/reconcile.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |

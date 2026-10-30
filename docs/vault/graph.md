@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-10-30T20:30:58.291Z
+generated_at: 2026-10-30T20:39:20.935Z
 
 ---
 
@@ -208,6 +208,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-reuse-file-membership-within-each-supersede-integrity-check.md | Reuse file membership within each supersede integrity check | story | done |
 | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md | Reuse link lookup inputs within each readiness calculation | story | done |
 | epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks.md | Reuse parsed coverage lists in spec link checks | story | done |
+| epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks.md | Reuse story specification lists within link checks | story | done |
 | epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md | Reuse the file lookup set across graph link resolution | story | done |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | Scope unknown-prefix diagnostics to the requested period | story | done |
 | epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames.md | Search source artifacts that share derived view filenames | story | done |
@@ -550,6 +551,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-file-membership-within-each-supersede-integrity-check.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames.md |
@@ -702,6 +704,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-reuse-file-membership-within-each-supersede-integrity-check.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames.md | mdlink | epics/WP-21/epic.md |

@@ -120,6 +120,11 @@ export function checkSpecLinks(cfg, layout, artifacts) {
   const specs = artifacts.filter((a) => a.kind === "spec");
   const resolveSpec = buildSpecResolver(artifacts, layout);
   const storiesBySpec = new Map();
+  const specsByStory = new Map();
+  const specsOf = (story) => {
+    if (!specsByStory.has(story)) specsByStory.set(story, listOf(story.fm, "specs"));
+    return specsByStory.get(story);
+  };
 
   for (const spec of specs) {
     const entries = listOf(spec.fm, "stories");
@@ -130,7 +135,7 @@ export function checkSpecLinks(cfg, layout, artifacts) {
         out.push(finding("vault", "issue", "spec-links",
           `Spec "${spec.fm.id}" stories entry "${entry}" does not resolve: ${r.error}.`, spec.rel));
       } else if (spec.fm.id &&
-                 !listOf(r.story.fm, "specs").some((ref) => resolveSpec(ref) === spec)) {
+                 !specsOf(r.story).some((ref) => resolveSpec(ref) === spec)) {
         // Membership through the SAME resolver — a slug-form back-reference
         // to a grandfathered SPEC-NNN file is a valid link, not a gap.
         out.push(finding("vault", "warn", "spec-links",
@@ -139,7 +144,7 @@ export function checkSpecLinks(cfg, layout, artifacts) {
     }
   }
   for (const story of artifacts.filter((a) => a.kind === "story")) {
-    for (const id of listOf(story.fm, "specs")) {
+    for (const id of specsOf(story)) {
       const spec = resolveSpec(id);
       if (!spec) {
         out.push(finding("vault", "issue", "spec-links",

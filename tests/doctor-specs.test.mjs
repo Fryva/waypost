@@ -108,6 +108,48 @@ test("doctor specs module: link checks see coverage and identity edits on the sa
   assert.deepEqual(focused.checkSpecLinks({}, layout, input), []);
 });
 
+test("doctor specs module: story spec lists distinguish objects sharing a path", () => {
+  const spec = artifact("spec", "specs/rules.md", { id: "rules", stories: '["E/one"]' });
+  const first = artifact("story", "epics/E/stories/a.md", { id: "one", specs: '["rules", "rules"]' });
+  const second = artifact("story", first.rel, { id: "two", specs: '["absent"]' });
+  const input = freeze([spec, first, second]);
+  const before = JSON.stringify(input);
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), [{ group: "vault", level: "issue", check: "spec-links",
+    message: 'Story lists spec "absent" which does not exist in specs/.', file: second.rel }]);
+  assert.equal(JSON.stringify(input), before);
+});
+
+test("doctor specs module: shared story links retain duplicates and fresh specs on later calls", () => {
+  const first = artifact("spec", "specs/one.md", { id: "one", stories: '["E/a", "E/a"]' });
+  const second = artifact("spec", "specs/two.md", { id: "two", stories: '["E/a"]' });
+  const story = { kind: "story", rel: "epics/E/stories/a.md", fm: { id: "a", specs: '["absent"]' }, body: "" };
+  const input = [first, second, story];
+  const warning = id => ({ group: "vault", level: "warn", check: "spec-links",
+    message: `Spec "${id}" covers E/a but the story's \`specs:\` list lacks "${id}" (bidirectional link).`, file: story.rel });
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), [warning("one"), warning("one"), warning("two"),
+    { group: "vault", level: "issue", check: "spec-links", message: 'Story lists spec "absent" which does not exist in specs/.', file: story.rel }]);
+  story.fm.specs = '["one", "two"]';
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), []);
+  story.fm.specs = '[]';
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), [warning("one"), warning("one"), warning("two")]);
+  input[2] = artifact("story", story.rel, { id: "a", specs: '["one"]' });
+  assert.deepEqual(focused.checkSpecLinks({}, layout, input), [warning("two")]);
+});
+
+test("doctor specs module: idless forward links preserve first-error order before story parsing", () => {
+  const forwardError = new Error("forward list unavailable");
+  const storyError = new Error("story specs unavailable");
+  let reads = 0;
+  const idless = artifact("spec", "specs/idless.md", { stories: '["E/a"]' });
+  const broken = { kind: "spec", rel: "specs/broken.md", fm: { id: "broken", get stories() { throw forwardError; } } };
+  const story = { kind: "story", rel: "epics/E/stories/a.md", fm: { id: "a", get specs() { reads++; throw storyError; } }, body: "" };
+  assert.throws(() => focused.checkSpecLinks({}, layout, [idless, broken, story]), error => error === forwardError);
+  assert.equal(reads, 0);
+  assert.throws(() => focused.checkSpecLinks({}, layout, [story]), error => error === storyError);
+  assert.equal(reads, 1);
+  assert.deepEqual(focused.checkSpecLinks({}, { folders: [] }, null), []);
+});
+
 test("doctor specs module: ambiguous attribution warns once per spec while shared and attributed items keep order", () => {
   const spec = artifact("spec", "specs/rules.md", { id: "rules", status: "active", stories: '["E/story-a", "F/story-a"]' }, "## Acceptance\n\n- [ ] Shared\n- [ ] Own — stories: story-a\n");
   const paths = ["epics/E/stories/story-a.md", "epics/F/stories/story-a.md"];
