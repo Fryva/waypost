@@ -486,6 +486,82 @@ test("lease list keeps the legacy prefix before a malformed path and JSON still 
   assert.deepEqual(JSON.parse(json.stdout).map(r => r.path), ["first.md", 7, "never.md"]);
 });
 
+test("brief editing length guard and fallback keep exact legacy rows", () => {
+  const source = readFileSync(join(REPO, "scripts", "brief.mjs"), "utf8");
+  const body = source.slice(source.indexOf("function others("), source.indexOf("\nasync function main()"));
+  const render = (rows, full = false) => Function("peers", "readLeases", "sharedTree", "sessionId", "rows", "full",
+    `return (${body})({vault_path: "/owned/vault"}, {sessionId: "self", full});`)(
+    () => ({peers: [], storage: {kind: "local"}, conflicts: []}), () => rows,
+    () => ({shared: false, siblings: []}), () => "self", rows, full);
+  const row = (path, session = "s", harness = "codex") => ({path, session, host: "h", harness, live: true, mine: false});
+  const legacy = rows => rows.map(r => `- \`${r.path}\` (${r.session} on ${r.host})`).join("\n");
+  for (const length of [1, 8, 9, 10]) {
+    const rows = [row("a.md", "s".repeat(length)), row("b.md", "s".repeat(length))];
+    const full = render(rows, true), compact = render(rows);
+    assert.ok(full.includes(legacy(rows)));
+    if (length <= 9) assert.equal(compact, full);
+    else { assert.ok(compact.includes("[2 leases]\n  - `a.md`\n  - `b.md`")); assert.equal(full.length - compact.length, 1); }
+  }
+  for (const rows of [[row(7), row("a.md")], [row("line\nbreak"), row("b.md")],
+    [row("a.md", "owner-long", null), row("b.md", "owner-long", "")],
+    [row("a.md", "owner-long", null), {...row("b.md", "owner-long"), harness: undefined}]]) {
+    assert.equal(render(rows), render(rows, true));
+  }
+});
+
+test("brief groups adjacent editing owners only in default text", () => {
+  const { proj, vault } = project();
+  const owner = "codex-foreign-long-session-identity";
+  const future = "2035-01-01T00:00:00.000Z";
+  peerFile(vault, { session: owner, host: "remote-workstation", harness: "codex", at: future, project_root: proj });
+  peerFile(vault, { session: "other", host: "otherbox", harness: "cursor", at: future });
+  peerFile(vault, { session: "self", host: "selfbox", harness: "codex", at: future });
+  peerFile(vault, { session: "sleeping", at: "2010-01-01T00:00:00.000Z" });
+  leaseFile(vault, { path: "aa.md", session: owner, host: "remote-workstation", harness: "codex" });
+  leaseFile(vault, { path: "ab-owned.md", session: "self", host: "selfbox", harness: "codex" });
+  leaseFile(vault, { path: "bb-Путь with spaces.md", session: owner, host: "remote-workstation", harness: "codex" });
+  const dir = ldir(vault);
+  const original = readdirSync(dir).find(n => n.startsWith("aa.md.remote."));
+  writeFileSync(join(dir, "ac.conflicted copy.json"), readFileSync(join(dir, original)));
+  leaseFile(vault, { path: "cc.md", session: "other", host: "otherbox", harness: "cursor" });
+  leaseFile(vault, { path: "yy-stale.md", session: "sleeping" });
+  leaseFile(vault, { path: "zz.md", session: owner, host: "remote-workstation", harness: "codex" });
+  const clock = join(proj, "fixed-clock.mjs");
+  writeFileSync(clock, 'const NativeDate=Date;globalThis.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:["2026-10-30T12:00:00.000Z"]))}static now(){return NativeDate.parse("2026-10-30T12:00:00.000Z")}};');
+  const run = args => spawnSync(process.execPath, [Waypost, "brief", "--no-install", ...args], {
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, WAYPOST_SESSION_ID: "self", WAYPOST_NO_BEAT: "1", NODE_OPTIONS: `--import=${pathToFileURL(clock).href}` },
+  });
+  const warm = run(["--json"]);
+  assert.equal(warm.status, 0, warm.stderr);
+  const json = run(["--json"]);
+  assert.equal(json.status, 0, json.stderr);
+  const leaseSnapshot = spawnSync(process.execPath, [Waypost, "sessions", "--json"], {
+    encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO,
+      WAYPOST_SESSION_ID: "self", WAYPOST_NO_BEAT: "1", NODE_OPTIONS: `--import=${pathToFileURL(clock).href}` },
+  });
+  assert.equal(leaseSnapshot.status, 0, leaseSnapshot.stderr);
+  const visible = JSON.parse(leaseSnapshot.stdout).leases.filter(r => !r.mine);
+  assert.deepEqual(visible.map(r => r.path), ["aa.md", "aa.md", "bb-Путь with spaces.md", "cc.md", "zz.md"]);
+  const legacy = r => `- \`${r.path}\` (${r.session} on ${r.host})`;
+  const expanded = visible.map(legacy).join("\n");
+  const compact = `- (${owner} on remote-workstation) [3 leases]\n` +
+    visible.slice(0, 3).map(r => `  - \`${r.path}\``).join("\n") + "\n" + visible.slice(3).map(legacy).join("\n");
+  const human = run([]), full = run(["--full"]);
+  for (const result of [human, full]) {
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /This checkout is shared/);
+    assert.match(result.stdout, /same project root/);
+    assert.ok(!result.stdout.includes("ab-owned.md"));
+    assert.ok(!result.stdout.includes("yy-stale.md"));
+  }
+  assert.ok(human.stdout.includes(compact));
+  assert.ok(full.stdout.includes(expanded));
+  assert.ok(!full.stdout.includes("[3 leases]"));
+  assert.ok(human.stdout.indexOf("This checkout is shared") > human.stdout.indexOf(compact));
+  assert.equal(run(["--json"]).stdout, json.stdout);
+  assert.equal(run(["--full", "--json"]).stdout, json.stdout);
+});
+
 test("sessions groups adjacent editing owners while preserving own/stale filters, JSON and shared-checkout warning", () => {
   const { proj, vault } = project();
   const owner = "codex-foreign-long-session-identity";

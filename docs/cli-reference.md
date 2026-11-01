@@ -7,7 +7,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 |---------|--------------|
 | `waypost setup` | the whole install in one command (`--dry-run` to look first) |
 | `waypost next` | what needs doing now, ranked; adjacent actions sharing a command show it once beneath a counted group |
-| `waypost brief` | orientation packet at the start of work (compact cleanup status; `--full` for the tutorial and expanded cleanup labels) |
+| `waypost brief` | orientation packet at the start of work (compact cleanup status; `--full` for the tutorial and expanded cleanup labels); adjacent foreign editing leases share owners only when shorter; `--full` keeps expanded rows |
 | `waypost draft <kind> "<title>" [--write]` | draft an artifact; `--write` creates it and reconciles |
 | `waypost story plan\|close <path> [--write]` | story lifecycle gates |
 | `waypost ready [--all]` | stories that are planned, unblocked (`blocked_by`, a draft spec, a proposed ADR) and unclaimed, with the exact claim command; headings show epic and title (`--all` retains full story references and blockers) |

@@ -120,7 +120,29 @@ function others(cfg, opts = {}) {
     }
     if (leases.length) {
       L.push("", "Files another session is editing right now — do not touch them without asking:");
+      if (opts.full) {
       for (const l of leases) L.push(`- \`${l.path}\` (${l.session} on ${l.host})`);
+      } else {
+        const legacy = l => `- \`${l.path}\` (${l.session} on ${l.host})`;
+        const oneLine = v => typeof v === "string" && v.length > 0 && !/[\r\n]/.test(v);
+        const groupable = l => oneLine(l.path) && oneLine(l.session) && oneLine(l.host) &&
+          (l.harness == null || typeof l.harness === "string" && !/[\r\n]/.test(l.harness));
+        for (let i = 0; i < leases.length;) {
+          const l = leases[i];
+          let end = i + 1;
+          if (groupable(l)) {
+            while (end < leases.length && groupable(leases[end]) && leases[end].session === l.session &&
+              leases[end].host === l.host && leases[end].harness === l.harness) end++;
+          }
+          if (end - i === 1) { L.push(legacy(l)); i++; continue; }
+          const group = leases.slice(i, end);
+          const full = group.map(legacy).join("\n");
+          const compact = `- (${l.session} on ${l.host}) [${group.length} leases]\n` +
+            group.map(row => `  - \`${row.path}\``).join("\n");
+          L.push(compact.length < full.length ? compact : full);
+          i = end;
+        }
+      }
     }
     // A shared checkout, not just a shared vault: the one case where "commit
     // it now" is the whole advice, because git cannot be asked to wait.
