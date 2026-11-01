@@ -1563,12 +1563,12 @@ test("bin/waypost search: large documents and multiline literals preserve exact 
     ["\ufeff" + ["---", "type: adr", "title: Needle early", "status: accepted", "---", ...Array(10000).fill("filler")].join("\r\n"),
       ["Needle", "--kind", "adr"], "adr/scan.md  (accepted)\n  Needle early (line 3)\n"],
     ["filler\n".repeat(10000) + "Needle late\n" + "tail\n".repeat(100),
-      ["Needle"], "adr/scan.md\n  scan.md\n  10001: Needle late\n"],
-    ["filler\nNeedle final", ["Needle"], "adr/scan.md\n  scan.md\n  2: Needle final\n"],
-    ["", [""], "adr/scan.md\n  scan.md\n  1: \n"],
+      ["Needle"], "adr/scan.md\n  10001: Needle late\n"],
+    ["filler\nNeedle final", ["Needle"], "adr/scan.md\n  2: Needle final\n"],
+    ["", [""], "adr/scan.md\n  1: \n"],
     ["left\nright", ["left\nright"], "no match\n"],
-    ["left\nright\nNeedle fallback", ["left\nright", "Needle"], "adr/scan.md\n  scan.md\n  3: Needle fallback\n"],
-    ["unmatched\nbody", ["scan.md"], "adr/scan.md\n  scan.md\n"],
+    ["left\nright\nNeedle fallback", ["left\nright", "Needle"], "adr/scan.md\n  3: Needle fallback\n"],
+    ["unmatched\nbody", ["scan.md"], "adr/scan.md\n"],
   ];
   for (const [text, args, expected] of cases) {
     writeFileSync(p, text);
@@ -1734,8 +1734,8 @@ test("bin/waypost search: body, ambiguous metadata and path hits retain their sn
     ['---\ntype: adr\ntitle: "Findable"\n---\ntitle: Findable\n', "title: Findable", '  Findable\n  5: title: Findable\n'],
     ['---\ntype: adr\ntitle: Other\n---\nFindable body\n', "Findable", '  Other\n  5: Findable body\n'],
     ['---\ntype: adr\ntitle: Other\ntags: Findable\n---\n', "Findable", '  Other\n  4: tags: Findable\n'],
-    ['---\ntype: adr\ntitle: ""\n---\nFindable body\n', "Findable", '  fallback.md\n  5: Findable body\n'],
-    ['---\ntype: adr\n---\nFindable body\n', "Findable", '  fallback.md\n  4: Findable body\n'],
+    ['---\ntype: adr\ntitle: ""\n---\nFindable body\n', "Findable", '  5: Findable body\n'],
+    ['---\ntype: adr\n---\nFindable body\n', "Findable", '  4: Findable body\n'],
     ['---\ntype: adr\ntitle: Other\n---\n', "fallback.md", '  Other\n'],
   ]) {
     writeFileSync(path, content);
@@ -1743,6 +1743,38 @@ test("bin/waypost search: body, ambiguous metadata and path hits retain their sn
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stdout, "adr/fallback.md\n" + expected);
   }
+});
+
+test("bin/waypost search: only automatic filename titles disappear", () => {
+  const { proj, vault } = makeVaultProject();
+  const path = join(vault, "adr", "fallback.md");
+  for (const scalar of [null, "null", "~", "", '""', "''"]) {
+    writeFileSync(path, `---\ntype: adr\n${scalar === null ? "" : `title: ${scalar}\n`}status: accepted\n---\nFindable body\n`);
+    const result = runBinRaw(proj, ["search", "Findable", "--kind", "adr"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, `adr/fallback.md  (accepted)\n  ${scalar === null ? 5 : 6}: Findable body\n`);
+    const pathOnly = runBinRaw(proj, ["search", "adr/fallback.md", "--json"]);
+    assert.equal(pathOnly.status, 0, pathOnly.stderr);
+    assert.equal(pathOnly.stdout, "adr/fallback.md  (accepted)\n");
+  }
+  for (const title of ["fallback.md", "Fallback.md", " ", "0", "false", "cafe\u0301😀"]) {
+    writeFileSync(path, `---\ntype: adr\ntitle: ${JSON.stringify(title)}\n---\nFindable body\n`);
+    const result = runBinRaw(proj, ["search", "Findable"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, `adr/fallback.md\n  ${title}\n  5: Findable body\n`);
+  }
+  writeFileSync(path, "---\ntype: adr\ntitle: fallback.md\n---\n");
+  for (const [query, expected] of [["adr/fallback.md", "fallback.md"], ["fallback.md", "fallback.md (line 3)"]]) {
+    const result = runBinRaw(proj, ["search", query]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, `adr/fallback.md\n  ${expected}\n`);
+  }
+  rmSync(path);
+  const name = "cafe\u0301-😀.md";
+  writeFileSync(join(vault, "adr", name), "\ufeff---\r\ntype: adr\r\n---\r\nFindable body\r\n");
+  const result = runBinRaw(proj, ["search", "Findable"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, `adr/${name}\n  4: Findable body\n`);
 });
 
 test("bin/waypost search: compact titles preserve limit, ordering, literal terms and iCloud notice", () => {

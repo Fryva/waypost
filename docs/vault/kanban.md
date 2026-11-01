@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-01T21:02:22.666Z
+generated_at: 2026-11-01T22:30:05.653Z
 
 ---
 
@@ -195,6 +195,7 @@ generated_at: 2026-11-01T21:02:22.666Z
 - [x] [[epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks|WP-21: Reuse parsed coverage lists in spec link checks]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-repeated-story-resolutions-within-spec-link-checks|WP-21: Reuse repeated story resolutions within spec link checks]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks|WP-21: Reuse story specification lists within link checks]] #p2 #done
+- [x] [[epics/WP-21/stories/story-avoid-repeating-search-result-filenames-as-titles|WP-21: Avoid repeating search result filenames as titles]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-empty-groups-in-the-default-doctor-report|WP-21: Compact empty groups in the default Doctor report]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-group-severity-totals-in-the-default-doctor-report|WP-21: Compact group severity totals in the default Doctor report]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-summary-totals-in-the-default-doctor-report|WP-21: Compact summary totals in the default Doctor report]] #p2 #done

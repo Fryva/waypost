@@ -170,7 +170,8 @@ function handleSearch(args) {
         hitLine > 0 && hitLine < text.slice(0, text.length - body.length).split("\n").length - 1 &&
         (scalar === JSON.stringify(fm.title) || scalar === `'${fm.title.replace(/'/g, "''")}'` ||
           (!/^["'|>]/.test(scalar) && scalar === fm.title)) ? hitLine + 1 : null;
-      out.push({ path: r, title: String(fm.title ?? "") || n, status: fm.status == null ? "" : String(fm.status),
+      const title = String(fm.title ?? "");
+      out.push({ path: r, title: title || n, fallbackTitle: title === "", status: fm.status == null ? "" : String(fm.status),
         titleLine,
         line: hitLine === -1 ? null : `${hitLine + 1}: ${searchExcerpt(hit.line, re)}` });
     }
@@ -179,7 +180,8 @@ function handleSearch(args) {
   if (!out.length) { process.stdout.write("no match\n"); }
   else {
     for (const h of out) {
-      process.stdout.write(`${h.path}${h.status ? `  (${h.status})` : ""}\n  ${h.title}${h.titleLine ? ` (line ${h.titleLine})` : ""}\n`
+      process.stdout.write(`${h.path}${h.status ? `  (${h.status})` : ""}\n`
+        + (h.fallbackTitle ? "" : `  ${h.title}${h.titleLine ? ` (line ${h.titleLine})` : ""}\n`)
         + (h.line && !h.titleLine ? `  ${h.line}\n` : ""));
     }
     if (matched > out.length) process.stdout.write(`…and ${matched - out.length} more (--limit)\n`);
