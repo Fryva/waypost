@@ -150,6 +150,8 @@ the filesystem; `scripts/doctor.mjs` supplies live metadata and owns CLI behavio
 Ordinary text groups two or more canonical declarative ADR check notes into one
 count; repeat the same command with `--full` to see commands and reasons.
 Empty groups use one named clean line; `--full` retains their expanded headings.
+Ordinary summaries keep exact totals and repair commands with natural count labels;
+`--full` retains the expanded summary wording.
 Warnings, issues and other information stay complete. `--fix` keeps the full
 pre-repair report; JSON and startup diagnostics are unchanged. Programmatic
 rendering remains full unless its caller opts into `compactChecks`.

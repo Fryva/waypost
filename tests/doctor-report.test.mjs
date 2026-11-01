@@ -164,10 +164,10 @@ test("doctor report: check sharing is local to displayed groups, including repea
 const compactCheckLine = count => `  ℹ [adr-guard] ${count} declarative checks (not executed). Repeat this command with \`--full\` for commands and reasons.`;
 const compactMetadata = Object.freeze({ version: "v", date: "fixed", compactChecks: true });
 
-test("doctor compact checks: opt-in preserves singleton reports and default API compatibility", () => {
+test("doctor compact checks: opt-in preserves singleton body and default full API compatibility", () => {
   const singleton = [checkFinding("only")];
-  assert.equal(renderDoctorReport(singleton, ["vault"], compactMetadata),
-    renderDoctorReport(singleton, ["vault"], { version: "v", date: "fixed" }));
+  assert.equal(renderDoctorReport(singleton, ["vault"], compactMetadata).split("\n").slice(0, -1).join("\n"),
+    renderDoctorReport(singleton, ["vault"], { version: "v", date: "fixed" }).split("\n").slice(0, -1).join("\n"));
   const findings = [checkFinding("a"), checkFinding("b")];
   const full = renderDoctorReport(findings, ["vault"], { version: "v", date: "fixed" });
   assert.equal(renderDoctorReport(findings, ["vault"], { version: "v", date: "fixed", compactChecks: false }), full);
@@ -187,17 +187,17 @@ test("doctor compact clean groups: named lines preserve order, repeats and globa
     "waypost doctor — vv, fixed", "", "  ✓ install: clean", "",
     "## vault (0 issue(s), 0 warning(s))", "  ℹ [note] Keep info.", "  ℹ [custom] Keep unknown level.",
     "", "  ✓ install: clean", "", "  ✓ other: clean", "",
-    "Summary: 1 issue(s), 0 warning(s). Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault).",
+    "Summary: 1 issue, 0 warnings. Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault).",
   ].join("\n"));
   assert.ok(!result.endsWith("\n"));
   assert.equal(JSON.stringify({ findings, groups, compactMetadata }), before);
   assert.ok(renderDoctorReport([], ["vault"], { version: "v", date: "fixed" }).includes("## vault (0 issue(s), 0 warning(s))\n  ✓ clean"));
 });
 
-test("doctor compact clean groups: unsuitable names retain full rendering", () => {
+test("doctor compact clean groups: unsuitable names retain full group rendering", () => {
   for (const group of ["", "line\nname", "line\rname", null, 7]) {
-    assert.equal(renderDoctorReport([], [group], compactMetadata),
-      renderDoctorReport([], [group], { version: "v", date: "fixed" }));
+    assert.equal(renderDoctorReport([], [group], compactMetadata).split("\n").slice(0, -1).join("\n"),
+      renderDoctorReport([], [group], { version: "v", date: "fixed" }).split("\n").slice(0, -1).join("\n"));
   }
 });
 
@@ -217,9 +217,47 @@ test("doctor compact checks: first-slot count preserves interleaved warnings/iss
     "  ℹ [policy] Before checks.", compactCheckLine(2),
     "  ⚠ [safety] Keep this warning.  — src/a.mjs",
     "  ✖ [safety] Keep this issue.", "  ℹ [custom] Keep unknown level.", "",
-    "Summary: 1 issue(s), 1 warning(s). Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault).",
+    "Summary: 1 issue, 1 warning. Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault).",
   ]);
   assert.equal(JSON.stringify(findings), before);
+});
+
+test("doctor compact summary: numeric grammar uses global counts once and preserves full API", () => {
+  const repairs = " Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault).";
+  const cases = [
+    [0, 0, "0 issues, 0 warnings."], [1, 0, "1 issue, 0 warnings."],
+    [0, 1, "0 issues, 1 warning."], [1, 1, "1 issue, 1 warning."],
+    [2, 0, "2 issues, 0 warnings."], [0, 2, "0 issues, 2 warnings."],
+    [1, 2, "1 issue, 2 warnings."], [2, 1, "2 issues, 1 warning."],
+    [2, 2, "2 issues, 2 warnings."], [15, 12, "15 issues, 12 warnings."],
+  ];
+  for (const [issues, warns, totals] of cases) {
+    const findings = Object.freeze([
+      ...Array.from({ length: issues }, () => Object.freeze({ group: "hidden", level: "issue", check: "lint", message: "Hidden issue." })),
+      ...Array.from({ length: warns }, () => Object.freeze({ group: "vault", level: "warn", check: "lint", message: "Visible warning." })),
+      Object.freeze({ group: "vault", level: "info", check: "note", message: "Information." }),
+      Object.freeze({ group: "vault", level: "trace", check: "custom", message: "Unknown level." }),
+    ]);
+    const groups = Object.freeze(["vault", "vault"]), before = JSON.stringify({ findings, groups });
+    const compact = renderDoctorReport(findings, groups, compactMetadata);
+    assert.equal(compact.split("\n").at(-1), `Summary: ${totals}${issues ? repairs : ""}`);
+    assert.ok(!compact.endsWith("\n") && !compact.endsWith(" "));
+    const full = renderDoctorReport(findings, groups, { version: "v", date: "fixed" });
+    assert.equal(full.split("\n").at(-1), `Summary: ${issues} issue(s), ${warns} warning(s).${issues ? repairs : " Vault and wiring look healthy."}`);
+    assert.equal(JSON.stringify({ findings, groups }), before);
+  }
+});
+
+test("doctor compact summary: every byte before the footer and complete repair guidance stay intact", () => {
+  const findings = Object.freeze([
+    Object.freeze({ group: "vault", level: "issue", check: "lint", message: "Keep issue.", file: "src/a.mjs" }),
+    Object.freeze({ group: "vault", level: "warn", check: "lint", message: "Keep warning." }),
+  ]);
+  const groups = Object.freeze(["vault", "vault"]);
+  const compact = renderDoctorReport(findings, groups, compactMetadata);
+  const full = renderDoctorReport(findings, groups, { version: "v", date: "fixed" });
+  assert.equal(compact.slice(0, compact.lastIndexOf("\nSummary:")), full.slice(0, full.lastIndexOf("\nSummary:")));
+  assert.equal(compact.slice(compact.lastIndexOf("Repairs:")), full.slice(full.lastIndexOf("Repairs:")));
 });
 
 test("doctor compact checks: canonical-looking warnings and malformed/rule messages never fold", () => {

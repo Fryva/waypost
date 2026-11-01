@@ -41,6 +41,11 @@ export function renderDoctorReport(findings, groups, { version, date, compactChe
   }
   const issues = findings.filter((f) => f.level === "issue").length;
   const warns = findings.filter((f) => f.level === "warn").length;
-  lines.push("", `Summary: ${issues} issue(s), ${warns} warning(s). ${issues ? "Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault)." : "Vault and wiring look healthy."}`);
+  const totals = compactChecks
+    ? `${issues} ${issues === 1 ? "issue" : "issues"}, ${warns} ${warns === 1 ? "warning" : "warnings"}.`
+    : `${issues} issue(s), ${warns} warning(s).`;
+  const conclusion = issues ? " Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault)."
+    : compactChecks ? "" : " Vault and wiring look healthy.";
+  lines.push("", `Summary: ${totals}${conclusion}`);
   return lines.join("\n");
 }

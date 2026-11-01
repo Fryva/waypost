@@ -1183,10 +1183,12 @@ test("doctor: empty vault group is compact only in ordinary text", () => {
   const compact = runBin(proj, ["doctor", "--vault"]);
   assert.match(compact.stdout, /\n  ✓ vault: clean\n/);
   assert.doesNotMatch(compact.stdout, /## vault/);
+  assert.match(compact.stdout, /\nSummary: 0 issues, 0 warnings\.\n$/);
   for (const flag of ["--full", "--fix"]) {
     const full = runBin(proj, ["doctor", "--vault", flag]);
     assert.match(full.stdout, /## vault \(0 issue\(s\), 0 warning\(s\)\)\n  ✓ clean\n/);
     assert.doesNotMatch(full.stdout, /✓ vault: clean/);
+    assert.ok(full.stdout.includes("Summary: 0 issue(s), 0 warning(s). Vault and wiring look healthy."));
   }
   assert.equal(runBin(proj, ["doctor", "--vault", "--fix", "--json"]).stdout, json.stdout);
   assert.equal(runBin(proj, ["doctor", "--vault", "--json"]).stdout, json.stdout);
