@@ -291,6 +291,40 @@ test("doctor specs module: missing acceptance skips coverage parsing but empty a
   assert.equal(reads, 1);
 });
 
+test("doctor specs module: ambiguity distinguishes same-path same-text items and preserves first raw ref", () => {
+  const body = "## Acceptance\n- [ ] Own — stories: a\n";
+  const first = artifact("spec", "specs/same.md", { id: "one", stories: '["E/a"]' }, body);
+  const second = artifact("spec", first.rel, { id: "two", stories: '["E/a", "F/a"]' }, body);
+  const story = artifact("story", "epics/E/stories/a.md", { id: "a", status: "done", closed_at: "2035-01-01", specs: '["one", "two", "same", "two"]' });
+  const input = freeze([first, second, story]);
+  const before = JSON.stringify(input);
+  const issue = id => ({ group: "vault", level: "issue", check: "spec-acceptance",
+    message: `Story is done but spec "${id}" acceptance item is unchecked: "Own — stories: a".`, file: story.rel });
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), [issue("one"),
+    { group: "vault", level: "warn", check: "ambiguous-attribution",
+      message: 'Spec "two" acceptance item attributes bare id(s) "a" that match more than one covered epic — qualify as <epic-id>/<story-id>.', file: second.rel },
+    issue("two"), issue("same"), issue("two")]);
+  assert.equal(JSON.stringify(input), before);
+});
+
+test("doctor specs module: checked nonapplicable ambiguity and duplicate coverage refresh on later calls", () => {
+  const spec = { kind: "spec", rel: "specs/rules.md", fm: { id: "rules", stories: '["F/a", "F/a"]' },
+    body: "## Acceptance\n- [x] Checked — stories: a\n- [ ] Open — stories: a\n" };
+  const story = artifact("story", "epics/E/stories/a.md", { id: "a", status: "done", closed_at: "2035-01-01", specs: '["rules", "rules"]' });
+  const input = [spec, story];
+  const warning = { group: "vault", level: "warn", check: "ambiguous-attribution",
+    message: 'Spec "rules" acceptance item attributes bare id(s) "a" that match more than one covered epic — qualify as <epic-id>/<story-id>.', file: spec.rel };
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), [warning, warning]);
+  spec.fm.stories = '["E/a"]';
+  const issue = { group: "vault", level: "issue", check: "spec-acceptance",
+    message: 'Story is done but spec "rules" acceptance item is unchecked: "Open — stories: a".', file: story.rel };
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), [issue, issue]);
+  spec.body = "## Acceptance\n- [x] Now done — stories: a\n";
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), []);
+  spec.fm.stories = '["E/a", "F/a"]';
+  assert.deepEqual(focused.checkSpecAcceptance(layout, input, required), [warning]);
+});
+
 test("doctor specs module: later checks see changed bodies on the same artifact and array", () => {
   const spec = { kind: "spec", rel: "specs/rules.md", fm: freeze({ id: "rules" }), body: "" };
   const story = artifact("story", "epics/E/stories/a.md", { id: "a", status: "done", closed_at: "2035-01-01", specs: '["rules"]' });

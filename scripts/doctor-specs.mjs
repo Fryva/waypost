@@ -233,6 +233,7 @@ export function checkSpecAcceptance(layout, artifacts, vaultCfg) {
   const ambiguousReported = new Set(); // spec-scoped: one finding per spec+item
   const acceptanceItems = new Map(); // lazy, artifact-scoped, including null and empty results
   const coveredStories = new Map();
+  const itemAmbiguity = new Map(); // each parsed item belongs to one spec and covered list
 
   for (const story of artifacts.filter((a) => a.kind === "story")) {
     if (String(story.fm.status || "").toLowerCase() !== "done") continue;
@@ -264,11 +265,14 @@ export function checkSpecAcceptance(layout, artifacts, vaultCfg) {
               return m && m[1] === epicId && bare === m[2] &&
                 storyMatchesEntry(bare, { id: story.fm.id, stem }) > 0;
             }));
-          const ambiguous = item.stories.some((bare) =>
-            coveredEntries.filter((e) => {
-              const m = String(e).match(/^([^/]+)\/(.+)$/);
-              return m && bare === m[2];
-            }).length > 1);
+          if (!itemAmbiguity.has(item)) {
+            itemAmbiguity.set(item, item.stories.some((bare) =>
+              coveredEntries.filter((e) => {
+                const m = String(e).match(/^([^/]+)\/(.+)$/);
+                return m && bare === m[2];
+              }).length > 1));
+          }
+          const ambiguous = itemAmbiguity.get(item);
           const ambKey = `${spec.rel}|${item.text}`;
           if (ambiguous && !ambiguousReported.has(ambKey)) {
             ambiguousReported.add(ambKey);

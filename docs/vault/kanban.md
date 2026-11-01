@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-10-30T21:03:35.106Z
+generated_at: 2026-11-01T16:44:15.387Z
 
 ---
 
@@ -195,6 +195,7 @@ generated_at: 2026-10-30T21:03:35.106Z
 - [x] [[epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks|WP-21: Reuse parsed coverage lists in spec link checks]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-repeated-story-resolutions-within-spec-link-checks|WP-21: Reuse repeated story resolutions within spec link checks]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks|WP-21: Reuse story specification lists within link checks]] #p2 #done
+- [x] [[epics/WP-21/stories/story-reuse-acceptance-attribution-ambiguity-within-each-check|WP-21: Reuse acceptance attribution ambiguity within each check]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done
