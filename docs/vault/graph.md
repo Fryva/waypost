@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-01T16:44:15.621Z
+generated_at: 2026-11-01T17:12:52.458Z
 
 ---
 
@@ -114,6 +114,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | Check every CLI module before the first split | story | done |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | Check safe Zstandard member handling across Node versions | story | done |
 | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md | Compact cleanup status in default brief | story | done |
+| epics/WP-21/stories/story-compact-empty-groups-in-the-default-doctor-report.md | Compact empty groups in the default Doctor report | story | done |
 | epics/WP-21/stories/story-compact-generated-routing-instructions.md | Compact generated routing instructions | story | done |
 | epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md | Compact repeated declarative checks in the default Doctor report | story | done |
 | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md | Compact repeated graph endpoints without losing directions | story | done |
@@ -460,6 +461,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-empty-groups-in-the-default-doctor-report.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-generated-routing-instructions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md |
@@ -612,6 +614,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-compact-empty-groups-in-the-default-doctor-report.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-generated-routing-instructions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md | mdlink | epics/WP-21/epic.md |

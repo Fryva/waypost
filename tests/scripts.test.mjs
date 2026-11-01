@@ -1172,6 +1172,26 @@ test("waypost next: a warn message truncates on a sentence boundary, not the fir
     `expected the full clause in:\n${r.stdout}`);
 });
 
+test("doctor: empty vault group is compact only in ordinary text", () => {
+  const { proj, vault } = makeVaultProject();
+  rmSync(join(vault, "epics", "PS-X"), { recursive: true, force: true });
+  for (const folder of ["research", "concepts", "meetings", "ops", "diagrams"]) mkdirSync(join(vault, folder));
+  writeFileSync(join(vault, ".projectstore.json"), JSON.stringify({ spec_policy: "optional", self_install: "off" }));
+  for (const args of [["graph", "--write"], ["codemap", "--write"], ["reconcile", "--write"]]) runBin(proj, args);
+  const json = runBin(proj, ["doctor", "--vault", "--json"]);
+  assert.deepEqual(JSON.parse(json.stdout), []);
+  const compact = runBin(proj, ["doctor", "--vault"]);
+  assert.match(compact.stdout, /\n  ✓ vault: clean\n/);
+  assert.doesNotMatch(compact.stdout, /## vault/);
+  for (const flag of ["--full", "--fix"]) {
+    const full = runBin(proj, ["doctor", "--vault", flag]);
+    assert.match(full.stdout, /## vault \(0 issue\(s\), 0 warning\(s\)\)\n  ✓ clean\n/);
+    assert.doesNotMatch(full.stdout, /✓ vault: clean/);
+  }
+  assert.equal(runBin(proj, ["doctor", "--vault", "--fix", "--json"]).stdout, json.stdout);
+  assert.equal(runBin(proj, ["doctor", "--vault", "--json"]).stdout, json.stdout);
+});
+
 test("doctor: text-mode exit reflects an issue finding; --json stays a reporting tool (P1-9, G-10)", () => {
   const proj = mkdtempSync(join(tmpdir(), "ps-doctorexit-"));
   // No .waypost/projectstore.json at all => checkConfig is an issue-level finding.

@@ -18,6 +18,10 @@ export function renderDoctorReport(findings, groups, { version, date, compactChe
   const lines = [`waypost doctor — v${ver || "?"}, ${date}`];
   for (const g of groups) {
     const fs = findings.filter((f) => f.group === g);
+    if (compactChecks && !fs.length && typeof g === "string" && g.length > 0 && !/[\r\n]/.test(g)) {
+      lines.push("", `  ✓ ${g}: clean`);
+      continue;
+    }
     lines.push("", `## ${g} (${fs.filter((f) => f.level === "issue").length} issue(s), ${fs.filter((f) => f.level === "warn").length} warning(s))`);
     if (!fs.length) lines.push("  ✓ clean");
     const checkCount = fs.filter(declarativeCheck).length;

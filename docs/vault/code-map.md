@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-01T16:02:28.213Z
+generated_at: 2026-11-01T17:03:26.902Z
 
 ---
 
@@ -66,6 +66,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Check every CLI module before the first split | `tests/helpers/cli-modules.mjs`, `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs` |
 | WP-21 | Check safe Zstandard member handling across Node versions | `tests/token-codex.test.mjs`, `scripts/token-codex.mjs`, `docs/how-it-works.md` |
 | WP-21 | Compact cleanup status in default brief | `scripts/brief.mjs`, `tests/limit.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
+| WP-21 | Compact empty groups in the default Doctor report | `scripts/doctor-report.mjs`, `tests/doctor-report.test.mjs`, `tests/scripts.test.mjs`, `docs/cli-reference.md`, `docs/how-it-works.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Compact generated routing instructions | `templates/agents-block.md.tmpl`, `scripts/agents-registry.mjs`, `scripts/agents.mjs`, `AGENTS.md`, `tests/harness.test.mjs`, `tests/doctor-install.test.mjs`, `tests/state-migrate.test.mjs` |
 | WP-21 | Compact repeated declarative checks in the default Doctor report | `scripts/doctor-report.mjs`, `scripts/doctor.mjs`, `tests/doctor-report.test.mjs`, `tests/scripts.test.mjs`, `bin/cli/help.mjs`, `docs/cli-reference.md`, `docs/how-it-works.md` |
 | WP-21 | Compact repeated graph endpoints without losing directions | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
