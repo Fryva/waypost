@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-01T17:30:14.256Z
+generated_at: 2026-11-01T21:02:23.220Z
 
 ---
 
@@ -116,6 +116,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md | Compact cleanup status in default brief | story | done |
 | epics/WP-21/stories/story-compact-empty-groups-in-the-default-doctor-report.md | Compact empty groups in the default Doctor report | story | done |
 | epics/WP-21/stories/story-compact-generated-routing-instructions.md | Compact generated routing instructions | story | done |
+| epics/WP-21/stories/story-compact-group-severity-totals-in-the-default-doctor-report.md | Compact group severity totals in the default Doctor report | story | done |
 | epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md | Compact repeated declarative checks in the default Doctor report | story | done |
 | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md | Compact repeated graph endpoints without losing directions | story | done |
 | epics/WP-21/stories/story-compact-summary-totals-in-the-default-doctor-report.md | Compact summary totals in the default Doctor report | story | done |
@@ -464,6 +465,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-empty-groups-in-the-default-doctor-report.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-generated-routing-instructions.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-group-severity-totals-in-the-default-doctor-report.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-summary-totals-in-the-default-doctor-report.md |
@@ -618,6 +620,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-empty-groups-in-the-default-doctor-report.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-generated-routing-instructions.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-compact-group-severity-totals-in-the-default-doctor-report.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-repeated-declarative-checks-in-the-default-doctor-report.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-repeated-graph-endpoints-without-losing-directions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-summary-totals-in-the-default-doctor-report.md | mdlink | epics/WP-21/epic.md |

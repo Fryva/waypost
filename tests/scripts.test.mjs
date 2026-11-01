@@ -1194,6 +1194,32 @@ test("doctor: empty vault group is compact only in ordinary text", () => {
   assert.equal(runBin(proj, ["doctor", "--vault", "--json"]).stdout, json.stdout);
 });
 
+test("doctor: info-only group retains checks with compact severity totals and no execution", () => {
+  const { proj, vault } = makeVaultProject();
+  rmSync(join(vault, "epics", "PS-X"), { recursive: true, force: true });
+  for (const folder of ["research", "concepts", "meetings", "ops", "diagrams"]) mkdirSync(join(vault, folder));
+  writeFileSync(join(vault, ".projectstore.json"), JSON.stringify({ spec_policy: "optional", self_install: "off" }));
+  const marker = join(proj, "must-not-execute");
+  const check = `node -e ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'bad')`)}`;
+  writeFileSync(join(vault, "adr", "notes.md"), `---\ntype: adr\nid: notes\ntitle: Notes\nstatus: accepted\ndate: 2026-11-01\nguards: ${JSON.stringify([{ check, why: "first reason" }, { check, why: "second reason" }])}\n---\n`);
+  for (const args of [["graph", "--write"], ["codemap", "--write"], ["reconcile", "--write"]]) runBin(proj, args);
+  const json = runBin(proj, ["doctor", "--vault", "--json"]);
+  const findings = JSON.parse(json.stdout);
+  assert.equal(findings.length, 2);
+  assert.ok(findings.every(f => f.level === "info"));
+  const compact = runBin(proj, ["doctor", "--vault"]);
+  assert.match(compact.stdout, /## vault \(no issues or warnings\)\n/);
+  assert.ok(compact.stdout.includes("2 declarative checks (not executed)"));
+  for (const flag of ["--full", "--fix"]) {
+    const full = runBin(proj, ["doctor", "--vault", flag]);
+    assert.match(full.stdout, /## vault \(0 issue\(s\), 0 warning\(s\)\)/);
+    assert.ok(full.stdout.includes(check));
+  }
+  assert.equal(runBin(proj, ["doctor", "--vault", "--json"]).stdout, json.stdout);
+  runBin(proj, ["doctor", "--startup"]);
+  assert.ok(!existsSync(marker));
+});
+
 test("doctor: text-mode exit reflects an issue finding; --json stays a reporting tool (P1-9, G-10)", () => {
   const proj = mkdtempSync(join(tmpdir(), "ps-doctorexit-"));
   // No .waypost/projectstore.json at all => checkConfig is an issue-level finding.

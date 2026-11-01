@@ -164,10 +164,10 @@ test("doctor report: check sharing is local to displayed groups, including repea
 const compactCheckLine = count => `  ℹ [adr-guard] ${count} declarative checks (not executed). Repeat this command with \`--full\` for commands and reasons.`;
 const compactMetadata = Object.freeze({ version: "v", date: "fixed", compactChecks: true });
 
-test("doctor compact checks: opt-in preserves singleton body and default full API compatibility", () => {
+test("doctor compact checks: opt-in preserves singleton findings and default full API compatibility", () => {
   const singleton = [checkFinding("only")];
-  assert.equal(renderDoctorReport(singleton, ["vault"], compactMetadata).split("\n").slice(0, -1).join("\n"),
-    renderDoctorReport(singleton, ["vault"], { version: "v", date: "fixed" }).split("\n").slice(0, -1).join("\n"));
+  assert.deepEqual(renderDoctorReport(singleton, ["vault"], compactMetadata).split("\n").filter(l => l.startsWith("  ℹ")),
+    renderDoctorReport(singleton, ["vault"], { version: "v", date: "fixed" }).split("\n").filter(l => l.startsWith("  ℹ")));
   const findings = [checkFinding("a"), checkFinding("b")];
   const full = renderDoctorReport(findings, ["vault"], { version: "v", date: "fixed" });
   assert.equal(renderDoctorReport(findings, ["vault"], { version: "v", date: "fixed", compactChecks: false }), full);
@@ -185,7 +185,7 @@ test("doctor compact clean groups: named lines preserve order, repeats and globa
   const result = renderDoctorReport(findings, groups, compactMetadata);
   assert.equal(result, [
     "waypost doctor — vv, fixed", "", "  ✓ install: clean", "",
-    "## vault (0 issue(s), 0 warning(s))", "  ℹ [note] Keep info.", "  ℹ [custom] Keep unknown level.",
+    "## vault (no issues or warnings)", "  ℹ [note] Keep info.", "  ℹ [custom] Keep unknown level.",
     "", "  ✓ install: clean", "", "  ✓ other: clean", "",
     "Summary: 1 issue, 0 warnings. Repairs: `waypost doctor --fix` (install), `waypost reconcile --write` (vault).",
   ].join("\n"));
@@ -213,7 +213,7 @@ test("doctor compact checks: first-slot count preserves interleaved warnings/iss
   ]);
   const before = JSON.stringify(findings);
   assert.deepEqual(renderDoctorReport(findings, ["vault"], compactMetadata).split("\n"), [
-    "waypost doctor — vv, fixed", "", "## vault (1 issue(s), 1 warning(s))",
+    "waypost doctor — vv, fixed", "", "## vault (1 issue, 1 warning)",
     "  ℹ [policy] Before checks.", compactCheckLine(2),
     "  ⚠ [safety] Keep this warning.  — src/a.mjs",
     "  ✖ [safety] Keep this issue.", "  ℹ [custom] Keep unknown level.", "",
@@ -248,7 +248,7 @@ test("doctor compact summary: numeric grammar uses global counts once and preser
   }
 });
 
-test("doctor compact summary: every byte before the footer and complete repair guidance stay intact", () => {
+test("doctor compact summary: finding body and complete repair guidance stay intact", () => {
   const findings = Object.freeze([
     Object.freeze({ group: "vault", level: "issue", check: "lint", message: "Keep issue.", file: "src/a.mjs" }),
     Object.freeze({ group: "vault", level: "warn", check: "lint", message: "Keep warning." }),
@@ -256,8 +256,51 @@ test("doctor compact summary: every byte before the footer and complete repair g
   const groups = Object.freeze(["vault", "vault"]);
   const compact = renderDoctorReport(findings, groups, compactMetadata);
   const full = renderDoctorReport(findings, groups, { version: "v", date: "fixed" });
-  assert.equal(compact.slice(0, compact.lastIndexOf("\nSummary:")), full.slice(0, full.lastIndexOf("\nSummary:")));
+  const body = text => text.slice(0, text.lastIndexOf("\nSummary:")).split("\n").filter(l => !l.startsWith("## vault (")).join("\n");
+  assert.equal(body(compact), body(full));
   assert.equal(compact.slice(compact.lastIndexOf("Repairs:")), full.slice(full.lastIndexOf("Repairs:")));
+});
+
+test("doctor compact group totals: local counts preserve unknown information, repeats and global summary", () => {
+  const cases = [
+    [0, 0, "no issues or warnings"], [1, 0, "1 issue, 0 warnings"],
+    [0, 1, "0 issues, 1 warning"], [1, 1, "1 issue, 1 warning"],
+    [2, 3, "2 issues, 3 warnings"], [15, 12, "15 issues, 12 warnings"],
+  ];
+  for (const [issues, warns, labels] of cases) {
+    const findings = Object.freeze([
+      ...Array.from({ length: issues }, () => Object.freeze({ group: "vault", level: "issue", check: "lint", message: "Local issue." })),
+      ...Array.from({ length: warns }, () => Object.freeze({ group: "vault", level: "warn", check: "lint", message: "Local warning." })),
+      Object.freeze({ group: "vault", level: "info", check: "note", message: "Keep info." }),
+      Object.freeze({ group: "vault", level: "trace", check: "custom", message: "Keep unknown." }),
+      Object.freeze({ group: "hidden", level: "issue", check: "hidden", message: "Global issue." }),
+    ]);
+    const groups = Object.freeze(["vault", "empty", "vault"]), before = JSON.stringify({ findings, groups });
+    const compact = renderDoctorReport(findings, groups, compactMetadata);
+    const full = renderDoctorReport(findings, groups, { version: "v", date: "fixed" });
+    assert.equal(compact.split("\n").filter(l => l === `## vault (${labels})`).length, 2);
+    assert.ok(compact.includes("  ✓ empty: clean\n"));
+    assert.equal(compact.split("\n").filter(l => l === "  ℹ [custom] Keep unknown.").length, 2);
+    assert.ok(full.includes(`## vault (${issues} issue(s), ${warns} warning(s))`));
+    const oldGlobalTail = full.slice(full.lastIndexOf("Repairs:"));
+    assert.equal(compact.slice(compact.lastIndexOf("Repairs:")), oldGlobalTail);
+    assert.equal(JSON.stringify({ findings, groups }), before);
+  }
+});
+
+test("doctor compact group totals: unsuitable nonempty groups retain coercion before level access", () => {
+  for (const group of ["", "line\nname", "line\rname", null, 7]) {
+    const findings = [{ group, level: "info", check: "note", message: "Keep info." }];
+    const body = text => text.slice(0, text.lastIndexOf("\nSummary:"));
+    assert.equal(body(renderDoctorReport(findings, [group], compactMetadata)),
+      body(renderDoctorReport(findings, [group], { version: "v", date: "fixed" })));
+  }
+  const sentinel = new Error("group coercion");
+  const group = { toString() { throw sentinel; } };
+  let levelReads = 0;
+  const finding = { group, get level() { levelReads++; throw new Error("level accessed too early"); } };
+  assert.throws(() => renderDoctorReport([finding], [group], compactMetadata), error => error === sentinel);
+  assert.equal(levelReads, 0);
 });
 
 test("doctor compact checks: canonical-looking warnings and malformed/rule messages never fold", () => {
