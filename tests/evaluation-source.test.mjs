@@ -372,3 +372,50 @@ test('search fixed envelope remains local to each escaped Unicode query', t => {
     } else assert.deepEqual(search(b, args), expected);
   }
 });
+
+test('range computes one fixed envelope only when a line is attempted', t => {
+  const f = fixture(t, { 'range': ('x'.repeat(100) + '\n').repeat(200), 'empty': '', 'blank': '\ntext\n' });
+  const blank = read(broker(f), { path: 'blank', start_line: 1, end_line: 2 });
+  const blankCap = Buffer.byteLength(JSON.stringify({ ...blank, text: '', end_line: 1, truncated: true, next_line: 2 }));
+  for (const [path, start, end, limits, attempts] of [
+    ['range', 1, 1, {}, 1], ['range', 1, 200, {}, 200], ['range', 9, 10, {}, 2], ['range', 99, 100, {}, 2],
+    ['range', 201, 201, {}, 0], ['range', 2 ** 32, 2 ** 32, {}, 0],
+    ['range', Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, {}, 0], ['empty', 1, 1, {}, 0],
+    ['range', 1, 1, { maxOutputBytes: 1 }, 1], ['blank', 1, 2, { maxOutputBytes: blankCap }, 2],
+  ]) {
+    const b = broker(f, limits), stringify = JSON.stringify, string = String;
+    let envelopes = 0, formats = 0, result, error;
+    JSON.stringify = function (value, ...rest) {
+      if (value?.kind === 'source-data' && typeof value.path === 'string' && value.text === '' && value.truncated === true && typeof value.next_line === 'number' && !Object.isFrozen(value)) envelopes++;
+      return stringify.call(this, value, ...rest);
+    };
+    globalThis.String = new Proxy(string, { apply(target, receiver, args) {
+      if (args.length === 1 && typeof args[0] === 'number') formats++;
+      return Reflect.apply(target, receiver, args);
+    } });
+    try { result = read(b, { path, start_line: start, end_line: end }); }
+    catch (caught) { error = caught; }
+    finally { JSON.stringify = stringify; globalThis.String = string; }
+    assert.equal(envelopes, attempts ? 1 : 0);
+    assert.equal(formats, attempts * 2);
+    if (limits.maxOutputBytes === 1) assert.equal(error?.code, 'source-output-limit');
+    else { assert.equal(error, undefined); assert.equal(read(b, { path, start_line: start, end_line: end }), result); }
+  }
+});
+
+test('range fixed envelope preserves decimal width byte caps', t => {
+  const f = fixture(t, { 'digits': 'row\n'.repeat(1100) });
+  for (const start of [8, 9, 98, 99, 998, 999]) {
+    const args = { path: 'digits', start_line: start, end_line: start + 3 };
+    const whole = read(broker(f), args);
+    const expected = { ...whole, text: 'row', end_line: start, truncated: true, next_line: start + 1 };
+    const cap = Buffer.byteLength(JSON.stringify(expected));
+    for (const delta of [-1, 0, 1]) {
+      const b = broker(f, { maxOutputBytes: cap + delta });
+      if (delta === -1) {
+        assert.throws(() => read(b, args), code('source-output-limit'));
+        assert.equal(b.evidence().outputBytes, 0);
+      } else assert.deepEqual(read(b, args), expected);
+    }
+  }
+});
