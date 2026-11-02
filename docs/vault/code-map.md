@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T02:03:42.415Z
+generated_at: 2026-11-02T02:18:35.923Z
 
 ---
 
@@ -56,6 +56,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-20 | Team CLI orientation and deterministic diagnostics | `bin/waypost`, `scripts/brief.mjs`, `scripts/doctor.mjs`, `scripts/sessions.mjs`, `scripts/ready.mjs`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, `tests/harness.test.mjs`, `scripts/team-diagnostics.mjs`, `scripts/team-cli.mjs` |
 | WP-21 | Avoid duplicate story references in default ready output | `scripts/ready.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Avoid duplicate title snippets in vault search | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
+| WP-21 | Avoid rebuilding sealed range text for every byte check | `scripts/evaluation-source.mjs`, `tests/evaluation-source.test.mjs`, `tests/evaluation-transport.test.mjs`, `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md` |
 | WP-21 | Avoid repeated file paths in doctor findings | `scripts/doctor.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Avoid repeated repair commands in adjacent next actions | `bin/cli/status.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `docs/cli-reference.md`, `tests/fixtures/next-script-responses.mjs`, `tests/fixtures/next-action-cases.json` |
 | WP-21 | Avoid repeating exact graph node paths in query output | `bin/cli/views.mjs`, `scripts/graph.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |

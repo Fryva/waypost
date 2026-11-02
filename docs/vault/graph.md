@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T02:07:16.593Z
+generated_at: 2026-11-02T02:21:19.507Z
 
 ---
 
@@ -104,6 +104,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | Source an agent can read in one pass | epic | in-progress |
 | epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output.md | Avoid duplicate story references in default ready output | story | done |
 | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md | Avoid duplicate title snippets in vault search | story | done |
+| epics/WP-21/stories/story-avoid-rebuilding-sealed-range-text-for-every-byte-check.md | Avoid rebuilding sealed range text for every byte check | story | done |
 | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md | Avoid repeated file paths in doctor findings | story | done |
 | epics/WP-21/stories/story-avoid-repeated-repair-commands-in-adjacent-next-actions.md | Avoid repeated repair commands in adjacent next actions | story | done |
 | epics/WP-21/stories/story-avoid-repeating-exact-graph-node-paths-in-query-output.md | Avoid repeating exact graph node paths in query output | story | done |
@@ -456,6 +457,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-20/stories/story-team-cli-orientation-and-deterministic-diagnostics.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-rebuilding-sealed-range-text-for-every-byte-check.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeated-repair-commands-in-adjacent-next-actions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-exact-graph-node-paths-in-query-output.md |
@@ -614,6 +616,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | wikilink | research/post-integration-token-accounting-checkpoint.md |
 | epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-avoid-rebuilding-sealed-range-text-for-every-byte-check.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeated-repair-commands-in-adjacent-next-actions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeating-exact-graph-node-paths-in-query-output.md | mdlink | epics/WP-21/epic.md |

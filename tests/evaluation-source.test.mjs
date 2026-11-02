@@ -228,3 +228,52 @@ test('a warm search index preserves validation and does not cache a rejected pos
   b.close(); assert.throws(() => search(b, { query: 'beta' }, 'closed'), code('source-closed'));
   assert.equal(scans, 15);
 });
+
+test('range byte checks retain escaped-text boundaries and the independent final output limit', t => {
+  const lines = ['', 'quote" and \\ slash', 'Привет 😀', '\r\t\0', '\u2028', '\ufeffinside', 'end'];
+  const f = fixture(t, { 'range': lines.join('\n') + '\n' });
+  const args = { path: 'range', start_line: 1, end_line: lines.length };
+  const whole = read(broker(f), args);
+  assert.equal(whole.text, lines.join('\n'));
+  for (let count = 1; count < lines.length; count++) {
+    const preview = { ...whole, text: lines.slice(0, count).join('\n'), end_line: count,
+      truncated: true, next_line: count + 1 };
+    const cap = Buffer.byteLength(JSON.stringify(preview));
+    for (const delta of [-1, 0, 1]) {
+      const b = broker(f, { maxOutputBytes: cap + delta });
+      if (count === 1 && delta === -1) {
+        assert.throws(() => read(b, args), code('source-output-limit')); continue;
+      }
+      const result = read(b, args), expected = count - (delta === -1 ? 1 : 0);
+      assert.equal(result.end_line, expected);
+      assert.equal(result.text, lines.slice(0, expected).join('\n'));
+      assert.equal(result.next_line, expected + 1);
+      assert.equal(result.truncated, true);
+    }
+  }
+  const previewSize = Buffer.byteLength(JSON.stringify({ ...whole, truncated: true, next_line: lines.length + 1 }));
+  const finalSize = Buffer.byteLength(JSON.stringify(whole));
+  assert.equal(finalSize - previewSize, 4);
+  for (const cap of [previewSize, finalSize - 1]) {
+    const b = broker(f, { maxOutputBytes: cap });
+    assert.throws(() => read(b, args), code('source-output-limit'));
+    assert.equal(b.evidence().outputBytes, finalSize);
+    assert.equal(b.evidence().calls.length, 0);
+    assert.equal(b.evidence().closed, 'source-output-limit');
+  }
+  assert.deepEqual(read(broker(f, { maxOutputBytes: finalSize }), args), whole);
+});
+
+test('range text is joined once for a complete two-hundred-line response', t => {
+  const f = fixture(t, { 'range': ('x'.repeat(100) + '\n').repeat(200) }), b = broker(f);
+  const original = Array.prototype.join; let joins = 0, result;
+  Array.prototype.join = function (separator) {
+    if (separator === '\n') joins++;
+    return original.call(this, separator);
+  };
+  try { result = read(b, { path: 'range', start_line: 1, end_line: 200 }); }
+  finally { Array.prototype.join = original; }
+  assert.equal(joins, 1);
+  assert.equal(result.end_line, 200); assert.equal(result.truncated, false);
+  assert.equal(result.text, Array(200).fill('x'.repeat(100)).join('\n'));
+});

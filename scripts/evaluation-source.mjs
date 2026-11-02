@@ -103,10 +103,12 @@ export function sealEvaluationSource({ root, manifest, limits = {} }) {
     const end = Math.min(args.end_line, file.lines.length), selected = [];
     // Reserve enough envelope space, then cap at complete lines. Never split UTF-8.
     const result = { kind: 'source-data', manifest_digest: manifestDigest, path: args.path, start_line: args.start_line, end_line: args.start_line - 1, text: '', truncated: false, next_line: null };
+    // Exclude JSON quotes; each joining LF contributes two escaped bytes.
+    let textBytes = 0;
     for (let i = args.start_line - 1; i < end; i++) {
-      const text = [...selected, file.lines[i]].join('\n');
-      if (bytes({ ...result, text, end_line: i + 1, truncated: true, next_line: i + 2 }) > caps.maxOutputBytes) break;
-      selected.push(file.lines[i]); result.end_line = i + 1;
+      const nextTextBytes = textBytes + (selected.length ? 2 : 0) + bytes(file.lines[i]) - 2;
+      if (bytes({ ...result, text: '', end_line: i + 1, truncated: true, next_line: i + 2 }) + nextTextBytes > caps.maxOutputBytes) break;
+      selected.push(file.lines[i]); textBytes = nextTextBytes; result.end_line = i + 1;
     }
     if (args.start_line <= end && !selected.length) stop('source-output-limit');
     result.text = selected.join('\n'); result.truncated = result.end_line < end;
