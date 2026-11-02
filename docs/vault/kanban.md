@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-02T14:03:07.265Z
+generated_at: 2026-11-02T14:28:41.025Z
 
 ---
 
@@ -204,6 +204,7 @@ generated_at: 2026-11-02T14:03:07.265Z
 - [x] [[epics/WP-21/stories/story-avoid-rebuilding-sealed-range-text-for-every-byte-check|WP-21: Avoid rebuilding sealed range text for every byte check]] #p2 #done
 - [x] [[epics/WP-21/stories/story-avoid-repeatedly-serializing-sealed-search-result-prefixes|WP-21: Avoid repeatedly serializing sealed search result prefixes]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-bounded-search-hits-across-sealed-source-pages|WP-21: Reuse bounded search hits across sealed-source pages]] #p2 #done
+- [x] [[epics/WP-21/stories/story-reuse-immutable-reply-metadata-for-duplicate-source-callbacks|WP-21: Reuse immutable reply metadata for duplicate source callbacks]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-the-fixed-json-envelope-in-sealed-range-reads|WP-21: Reuse the fixed JSON envelope in sealed range reads]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-the-fixed-json-envelope-in-sealed-search-pages|WP-21: Reuse the fixed JSON envelope in sealed search pages]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done

@@ -175,10 +175,14 @@ export function sealEvaluationSource({ root, manifest, limits = {} }) {
       const previous = recorded.get(request.callId);
       if (previous && previous.inputDigest !== digest) stop('source-replay');
       const result = previous?.result ?? immutable(request.name === 'snapshot.read' ? read(request.arguments) : request.name === 'snapshot.search' ? search(request.arguments) : fail('source-tool'));
-      const length = bytes(result); outputBytes += length;
+      const length = previous?.outputBytes ?? bytes(result); outputBytes += length;
       if (length > caps.maxOutputBytes || outputBytes > caps.totalOutputBytes) stop('source-output-limit');
-      if (!previous) recorded.set(request.callId, { inputDigest: digest, result });
-      log.push(immutable({ ...owner, callId: request.callId, name: request.name, inputDigest: digest, outputDigest: hash(canonical(result)), inputBytes: size, outputBytes: length, duplicate: !!previous }));
+      const entry = previous ?? { inputDigest: digest, result };
+      if (!previous) recorded.set(request.callId, entry);
+      // Record first: a failed digest must retain the immutable replay result.
+      const outputDigest = entry.outputDigest ?? hash(canonical(result));
+      entry.outputBytes = length; entry.outputDigest = outputDigest;
+      log.push(immutable({ ...owner, callId: request.callId, name: request.name, inputDigest: digest, outputDigest, inputBytes: size, outputBytes: length, duplicate: !!previous }));
       return result;
     },
     close(reason = 'terminal') { closed ||= String(reason); return true; },

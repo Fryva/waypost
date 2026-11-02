@@ -419,3 +419,61 @@ test('range fixed envelope preserves decimal width byte caps', t => {
     }
   }
 });
+
+test('duplicate replies reuse immutable output metadata while charging complete traffic', t => {
+  const payload = 'replay-payload-' + 'x'.repeat(16000), f = fixture(t, { 'reply': payload + '\n' }), b = broker(f);
+  const args = { path: 'reply', start_line: 1, end_line: 1 }, first = read(b, args);
+  const size = Buffer.byteLength(JSON.stringify(first)), prior = b.evidence(), stringify = JSON.stringify;
+  let frames = 0, texts = 0, repeated;
+  JSON.stringify = function (value, ...rest) {
+    if (value === first) frames++;
+    if (value === payload) texts++;
+    return stringify.call(this, value, ...rest);
+  };
+  try { repeated = read(b, args); }
+  finally { JSON.stringify = stringify; }
+  assert.equal(repeated, first); assert.equal(frames, 0); assert.equal(texts, 0);
+  const after = b.evidence();
+  assert.equal(after.callbacks, prior.callbacks + 1);
+  assert.equal(after.outputBytes - prior.outputBytes, size);
+  assert.equal(after.inputBytes - prior.inputBytes, prior.calls[0].inputBytes);
+  assert.equal(after.calls[1].duplicate, true);
+  assert.equal(after.calls[1].outputDigest, prior.calls[0].outputDigest);
+  const fresh = read(b, args, 'fresh'); assert.notEqual(fresh, first);
+  const found = search(b, { query: 'replay-payload-', limit: 1 }, 'search');
+  assert.equal(search(b, { query: 'replay-payload-', limit: 1 }, 'search'), found);
+  const freshSearch = search(b, { query: 'replay-payload-', limit: 1 }, 'fresh-search');
+  assert.notEqual(freshSearch.results[0], found.results[0]);
+  assert.throws(() => { first.text = 'changed'; }, TypeError);
+  assert.equal(b.evidence().outputBytes, b.evidence().calls.reduce((n, c) => n + c.outputBytes, 0));
+});
+
+test('reply metadata preserves the record-before-digest and byte-failure phases', t => {
+  const payload = 'phase-payload-' + 'y'.repeat(100), f = fixture(t, { 'reply': payload + '\n' });
+  const args = { path: 'reply', start_line: 1, end_line: 1 };
+  for (const phase of ['bytes', 'digest']) {
+    const b = broker(f), stringify = JSON.stringify, failure = new Error('injected ' + phase);
+    let frame, armed = false;
+    JSON.stringify = function (value, ...rest) {
+      if (value?.kind === 'source-data' && Object.isFrozen(value)) {
+        frame = value; armed = true;
+        if (phase === 'bytes') throw failure;
+      }
+      if (phase === 'digest' && armed && value === payload) throw failure;
+      return stringify.call(this, value, ...rest);
+    };
+    try { assert.throws(() => read(b, args), error => error === failure); }
+    finally { JSON.stringify = stringify; }
+    assert.ok(frame && Object.isFrozen(frame));
+    const size = Buffer.byteLength(JSON.stringify(frame));
+    assert.equal(b.evidence().outputBytes, phase === 'bytes' ? 0 : size);
+    assert.equal(b.evidence().calls.length, 0); assert.equal(b.evidence().closed, null);
+    const retried = read(b, args);
+    if (phase === 'digest') assert.equal(retried, frame);
+    else assert.notEqual(retried, frame);
+    assert.equal(b.evidence().calls[0].duplicate, phase === 'digest');
+    assert.equal(b.evidence().outputBytes, size * (phase === 'bytes' ? 1 : 2));
+    assert.equal(read(b, args), retried);
+    assert.equal(b.evidence().calls.at(-1).duplicate, true);
+  }
+});
