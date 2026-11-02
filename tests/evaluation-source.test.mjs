@@ -159,3 +159,72 @@ test('schemas, queries and aggregate byte limits are bounded before returning so
   assert.throws(() => sealEvaluationSource({ ...f, limits: { unknown: 1 } }), code('source-schema'));
   assert.throws(() => sealEvaluationSource({ ...f, limits: { maxCallbacks: 0 } }), code('source-limits'));
 });
+
+test('search pages reuse one query while retaining fresh immutable results and duplicate traffic', t => {
+  const f = fixture(t), b = broker(f), other = broker(f);
+  const original = String.prototype.includes; let scans = 0;
+  t.mock.method(String.prototype, 'includes', function (needle, ...args) {
+    if (['alpha', 'beta', 'absent', 'ALPHA'].includes(needle)) scans++;
+    return original.call(this, needle, ...args);
+  });
+  const first = search(b, { query: 'alpha', limit: 1 }, 'one');
+  assert.equal(scans, 5);
+  const next = search(b, { query: 'alpha', cursor: first.cursor, limit: 2 }, 'two');
+  assert.deepEqual(next.results, [{ path: 'a.mjs', line: 2 }, { path: 'nested/b.mjs', line: 1 }]);
+  const repeated = search(b, { query: 'alpha', limit: 1 }, 'three');
+  assert.equal(scans, 5);
+  assert.deepEqual(repeated, first);
+  assert.notEqual(repeated, first); assert.notEqual(repeated.results, first.results);
+  assert.notEqual(repeated.results[0], first.results[0]);
+  assert.ok(Object.isFrozen(repeated.results[0]));
+  const priorBytes = b.evidence().outputBytes;
+  assert.equal(search(b, { query: 'alpha', limit: 1 }, 'one'), first);
+  assert.equal(scans, 5);
+  assert.equal(b.evidence().outputBytes - priorBytes, Buffer.byteLength(JSON.stringify(first)));
+  assert.equal(b.evidence().calls.at(-1).duplicate, true);
+  search(other, { query: 'alpha' }, 'independent'); assert.equal(scans, 10);
+  search(b, { query: 'beta' }, 'switch'); assert.equal(scans, 15);
+  search(b, { query: 'alpha' }, 'back'); assert.equal(scans, 20);
+  assert.deepEqual(search(b, { query: 'absent' }, 'none').results, []);
+  search(b, { query: 'absent', limit: 1 }, 'none-again'); assert.equal(scans, 25);
+  assert.deepEqual(search(b, { query: 'ALPHA' }, 'case').results, []); assert.equal(scans, 30);
+  assert.equal(search(b, { query: 'alpha', limit: 1 }, 'one'), first, 'recorded replay survives index eviction');
+  assert.equal(scans, 30);
+});
+
+test('search hit retention is bounded and large queries evict the prior index', t => {
+  const original = String.prototype.includes; let scans = 0;
+  t.mock.method(String.prototype, 'includes', function (needle, ...args) {
+    if (needle === 'small' || needle === 'large') scans++;
+    return original.call(this, needle, ...args);
+  });
+  const f = fixture(t, { 'hits': 'small large\n'.repeat(4096) + 'large\n' }), b = broker(f);
+  search(b, { query: 'small', limit: 1 }, 'one'); assert.equal(scans, 4097);
+  search(b, { query: 'small', limit: 1 }, 'two'); assert.equal(scans, 4097);
+  search(b, { query: 'large', limit: 1 }, 'three'); assert.equal(scans, 8194);
+  search(b, { query: 'large', limit: 1 }, 'four'); assert.equal(scans, 12291);
+  search(b, { query: 'small', limit: 1 }, 'five'); assert.equal(scans, 16388);
+});
+
+test('a warm search index preserves validation and does not cache a rejected position', t => {
+  const f = fixture(t), b = broker(f), original = String.prototype.includes; let scans = 0;
+  t.mock.method(String.prototype, 'includes', function (needle, ...args) {
+    if (needle === 'alpha' || needle === 'beta') scans++;
+    return original.call(this, needle, ...args);
+  });
+  const first = search(b, { query: 'alpha', limit: 1 }, 'warm');
+  assert.equal(scans, 5);
+  for (const [args, reason] of [
+    [{ query: '' }, 'source-query'], [{ query: 'alpha', limit: 0 }, 'source-search-limit'],
+    [{ query: 'alpha', extra: true }, 'source-schema'], [{ query: 'alpha', cursor: false }, 'source-cursor'],
+    [{ query: 'beta', cursor: first.cursor }, 'source-cursor'],
+  ]) assert.throws(() => search(b, args, 'invalid-' + reason + JSON.stringify(args)), code(reason));
+  assert.equal(scans, 5);
+  const binding = sha(JSON.stringify({ manifest: b.manifestDigest, query: 'beta' }));
+  const cursor = Buffer.from(JSON.stringify({ binding, position: 99 })).toString('base64url');
+  assert.throws(() => search(b, { query: 'beta', cursor }, 'out-of-range'), code('source-cursor'));
+  assert.equal(scans, 10);
+  search(b, { query: 'beta' }, 'valid'); assert.equal(scans, 15);
+  b.close(); assert.throws(() => search(b, { query: 'beta' }, 'closed'), code('source-closed'));
+  assert.equal(scans, 15);
+});

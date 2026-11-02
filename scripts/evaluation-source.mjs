@@ -7,6 +7,8 @@ import { TextDecoder } from 'node:util';
 const hash = value => createHash('sha256').update(value).digest('hex');
 const bytes = value => Buffer.byteLength(JSON.stringify(value));
 const fail = (code, message = code) => { throw Object.assign(new Error(message), { code }); };
+// Bound retained derived metadata independently of caller-supplied traffic caps.
+const MAX_CACHED_SEARCH_HITS = 4096;
 const defaults = Object.freeze({ maxFiles: 256, maxFileBytes: 1048576, maxTotalBytes: 8388608,
   maxCallbacks: 64, maxInputBytes: 4096, maxOutputBytes: 32768, totalInputBytes: 65536,
   totalOutputBytes: 262144, maxReadLines: 200, maxQueryBytes: 256, maxSearchResults: 100 });
@@ -92,6 +94,7 @@ export function sealEvaluationSource({ root, manifest, limits = {} }) {
   const sealedManifest = immutable(entries), manifestDigest = hash(canonical(entries));
   let owner = null, closed = null, callbacks = 0, inputBytes = 0, outputBytes = 0;
   const recorded = new Map(), log = [];
+  let lastSearch = null;
   const stop = code => { closed ||= code; fail(code); };
   function read(args) {
     keys(args, ['path', 'start_line', 'end_line']); portable(args.path);
@@ -125,14 +128,19 @@ export function sealEvaluationSource({ root, manifest, limits = {} }) {
         position = decoded.position;
       } catch { fail('source-cursor'); }
     }
-    const hits = [];
-    for (const [path, file] of files) for (const [index, line] of file.lines.entries()) if (line.includes(args.query)) hits.push({ path, line: index + 1 });
+    const cached = lastSearch?.query === args.query;
+    const hits = cached ? lastSearch.hits : [];
+    if (!cached) {
+      lastSearch = null;
+      for (const [path, file] of files) for (const [index, line] of file.lines.entries()) if (line.includes(args.query)) hits.push({ path, line: index + 1 });
+    }
     if (position > hits.length) fail('source-cursor');
+    if (!cached && hits.length <= MAX_CACHED_SEARCH_HITS) lastSearch = { query: args.query, hits };
     const result = { kind: 'source-data', manifest_digest: manifestDigest, query: args.query, results: [], truncated: false, cursor: null };
     const cursorAt = p => Buffer.from(canonical({ binding, position: p })).toString('base64url');
     while (position < hits.length && result.results.length < limit) {
       if (bytes({ ...result, results: [...result.results, hits[position]], truncated: true, cursor: cursorAt(position + 1) }) > caps.maxOutputBytes) break;
-      result.results.push(hits[position++]);
+      result.results.push({ ...hits[position++] });
     }
     if (position < hits.length && !result.results.length) stop('source-output-limit');
     result.truncated = position < hits.length; result.cursor = result.truncated ? cursorAt(position) : null;

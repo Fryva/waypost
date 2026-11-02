@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-01T22:41:59.192Z
+generated_at: 2026-11-02T02:07:16.593Z
 
 ---
 
@@ -210,6 +210,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match.md | Retain only requested search results while counting every match | story | done |
 | epics/WP-21/stories/story-reuse-acceptance-attribution-ambiguity-within-each-check.md | Reuse acceptance attribution ambiguity within each check | story | done |
 | epics/WP-21/stories/story-reuse-artifact-lookup-within-each-index-consistency-check.md | Reuse artifact lookup within each index consistency check | story | done |
+| epics/WP-21/stories/story-reuse-bounded-search-hits-across-sealed-source-pages.md | Reuse bounded search hits across sealed-source pages | story | done |
 | epics/WP-21/stories/story-reuse-covered-story-lists-within-acceptance-checks.md | Reuse covered story lists within acceptance checks | story | done |
 | epics/WP-21/stories/story-reuse-file-membership-within-each-doctor-link-check.md | Reuse file membership within each Doctor link check | story | done |
 | epics/WP-21/stories/story-reuse-file-membership-within-each-supersede-integrity-check.md | Reuse file membership within each supersede integrity check | story | done |
@@ -561,6 +562,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-acceptance-attribution-ambiguity-within-each-check.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-artifact-lookup-within-each-index-consistency-check.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-bounded-search-hits-across-sealed-source-pages.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-covered-story-lists-within-acceptance-checks.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-file-membership-within-each-doctor-link-check.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-file-membership-within-each-supersede-integrity-check.md |
@@ -722,6 +724,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-retain-only-requested-search-results-while-counting-every-match.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-acceptance-attribution-ambiguity-within-each-check.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-artifact-lookup-within-each-index-consistency-check.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-reuse-bounded-search-hits-across-sealed-source-pages.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-covered-story-lists-within-acceptance-checks.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-file-membership-within-each-doctor-link-check.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-file-membership-within-each-supersede-integrity-check.md | mdlink | epics/WP-21/epic.md |

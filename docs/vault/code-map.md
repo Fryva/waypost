@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-01T22:37:20.525Z
+generated_at: 2026-11-02T02:03:42.415Z
 
 ---
 
@@ -162,6 +162,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Retain only requested search results while counting every match | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse acceptance attribution ambiguity within each check | `scripts/doctor-specs.mjs`, `tests/doctor-specs.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse artifact lookup within each index consistency check | `scripts/doctor-generated.mjs`, `tests/doctor-generated.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
+| WP-21 | Reuse bounded search hits across sealed-source pages | `scripts/evaluation-source.mjs`, `tests/evaluation-source.test.mjs`, `tests/evaluation-transport.test.mjs`, `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md` |
 | WP-21 | Reuse covered story lists within acceptance checks | `scripts/doctor-specs.mjs`, `tests/doctor-specs.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse file membership within each Doctor link check | `scripts/doctor-vault.mjs`, `scripts/doctor.mjs`, `scripts/lib-links.mjs`, `tests/doctor-vault.test.mjs`, `tests/lib-links.test.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse file membership within each supersede integrity check | `scripts/doctor-integrity.mjs`, `tests/doctor-integrity.test.mjs`, `scripts/doctor.mjs`, `scripts/lib-links.mjs`, `tests/lib-links.test.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md`, `docs/vault/adr/0009-artifact-integrity-checks.md` |
