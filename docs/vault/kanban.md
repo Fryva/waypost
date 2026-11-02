@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-02T02:37:46.470Z
+generated_at: 2026-11-02T02:53:43.483Z
 
 ---
 
@@ -204,6 +204,7 @@ generated_at: 2026-11-02T02:37:46.470Z
 - [x] [[epics/WP-21/stories/story-avoid-rebuilding-sealed-range-text-for-every-byte-check|WP-21: Avoid rebuilding sealed range text for every byte check]] #p2 #done
 - [x] [[epics/WP-21/stories/story-avoid-repeatedly-serializing-sealed-search-result-prefixes|WP-21: Avoid repeatedly serializing sealed search result prefixes]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-bounded-search-hits-across-sealed-source-pages|WP-21: Reuse bounded search hits across sealed-source pages]] #p2 #done
+- [x] [[epics/WP-21/stories/story-reuse-the-fixed-json-envelope-in-sealed-search-pages|WP-21: Reuse the fixed JSON envelope in sealed search pages]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

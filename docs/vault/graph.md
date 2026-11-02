@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T02:37:46.704Z
+generated_at: 2026-11-02T02:53:43.742Z
 
 ---
 
@@ -221,6 +221,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-reuse-repeated-story-resolutions-within-spec-link-checks.md | Reuse repeated story resolutions within spec link checks | story | done |
 | epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks.md | Reuse story specification lists within link checks | story | done |
 | epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md | Reuse the file lookup set across graph link resolution | story | done |
+| epics/WP-21/stories/story-reuse-the-fixed-json-envelope-in-sealed-search-pages.md | Reuse the fixed JSON envelope in sealed search pages | story | done |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | Scope unknown-prefix diagnostics to the requested period | story | done |
 | epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames.md | Search source artifacts that share derived view filenames | story | done |
 | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md | Separate explicit Doctor repairs from diagnostic orchestration | story | done |
@@ -575,6 +576,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-repeated-story-resolutions-within-spec-link-checks.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-the-fixed-json-envelope-in-sealed-search-pages.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md |
@@ -739,6 +741,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-reuse-repeated-story-resolutions-within-spec-link-checks.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-reuse-the-fixed-json-envelope-in-sealed-search-pages.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-search-source-artifacts-that-share-derived-view-filenames.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md | mdlink | epics/WP-21/epic.md |

@@ -318,3 +318,57 @@ test('search previews no longer copy previously selected hit references', t => {
   finally { Array.prototype[Symbol.iterator] = original; }
   assert.equal(result.results.length, 100); assert.equal(copied, 0);
 });
+
+test('search computes one fixed preview envelope and retains every cursor attempt', t => {
+  const f = fixture(t, { 'hits': 'needle\n'.repeat(120) });
+  const eofBroker = broker(f), binding = sha(JSON.stringify({ manifest: eofBroker.manifestDigest, query: 'needle' }));
+  const eof = Buffer.from(JSON.stringify({ binding, position: 120 })).toString('base64url');
+  for (const [args, limits, attempts, finalCursor] of [
+    [{ query: 'needle', limit: 1 }, {}, 1, true],
+    [{ query: 'needle', limit: 100 }, {}, 100, true],
+    [{ query: 'absent' }, {}, 0, false],
+    [{ query: 'needle', cursor: eof }, {}, 0, false],
+    [{ query: 'needle' }, { maxOutputBytes: 1 }, 1, false],
+  ]) {
+    const b = broker(f, limits), stringify = JSON.stringify, from = Buffer.from;
+    let envelopes = 0, cursors = 0, result, error;
+    JSON.stringify = function (value, ...rest) {
+      if (value?.kind === 'source-data' && value.query === args.query && value.results?.length === 0 && value.truncated === true) envelopes++;
+      return stringify.call(this, value, ...rest);
+    };
+    Buffer.from = function (...params) {
+      if (params.length === 1 && typeof params[0] === 'string' && /^\{"binding":"[a-f0-9]{64}","position":\d+\}$/.test(params[0])) cursors++;
+      return from.apply(this, params);
+    };
+    try { result = search(b, args); }
+    catch (caught) { error = caught; }
+    finally { JSON.stringify = stringify; Buffer.from = from; }
+    assert.equal(envelopes, attempts ? 1 : 0);
+    assert.equal(cursors, attempts + Number(finalCursor));
+    if (limits.maxOutputBytes) assert.equal(error?.code, 'source-output-limit');
+    else {
+      assert.equal(error, undefined);
+      if (result.cursor) {
+        assert.match(result.cursor, /^[A-Za-z0-9_-]+$/);
+        assert.equal(Buffer.byteLength(JSON.stringify(result.cursor)) - 2, result.cursor.length);
+      }
+      const original = result;
+      assert.equal(search(b, args), original);
+    }
+  }
+});
+
+test('search fixed envelope remains local to each escaped Unicode query', t => {
+  const query = 'needle"\\😀', f = fixture(t, { 'hits': query + '\nplain\n' + query + '\n' });
+  const args = { query, limit: 1 }, expected = search(broker(f), args);
+  const cap = Buffer.byteLength(JSON.stringify(expected));
+  for (const delta of [-1, 0, 1]) {
+    const b = broker(f, { maxOutputBytes: cap + delta });
+    search(b, { query: 'plain', limit: 1 }, 'warm-different-query');
+    const priorBytes = b.evidence().outputBytes;
+    if (delta === -1) {
+      assert.throws(() => search(b, args), code('source-output-limit'));
+      assert.equal(b.evidence().outputBytes, priorBytes);
+    } else assert.deepEqual(search(b, args), expected);
+  }
+});
