@@ -22,10 +22,8 @@ function leaseArgs(rest) {
   return ["lease", ...rest];
 }
 
-// Presence is only useful if it happens without being asked. Every command that
-// implies work beats the session's heartbeat, so another device sees this
-// session without anyone remembering `waypost sessions --touch`. Never fails the
-// command, never runs for a read-only lookup, and WAYPOST_NO_BEAT=1 turns it off.
+// Working commands beat presence automatically; lookups do not. Best-effort,
+// disabled by WAYPOST_NO_BEAT=1.
 // "clean" is deliberately NOT here, unlike "size": it is a working command
 // that will remove things once --apply lands (the next commit), so it beats
 // the heartbeat like any other write-side command; a plan-only run today
@@ -178,6 +176,7 @@ async function main() {
     }
     case "kanban": case "codemap": (0,(await import("./cli/views.mjs").catch(onFail("views")))["handleDerived"])(cmd, rest); break;
     case "search": (0,(await import("./cli/views.mjs").catch(onFail("views")))["handleSearch"])(rest); break;
+    case "handoff": (0,(await import("./cli/handoff.mjs").catch(onFail("handoff")))["handleHandoff"])(rest); break;
     case "reconcile": (0,(await import("./cli/views.mjs").catch(onFail("views")))["handleReconcile"])(rest); break;
     case "doctor": run("doctor", rest); break;
     case "diff-refs": run("diff-refs", rest); break;

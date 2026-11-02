@@ -18,6 +18,7 @@
 | [WP-21](./WP-21/epic.md) | Source an agent can read in one pass | in-progress | 2026-10-04 |
 | [WP-22](./WP-22/epic.md) | The owner's global rules on every machine and harness | planned | 2026-10-13 |
 | [WP-23](./WP-23/epic.md) | Solo entry: one person, one harness | done | 2026-10-14 |
+| [WP-24](./WP-24/epic.md) | Portable task handoffs with verifiable evidence | planned | 2026-11-02 |
 
 ---
 

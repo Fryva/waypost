@@ -17,6 +17,8 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 | `waypost reconcile [--write]` | rebuild every view and index; unchanged targets are counted together, pending dry-run changes say `would change`; an exact path used as the row label is shown once; `--json` streams complete per-target records even on partial failure; prose retains failure details and child exit status |
 | `waypost doctor [--install\|--vault [<path>]] [--fix] [--full]` | consistency diagnostics; compact group headings retain severity totals, empty groups use named clean lines, repeated declarative checks are counted and summaries retain exact totals/repair commands; repeat with `--full` for expanded groups, summary, commands and reasons; all findings stay complete; `--vault <path>` checks a vault with no binding (CI on a fresh clone) |
 | `waypost diff-refs` | changed files as evidence for `code_refs` |
+| `waypost handoff create --input <json> --output <new-json>` | experimental portable task state and selected-file hashes; no overwrite, vault or model required; [schema and limits](handoffs.md) |
+| `waypost handoff show <packet> [--json]` | inspect caller context and file freshness; exit 2 for changed/unreadable inputs or an unchecked empty set; claims and test execution remain unverified |
 | `waypost agents …` | roles: `list`/`show`/`install`/`uninstall`/`register`/`model` |
 | `waypost skills …` | Agent Skills: `install`/`list`/`uninstall`/`validate` — the bundled procedures as standard `SKILL.md`, in the directory each harness discovers |
 | `waypost harnesses` | which harnesses are supported, where roles land, how to invoke them |

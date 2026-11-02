@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T14:28:41.259Z
+generated_at: 2026-11-02T17:25:59.831Z
 
 ---
 
@@ -41,6 +41,7 @@ full typed neighborhood, both directions, in one call.
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | Native configuration profiles ranked by fresh role-specific calibration | adr | accepted |
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | Owner-assigned team roles by default with calibration as an optional check | adr | accepted |
 | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md | Owner's global rules: one harness-neutral source, reaching every installed harness on every machine | adr | accepted |
+| adr/portable-handoff-packets-as-explicit-file-snapshots-not-model-memory.md | Portable handoff packets as explicit file snapshots, not model memory | adr | proposed |
 | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | Record the operating system of a commit in a Waypost-OS trailer | adr | accepted |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
 | adr/solo-entry-without-a-profile-an-external-task-trailer-doctor-on-a-vault-path-a-vault-level-opt-out-from-self-install.md | Solo entry without a profile: an external task trailer, doctor on a vault path, a vault-level opt-out from self-install | adr | accepted |
@@ -246,6 +247,11 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer.md | Commit carries an external task id in a Waypost-Task trailer | story | done |
 | epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md | doctor --vault <path> checks a vault on a fresh clone without a binding | story | done |
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | README opens a path for working alone, in one tool | story | done |
+| epics/WP-24/epic.md | Portable task handoffs with verifiable evidence | epic | planned |
+| epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md | Capture command outcomes with selected input snapshots | story | planned |
+| epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | Compare continuation quality and native tokens with and without a packet | story | planned |
+| epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | Create and inspect a portable task packet with file freshness checks | story | done |
+| epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | Deliver portable packets through existing cross-harness inboxes | story | planned |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
 | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | Paired token economy experiment revision 2 over a sealed read-only source | runbook | draft |
@@ -781,6 +787,15 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer.md | mdlink | epics/WP-23/epic.md |
 | epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md | mdlink | epics/WP-23/epic.md |
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | mdlink | epics/WP-23/epic.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md |
+| epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md |
+| epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md | mdlink | epics/WP-24/epic.md |
+| epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | mdlink | epics/WP-24/epic.md |
+| epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | mdlink | epics/WP-24/epic.md |
+| epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | mdlink | epics/WP-24/epic.md |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | wikilink | adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md |

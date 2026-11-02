@@ -64,6 +64,8 @@ VAULT
   doctor [flags]           deterministic diagnostics (--install|--vault [<path>]|--fix|--full);
                            --vault <path> needs no binding (CI on a fresh clone)
   diff-refs [flags]        changed-file evidence for code_refs
+  handoff create          experimental task packet --input <json> --output <new-json>
+  handoff show <packet>   inspect context and selected-file freshness [--json]
 
 WORKING IN SEVERAL HARNESSES AT ONCE
   commit -m "<what>"       commit with the trailers that say which harness,

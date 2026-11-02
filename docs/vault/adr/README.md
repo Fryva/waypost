@@ -49,6 +49,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine](./owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md) | Owner's global rules: one harness-neutral source, reaching every installed harness on every machine | accepted | 2026-10-13 |
 | [solo-entry-without-a-profile-an-external-task-trailer-doctor-on-a-vault-path-a-vault-level-opt-out-from-self-install](./solo-entry-without-a-profile-an-external-task-trailer-doctor-on-a-vault-path-a-vault-level-opt-out-from-self-install.md) | Solo entry without a profile: an external task trailer, doctor on a vault path, a vault-level opt-out from self-install | accepted | 2026-10-14 |
 | [budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot](./budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md) | Budgeted read-only role evaluation over a sealed source snapshot | accepted | 2026-10-18 |
+| [portable-handoff-packets-as-explicit-file-snapshots-not-model-memory](./portable-handoff-packets-as-explicit-file-snapshots-not-model-memory.md) | Portable handoff packets as explicit file snapshots, not model memory | proposed | 2026-11-02 |
 
 ---
 

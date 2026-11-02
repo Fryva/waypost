@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-02T14:28:41.025Z
+generated_at: 2026-11-02T17:25:59.480Z
 
 ---
 
@@ -26,6 +26,9 @@ generated_at: 2026-11-02T14:28:41.025Z
 - [ ] [[epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language|WP-22: Each machine replies in its own user's language]] #p2 #blocked
 - [ ] [[epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not|WP-22: Global rules reach every installed harness, and doctor refuses a machine where they do not]] #p2
 - [ ] [[epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source|WP-22: The owner's global files on every machine migrate into the one source]] #p2 #blocked
+- [ ] [[epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots|WP-24: Capture command outcomes with selected input snapshots]] #p2
+- [ ] [[epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet|WP-24: Compare continuation quality and native tokens with and without a packet]] #p2
+- [ ] [[epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes|WP-24: Deliver portable packets through existing cross-harness inboxes]] #p2
 
 ## ToDo
 
@@ -211,6 +214,7 @@ generated_at: 2026-11-02T14:28:41.025Z
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done
 - [x] [[epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool|WP-23: README opens a path for working alone, in one tool]] #p2 #done
+- [x] [[epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks|WP-24: Create and inspect a portable task packet with file freshness checks]] #p2 #done
 
 
 
