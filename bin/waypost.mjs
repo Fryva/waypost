@@ -176,7 +176,7 @@ async function main() {
     }
     case "kanban": case "codemap": (0,(await import("./cli/views.mjs").catch(onFail("views")))["handleDerived"])(cmd, rest); break;
     case "search": (0,(await import("./cli/views.mjs").catch(onFail("views")))["handleSearch"])(rest); break;
-    case "handoff": (0,(await import("./cli/handoff.mjs").catch(onFail("handoff")))["handleHandoff"])(rest); break;
+    case "handoff": await (0,(await import("./cli/handoff.mjs").catch(onFail("handoff")))["handleHandoff"])(rest); break;
     case "reconcile": (0,(await import("./cli/views.mjs").catch(onFail("views")))["handleReconcile"])(rest); break;
     case "doctor": run("doctor", rest); break;
     case "diff-refs": run("diff-refs", rest); break;

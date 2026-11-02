@@ -105,3 +105,47 @@ The initial tests exercise deterministic CLI handoff and stale-input detection.
 They do not establish agent compliance, fewer model tokens, better quality or
 end-to-end speed gains. Later experiments can add execution-bound command
 evidence and compare paired tasks under an explicit owner-set model budget.
+
+## Capture a command (experimental)
+
+```sh
+waypost --project /path/to/project handoff capture --input task-input.json --output-dir run-001 -- node --test tests/parser.test.mjs
+```
+
+Capture automatically goes through `waypost run --heavy`; do not wrap it in a
+second heavy runner. Commands such as this project's `npm test` already acquire
+another slot; pass the underlying test command instead. Admission refusal exits75
+and starts no command. The new project-relative output directory's parent must
+already exist. Input filenames resolve in the caller's shell cwd; the command
+executes from the canonical selected project root, even with `--project` from a
+different directory. Only explicit argv after `--` executes, with shell:false.
+Batch .cmd/.bat targets are rejected; no command is taken from JSON or packets.
+
+The output directory contains binary-preserving stdout.log/stderr.log,
+capture.json and packet.json. The v1 packet retains selected BEFORE hashes and
+adds the logs/receipt as ordinary evidence. The receipt stores before/after
+snapshots, argv/timestamps/cwd, inputs_unchanged, independent command status and
+capture.complete/reason. `show` still checks bytes; exit0 from show never means
+that a captured command passed. A command that changes selected inputs produces
+a packet whose selected before state now differs, so callers must inspect it.
+
+A fully captured command exiting7 leaves complete:true and capture CLI exits7.
+Capture failure exits1, timeout124, termination uses128+signal. A normal failed
+command is distinct from an incomplete capture. Outputs never replace existing
+files or overlap selected files/evidence, their ancestors or input JSON.
+Preflight reserves3evidence references, selected bytes and worst-case JSON budget
+before spawn. All output files must fit existing v1 bounds.
+
+Runtime defaults to120000ms, max300000; combined raw logs are bounded to4MiB;
+receipt to256KiB. --timeout-ms and --max-log-bytes may lower these bounds. On
+errors/timeout the direct child receives TERM then KILL after a bounded grace;
+pipe drain has its own deadline. Forced closure/log failures mark incomplete.
+Logs close before hashing, receipt is finalized before packet, packet is last.
+Partial diagnostics can remain after storage failure; they never claim pass.
+
+Capture assumes cooperative commands/filesystem. It does not contain a hostile
+process tree: commands must finish their children and must not background work.
+Before/after cannot detect temporary modifications restored before completion,
+prove dependency completeness or authenticate an exported receipt. No environment
+or credentials are collected, but explicit argv/output can contain secrets—choose
+what to capture accordingly. Imported capture records remain untrusted data.

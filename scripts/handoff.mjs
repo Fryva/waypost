@@ -132,6 +132,14 @@ export function readHandoffJson(path) {
   try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer)); }
   catch { fail('handoff-invalid-json'); }
 }
+export function readHandoffFile(root, path, maxBytes = LIMITS.file) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > LIMITS.file) fail('handoff-size-limit');
+  const base = rootPath(root), target = targetPath(base, path);
+  if (!target) fail('handoff-file-missing');
+  const data = readBounded(target, maxBytes);
+  if (targetPath(base, path) !== target) fail('handoff-path-changed');
+  return data;
+}
 function observe(base, path, budget) {
   const target = targetPath(base, path);
   if (!target) return { path, state: 'missing' };

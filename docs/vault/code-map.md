@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T14:52:34.095Z
+generated_at: 2026-11-02T21:10:46.439Z
 
 ---
 
@@ -193,4 +193,5 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-23 | Commit carries an external task id in a Waypost-Task trailer | `scripts/commit.mjs`, `bin/waypost.mjs`, `tests/commits.test.mjs`, `AGENTS.md`, `CHANGELOG.md` |
 | WP-23 | doctor --vault <path> checks a vault on a fresh clone without a binding | `scripts/doctor.mjs`, `scripts/lib.mjs`, `bin/waypost.mjs`, `tests/scripts.test.mjs`, `AGENTS.md`, `CHANGELOG.md` |
 | WP-23 | README opens a path for working alone, in one tool | `README.md`, `tests/readme-solo.test.mjs`, `docs/how-it-works.md` |
+| WP-24 | Capture command outcomes with selected input snapshots | `scripts/handoff.mjs`, `scripts/handoff-capture.mjs`, `bin/cli/handoff-capture.mjs`, `tests/handoff-capture.test.mjs`, `bin/cli/handoff.mjs`, `bin/waypost.mjs`, `bin/cli/help.mjs`, `tests/harness.test.mjs`, `docs/handoffs.md`, `docs/cli-reference.md` |
 | WP-24 | Create and inspect a portable task packet with file freshness checks | `scripts/handoff.mjs`, `bin/cli/handoff.mjs`, `bin/waypost.mjs`, `bin/cli/help.mjs`, `tests/handoff.test.mjs`, `tests/harness.test.mjs`, `docs/handoffs.md`, `docs/cli-reference.md` |

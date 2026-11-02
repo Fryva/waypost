@@ -4,9 +4,13 @@ import { resolve, dirname, basename, join, sep } from 'node:path';
 import { projectRoot } from './core.mjs';
 import { createPacket, inspectPacket, formatInspection, readHandoffJson } from '../../scripts/handoff.mjs';
 
-export function handleHandoff(args) {
+export async function handleHandoff(args) {
   try {
     const [command, ...rest] = args;
+    if (command === 'capture') {
+      await (await import('./handoff-capture.mjs')).handleCapture(rest);
+      return;
+    }
     if (command === 'show') {
       if (!rest[0] || rest[0].startsWith('--') || rest.length > 2 || (rest.length === 2 && rest[1] !== '--json')) throw new Error('usage: handoff show <packet> [--json]');
       const report = inspectPacket(projectRoot(), readHandoffJson(resolve(rest[0])));

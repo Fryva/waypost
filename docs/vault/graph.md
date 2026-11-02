@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T17:25:59.831Z
+generated_at: 2026-11-02T21:10:46.746Z
 
 ---
 
@@ -248,7 +248,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding.md | doctor --vault <path> checks a vault on a fresh clone without a binding | story | done |
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | README opens a path for working alone, in one tool | story | done |
 | epics/WP-24/epic.md | Portable task handoffs with verifiable evidence | epic | planned |
-| epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md | Capture command outcomes with selected input snapshots | story | planned |
+| epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md | Capture command outcomes with selected input snapshots | story | done |
 | epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | Compare continuation quality and native tokens with and without a packet | story | planned |
 | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | Create and inspect a portable task packet with file freshness checks | story | done |
 | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | Deliver portable packets through existing cross-harness inboxes | story | planned |

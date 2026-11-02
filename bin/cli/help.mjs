@@ -66,6 +66,8 @@ VAULT
   diff-refs [flags]        changed-file evidence for code_refs
   handoff create          experimental task packet --input <json> --output <new-json>
   handoff show <packet>   inspect context and selected-file freshness [--json]
+  handoff capture         capture explicit command under a heavy slot; --input,
+                           --output-dir <new-relative-dir> -- <executable> [args]
 
 WORKING IN SEVERAL HARNESSES AT ONCE
   commit -m "<what>"       commit with the trailers that say which harness,

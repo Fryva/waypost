@@ -49,7 +49,10 @@ Compact default output; preserve source evidence and fresh-context review.
 
 Propose experimental `handoff create` and `handoff show`: caller-authored task
 state plus explicit project-relative references fingerprinted at capture time.
-No automatic collection, command execution, authority grants or role injection.
+No automatic transcript collection, execution from imported packet strings,
+authority grants or role injection. A separate owner-requested experimental
+`handoff capture` may execute only the argv supplied in the current CLI call,
+under the existing heavy-work gate, and retain before/after observations and logs.
 The CLI uses a lazy per-command writer with computation in a dependency-free leaf.
 The owner has approved trying implementation, not accepted a permanent contract;
 this ADR stays proposed pending experimental results and an owner decision.
