@@ -186,7 +186,7 @@ export async function main(argv = process.argv.slice(2)) {
     else if (operation === 'calibration-policy-proposal') print(await host.calibrationPolicyProposal({cohortId:opt('--cohort'),revision:Number(opt('--revision')||1)}));
     else if (operation === 'register-participant-host') print(await host.registerParticipantHost());
     else if (operation === 'inspect') print(await host.inspect({ action: opt('--action'), ...(opt('--nonce') ? { nonce: opt('--nonce') } : {}) }));
-    else if (operation === 'relay') print(await host.relay({ limit: Number(opt('--limit') || 10), pollMs: Number(opt('--poll-ms') || 1000), maxPolls: Number(opt('--max-polls') || 1), estimateTokens: opt('--estimate-tokens') }));
+    else if (operation === 'relay') print(await host.relay({ limit: Number(opt('--limit') || 10), pollMs: Number(opt('--poll-ms') || 1000), maxPolls: Number(opt('--max-polls') || 1), estimateTokens: opt('--estimate-tokens'), targetMessageId: opt('--message-id') }));
     else if (operation === 'native-delivery-enable') print(host.enableNativeDelivery(json(resolve(opt('--request-file') || ''))));
     else if (operation === 'review') print(await host.review({ workId: opt('--work'), ...(opt('--nonce') ? { nonce: opt('--nonce') } : {}) }));
     else if (operation === 'checkout') print(await host.checkout({ workId: opt('--work') }));

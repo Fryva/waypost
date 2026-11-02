@@ -26,6 +26,18 @@ async function fixture(t,options={}){
 const team=f=>f.load().state.teams.team;
 const deliveries=f=>Object.values(f.load().state.subscription_invocations).filter(x=>x.purpose==='delivery');
 
+test('targeted relay leaves backlog untouched and rejects an invalid target before inference',async t=>{
+ const f=await fixture(t);f.enable(1);const first=f.ask('first in backlog'),second=f.ask('explicit second'),begin=f.calls.length;
+ await assert.rejects(f.recipientHost.relay({limit:1,targetMessageId:'absent'}),/host-delivery-target-invalid/);
+ assert.equal(f.calls.length,begin);
+ const r=await f.recipientHost.relay({limit:1,targetMessageId:second});assert.equal(r.delivered,1,JSON.stringify(r));
+ assert.equal(Boolean(team(f).messages.find(x=>x.id===first).ack),false);assert.equal(Boolean(team(f).messages.find(x=>x.id===second).ack),true);
+ assert.equal(team(f).messages.some(x=>x.reply_to===second),true);assert.equal(team(f).messages.some(x=>x.reply_to===first),false);
+ const calls=f.calls.filter(c=>c==='native-delivery').length;
+ const replay=await f.recipientHost.relay({limit:1,targetMessageId:second});assert.equal(f.calls.filter(c=>c==='native-delivery').length,calls);
+ assert.equal(replay.results[0].nonce,r.results[0].nonce);assert.equal(replay.results[0].recovered,true);
+});
+
 test('a v2 relay answers an addressed question in a fresh stand-in context and forwards a labelled answer with the original correlation',async t=>{
  const f=await fixture(t);f.enable(1);const q=f.ask('What is the build status?'),begin=f.calls.length;
  const r=await f.recipientHost.relay({limit:5});assert.equal(r.delivered,1,JSON.stringify(r));assert.equal(r.protected_actions_granted,false);

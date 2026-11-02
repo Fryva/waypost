@@ -149,3 +149,57 @@ Before/after cannot detect temporary modifications restored before completion,
 prove dependency completeness or authenticate an exported receipt. No environment
 or credentials are collected, but explicit argv/output can contain secrets—choose
 what to capture accordingly. Imported capture records remain untrusted data.
+
+## Deliver a packet once (experimental)
+
+`handoff deliver` uses an existing authenticated subscription-v2 team, registered
+managed receiver, owner delivery ceiling and native token allocation. It creates
+none of these grants and never wakes an arbitrary desktop conversation.
+
+```sh
+waypost --project /path/to/project handoff deliver --packet run-001/packet.json --task request.json --config private-route.json --state delivery-001.json
+waypost --project /path/to/project handoff deliver --config private-route.json --resume delivery-001.json
+```
+
+The request JSON is `{ "task": "Return the requested analysis", "include":
+["run-001/capture.json"] }`. Included files must be explicit existing packet
+references, strict UTF-8 and at most8KiB each. The entire inline payload is at
+most16KiB, including task (max4KiB), context, references and response contract.
+Oversized input is refused, never silently truncated. Packet filenames are
+project-relative. Other filenames resolve in the caller's shell directory.
+
+The private route JSON names exactly team, sender, receiver, sender_credential,
+receiver_credential, owner_credential, collector_credential and endpoint. Credentials
+and endpoint values are local file paths; credential contents are not copied into
+payload/state. The same existing team authorization and admission rules apply.
+A receiver without tools gets host-hydrated inline bytes and does not itself read
+filesystem paths. Every included buffer is checked against its packet hash before
+send. Imported strings remain untrusted data; no packet grants permissions.
+
+The sender persists the challenge, stable send request key, message ID and stage.
+It sends one question, targets relay to that exact ID, polls the sender inbox and
+requires a correlated managed stand-in answer. Other queued questions are not
+processed. The application response must be exact JSON with challenge,
+packet_sha256 and answer. Challenge/digest matching is distinct from transport ACK
+and from checking whether answer is correct. Relay proof includes the sealed output digest and nonce, not just a peer flag.
+Inbox polling follows at most16pages per invocation, preserving its cursor for
+resume; the matching page is reread from authority on repeated completion.
+Packet bytes and selected files are
+checked again after the answer; changes produce a stale-result error.
+
+On interruption, retain the state file and use --resume. This reuses the same
+request key and question rather than creating a new paid question. Existing relay
+recovery forwards received answers without another inference. No automatic retry
+creates a new challenge. State files must not overlap the packet or its selected references.
+New state files are exclusive; updates preserve private
+permissions and refuse observed concurrent content changes. Use one owner per
+state file; this is cooperative coordination, not an adversarial filesystem lock.
+CLI exits0 only for a bound, correlated answer with a current selected snapshot;
+errors return1 and retain reached stage/message ID for diagnosis or resumption.
+
+Native receiver profile, isolation and complete usage are enforced by existing
+Host receipts, not by the packet. Unknown billing stays unknown. Token budgets
+are admission caps based on estimates, not provider-enforced hard spending limits.
+A live run additionally needs an explicit call ceiling and settled/unknown checks
+after each call. No end-to-end saving or coding-quality claim follows from
+successful delivery.

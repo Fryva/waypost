@@ -1090,11 +1090,15 @@ export function createTeamHost(config, dependencies={}) {
  // message with the quota lease renewed before each. A received answer is
  // forwarded as a labelled stand-in answer with the participant's credential;
  // a forwarding failure is reported per message and never stops the loop.
- async function relaySubscription({limit=10,estimateTokens}={}) {
+ async function relaySubscription({limit=10,estimateTokens,targetMessageId}={}) {
   if(!Number.isSafeInteger(limit)||limit<1||limit>100)fail('host-invalid-relay-bounds');
   owner();const d=endpoint(),participant=credential(participantCredential);
   if(participant.participant!==d.participant)fail('host-relay-participant-binding-mismatch');
   if(d.descriptor.harness==='codex'&&d.descriptor.tool_surface!==CODEX_SURFACE_R1.id)fail('host-delivery-no-tools-context-required');
+  if(targetMessageId!==undefined){
+   const t=getTeam().t,m=t.messages.find(x=>x.id===targetMessageId);
+   if(typeof targetMessageId!=='string'||!targetMessageId||limit!==1||!m||m.kind!=='question'||m.recipient!==participant.participant||m.incarnation!==participant.incarnation||m.epoch!==t.epoch)fail('host-delivery-target-invalid');
+  }
   const results=[];
   function forward(message,record,{t,actor}){
    if(record?.state!=='received'||record.participant!==participant.participant||record.incarnation!==participant.incarnation)return {message_id:message.id,forwarded:false,state:record?.state??null,...(record?.failure?{failure:record.failure}:{})};
@@ -1106,14 +1110,22 @@ export function createTeamHost(config, dependencies={}) {
     const reachable=sender&&!sender.revoked&&sender.availability!=='left';
     if(reachable&&!done(answerKey))mutate('send',{epoch:t.epoch,to:message.sender,kind:'answer',payload:deliveryAnswerPayload(record.output,record.nonce),reply_to:message.id},participant,answerKey);
     if(!done(ackKey))mutate('ack',{epoch:t.epoch,message:message.id},participant,ackKey);
-    return {message_id:message.id,forwarded:Boolean(reachable),acknowledged:true,stand_in:true,nonce:record.nonce};
+    return {message_id:message.id,forwarded:Boolean(reachable),acknowledged:true,stand_in:true,nonce:record.nonce,output_digest:record.output_digest};
    }catch(error){return {message_id:message.id,forwarded:false,forward_blocker:blockerCode(error,'host-delivery-forward-failed')};}
   }
   const blockerCode=(error,fallback)=>{const code=error.code||error.message;return typeof code==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(code)?code:fallback;};
+  if(targetMessageId!==undefined){
+   const {v,t}=getTeam(),record=Object.values(t.deliveries||{}).find(x=>x.protocol===2&&x.message_id===targetMessageId&&x.state==='received');
+   if(record){
+    const message=t.messages.find(x=>x.id===targetMessageId),result=forward(message,record,{t,actor:authorizeActor(v.state,team,participant)});
+    return {delivered:result.forwarded?1:0,results:[{recovered:true,...result}],continuation:'captured answer replayed without inference',protected_actions_granted:false};
+   }
+  }
   // Answers received earlier (a crash between settle and forward) are forwarded
   // without inference, even when the delivery ceiling has since lapsed.
   {const {v,t}=getTeam(),actor=authorizeActor(v.state,team,participant);
    for(const record of Object.values(t.deliveries||{})){
+    if(targetMessageId!==undefined&&record.message_id!==targetMessageId)continue;
     if(record.protocol!==2||record.state!=='received'||record.participant!==participant.participant||record.epoch!==t.epoch)continue;
     const message=t.messages.find(m=>m.id===record.message_id);
     if(message&&!message.ack)results.push({recovered:true,...forward(message,record,{t:getTeam().t,actor})});
@@ -1124,7 +1136,7 @@ export function createTeamHost(config, dependencies={}) {
    if(!member||member.revoked||member.incarnation!==participant.incarnation)fail('host-relay-incarnation-changed');
    // A question with any record, or with a live reservation (a crash before consume), is not taken again.
    const reserved=new Set(Object.values(v.state.subscription_invocations||{}).filter(x=>x.team===team&&x.purpose==='delivery'&&x.state!=='aborted').map(x=>x.delivery?.message_id));
-   const message=t.messages.find(m=>m.recipient===member.id&&m.incarnation===member.incarnation&&m.epoch===t.epoch&&m.kind==='question'&&!m.ack&&!reserved.has(m.id)&&!Object.values(t.deliveries||{}).some(r=>r.message_id===m.id));
+   const message=t.messages.find(m=>(targetMessageId===undefined||m.id===targetMessageId)&&m.recipient===member.id&&m.incarnation===member.incarnation&&m.epoch===t.epoch&&m.kind==='question'&&!m.ack&&!reserved.has(m.id)&&!Object.values(t.deliveries||{}).some(r=>r.message_id===m.id));
    if(!message)break;
    const nonce='delivery_'+randomUUID().replace(/-/g,''),operationId=randomUUID();
    try{
@@ -1136,7 +1148,8 @@ export function createTeamHost(config, dependencies={}) {
   }
   return {delivered:results.filter(r=>r.forwarded).length,results,continuation:'one fresh owned stand-in context per message',protected_actions_granted:false};
  }
- async function relay({limit=10,pollMs=1000,maxPolls=1}={}) {
+ async function relay({limit=10,pollMs=1000,maxPolls=1,targetMessageId}={}) {
+  if(targetMessageId!==undefined)fail('host-targeted-delivery-requires-subscription-v2');
   for(const [v,min,max] of [[limit,1,100],[pollMs,0,60000],[maxPolls,1,1000]])if(!Number.isSafeInteger(v)||v<min||v>max)fail('host-invalid-relay-bounds');
   owner();const c=collector(),d=endpoint(),participant=credential(participantCredential);
   if(participant.participant!==d.participant)fail('host-relay-participant-binding-mismatch');

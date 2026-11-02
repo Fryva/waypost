@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-02T21:10:46.207Z
+generated_at: 2026-11-02T21:10:56.687Z
 
 ---
 
@@ -27,7 +27,6 @@ generated_at: 2026-11-02T21:10:46.207Z
 - [ ] [[epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not|WP-22: Global rules reach every installed harness, and doctor refuses a machine where they do not]] #p2
 - [ ] [[epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source|WP-22: The owner's global files on every machine migrate into the one source]] #p2 #blocked
 - [ ] [[epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet|WP-24: Compare continuation quality and native tokens with and without a packet]] #p2
-- [ ] [[epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes|WP-24: Deliver portable packets through existing cross-harness inboxes]] #p2
 
 ## ToDo
 
@@ -215,6 +214,7 @@ generated_at: 2026-11-02T21:10:46.207Z
 - [x] [[epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool|WP-23: README opens a path for working alone, in one tool]] #p2 #done
 - [x] [[epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots|WP-24: Capture command outcomes with selected input snapshots]] #p2 #done
 - [x] [[epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks|WP-24: Create and inspect a portable task packet with file freshness checks]] #p2 #done
+- [x] [[epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes|WP-24: Deliver portable packets through existing cross-harness inboxes]] #p2 #done
 
 
 

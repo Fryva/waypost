@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T21:10:46.439Z
+generated_at: 2026-11-02T21:10:56.910Z
 
 ---
 
@@ -195,3 +195,4 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-23 | README opens a path for working alone, in one tool | `README.md`, `tests/readme-solo.test.mjs`, `docs/how-it-works.md` |
 | WP-24 | Capture command outcomes with selected input snapshots | `scripts/handoff.mjs`, `scripts/handoff-capture.mjs`, `bin/cli/handoff-capture.mjs`, `tests/handoff-capture.test.mjs`, `bin/cli/handoff.mjs`, `bin/waypost.mjs`, `bin/cli/help.mjs`, `tests/harness.test.mjs`, `docs/handoffs.md`, `docs/cli-reference.md` |
 | WP-24 | Create and inspect a portable task packet with file freshness checks | `scripts/handoff.mjs`, `bin/cli/handoff.mjs`, `bin/waypost.mjs`, `bin/cli/help.mjs`, `tests/handoff.test.mjs`, `tests/harness.test.mjs`, `docs/handoffs.md`, `docs/cli-reference.md` |
+| WP-24 | Deliver portable packets through existing cross-harness inboxes | `scripts/handoff.mjs`, `scripts/handoff-delivery.mjs`, `bin/cli/handoff-delivery.mjs`, `tests/handoff-delivery.test.mjs`, `scripts/team-host.mjs`, `scripts/team-cli.mjs`, `tests/native-protocol-delivery-host.test.mjs`, `bin/cli/handoff.mjs`, `bin/cli/help.mjs`, `tests/harness.test.mjs`, `docs/handoffs.md`, `docs/cli-reference.md`, `docs/handoff-experiment-2026-11-02.md (planned)` |

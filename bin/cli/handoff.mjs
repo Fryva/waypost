@@ -11,6 +11,10 @@ export async function handleHandoff(args) {
       await (await import('./handoff-capture.mjs')).handleCapture(rest);
       return;
     }
+    if (command === 'deliver') {
+      await (await import('./handoff-delivery.mjs')).handleDelivery(rest);
+      return;
+    }
     if (command === 'show') {
       if (!rest[0] || rest[0].startsWith('--') || rest.length > 2 || (rest.length === 2 && rest[1] !== '--json')) throw new Error('usage: handoff show <packet> [--json]');
       const report = inspectPacket(projectRoot(), readHandoffJson(resolve(rest[0])));

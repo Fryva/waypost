@@ -66,6 +66,8 @@ VAULT
   diff-refs [flags]        changed-file evidence for code_refs
   handoff create          experimental task packet --input <json> --output <new-json>
   handoff show <packet>   inspect context and selected-file freshness [--json]
+  handoff deliver         one-shot managed peer delivery; --packet, --task,
+                           --config, --state; --config + --resume reuses a question
   handoff capture         capture explicit command under a heavy slot; --input,
                            --output-dir <new-relative-dir> -- <executable> [args]
 

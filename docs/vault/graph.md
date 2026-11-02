@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T21:10:46.746Z
+generated_at: 2026-11-02T21:10:57.223Z
 
 ---
 
@@ -251,7 +251,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md | Capture command outcomes with selected input snapshots | story | done |
 | epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | Compare continuation quality and native tokens with and without a packet | story | planned |
 | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | Create and inspect a portable task packet with file freshness checks | story | done |
-| epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | Deliver portable packets through existing cross-harness inboxes | story | planned |
+| epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | Deliver portable packets through existing cross-harness inboxes | story | done |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
 | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | Paired token economy experiment revision 2 over a sealed read-only source | runbook | draft |
