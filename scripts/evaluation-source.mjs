@@ -140,9 +140,12 @@ export function sealEvaluationSource({ root, manifest, limits = {} }) {
     if (!cached && hits.length <= MAX_CACHED_SEARCH_HITS) lastSearch = { query: args.query, hits };
     const result = { kind: 'source-data', manifest_digest: manifestDigest, query: args.query, results: [], truncated: false, cursor: null };
     const cursorAt = p => Buffer.from(canonical({ binding, position: p })).toString('base64url');
+    // Empty-envelope brackets are already counted; only hits and commas remain.
+    let resultsBytes = 0;
     while (position < hits.length && result.results.length < limit) {
-      if (bytes({ ...result, results: [...result.results, hits[position]], truncated: true, cursor: cursorAt(position + 1) }) > caps.maxOutputBytes) break;
-      result.results.push({ ...hits[position++] });
+      const nextResultsBytes = resultsBytes + (result.results.length ? 1 : 0) + bytes(hits[position]);
+      if (bytes({ ...result, results: [], truncated: true, cursor: cursorAt(position + 1) }) + nextResultsBytes > caps.maxOutputBytes) break;
+      result.results.push({ ...hits[position++] }); resultsBytes = nextResultsBytes;
     }
     if (position < hits.length && !result.results.length) stop('source-output-limit');
     result.truncated = position < hits.length; result.cursor = result.truncated ? cursorAt(position) : null;

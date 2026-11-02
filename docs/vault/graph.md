@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T02:21:19.507Z
+generated_at: 2026-11-02T02:37:46.704Z
 
 ---
 
@@ -107,6 +107,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-avoid-rebuilding-sealed-range-text-for-every-byte-check.md | Avoid rebuilding sealed range text for every byte check | story | done |
 | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md | Avoid repeated file paths in doctor findings | story | done |
 | epics/WP-21/stories/story-avoid-repeated-repair-commands-in-adjacent-next-actions.md | Avoid repeated repair commands in adjacent next actions | story | done |
+| epics/WP-21/stories/story-avoid-repeatedly-serializing-sealed-search-result-prefixes.md | Avoid repeatedly serializing sealed search result prefixes | story | done |
 | epics/WP-21/stories/story-avoid-repeating-exact-graph-node-paths-in-query-output.md | Avoid repeating exact graph node paths in query output | story | done |
 | epics/WP-21/stories/story-avoid-repeating-exact-paths-in-reconciliation-rows.md | Avoid repeating exact paths in reconciliation rows | story | done |
 | epics/WP-21/stories/story-avoid-repeating-search-result-filenames-as-titles.md | Avoid repeating search result filenames as titles | story | done |
@@ -460,6 +461,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-rebuilding-sealed-range-text-for-every-byte-check.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeated-repair-commands-in-adjacent-next-actions.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeatedly-serializing-sealed-search-result-prefixes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-exact-graph-node-paths-in-query-output.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-exact-paths-in-reconciliation-rows.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-search-result-filenames-as-titles.md |
@@ -619,6 +621,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-avoid-rebuilding-sealed-range-text-for-every-byte-check.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeated-file-paths-in-doctor-findings.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeated-repair-commands-in-adjacent-next-actions.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-avoid-repeatedly-serializing-sealed-search-result-prefixes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeating-exact-graph-node-paths-in-query-output.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeating-exact-paths-in-reconciliation-rows.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeating-search-result-filenames-as-titles.md | mdlink | epics/WP-21/epic.md |

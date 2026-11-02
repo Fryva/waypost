@@ -277,3 +277,44 @@ test('range text is joined once for a complete two-hundred-line response', t => 
   assert.equal(result.end_line, 200); assert.equal(result.truncated, false);
   assert.equal(result.text, Array(200).fill('x'.repeat(100)).join('\n'));
 });
+
+test('search result byte caps retain commas, cursor widths and conservative last-hit rejection', t => {
+  const path = 'résult-😀.mjs', f = fixture(t, { [path]: 'needle\n'.repeat(120) });
+  const b = broker(f), binding = sha(JSON.stringify({ manifest: b.manifestDigest, query: 'needle' }));
+  const cursorAt = position => Buffer.from(JSON.stringify({ binding, position })).toString('base64url');
+  const preview = (position, count) => ({ kind: 'source-data', manifest_digest: b.manifestDigest, query: 'needle',
+    results: Array.from({ length: count }, (_, i) => ({ path, line: position + i + 1 })),
+    truncated: true, cursor: cursorAt(position + count) });
+  for (const [position, count] of [[0, 1], [0, 2], [0, 9], [0, 10], [0, 99], [0, 100], [8, 1], [9, 1], [98, 1], [99, 1], [119, 1]]) {
+    const cap = Buffer.byteLength(JSON.stringify(preview(position, count)));
+    for (const delta of [-1, 0, 1]) {
+      const current = broker(f, { maxOutputBytes: cap + delta });
+      const args = { query: 'needle', limit: 100, ...(position ? { cursor: cursorAt(position) } : {}) };
+      if (count === 1 && delta === -1) {
+        assert.throws(() => search(current, args), code('source-output-limit'));
+        assert.equal(current.evidence().outputBytes, 0); assert.equal(current.evidence().calls.length, 0);
+        continue;
+      }
+      const result = search(current, args), expected = count - (delta === -1 ? 1 : 0);
+      assert.deepEqual(result.results, preview(position, expected).results);
+      assert.equal(result.truncated, position + expected < 120);
+      assert.equal(result.cursor, result.truncated ? cursorAt(position + expected) : null);
+      assert.equal(search(current, args), result);
+      const fresh = search(current, args, 'fresh');
+      assert.deepEqual(fresh, result); assert.notEqual(fresh.results[0], result.results[0]);
+    }
+  }
+  assert.deepEqual(search(broker(f), { query: 'needle', cursor: cursorAt(120) }).results, []);
+});
+
+test('search previews no longer copy previously selected hit references', t => {
+  const f = fixture(t, { 'hits': 'needle\n'.repeat(100) }), b = broker(f);
+  const original = Array.prototype[Symbol.iterator]; let copied = 0, result;
+  Array.prototype[Symbol.iterator] = function () {
+    if (this.length && typeof this[0]?.path === 'string' && typeof this[0]?.line === 'number') copied += this.length;
+    return original.call(this);
+  };
+  try { result = search(b, { query: 'needle', limit: 100 }); }
+  finally { Array.prototype[Symbol.iterator] = original; }
+  assert.equal(result.results.length, 100); assert.equal(copied, 0);
+});

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T02:18:35.923Z
+generated_at: 2026-11-02T02:33:37.683Z
 
 ---
 
@@ -59,6 +59,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Avoid rebuilding sealed range text for every byte check | `scripts/evaluation-source.mjs`, `tests/evaluation-source.test.mjs`, `tests/evaluation-transport.test.mjs`, `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md` |
 | WP-21 | Avoid repeated file paths in doctor findings | `scripts/doctor.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Avoid repeated repair commands in adjacent next actions | `bin/cli/status.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `docs/cli-reference.md`, `tests/fixtures/next-script-responses.mjs`, `tests/fixtures/next-action-cases.json` |
+| WP-21 | Avoid repeatedly serializing sealed search result prefixes | `scripts/evaluation-source.mjs`, `tests/evaluation-source.test.mjs`, `tests/evaluation-transport.test.mjs`, `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md` |
 | WP-21 | Avoid repeating exact graph node paths in query output | `bin/cli/views.mjs`, `scripts/graph.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Avoid repeating exact paths in reconciliation rows | `bin/cli/views.mjs`, `scripts/reconcile.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Avoid repeating search result filenames as titles | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
