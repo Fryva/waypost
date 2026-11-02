@@ -10,7 +10,7 @@ created: 2026-11-02
 updated: 2026-11-02
 external_refs: {}
 tags: []
-code_refs: ["scripts/handoff.mjs", "scripts/handoff-delivery.mjs", "bin/cli/handoff-delivery.mjs", "tests/handoff-delivery.test.mjs", "scripts/team-host.mjs", "scripts/team-cli.mjs", "tests/native-protocol-delivery-host.test.mjs", "bin/cli/handoff.mjs", "bin/cli/help.mjs", "tests/harness.test.mjs", "docs/handoffs.md", "docs/cli-reference.md", "docs/handoff-experiment-2026-11-02.md (planned)"]
+code_refs: ["scripts/handoff.mjs", "scripts/handoff-delivery.mjs", "bin/cli/handoff-delivery.mjs", "tests/handoff-delivery.test.mjs", "scripts/team-host.mjs", "scripts/team-cli.mjs", "tests/native-protocol-delivery-host.test.mjs", "bin/cli/handoff.mjs", "bin/cli/help.mjs", "tests/harness.test.mjs", "docs/handoffs.md", "docs/cli-reference.md", "docs/handoff-experiment-2026-11-02.md"]
 specs: []
 blocked_by: ["WP-24/story-capture-command-outcomes-with-selected-input-snapshots"]
 started_at: "2026-11-02T20:13:39.574Z"

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T21:10:57.223Z
+generated_at: 2026-11-02T21:04:32.667Z
 
 ---
 
@@ -249,7 +249,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | README opens a path for working alone, in one tool | story | done |
 | epics/WP-24/epic.md | Portable task handoffs with verifiable evidence | epic | planned |
 | epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md | Capture command outcomes with selected input snapshots | story | done |
-| epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | Compare continuation quality and native tokens with and without a packet | story | planned |
+| epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | Compare continuation quality and native tokens with and without a packet | story | in-progress |
 | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | Create and inspect a portable task packet with file freshness checks | story | done |
 | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | Deliver portable packets through existing cross-harness inboxes | story | done |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
@@ -791,7 +791,10 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md |
+| epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md |
+| epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md |
 | epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md |
+| epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md |
 | epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md | mdlink | epics/WP-24/epic.md |
 | epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | mdlink | epics/WP-24/epic.md |
 | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | mdlink | epics/WP-24/epic.md |

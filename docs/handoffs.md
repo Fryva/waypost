@@ -203,3 +203,7 @@ are admission caps based on estimates, not provider-enforced hard spending limit
 A live run additionally needs an explicit call ceiling and settled/unknown checks
 after each call. No end-to-end saving or coding-quality claim follows from
 successful delivery.
+
+The [2026-11-02 experiment](handoff-experiment-2026-11-02.md) records the checked
+implementation, frozen comparison and live-run prerequisites. Its payload sizes
+are not evidence of native-token savings.

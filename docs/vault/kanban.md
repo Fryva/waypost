@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-02T21:10:56.687Z
+generated_at: 2026-11-02T21:04:32.421Z
 
 ---
 
@@ -26,7 +26,6 @@ generated_at: 2026-11-02T21:10:56.687Z
 - [ ] [[epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language|WP-22: Each machine replies in its own user's language]] #p2 #blocked
 - [ ] [[epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not|WP-22: Global rules reach every installed harness, and doctor refuses a machine where they do not]] #p2
 - [ ] [[epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source|WP-22: The owner's global files on every machine migrate into the one source]] #p2 #blocked
-- [ ] [[epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet|WP-24: Compare continuation quality and native tokens with and without a packet]] #p2
 
 ## ToDo
 
@@ -43,6 +42,7 @@ generated_at: 2026-11-02T21:10:56.687Z
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
 - [ ] [[epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation|WP-21: Execute paired token economy smoke under the owner allocation]] #p2
+- [ ] [[epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet|WP-24: Compare continuation quality and native tokens with and without a packet]] #p2
 
 ## Review
 

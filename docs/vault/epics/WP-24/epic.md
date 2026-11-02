@@ -8,7 +8,7 @@ created: 2026-11-02
 updated: 2026-11-02
 external_refs: {}
 tags: []
-code_refs: ["scripts/handoff.mjs", "bin/cli/handoff.mjs", "bin/waypost.mjs", "bin/cli/help.mjs", "tests/handoff.test.mjs", "tests/harness.test.mjs", "docs/handoffs.md", "docs/cli-reference.md"]
+code_refs: ["bin/cli/handoff-capture.mjs", "bin/cli/handoff-delivery.mjs", "bin/cli/handoff.mjs", "bin/cli/help.mjs", "bin/waypost.mjs", "docs/cli-reference.md", "docs/handoffs.md", "docs/handoff-experiment-2026-11-02.md", "scripts/handoff-capture.mjs", "scripts/handoff-delivery.mjs", "scripts/handoff.mjs", "scripts/run-budget.mjs", "scripts/team-cli.mjs", "scripts/team-host.mjs", "tests/handoff-capture.test.mjs", "tests/handoff-delivery.test.mjs", "tests/handoff.test.mjs", "tests/harness.test.mjs", "tests/native-protocol-delivery-host.test.mjs"]
 review_status: pending
 reviewed_at: null
 ---
@@ -37,17 +37,23 @@ less repeated exploration or lower end-to-end cost.
 
 ## Stories
 
-- [[story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks|Create and inspect a portable task packet with file freshness checks]] — first experimental slice.
+- [[story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks|Create and inspect a portable task packet with file freshness checks]] — first experimental slice, done.
+- [[story-capture-command-outcomes-with-selected-input-snapshots|Capture command outcomes with selected input snapshots]] — capture first.
+- [[story-deliver-portable-packets-through-existing-cross-harness-inboxes|Deliver portable packets through existing cross-harness inboxes]] — existing managed transport next.
+- [[story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet|Compare continuation quality and native tokens with and without a packet]] — owner500000 native token allocation.
 
 ## Expected Results
 
 - A small standalone create/show command that preserves primary evidence pointers.
 - Reproducible stale-input detection and explicit limits on caller-provided claims.
+- Bounded command receipts tied to selected before/after source observations.
+- Targeted delivery and recovery using existing managed team transport.
 
 ## Open Questions
 
-- Later: execution-bound evidence and measurement with a fixed owner allocation.
-- Later: whether native harness integrations provide enough benefit to justify coupling.
+- Preserve raw native input/cache/output breakdown; complete total is verified but separate buckets remain unavailable.
+- Expand beyond the single synthetic task: frozen ABBA showed36.78% fewer native tokens with all four answers correct; no general coding-quality or latency claim.
+- Owner500000 allocation:32187 consumed, historical17520 retained, prior admission policy restored.
 
 ## Related
 
