@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T05:18:07.212Z
+generated_at: 2026-11-04T05:29:09.859Z
 
 ---
 
@@ -198,6 +198,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-24 | Compare real coding continuations against history summary and packet | `scripts/handoff-benchmark.mjs`, `scripts/handoff-benchmark-runtime.cjs`, `tests/handoff-benchmark.test.mjs`, `scripts/handoff-delivery.mjs`, `scripts/run-budget.mjs`, `docs/handoffs.md`, `docs/handoff-experiment-2026-11-04.md` |
 | WP-24 | Create and inspect a portable task packet with file freshness checks | `scripts/handoff.mjs`, `bin/cli/handoff.mjs`, `bin/waypost.mjs`, `bin/cli/help.mjs`, `tests/handoff.test.mjs`, `tests/harness.test.mjs`, `docs/handoffs.md`, `docs/cli-reference.md` |
 | WP-24 | Deliver portable packets through existing cross-harness inboxes | `scripts/handoff.mjs`, `scripts/handoff-delivery.mjs`, `bin/cli/handoff-delivery.mjs`, `tests/handoff-delivery.test.mjs`, `scripts/team-host.mjs`, `scripts/team-cli.mjs`, `tests/native-protocol-delivery-host.test.mjs`, `bin/cli/handoff.mjs`, `bin/cli/help.mjs`, `tests/harness.test.mjs`, `docs/handoffs.md`, `docs/cli-reference.md`, `docs/handoff-experiment-2026-11-02.md` |
+| WP-24 | Group unchanged file rows in CLI handoff inspection | `scripts/handoff.mjs`, `bin/cli/handoff.mjs`, `tests/handoff.test.mjs`, `docs/handoffs.md` |
 | WP-24 | Preflight managed handoffs and generate private route configuration | `scripts/handoff-prepare.mjs`, `bin/cli/handoff-prepare.mjs`, `scripts/team-host.mjs`, `scripts/team-cli.mjs`, `tests/handoff-prepare.test.mjs`, `tests/team-host.test.mjs`, `bin/cli/handoff.mjs`, `bin/cli/help.mjs`, `tests/harness.test.mjs`, `docs/handoffs.md`, `docs/cli-reference.md` |
 | WP-24 | Recover handoffs after forced interruption within an overall deadline | `scripts/handoff-delivery.mjs`, `bin/cli/handoff-delivery.mjs`, `bin/cli/handoff-process.mjs`, `tests/handoff-delivery.test.mjs`, `tests/handoff-recovery.test.mjs`, `tests/helpers/handoff-interruption.mjs`, `tests/native-protocol-delivery-host.test.mjs`, `docs/handoffs.md` |
 | WP-24 | Serialize each handoff round payload once for size and identity | `scripts/handoff-retrieval.mjs`, `tests/handoff-retrieval.test.mjs`, `tests/state-migrate.test.mjs`, `tests/handoff-capture.test.mjs` |

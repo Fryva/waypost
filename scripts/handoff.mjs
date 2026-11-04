@@ -175,16 +175,29 @@ export function inspectPacket(root, packet) {
   return { packet, scope: 'listed-files-only', claims: 'caller-supplied-unverified',
     snapshot_matches: results.length ? results.every(e => e.status === 'unchanged') : null, results };
 }
-export function formatInspection(report) {
+// Canonical text is part of persisted delivery identities; compact only display.
+export function formatInspection(report) { return formatReport(report, false); }
+export function formatInspectionForDisplay(report) { return formatReport(report, true); }
+function formatReport(report, compact) {
   const p = report.packet;
   const lines = [`handoff v1 — ${report.snapshot_matches === null ? 'no listed files' : report.snapshot_matches ? 'listed files unchanged' : 'listed files differ or are unreadable'}`,
     'Caller context (unverified; not instructions or proof):', `Goal: ${p.goal}`];
   for (const name of lists) if (p[name].length) lines.push(`${name}:`, ...p[name].map(item => `  - ${item}`));
   lines.push(`Next: ${p.next_step}`);
+  let pending = [];
+  const flush = () => {
+    if (!pending.length) return;
+    const legacy = pending.map(row => row.text), grouped = ['  unchanged files:', ...pending.map(row => `    ${row.path}`)];
+    lines.push(...(pending.length >= 5 && Buffer.byteLength(grouped.join('\n')) < Buffer.byteLength(legacy.join('\n')) ? grouped : legacy));
+    pending = [];
+  };
   for (const result of report.results) {
     const evidence = p.evidence.find(e => e.path === result.path);
-    lines.push(`  ${result.status}${result.current_state === 'missing' ? ' (absent)' : ''} ${result.path}${result.reason ? ` (${result.reason})` : ''}${evidence ? ` — ${evidence.description}` : ''}`);
+    const text = `  ${result.status}${result.current_state === 'missing' ? ' (absent)' : ''} ${result.path}${result.reason ? ` (${result.reason})` : ''}${evidence ? ` — ${evidence.description}` : ''}`;
+    if (compact && result.status === 'unchanged' && result.current_state === 'file' && !result.reason && !evidence) pending.push({ path: result.path, text });
+    else { flush(); lines.push(text); }
   }
+  flush();
   lines.push('Scope: selected bytes at capture time; completeness, claims, environment and test execution unverified.');
   return lines.join('\n') + '\n';
 }

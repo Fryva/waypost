@@ -2,7 +2,7 @@
 import { openSync, writeFileSync, closeSync, realpathSync, lstatSync } from 'node:fs';
 import { resolve, dirname, basename, join, sep } from 'node:path';
 import { projectRoot } from './core.mjs';
-import { createPacket, inspectPacket, formatInspection, readHandoffJson } from '../../scripts/handoff.mjs';
+import { createPacket, inspectPacket, formatInspectionForDisplay, readHandoffJson } from '../../scripts/handoff.mjs';
 
 export async function handleHandoff(args) {
   try {
@@ -30,7 +30,7 @@ export async function handleHandoff(args) {
     if (command === 'show') {
       if (!rest[0] || rest[0].startsWith('--') || rest.length > 2 || (rest.length === 2 && rest[1] !== '--json')) throw new Error('usage: handoff show <packet> [--json]');
       const report = inspectPacket(projectRoot(), readHandoffJson(resolve(rest[0])));
-      process.stdout.write(rest[1] === '--json' ? JSON.stringify(report, null, 2) + '\n' : formatInspection(report));
+      process.stdout.write(rest[1] === '--json' ? JSON.stringify(report, null, 2) + '\n' : formatInspectionForDisplay(report));
       if (report.snapshot_matches !== true) process.exitCode = 2;
       return;
     }

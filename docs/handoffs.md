@@ -54,6 +54,11 @@ files. Cross-OS line-ending changes will be reported as changed bytes.
 
 `show` validates the complete packet before reading any referenced path. Its
 default output contains the task state, per-path status and evidence descriptions.
+Adjacent runs of at least five ordinary unchanged files share an `unchanged files:`
+label when this shortens the text. Paths retain their original order; absent files,
+changed/unreadable entries and evidence descriptions retain individual status rows.
+This display compaction does not change the canonical context used by delivery
+and continuation checkpoints.
 JSON additionally retains the full packet, `scope: "listed-files-only"`,
 `claims: "caller-supplied-unverified"`, `snapshot_matches` and `results`.
 Results are `unchanged`, `changed`, `missing`, `appeared` or `unreadable`; successful

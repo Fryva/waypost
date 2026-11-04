@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-04T05:20:44.043Z
+generated_at: 2026-11-04T05:40:50.366Z
 
 ---
 
@@ -220,6 +220,7 @@ generated_at: 2026-11-04T05:20:44.043Z
 - [x] [[epics/WP-24/stories/story-recover-handoffs-after-forced-interruption-within-an-overall-deadline|WP-24: Recover handoffs after forced interruption within an overall deadline]] #p2 #done
 - [x] [[epics/WP-24/stories/story-serve-bounded-handoff-document-requests-through-the-existing-host|WP-24: Serve bounded handoff document requests through the existing host]] #p2 #done
 - [x] [[epics/WP-24/stories/story-transfer-content-addressed-handoff-deltas-with-confirmed-receiver-baselines|WP-24: Transfer content-addressed handoff deltas with confirmed receiver baselines]] #p2 #done
+- [x] [[epics/WP-24/stories/story-group-unchanged-file-rows-in-cli-handoff-inspection|WP-24: Group unchanged file rows in CLI handoff inspection]] #p2 #done
 - [x] [[epics/WP-24/stories/story-serialize-each-handoff-round-payload-once-for-size-and-identity|WP-24: Serialize each handoff round payload once for size and identity]] #p2 #done
 
 

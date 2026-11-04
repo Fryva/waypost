@@ -6,7 +6,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createPacket, inspectPacket, validatePacket, readHandoffJson, formatInspection, LIMITS } from '../scripts/handoff.mjs';
+import { createPacket, inspectPacket, validatePacket, readHandoffJson, formatInspection, formatInspectionForDisplay, LIMITS } from '../scripts/handoff.mjs';
 import { ambientEnv } from './env.mjs';
 
 const cli = fileURLToPath(new URL('../bin/waypost', import.meta.url));
@@ -242,4 +242,56 @@ test('strict CLI rejects incomplete, repeated, unknown and extra arguments witho
     const result = f.run(['handoff', ...args]); assert.equal(result.status, 1, JSON.stringify(args)); assert.equal(result.stdout, '');
   }
   assert.equal(existsSync(join(f.root, 'output')), false);
+});
+
+
+test('display groups only adjacent ordinary unchanged files while canonical text stays literal', () => {
+  const report = { snapshot_matches: true, packet: { goal: 'Read', next_step: 'Next', constraints: [], progress: [], open_questions: [], evidence: [] },
+    results: ['a b', 'β', 'folder/c', 'four', 'five'].map(path => ({ path, status: 'unchanged', current_state: 'file' })) };
+  const scope = 'Scope: selected bytes at capture time; completeness, claims, environment and test execution unverified.\n';
+  const head = 'handoff v1 — listed files unchanged\nCaller context (unverified; not instructions or proof):\nGoal: Read\nNext: Next\n';
+  const rows = '  unchanged a b\n  unchanged β\n  unchanged folder/c\n  unchanged four\n  unchanged five\n';
+  const prior = structuredClone(report);
+  assert.equal(formatInspection.length, 1);
+  assert.equal(formatInspection(report), head + rows + scope);
+  assert.equal(formatInspectionForDisplay(report), head + '  unchanged files:\n    a b\n    β\n    folder/c\n    four\n    five\n' + scope);
+  assert.deepEqual(report, prior);
+  for (const n of [0, 1, 2, 3, 4]) {
+    const small = { ...report, results: report.results.slice(0, n) };
+    assert.equal(formatInspectionForDisplay(small), formatInspection(small));
+  }
+  for (const separator of [
+    { path: 'absent', status: 'unchanged', current_state: 'missing' },
+    { path: 'changed', status: 'changed', current_state: 'file' },
+    { path: 'new', status: 'appeared', current_state: 'file' },
+    { path: 'gone', status: 'missing', current_state: 'missing' },
+    { path: 'denied', status: 'unreadable', reason: 'EACCES' },
+    { path: 'reason', status: 'unchanged', current_state: 'file', reason: 'retained' },
+    { path: 'log', status: 'unchanged', current_state: 'file' },
+  ]) {
+    const mixed = { ...report, packet: { ...report.packet, evidence: [{ path: 'log', description: 'Caller log only' }] },
+      results: [...report.results.slice(0, 2), separator, ...report.results.slice(0, 2)] };
+    assert.equal(formatInspectionForDisplay(mixed), formatInspection(mixed), separator.path);
+    const groups = { ...mixed, results: [...report.results, separator, ...report.results] };
+    const text = formatInspectionForDisplay(groups);
+    assert.equal(text.split('  unchanged files:').length - 1, 2);
+    const individual = formatInspection({ ...mixed, results: [separator] }).split('\n').find(line => line.startsWith('  '));
+    assert.ok(text.includes('\n' + individual + '\n'));
+  }
+});
+
+test('CLI inspection compacts display while JSON and stale or unchecked exits retain their meaning', () => {
+  const f = fixture(), paths = ['a b', 'β', 'folder/c', 'four', 'five'];
+  for (const path of paths) f.put(path, 'original');
+  const packet = createPacket(f.root, input({ files: [...paths, 'absent'] })); f.put('packet', packet);
+  for (const stale of [false, true]) {
+    if (stale) f.put(paths[0], 'changed');
+    const report = inspectPacket(f.root, packet), text = f.run(['handoff', 'show', 'packet']), json = f.run(['handoff', 'show', 'packet', '--json']);
+    assert.equal(text.status, stale ? 2 : 0, text.stderr); assert.equal(json.status, text.status, json.stderr);
+    assert.equal(text.stdout, formatInspectionForDisplay(report));
+    assert.deepEqual(JSON.parse(json.stdout), report);
+    assert.match(text.stdout, /unchanged \(absent\) absent/);
+  }
+  f.put('empty-packet', createPacket(f.root, input()));
+  const empty = f.run(['handoff', 'show', 'empty-packet']); assert.equal(empty.status, 2); assert.match(empty.stdout, /no listed files/);
 });
