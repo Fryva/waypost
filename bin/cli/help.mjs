@@ -64,10 +64,15 @@ VAULT
   doctor [flags]           deterministic diagnostics (--install|--vault [<path>]|--fix|--full);
                            --vault <path> needs no binding (CI on a fresh clone)
   diff-refs [flags]        changed-file evidence for code_refs
+  handoff continue        opt-in bounded data-request rounds; delivery flags and --resume
+  handoff transfer        export/import/report/gc for an explicit receiver content store
+  handoff prepare         validate native readiness or generate a private route; --packet,
+                          --route or --team/--sender/--receiver credentials and --output
   handoff create          experimental task packet --input <json> --output <new-json>
   handoff show <packet>   inspect context and selected-file freshness [--json]
   handoff deliver         one-shot managed peer delivery; --packet, --task,
                            --config, --state; --config + --resume reuses a question
+                          initial --timeout-ms bounds delivery; resume keeps its deadline
   handoff capture         capture explicit command under a heavy slot; --input,
                            --output-dir <new-relative-dir> -- <executable> [args]
 

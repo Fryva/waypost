@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-02T21:04:32.421Z
+generated_at: 2026-11-04T04:59:00.949Z
 
 ---
 
@@ -42,7 +42,6 @@ generated_at: 2026-11-02T21:04:32.421Z
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
 - [ ] [[epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation|WP-21: Execute paired token economy smoke under the owner allocation]] #p2
-- [ ] [[epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet|WP-24: Compare continuation quality and native tokens with and without a packet]] #p2
 
 ## Review
 
@@ -213,8 +212,14 @@ generated_at: 2026-11-02T21:04:32.421Z
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done
 - [x] [[epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool|WP-23: README opens a path for working alone, in one tool]] #p2 #done
 - [x] [[epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots|WP-24: Capture command outcomes with selected input snapshots]] #p2 #done
+- [x] [[epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet|WP-24: Compare continuation quality and native tokens with and without a packet]] #p2 #done
 - [x] [[epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks|WP-24: Create and inspect a portable task packet with file freshness checks]] #p2 #done
 - [x] [[epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes|WP-24: Deliver portable packets through existing cross-harness inboxes]] #p2 #done
+- [x] [[epics/WP-24/stories/story-compare-real-coding-continuations-against-history-summary-and-packet|WP-24: Compare real coding continuations against history summary and packet]] #p2 #done
+- [x] [[epics/WP-24/stories/story-preflight-managed-handoffs-and-generate-private-route-configuration|WP-24: Preflight managed handoffs and generate private route configuration]] #p2 #done
+- [x] [[epics/WP-24/stories/story-recover-handoffs-after-forced-interruption-within-an-overall-deadline|WP-24: Recover handoffs after forced interruption within an overall deadline]] #p2 #done
+- [x] [[epics/WP-24/stories/story-serve-bounded-handoff-document-requests-through-the-existing-host|WP-24: Serve bounded handoff document requests through the existing host]] #p2 #done
+- [x] [[epics/WP-24/stories/story-transfer-content-addressed-handoff-deltas-with-confirmed-receiver-baselines|WP-24: Transfer content-addressed handoff deltas with confirmed receiver baselines]] #p2 #done
 
 
 

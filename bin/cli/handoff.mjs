@@ -7,6 +7,18 @@ import { createPacket, inspectPacket, formatInspection, readHandoffJson } from '
 export async function handleHandoff(args) {
   try {
     const [command, ...rest] = args;
+    if (command === 'continue') {
+      await (await import('./handoff-retrieval.mjs')).handleRetrieval(rest);
+      return;
+    }
+    if (command === 'transfer') {
+      await (await import('./handoff-transfer.mjs')).handleTransfer(rest);
+      return;
+    }
+    if (command === 'prepare') {
+      await (await import('./handoff-prepare.mjs')).handlePrepare(rest);
+      return;
+    }
     if (command === 'capture') {
       await (await import('./handoff-capture.mjs')).handleCapture(rest);
       return;

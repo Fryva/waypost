@@ -207,3 +207,144 @@ successful delivery.
 The [2026-11-02 experiment](handoff-experiment-2026-11-02.md) records the checked
 implementation, frozen comparison and live-run prerequisites. Its payload sizes
 are not evidence of native-token savings.
+
+
+## Native measurement and attempt timing
+
+Delivery records monotonic milliseconds for preparation, send, relay, polling and
+orchestration in `timings`, with `scope: current-attempt`. Relay includes native
+preflight, response wait and forwarding; it is not a measurement of provider-only
+generation time. Multiple inbox pages add to polling time. Failed operations retain
+elapsed time when the caller can observe the failure; abrupt process death cannot
+establish the missing duration. Values describe the latest persisted checkpoint,
+excluding the write of that checkpoint itself. CLI preparation includes validation
+and request-file preparation. Library callers may supply measured `prepareMs`;
+otherwise `prepare_ms` and end-to-end `total_ms` remain null. Resume starts a new
+attempt measurement and does not reinterpret it as lifetime or provider latency.
+Timing does not enter the stable payload or question identity.
+
+
+## Detailed native counter receipts
+
+New receipts may contain optional `native_usage` with protocol1, the existing
+native counter schema, diagnostic coverage, before/after counters and their exact
+delta. Counters use bounded decimal strings. Claude has four disjoint buckets;
+OpenCode has five normalized disjoint buckets. Codex charges delta.totalTokens:
+cached input and reasoning output are subsets, and optional cache-write appears
+only when actually reported. Never sum overlapping fields. Scalar native span
+coverage/actual tokens remain the spending source; missing diagnostics stay
+unknown. Invalid diagnostics preserve known scalar settlement and an explicit
+native-usage-invalid blocker. Historical receipts and their digests are unchanged;
+new support does not recover old missing buckets.
+
+## Prepare managed delivery
+
+```sh
+waypost --project /path/to/project handoff prepare --packet packet.json --route private-route.json
+waypost --project /path/to/project handoff prepare --packet packet.json --team TEAM --sender SENDER --receiver RECEIVER --sender-credential sender.json --owner-credential owner.json --output private-route.json
+```
+
+Preparation uses existing authenticated team and registered receiver bindings.
+It references local credential files and creates no participant grants or provider
+keys. A generated route is exclusive/private and can remain valid when native
+readiness fails; after resolving login/version/policy issues, rerun with --route.
+The check uses native metadata only, never a model prompt or token reservation.
+Observed closure is required before publishing its result. The scope is packet,
+route, policy and preliminary isolation readiness: the later delivery still checks
+its actual task/includes/payload limit and repeats fresh native preflight on its
+own context. Requested model aliases are not observed execution identity. Missing
+accounting or quota information stays unknown under the existing owner policy.
+
+
+## Delivery deadline and interruption
+
+Initial delivery accepts --timeout-ms (default180000, maximum300000). The absolute
+deadline is persisted before send; --resume keeps that deadline and refuses a new
+timeout option. A historical state without a deadline receives one on its first
+resume. Timings remain scoped to the current attempt. Production team commands
+run asynchronously with remaining deadline and combined bounded stdout/stderr.
+Timeout/overflow uses TERM then KILL only on the held child process, with bounded
+cleanup grace. This proves only the observed CLI child closure; native closure
+remains unknown unless the existing owned Host records its own proof. A timed-out
+or SIGKILL-consumed native operation retains existing reservation/refusal rules.
+No replacement question is created automatically. Generic library callbacks must
+cooperate with the provided deadline context; a callback ignoring it cannot be
+forcibly stopped by the library. SIGKILL of the caller cannot execute finally;
+ordinary handled errors remove the private request scratch directory.
+
+The forced-interruption tests kill real Node processes against a deterministic
+surrogate transport at prepared, sent, consumed, received and answered boundaries.
+They test orchestration recovery, not live-provider cancellation. Existing native
+authority tests separately verify unknown-usage refusal and received replay.
+
+
+## Request additional data
+
+`handoff continue` is an opt-in alternative to one-shot delivery. It uses the same
+packet/task/config/state arguments and initial-only --timeout-ms; resume uses
+--config and --resume. A task can start with an empty include list and let the
+receiver request explicit packet references. The receiver still has no tools.
+
+```sh
+waypost --project /path/to/project handoff continue --packet packet.json --task request.json --config private-route.json --state continuation.json
+waypost --project /path/to/project handoff continue --config private-route.json --resume continuation.json
+```
+
+Inside the correlated outer response, a data request is exactly:
+
+```json
+{"kind":"handoff-data-request","requests":[{"path":"src/parser.mjs","start_line":1,"end_line":40}]}
+```
+
+Ranges are positive and inclusive, split on LF while retaining source CRLF/BOM
+bytes and strict UTF-8. At most4requests and200lines per request,8KiB per fragment,
+3total native rounds including the first,16KiB per serialized payload and48KiB
+cumulative payload. Oversize, missing references, invalid UTF-8 or source drift
+fail; data is never silently truncated. Verified fragments accumulate in later
+fresh contexts, with identical repeats deduplicated. These retained bytes remain
+subject to the same payload limits; additional rounds may cost more tokens.
+
+Every next round binds root challenge, packet digest, round number and previous
+authoritative output digest. Its stable key is persisted before inference. Resume
+rereads prior authoritative replies and reconstructs the same context and keys;
+saved answer text alone cannot establish success. The original absolute deadline
+and owner call/token ceilings cover all rounds. Each state file has one writer;
+private content checks do not make cross-process CAS an atomic lock.
+
+## Transfer verified content objects
+
+These operations transfer explicit data files and do not call models. A route
+uses the existing sender and registered receiver, and the store is explicitly
+chosen and scoped to team/epoch and both participant incarnations. `selection.json`
+is exactly `{ "include": ["src/parser.mjs", "run-001/capture.json"] }`; only selected
+packet references are transferred. Materialization of a complete packet requires
+its needed references; a deliberately partial selection does not manufacture the
+omitted source files.
+
+```sh
+waypost handoff transfer export --config private-route.json --packet packet.json --selection selection.json --output full.json
+waypost handoff transfer import --config private-route.json --store receiver-store --input full.json --materialize new-snapshot
+waypost handoff transfer report --config private-route.json --store receiver-store --manifest MANIFEST_SHA256
+waypost handoff transfer export --config private-route.json --packet packet-v2.json --selection selection.json --base full.json --availability-id MESSAGE_ID --output delta.json
+waypost handoff transfer import --config private-route.json --store receiver-store --input delta.json
+waypost handoff transfer gc --config private-route.json --store receiver-store --keep MANIFEST_SHA256
+```
+
+Use the manifest digest and actual message ID returned by import/report. Reports
+are ordinary participant-authenticated availability hints in existing team
+messages, not attestations of Host origin or trusted content. Before accepting a
+delta, the receiver independently rehashes the base and all needed objects and
+verifies the full reconstructed manifest. Eviction or corruption after report
+returns needs-full (CLI exit2), without publishing a new target. Export without
+--base/--availability-id for explicit full fallback. Full fallback repairs only
+store-owned corrupt objects. Target materialization requires a new directory and
+never overwrites an existing checkout.
+
+The envelope is at most64MiB, an object at most8MiB, selected bytes at most32MiB
+plus the64KiB packet. Default store quota is64MiB (a smaller explicit quota can be
+set on import), with a1024file bound. Atomic publication and ownership provenance
+limit interrupted writes; explicit GC removes only store-owned unretained data.
+A hard process crash can leave a lock: automatic foreign-lock deletion is not
+implemented. Use a new explicit store and full transfer when lock ownership cannot
+be established. Keep byte-transfer/storage savings separate from native input:
+fresh model sessions still need the context their task requires.

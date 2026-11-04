@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-02T21:04:32.667Z
+generated_at: 2026-11-04T04:59:01.181Z
 
 ---
 
@@ -30,6 +30,7 @@ full typed neighborhood, both directions, in one call.
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | Automatic model strength discovery with expiring evidence and periodic revalidation | adr | accepted |
 | adr/automatic-role-redistribution-on-verified-model-quota-exhaustion.md | Automatic role redistribution on verified model quota exhaustion | adr | proposed |
 | adr/automatic-task-aware-model-routing-with-capability-floors-and-cost-budgets.md | Automatic task-aware model routing with capability floors and cost budgets | adr | accepted |
+| adr/bounded-handoff-retrieval-and-content-addressed-receiver-snapshots.md | Bounded handoff retrieval and content addressed receiver snapshots | adr | proposed |
 | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md | Budgeted read-only role evaluation over a sealed source snapshot | adr | accepted |
 | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md | Cleanup to a machine-wide limit: set by the owner, idle artifacts oldest first | adr | accepted |
 | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | adr | accepted |
@@ -249,9 +250,14 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | README opens a path for working alone, in one tool | story | done |
 | epics/WP-24/epic.md | Portable task handoffs with verifiable evidence | epic | planned |
 | epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md | Capture command outcomes with selected input snapshots | story | done |
-| epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | Compare continuation quality and native tokens with and without a packet | story | in-progress |
+| epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | Compare continuation quality and native tokens with and without a packet | story | done |
+| epics/WP-24/stories/story-compare-real-coding-continuations-against-history-summary-and-packet.md | Compare real coding continuations against history summary and packet | story | done |
 | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | Create and inspect a portable task packet with file freshness checks | story | done |
 | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | Deliver portable packets through existing cross-harness inboxes | story | done |
+| epics/WP-24/stories/story-preflight-managed-handoffs-and-generate-private-route-configuration.md | Preflight managed handoffs and generate private route configuration | story | done |
+| epics/WP-24/stories/story-recover-handoffs-after-forced-interruption-within-an-overall-deadline.md | Recover handoffs after forced interruption within an overall deadline | story | done |
+| epics/WP-24/stories/story-serve-bounded-handoff-document-requests-through-the-existing-host.md | Serve bounded handoff document requests through the existing host | story | done |
+| epics/WP-24/stories/story-transfer-content-addressed-handoff-deltas-with-confirmed-receiver-baselines.md | Transfer content-addressed handoff deltas with confirmed receiver baselines | story | done |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
 | ops/measure-the-git-common-dir-across-checkout-layouts.md | Measure the git common dir across checkout layouts | runbook | active |
 | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | Paired token economy experiment revision 2 over a sealed read-only source | runbook | draft |
@@ -268,6 +274,7 @@ full typed neighborhood, both directions, in one call.
 | research/product-level-paired-evaluation-with-security-and-release-acceptance.md | Product-level paired evaluation with security and release acceptance | research | draft |
 | specs/cross-harness-team-coordination-protocol.md | Cross-harness team coordination protocol | spec | active |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | Objective native configuration calibration for protocol roles | spec | draft |
+| specs/verified-handoff-continuation-with-measured-usage-bounded-retrieval-and-confirmed-deltas.md | Verified handoff continuation with measured usage bounded retrieval and confirmed deltas | spec | draft |
 
 ## Edges
 
@@ -789,12 +796,22 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-23/stories/story-readme-opens-a-path-for-working-alone-in-one-tool.md | mdlink | epics/WP-23/epic.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-compare-real-coding-continuations-against-history-summary-and-packet.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-preflight-managed-handoffs-and-generate-private-route-configuration.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-recover-handoffs-after-forced-interruption-within-an-overall-deadline.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-serve-bounded-handoff-document-requests-through-the-existing-host.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-transfer-content-addressed-handoff-deltas-with-confirmed-receiver-baselines.md |
 | epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md |
 | epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md |
+| epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-compare-real-coding-continuations-against-history-summary-and-packet.md |
 | epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md |
 | epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md |
+| epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-preflight-managed-handoffs-and-generate-private-route-configuration.md |
+| epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-recover-handoffs-after-forced-interruption-within-an-overall-deadline.md |
+| epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-serve-bounded-handoff-document-requests-through-the-existing-host.md |
+| epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-transfer-content-addressed-handoff-deltas-with-confirmed-receiver-baselines.md |
 | epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md | mdlink | epics/WP-24/epic.md |
 | epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | mdlink | epics/WP-24/epic.md |
 | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | mdlink | epics/WP-24/epic.md |
@@ -850,3 +867,4 @@ full typed neighborhood, both directions, in one call.
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | wikilink | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | wikilink | specs/cross-harness-team-coordination-protocol.md |
+| specs/verified-handoff-continuation-with-measured-usage-bounded-retrieval-and-confirmed-deltas.md | spec-implements-adr | adr/bounded-handoff-retrieval-and-content-addressed-receiver-snapshots.md |
