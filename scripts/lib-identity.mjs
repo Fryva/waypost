@@ -26,6 +26,11 @@ export function isLegacyNumberedId(name, { prefix = null, story = false } = {}) 
   const stem = String(name).replace(/\.md$/i, "");
   const anchor = story ? "story-" : prefix;
   if (!anchor) return null;
+  // A literal prefix must be followed by an ASCII digit in the legacy shape.
+  if (typeof anchor === "string") {
+    const digit = stem.charCodeAt(anchor.length);
+    if (!(digit >= 48 && digit <= 57)) return null;
+  }
   const m = stem.match(new RegExp(`^${escapeRe(anchor)}(\\d+)(?:-(.+))?$`, "i"));
   return m ? { number: m[1], slug: m[2] ?? null } : null;
 }

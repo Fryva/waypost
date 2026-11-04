@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T20:44:28.120Z
+generated_at: 2026-11-04T21:05:20.505Z
 
 ---
 
@@ -186,6 +186,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Separate project matching and Git evidence from the size scanner | `scripts/sizes.mjs`, `scripts/sizes-rules.mjs`, `scripts/sizes-git.mjs`, `tests/sizes-rules.test.mjs`, `tests/sizes-git.test.mjs`, `tests/sizes-measure.test.mjs` |
 | WP-21 | Share adjacent graph edge labels in query output | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Share the observed-token label across Codex context rows | `scripts/token-codex-format.mjs`, `tests/token-codex-format.test.mjs`, `docs/cli-reference.md` |
+| WP-21 | Skip impossible numbered artifact regex matches | `scripts/lib-identity.mjs`, `tests/lib-identity.test.mjs` |
 | WP-21 | Skip parsing search documents that cannot match the query | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `scripts/lib-frontmatter.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | State repeated ADR check execution guidance once per doctor group | `scripts/doctor-report.mjs`, `tests/doctor-report.test.mjs`, `tests/scripts.test.mjs` |
 | WP-21 | Stream explicit JSON previews for derived views | `bin/cli/views.mjs`, `bin/cli/core.mjs`, `scripts/graph.mjs`, `scripts/kanban.mjs`, `scripts/codemap.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
