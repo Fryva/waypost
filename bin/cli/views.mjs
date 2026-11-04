@@ -181,16 +181,21 @@ function handleSearch(args) {
       if (hitLine === -1 && !re.test(r)) continue;
       matched++;
       if (out.length >= limit) continue;
-      // Only collapse an exact title scalar inside the parsed header. Ambiguous
+      // Only collapse an exact title/status scalar inside the parsed header. Ambiguous
       // syntax and body text keep their original snippet, including comments.
       const scalar = hitLine < 0 ? null : /^title:\s*(.*?)\r?$/.exec(hit.line)?.[1].trim();
       const titleLine = scalar != null && typeof fm.title === "string" && fm.title !== "" && !/[\r\n]/.test(fm.title) &&
         hitLine > 0 && hitLine < text.slice(0, text.length - body.length).split("\n").length - 1 &&
         (scalar === JSON.stringify(fm.title) || scalar === `'${fm.title.replace(/'/g, "''")}'` ||
           (!/^["'|>]/.test(scalar) && scalar === fm.title)) ? hitLine + 1 : null;
+      const searchStatusScalar = hitLine < 0 ? null : /^status:\s*(.*?)\r?$/.exec(hit.line)?.[1].trim();
+      const searchStatusLine = searchStatusScalar != null && typeof fm.status === "string" && fm.status !== "" && !/[();\r\n]/.test(fm.status) &&
+        hitLine > 0 && hitLine < text.slice(0, text.length - body.length).split("\n").length - 1 &&
+        (searchStatusScalar === JSON.stringify(fm.status) || searchStatusScalar === `'${fm.status.replace(/'/g, "''")}'` ||
+          (!/^["'|>]/.test(searchStatusScalar) && searchStatusScalar === fm.status)) ? hitLine + 1 : null;
       const title = String(fm.title ?? "");
       out.push({ path: r, title: title || n, fallbackTitle: title === "", status: fm.status == null ? "" : String(fm.status),
-        titleLine,
+        titleLine, searchStatusLine,
         line: hitLine === -1 ? null : `${hitLine + 1}: ${searchExcerpt(hit.line, re)}` });
     }
   };
@@ -198,9 +203,9 @@ function handleSearch(args) {
   if (!out.length) { process.stdout.write("no match\n"); }
   else {
     for (const h of out) {
-      process.stdout.write(`${h.path}${h.status ? `  (${h.status})` : ""}\n`
+      process.stdout.write(`${h.path}${h.status ? `  (${h.status}${h.searchStatusLine ? `; line ${h.searchStatusLine}` : ""})` : ""}\n`
         + (h.fallbackTitle ? "" : `  ${h.title}${h.titleLine ? ` (line ${h.titleLine})` : ""}\n`)
-        + (h.line && !h.titleLine ? `  ${h.line}\n` : ""));
+        + (h.line && !h.titleLine && !h.searchStatusLine ? `  ${h.line}\n` : ""));
     }
     if (matched > out.length) process.stdout.write(`…and ${matched - out.length} more (--limit)\n`);
   }

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T18:33:20.767Z
+generated_at: 2026-11-04T19:44:31.750Z
 
 ---
 
@@ -63,6 +63,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Avoid repeatedly serializing sealed search result prefixes | `scripts/evaluation-source.mjs`, `tests/evaluation-source.test.mjs`, `tests/evaluation-transport.test.mjs`, `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md` |
 | WP-21 | Avoid repeating exact graph node paths in query output | `bin/cli/views.mjs`, `scripts/graph.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Avoid repeating exact paths in reconciliation rows | `bin/cli/views.mjs`, `scripts/reconcile.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
+| WP-21 | Avoid repeating exact search status matches | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Avoid repeating search result filenames as titles | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Bound each CLI migration stage and measure the final layout | `bin/waypost.mjs`, `tests/helpers/cli-namespace.mjs`, `tests/helpers/cli-static-closure.mjs`, `tests/helpers/cli-modules.mjs` |
 | WP-21 | Bounded compressed Codex rollout accounting | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |

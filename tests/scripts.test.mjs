@@ -1787,6 +1787,54 @@ test("bin/waypost search: exact title hits appear once with their original line 
   }
 });
 
+test("bin/waypost search: exact status hits retain the value and original locator once", () => {
+  const { proj, vault } = makeVaultProject(); const path = join(vault, "adr", "compact.md");
+  for (const [status, scalar] of [
+    ["done", "done"], ["done", '"done"'], ["done", "'done'"],
+    ['has "quote"', JSON.stringify('has "quote"')], ["user's", "'user''s'"],
+    ["готово 🚀", JSON.stringify("готово 🚀")], ["0", "0"], ["false", "false"],
+  ]) for (const [bom, eol] of [["", "\n"], ["\ufeff", "\r\n"]]) for (const titled of [false, true]) {
+    writeFileSync(path, bom + ["---", "type: adr", ...(titled ? ["title: Other"] : []), `status: ${scalar}`, "---", "", "body"].join(eol));
+    const result = runBinRaw(proj, ["search", "status:", "--kind", "adr"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, `adr/compact.md  (${status}; line ${titled ? 4 : 3})\n` + (titled ? "  Other\n" : ""));
+  }
+});
+
+test("bin/waypost search: noncanonical status metadata and other hits keep their snippets", () => {
+  const { proj, vault } = makeVaultProject(); const path = join(vault, "adr", "fallback.md");
+  for (const [content, query, expected] of [
+    ['---\ntype: adr\nstatus: "done" # note\n---\n', "status:", 'adr/fallback.md  (done)\n  3: status: "done" # note\n'],
+    ['---\ntype: adr\nstatus: done # note\n---\n', "status:", 'adr/fallback.md  (done)\n  3: status: done # note\n'],
+    ['---\ntype: adr\nstatus: "done" junk\n---\n', "status:", 'adr/fallback.md  (done)\n  3: status: "done" junk\n'],
+    ['---\ntype: adr\nstatus: "done\n---\n', "status:", 'adr/fallback.md  ("done)\n  3: status: "done\n'],
+    ['---\ntype: adr\nstatus: |\n  done\n---\n', "status:", 'adr/fallback.md  (|)\n  3: status: |\n'],
+    ['---\ntype: adr\nstatus: null\n---\n', "status:", 'adr/fallback.md\n  3: status: null\n'],
+    ['---\ntype: adr\nstatus: ""\n---\n', "status:", 'adr/fallback.md\n  3: status: ""\n'],
+    ['---\ntype: adr\nstatus: done\nstatus: planned\n---\n', "status:", 'adr/fallback.md  (planned)\n  3: status: done\n'],
+    ['---\ntype: adr\nstatus: done; line 7\n---\n', "status:", 'adr/fallback.md  (done; line 7)\n  3: status: done; line 7\n'],
+    ['---\ntype: adr\nstatus: "done (old)"\n---\n', "status:", 'adr/fallback.md  (done (old))\n  3: status: "done (old)"\n'],
+    ['---\ntype: adr\nstatus: done\n---\nstatus: other\n', "status: other", 'adr/fallback.md  (done)\n  5: status: other\n'],
+    ['---\ntype: adr\ntitle: Findable\nstatus: done\n---\n', "Findable", 'adr/fallback.md  (done)\n  Findable (line 3)\n'],
+    ['---\ntype: adr\nstatus: done\n---\n', "fallback.md", 'adr/fallback.md  (done)\n'],
+  ]) {
+    writeFileSync(path, content);
+    const result = runBinRaw(proj, ["search", query, "--kind", "adr"]);
+    assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout, expected);
+  }
+  writeFileSync(path, '---\ntype: adr\nstatus: "do\\u006ee"\n---\n');
+  const escaped = runBinRaw(proj, ["search", "status:"]);
+  assert.equal(escaped.status, 0, escaped.stderr);
+  assert.equal(escaped.stdout, 'adr/fallback.md  (done)\n  3: status: "do\\u006ee"\n');
+  for (const status of ["done\nx", "done\ry"]) {
+    const scalar = JSON.stringify(status);
+    writeFileSync(path, `---\ntype: adr\nstatus: ${scalar}\n---\n`);
+    const result = runBinRaw(proj, ["search", "status:"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, `adr/fallback.md  (${status})\n  3: status: ${scalar}\n`);
+  }
+});
+
 test("bin/waypost search: body, ambiguous metadata and path hits retain their snippets", () => {
   const { proj, vault } = makeVaultProject();
   const path = join(vault, "adr", "fallback.md");

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T19:37:27.564Z
+generated_at: 2026-11-04T19:53:03.237Z
 
 ---
 
@@ -112,6 +112,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-avoid-repeatedly-serializing-sealed-search-result-prefixes.md | Avoid repeatedly serializing sealed search result prefixes | story | done |
 | epics/WP-21/stories/story-avoid-repeating-exact-graph-node-paths-in-query-output.md | Avoid repeating exact graph node paths in query output | story | done |
 | epics/WP-21/stories/story-avoid-repeating-exact-paths-in-reconciliation-rows.md | Avoid repeating exact paths in reconciliation rows | story | done |
+| epics/WP-21/stories/story-avoid-repeating-exact-search-status-matches.md | Avoid repeating exact search status matches | story | done |
 | epics/WP-21/stories/story-avoid-repeating-search-result-filenames-as-titles.md | Avoid repeating search result filenames as titles | story | done |
 | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | Bound each CLI migration stage and measure the final layout | story | done |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | Bounded compressed Codex rollout accounting | story | done |
@@ -486,6 +487,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeatedly-serializing-sealed-search-result-prefixes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-exact-graph-node-paths-in-query-output.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-exact-paths-in-reconciliation-rows.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-exact-search-status-matches.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-search-result-filenames-as-titles.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
@@ -652,6 +654,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-avoid-repeatedly-serializing-sealed-search-result-prefixes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeating-exact-graph-node-paths-in-query-output.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeating-exact-paths-in-reconciliation-rows.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-avoid-repeating-exact-search-status-matches.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeating-search-result-filenames-as-titles.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | mdlink | epics/WP-21/epic.md |

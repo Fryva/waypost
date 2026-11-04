@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-04T19:37:27.311Z
+generated_at: 2026-11-04T19:53:02.995Z
 
 ---
 
@@ -207,6 +207,7 @@ generated_at: 2026-11-04T19:37:27.311Z
 - [x] [[epics/WP-21/stories/story-reuse-immutable-reply-metadata-for-duplicate-source-callbacks|WP-21: Reuse immutable reply metadata for duplicate source callbacks]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-the-fixed-json-envelope-in-sealed-range-reads|WP-21: Reuse the fixed JSON envelope in sealed range reads]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-the-fixed-json-envelope-in-sealed-search-pages|WP-21: Reuse the fixed JSON envelope in sealed search pages]] #p2 #done
+- [x] [[epics/WP-21/stories/story-avoid-repeating-exact-search-status-matches|WP-21: Avoid repeating exact search status matches]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-the-empty-readiness-explanation|WP-21: Compact the empty readiness explanation]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-repeated-design-link-resolution-within-each-story|WP-21: Reuse repeated design link resolution within each story]] #p2 #done
 - [x] [[epics/WP-21/stories/story-share-adjacent-graph-edge-labels-in-query-output|WP-21: Share adjacent graph edge labels in query output]] #p2 #done
