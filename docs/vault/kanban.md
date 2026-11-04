@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-04T14:59:18.337Z
+generated_at: 2026-11-04T15:09:54.166Z
 
 ---
 
@@ -42,7 +42,6 @@ generated_at: 2026-11-04T14:59:18.337Z
 - [ ] [[epics/WP-20/stories/story-participant-identity-and-owner-approved-model-policy|WP-20: Participant identity and automatic model strength discovery]] #p1
 - [ ] [[epics/WP-20/stories/story-quota-exhaustion-redistributes-leadership-and-independent-review-safely|WP-20: Quota exhaustion redistributes leadership and independent review safely]] #p1
 - [ ] [[epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation|WP-21: Execute paired token economy smoke under the owner allocation]] #p2
-- [ ] [[epics/WP-24/stories/story-preserve-lazy-capture-dependencies-under-the-cli-namespace-guard|WP-24: Preserve lazy handoff commands under the CLI namespace guard]] #p2
 
 ## Review
 
@@ -222,6 +221,7 @@ generated_at: 2026-11-04T14:59:18.337Z
 - [x] [[epics/WP-24/stories/story-serve-bounded-handoff-document-requests-through-the-existing-host|WP-24: Serve bounded handoff document requests through the existing host]] #p2 #done
 - [x] [[epics/WP-24/stories/story-transfer-content-addressed-handoff-deltas-with-confirmed-receiver-baselines|WP-24: Transfer content-addressed handoff deltas with confirmed receiver baselines]] #p2 #done
 - [x] [[epics/WP-24/stories/story-group-unchanged-file-rows-in-cli-handoff-inspection|WP-24: Group unchanged file rows in CLI handoff inspection]] #p2 #done
+- [x] [[epics/WP-24/stories/story-preserve-lazy-capture-dependencies-under-the-cli-namespace-guard|WP-24: Preserve lazy handoff commands under the CLI namespace guard]] #p2 #done
 - [x] [[epics/WP-24/stories/story-serialize-each-handoff-round-payload-once-for-size-and-identity|WP-24: Serialize each handoff round payload once for size and identity]] #p2 #done
 
 

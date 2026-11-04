@@ -3,7 +3,7 @@ type: story
 id: "story-preserve-lazy-capture-dependencies-under-the-cli-namespace-guard"
 epic: "WP-24"
 title: "Preserve lazy handoff commands under the CLI namespace guard"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-11-04
@@ -13,7 +13,7 @@ tags: []
 code_refs: ["bin/cli/handoff-capture.mjs", "bin/cli/handoff-prepare.mjs", "bin/cli/handoff-process.mjs", "tests/harness.test.mjs", "tests/handoff-capture.test.mjs"]
 specs: []
 started_at: "2026-11-04T14:39:33.573Z"
-closed_at: null
+closed_at: "2026-11-04T15:09:53.490Z"
 plan_updated_at: "2026-11-04T14:39:33.573Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-11-04T14:39:33.573Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-24](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -36,7 +36,7 @@ Full CI41780817418 on562f335 stops at one namespace-guard failure on Node20/22/2
 
 - [x] Express dependency/export names as literal data keys and use capture-specific local callback names, preserving exact selection/call phases.
 - [x] Pin computed-key versus real free-identifier guard behavior and capture DI/getter/receiver/refusal semantics.
-- [ ] Validate actual namespace and capture/CLI guards on Node20/22/24, Doctor and fresh review; publish and inspect remote CI.
+- [x] Validate actual namespace and capture/CLI guards on Node20/22/24, Doctor and fresh review; publish and inspect remote CI.
 
 ## Implementation Plan
 
@@ -57,7 +57,7 @@ Confirmed macOS on Node20.20.2,22.23.4,24.22.1:41capture/prepare/recovery+15name
 
 Original remote CI41780817418 on562f335:one namespace failure per Node20/22/24. Local attempts retained: first found remaining relative in capture; second preflight reached opt in prepare; an unchanged-inspector per-file diagnostic also identified resolve in process. All resolved by private alpha renames, not guard exclusions. This fixes validation compatibility, with no token/output/latency saving claim and0native model calls BY RUNNER; operator/reviewer usage unmeasured. Full local npm/Windows/Linux runtime not run. Evidence `.waypost/experiments/wp-ci-compatibility-20261104/` retains failures, baselines/inverses, source/runtime/review identities, commands/full logs, default capture/import probes, official checksums, Doctor and owned cleanup. Future CLI-focused validation MUST include the full CLI namespace test family, not just module link/size checks.
 
-Publication and remote CI inspection remain pending; code is independently commit-ready.
+Published source commit 7192a4d5078650654db959659e5534a0d6dae7ce; remote CI 41854261726 inspected: in_progress/pending. This is not a remote-suite success claim.
 
 ## Technical Notes
 

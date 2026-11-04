@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T14:59:18.584Z
+generated_at: 2026-11-04T15:09:54.403Z
 
 ---
 
@@ -256,7 +256,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | Deliver portable packets through existing cross-harness inboxes | story | done |
 | epics/WP-24/stories/story-group-unchanged-file-rows-in-cli-handoff-inspection.md | Group unchanged file rows in CLI handoff inspection | story | done |
 | epics/WP-24/stories/story-preflight-managed-handoffs-and-generate-private-route-configuration.md | Preflight managed handoffs and generate private route configuration | story | done |
-| epics/WP-24/stories/story-preserve-lazy-capture-dependencies-under-the-cli-namespace-guard.md | Preserve lazy handoff commands under the CLI namespace guard | story | in-progress |
+| epics/WP-24/stories/story-preserve-lazy-capture-dependencies-under-the-cli-namespace-guard.md | Preserve lazy handoff commands under the CLI namespace guard | story | done |
 | epics/WP-24/stories/story-recover-handoffs-after-forced-interruption-within-an-overall-deadline.md | Recover handoffs after forced interruption within an overall deadline | story | done |
 | epics/WP-24/stories/story-serialize-each-handoff-round-payload-once-for-size-and-identity.md | Serialize each handoff round payload once for size and identity | story | done |
 | epics/WP-24/stories/story-serve-bounded-handoff-document-requests-through-the-existing-host.md | Serve bounded handoff document requests through the existing host | story | done |
