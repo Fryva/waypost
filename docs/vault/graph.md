@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T19:53:03.237Z
+generated_at: 2026-11-04T20:49:57.446Z
 
 ---
 
@@ -234,6 +234,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md | Separate explicit Doctor repairs from diagnostic orchestration | story | done |
 | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md | Separate project matching and Git evidence from the size scanner | story | done |
 | epics/WP-21/stories/story-share-adjacent-graph-edge-labels-in-query-output.md | Share adjacent graph edge labels in query output | story | done |
+| epics/WP-21/stories/story-share-the-observed-token-label-across-codex-context-rows.md | Share the observed-token label across Codex context rows | story | done |
 | epics/WP-21/stories/story-skip-parsing-search-documents-that-cannot-match-the-query.md | Skip parsing search documents that cannot match the query | story | done |
 | epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md | State repeated ADR check execution guidance once per doctor group | story | done |
 | epics/WP-21/stories/story-stream-explicit-json-previews-for-derived-views.md | Stream explicit JSON previews for derived views | story | done |
@@ -609,6 +610,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-share-adjacent-graph-edge-labels-in-query-output.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-share-the-observed-token-label-across-codex-context-rows.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-skip-parsing-search-documents-that-cannot-match-the-query.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-stream-explicit-json-previews-for-derived-views.md |
@@ -780,6 +782,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-separate-explicit-doctor-repairs-from-diagnostic-orchestration.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-share-adjacent-graph-edge-labels-in-query-output.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-share-the-observed-token-label-across-codex-context-rows.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-skip-parsing-search-documents-that-cannot-match-the-query.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-state-repeated-adr-check-execution-guidance-once-per-doctor-group.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-stream-explicit-json-previews-for-derived-views.md | mdlink | epics/WP-21/epic.md |

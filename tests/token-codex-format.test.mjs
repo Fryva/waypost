@@ -46,3 +46,56 @@ test("Codex compact output skips detail but still evaluates option getters", () 
   }), /fixture sessions getter/);
   assert.deepEqual(events, ["summary", "sessions"]);
 });
+
+test("Codex session lists share the observed unit only above the threshold", () => {
+  const contexts = [
+    { id: "a", role: null, observed_total_tokens: null },
+    { id: "b", role: "", observed_total_tokens: 0 },
+    { id: "Путь 🚀", role: "waypost-reviewer", observed_total_tokens: 1234567890123 },
+    { id: "a", role: undefined, observed_total_tokens: undefined },
+    { id: "a", role: "unattributed", observed_total_tokens: "unknown" },
+  ];
+  for (const count of [0, 1, 4, 5, 20]) {
+    const r = report(); r.contexts = Array.from({ length: count }, (_, i) => contexts[i % contexts.length]);
+    const before = JSON.stringify(r), rows = r.contexts.map(c => `${c.id}  ${c.role ?? "unattributed"}  ${c.observed_total_tokens ?? "unknown"}`);
+    const expected = count >= 5 ? "contexts (id, role, observed tokens):\n" + rows.join("\n") + "\n"
+      : rows.map(row => row + " observed tokens\n").join("");
+    assert.equal(leaf.formatCodexReport(r, { sessions: true }), detailed + expected);
+    assert.equal(owner.formatCodexReport(r), detailed);
+    assert.equal(owner.formatCodexReport(r, { summary: true, sessions: true }), compact);
+    assert.equal(JSON.stringify(r), before);
+  }
+});
+
+test("Codex multiline context fields keep the exact legacy rows", () => {
+  for (const [field, value] of [["id", "a\nb"], ["role", "a\rb"], ["observed_total_tokens", "a\nb"]]) {
+    const r = report(); r.contexts = Array.from({ length: 8 }, () => ({ id: "same", role: "", observed_total_tokens: 0 }));
+    r.contexts[4][field] = value;
+    const legacy = r.contexts.map(c => `${c.id}  ${c.role}  ${c.observed_total_tokens} observed tokens\n`).join("");
+    assert.equal(leaf.formatCodexReport(r, { sessions: true }), detailed + legacy);
+  }
+});
+
+test("Codex session formatting preserves one-pass getter, coercion and iterator ordering", () => {
+  const events = [], r = report();
+  const context = {};
+  for (const [field, label] of [["id", "ID"], ["role", "ROLE"], ["observed_total_tokens", "VALUE"]]) {
+    Object.defineProperty(context, field, { get() {
+      events.push(`get ${field}`);
+      return { [Symbol.toPrimitive](hint) { events.push(`coerce ${field} ${hint}`); return label; } };
+    } });
+  }
+  Object.defineProperty(r, "contexts", { get() { events.push("contexts"); return {
+    get length() { throw new Error("must not read iterable length"); },
+    *[Symbol.iterator]() { events.push("iterator"); for (let i = 0; i < 5; i++) { events.push(`yield ${i}`); yield context; } events.push("done"); },
+  }; } });
+  assert.equal(leaf.formatCodexReport(r, { sessions: true }), detailed + "contexts (id, role, observed tokens):\n" + "ID  ROLE  VALUE\n".repeat(5));
+  assert.deepEqual(events, ["contexts", "iterator", ...Array.from({ length: 5 }, (_, i) => [
+    `yield ${i}`, "get id", "coerce id string", "get role", "coerce role string", "get observed_total_tokens", "coerce observed_total_tokens string",
+  ]).flat(), "done"]);
+  const failure = new Error("role failed"); let closed = false, valueRead = false;
+  const broken = { id: "ID", get role() { throw failure; }, get observed_total_tokens() { valueRead = true; return 0; } };
+  const throwing = report(); throwing.contexts = { *[Symbol.iterator]() { try { yield broken; } finally { closed = true; } } };
+  assert.throws(() => leaf.formatCodexReport(throwing, { sessions: true }), error => error === failure);
+  assert.equal(closed, true); assert.equal(valueRead, false);
+});

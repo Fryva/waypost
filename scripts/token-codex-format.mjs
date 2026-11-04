@@ -7,7 +7,15 @@ export function formatCodexReport(report, { summary: compact = false, sessions =
   ];
   if (!compact) {
     text.push(`contexts ${report.coverage.matched_contexts}; decoded archives ${report.coverage.compressed_files_decoded}; skipped compressed files ${report.coverage.compressed_files_skipped}; failed archives ${report.coverage.compressed_files_failed}; unknown headers ${report.coverage.unidentifiable_headers}`, `unknown initial prefixes: ${report.coverage.unknown_prefix_contexts ?? "unknown"} contexts; overlapping requested period ${report.coverage.unknown_prefix_contexts_overlapping_period ?? "unknown"} (quarantined contexts excluded; other gaps possible)`, "cache/reasoning are subsets of input/output; snapshots are not request counts");
-    if (sessions) for (const context of report.contexts) text.push(`${context.id}  ${context.role ?? "unattributed"}  ${context.observed_total_tokens ?? "unknown"} observed tokens`);
+    if (sessions) {
+      const contextRows = [];
+      for (const context of report.contexts) contextRows.push(`${context.id}  ${context.role ?? "unattributed"}  ${context.observed_total_tokens ?? "unknown"} observed tokens`);
+      const legacyRows = contextRows.join("\n");
+      const sharedRows = contextRows.length >= 5 && contextRows.every(row => !/[\r\n]/.test(row))
+        ? "contexts (id, role, observed tokens):\n" + contextRows.map(row => row.slice(0, -16)).join("\n") : null;
+      if (contextRows.length) text.push(sharedRows !== null && Buffer.byteLength(sharedRows) < Buffer.byteLength(legacyRows)
+        ? sharedRows : legacyRows);
+    }
   }
   return text.join("\n") + "\n";
 }

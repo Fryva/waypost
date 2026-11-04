@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-04T19:53:02.995Z
+generated_at: 2026-11-04T20:49:57.210Z
 
 ---
 
@@ -211,6 +211,7 @@ generated_at: 2026-11-04T19:53:02.995Z
 - [x] [[epics/WP-21/stories/story-compact-the-empty-readiness-explanation|WP-21: Compact the empty readiness explanation]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-repeated-design-link-resolution-within-each-story|WP-21: Reuse repeated design link resolution within each story]] #p2 #done
 - [x] [[epics/WP-21/stories/story-share-adjacent-graph-edge-labels-in-query-output|WP-21: Share adjacent graph edge labels in query output]] #p2 #done
+- [x] [[epics/WP-21/stories/story-share-the-observed-token-label-across-codex-context-rows|WP-21: Share the observed-token label across Codex context rows]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done

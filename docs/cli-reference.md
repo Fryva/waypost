@@ -45,7 +45,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 |---|---|
 | `waypost bind <vault>` | bind a vault and scaffold the layout (`--layout`, `--lang`, `--force`, `--self-install off\|on`) |
 | `waypost scaffold` | create any missing layout folders and index READMEs |
-| `waypost tokens` | offline token evidence: Claude by default, separate native Codex spans with `--harness codex` |
+| `waypost tokens` | offline token evidence: Claude by default, separate native Codex spans with `--harness codex`; long one-line `--sessions` lists share an id/role/observed-tokens header when shorter |
 
 ## Option notes
 
