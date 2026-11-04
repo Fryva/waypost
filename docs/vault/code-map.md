@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T17:11:02.861Z
+generated_at: 2026-11-04T18:18:57.323Z
 
 ---
 
@@ -173,6 +173,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Reuse immutable reply metadata for duplicate source callbacks | `scripts/evaluation-source.mjs`, `tests/evaluation-source.test.mjs`, `tests/evaluation-transport.test.mjs`, `docs/vault/adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md` |
 | WP-21 | Reuse link lookup inputs within each readiness calculation | `scripts/ready.mjs`, `scripts/lib-links.mjs`, `scripts/lib-node-index.mjs`, `tests/ready.test.mjs`, `tests/lib-links.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `scripts/kanban.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse parsed coverage lists in spec link checks | `scripts/doctor-specs.mjs`, `tests/doctor-specs.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
+| WP-21 | Reuse repeated design link resolution within each story | `scripts/ready.mjs`, `tests/ready.test.mjs` |
 | WP-21 | Reuse repeated story resolutions within spec link checks | `scripts/doctor-specs.mjs`, `tests/doctor-specs.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse story specification lists within link checks | `scripts/doctor-specs.mjs`, `tests/doctor-specs.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | Reuse the file lookup set across graph link resolution | `scripts/graph.mjs`, `scripts/lib-links.mjs`, `scripts/lib-node-index.mjs`, `scripts/doctor.mjs`, `tests/scripts.test.mjs`, `tests/lib-links.test.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md` |

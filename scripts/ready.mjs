@@ -53,9 +53,16 @@ export function stories(vault) {
 function designGates(story, vault, index, files, fileSet) {
   if (!story.specs.length) return [];
   const sourceRel = relative(vault, story.path).split("\\").join("/");
+  // Resolution is pure over this snapshot; scope reuse to this story and kind.
+  // Keep emitting every gate, including repeated references and their via.
+  const resolved = { spec: new Map(), adr: new Map() };
   const resolve = (ref, kind) => {
+    const cache = resolved[kind];
+    if (cache.has(ref)) return cache.get(ref);
     const r = resolveLinkTarget(ref, "ref", { sourceRel, index, files, kinds: [kind], _fileSet: fileSet });
-    return r.outcome === "node" ? r.node : r.outcome === "ambiguous" ? "ambiguous" : "missing";
+    const node = r.outcome === "node" ? r.node : r.outcome === "ambiguous" ? "ambiguous" : "missing";
+    cache.set(ref, node);
+    return node;
   };
   const open = [];
   const gate = (kind, ref, node, via) => {

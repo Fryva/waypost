@@ -61,12 +61,12 @@ test("ready shares link inputs without changing per-story resolution and refresh
   spec("draft", [relativeADR, "adr/missing.md", relativeADR]);
   put("specs/spec-two.md", { type: "spec", id: '"shared"', status: "active" });
   put("specs/unique.md", { type: "spec", id: '"unique"', status: "active" });
-  put("adr/cross-kind.md", { type: "adr", id: '"unique"', status: "accepted" });
+  put("adr/cross-kind.md", { type: "adr", id: '"unique"', status: "proposed" });
   put("adr/first.md", { type: "adr", id: '"decision"', status: "proposed" });
   put("adr/other.md", { type: "adr", id: '"decision"', status: "accepted" });
-  put("specs/review.md", { type: "spec", id: '"review"', status: "active", adr: '["decision", "specs/spec-one.md"]' });
+  put("specs/review.md", { type: "spec", id: '"review"', status: "active", adr: '["decision", "specs/spec-one.md", "decision", "unique"]' });
   put("epics/E-1/stories/adr/first.md", { type: "spec", id: '"relative-shadow"', status: "active" });
-  story("epics/E-1/stories/story-a.md", [relativeSpec, "shared", "absent", relativeSpec]);
+  story("epics/E-1/stories/story-a.md", [relativeSpec, "shared", "absent", relativeSpec, "absent"]);
   story("epics/E-1/stories/story-shadow.md", ["adr/first.md"]);
   story("epics/E-2/stories/story-b/README.md", [relativeSpec, "unique", "review"]);
   const layout = loadLayout("engineering");
@@ -81,11 +81,14 @@ test("ready shares link inputs without changing per-story resolution and refresh
     { kind: "adr", ref: relativeADR, status: "proposed", via: relativeSpec },
   ];
   assert.deepEqual(find(first, "E-1/story-a").design_open, [...repeated,
-    { kind: "spec", ref: "shared", status: "ambiguous" }, { kind: "spec", ref: "absent", status: "missing" }, ...repeated]);
+    { kind: "spec", ref: "shared", status: "ambiguous" }, { kind: "spec", ref: "absent", status: "missing" }, ...repeated,
+    { kind: "spec", ref: "absent", status: "missing" }]);
   assert.deepEqual(find(first, "E-2/story-b").design_open, [
     { kind: "spec", ref: relativeSpec, status: "missing" },
     { kind: "adr", ref: "decision", status: "ambiguous", via: "review" },
     { kind: "adr", ref: "specs/spec-one.md", status: "missing", via: "review" },
+    { kind: "adr", ref: "decision", status: "ambiguous", via: "review" },
+    { kind: "adr", ref: "unique", status: "proposed", via: "review" },
   ]);
   assert.deepEqual(find(first, "E-1/story-shadow").design_open, [{ kind: "spec", ref: "adr/first.md", status: "missing" }],
     "root wrong-kind hit prevents fallback to the source-relative spec");
@@ -93,6 +96,7 @@ test("ready shares link inputs without changing per-story resolution and refresh
   put("adr/first.md", { type: "adr", id: '"decision"', status: "accepted" });
   assert.deepEqual(find(rows(), "E-1/story-a").design_open, [
     { kind: "spec", ref: "shared", status: "ambiguous" }, { kind: "spec", ref: "absent", status: "missing" },
+    { kind: "spec", ref: "absent", status: "missing" },
   ]);
   put("specs/fresh.md", { type: "spec", id: '"fresh"', status: "active", adr: '["adr/fresh.md"]' });
   put("adr/fresh.md", { type: "adr", id: '"fresh-decision"', status: "accepted" });
@@ -103,7 +107,7 @@ test("ready shares link inputs without changing per-story resolution and refresh
   assert.equal(find(rows(), "E-1/story-a").ready, true, "renamed paths do not reuse old membership");
   unlinkSync(join(vault, "specs/renamed.md"));
   assert.deepEqual(find(rows(), "E-1/story-a").design_open, [{ kind: "spec", ref: "specs/renamed.md", status: "missing" }]);
-  assert.equal(find(first, "E-1/story-a").design_open.length, 10, "later reads do not mutate earlier results");
+  assert.equal(find(first, "E-1/story-a").design_open.length, 11, "later reads do not mutate earlier results");
 });
 
 test("ready without spec references keeps the node index and lookup inputs lazy", (t) => {
@@ -113,4 +117,24 @@ test("ready without spec references keeps the node index and lookup inputs lazy"
   writeFileSync(join(dir, "story-empty.md"), md({ type: "story", status: "planned", specs: "[]" }, "Empty"));
   const rows = readiness(vault, { claims: [], layout: {} });
   assert.equal(rows.length, 1); assert.equal(rows[0].ready, true);
+});
+
+test("ready keeps repeated ADR gates separate for each spec spelling and kind", (t) => {
+  const vault = mkdtempSync(join(tmpdir(), "wp-ready-gate-scope-"));
+  t.after(() => rmSync(vault, { recursive: true, force: true }));
+  for (const dir of ["specs", "adr", "epics/E-1/stories"]) mkdirSync(join(vault, dir), { recursive: true });
+  const put = (rel, fm) => writeFileSync(join(vault, rel), md(fm, "T"));
+  put("specs/shared.md", { type: "spec", id: '"shared"', status: "active", adr: '["shared", "shared"]' });
+  put("adr/shared.md", { type: "adr", id: '"shared"', status: "proposed" });
+  put("epics/E-1/stories/story-a.md", { type: "story", status: "planned", specs: '["shared", "specs/shared.md", "shared"]' });
+  const rows = () => readiness(vault, { claims: [], layout: loadLayout("engineering") });
+  const first = rows();
+  const expected = ["shared", "specs/shared.md", "shared"].flatMap(via => [
+    { kind: "adr", ref: "shared", status: "proposed", via },
+    { kind: "adr", ref: "shared", status: "proposed", via },
+  ]);
+  assert.deepEqual(first[0].design_open, expected);
+  put("adr/shared.md", { type: "adr", id: '"shared"', status: "accepted" });
+  assert.equal(rows()[0].ready, true, "another call reads the new status");
+  assert.deepEqual(first[0].design_open, expected, "earlier diagnostic rows remain intact");
 });

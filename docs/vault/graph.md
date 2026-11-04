@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T17:28:19.025Z
+generated_at: 2026-11-04T18:22:07.757Z
 
 ---
 
@@ -222,6 +222,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-reuse-immutable-reply-metadata-for-duplicate-source-callbacks.md | Reuse immutable reply metadata for duplicate source callbacks | story | done |
 | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md | Reuse link lookup inputs within each readiness calculation | story | done |
 | epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks.md | Reuse parsed coverage lists in spec link checks | story | done |
+| epics/WP-21/stories/story-reuse-repeated-design-link-resolution-within-each-story.md | Reuse repeated design link resolution within each story | story | done |
 | epics/WP-21/stories/story-reuse-repeated-story-resolutions-within-spec-link-checks.md | Reuse repeated story resolutions within spec link checks | story | done |
 | epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks.md | Reuse story specification lists within link checks | story | done |
 | epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md | Reuse the file lookup set across graph link resolution | story | done |
@@ -594,6 +595,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-immutable-reply-metadata-for-duplicate-source-callbacks.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-repeated-design-link-resolution-within-each-story.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-repeated-story-resolutions-within-spec-link-checks.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md |
@@ -762,6 +764,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-reuse-immutable-reply-metadata-for-duplicate-source-callbacks.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-link-lookup-inputs-within-each-readiness-calculation.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-parsed-coverage-lists-in-spec-link-checks.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-reuse-repeated-design-link-resolution-within-each-story.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-repeated-story-resolutions-within-spec-link-checks.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-story-specification-lists-within-link-checks.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-reuse-the-file-lookup-set-across-graph-link-resolution.md | mdlink | epics/WP-21/epic.md |
