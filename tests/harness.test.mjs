@@ -1212,9 +1212,16 @@ test("ready default omits duplicate refs while detailed modes keep their exact i
 
 test("ready empty output stays explicit in default and detailed modes", () => {
   const { proj } = bound();
-  const expected = "nothing is ready: every planned story is blocked, waits on its spec or ADR, or is claimed, or there is none — `waypost ready --all` shows why\n";
-  assert.equal(waypost(proj, ["ready"]).stdout, expected);
-  assert.equal(waypost(proj, ["ready", "--all"]).stdout, expected);
+  const expected = "nothing ready: no planned stories, or all blocked, claimed, or awaiting spec/ADR — details: `waypost ready --all`\n";
+  for (const args of [["ready"], ["ready", "--all"]]) {
+    const result = waypost(proj, args);
+    assert.equal(result.status, 0); assert.equal(result.stderr, ""); assert.equal(result.stdout, expected);
+  }
+  for (const args of [["ready", "--json"], ["ready", "--all", "--json"]]) {
+    const result = waypost(proj, args);
+    assert.equal(result.status, 0); assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), { ready: [], blocked: [], claimed: [] });
+  }
 });
 
 test("blocked_by, waypost ready, a board that shows blocked, next ranking, and doctor on bad dependencies", () => {

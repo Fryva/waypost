@@ -112,7 +112,7 @@ function main() {
     claimed: rows.filter((r) => r.claimed_by && !SETTLED.has(r.status)),
   };
   if (args.includes("--json")) { process.stdout.write(JSON.stringify(view, null, 2) + "\n"); return; }
-  if (!view.ready.length) process.stdout.write("nothing is ready: every planned story is blocked, waits on its spec or ADR, or is claimed, or there is none — `waypost ready --all` shows why\n");
+  if (!view.ready.length) process.stdout.write("nothing ready: no planned stories, or all blocked, claimed, or awaiting spec/ADR — details: `waypost ready --all`\n");
   for (const r of view.ready) {
     process.stdout.write(`${r.priority.padEnd(3)} ${args.includes("--all") ? r.ref.padEnd(44) : r.ref.split("/")[0]} ${r.title}\n    waypost story plan ${r.rel} --write\n`);
   }
