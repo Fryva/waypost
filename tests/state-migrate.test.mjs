@@ -335,7 +335,7 @@ test("every test file that spawns a child imports ./env.mjs, so no child moves a
   const dir = join(REPO, "tests");
   const offenders = readdirSync(dir).filter((n) => n.endsWith(".test.mjs")).filter((n) => {
     const s = readFileSync(join(dir, n), "utf8");
-    return /\b(spawnSync|execFileSync|spawn|execSync|fork)\(/.test(s) && !/(from |import )"\.\/env\.mjs"/.test(s);
+    return /\b(spawnSync|execFileSync|spawn|execSync|fork)\(/.test(s) && !/(from |import )(["'])\.\/env\.mjs\2/.test(s);
   });
   assert.deepEqual(offenders, []);
 });

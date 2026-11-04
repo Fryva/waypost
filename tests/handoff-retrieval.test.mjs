@@ -2,6 +2,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { createPacket } from '../scripts/handoff.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
@@ -154,4 +155,29 @@ test('fresh later rounds retain earlier verified fragments and replay exactly th
   assert.deepEqual(done.answer.answer, { combined: 'first second' });
   const again = await continueHandoff(base, { ...t.deps, previous: done });
   assert.equal(t.inference(), 3); assert.equal(again.cumulative_payload_bytes, done.cumulative_payload_bytes);
+});
+
+
+test('three Unicode rounds retain exact UTF-8 size and digest identities on replay', async () => {
+  const base = fixture('Привет 😀 "quoted"\\\r\n' + 'é'.repeat(1000) + '\nthird\n');
+  base.payload.task = 'Прочитать 😀';
+  const t = transport((_payload, round) => round < 2 ? request('source', round + 1, round + 1) : { done: true });
+  const done = await continueHandoff(base, t.deps);
+  assert.equal(done.rounds.length, 3);
+  let total = 0;
+  const payloads = [...t.messages.values()].map(m => m.payload);
+  for (let i = 0; i < payloads.length; i++) {
+    const json = JSON.stringify(payloads[i]), size = Buffer.byteLength(json);
+    assert.ok(size > json.length, 'Unicode requires UTF-8 byte accounting');
+    assert.equal(done.rounds[i].identity.payload_bytes, size);
+    assert.equal(done.rounds[i].identity.payload_sha256, createHash('sha256').update(json).digest('hex'));
+    assert.equal(done.rounds[i].identity.challenge, payloads[i].challenge);
+    total += size;
+  }
+  assert.equal(done.cumulative_payload_bytes, total);
+  const replay = await continueHandoff(base, { ...t.deps, previous: done });
+  assert.deepEqual(replay.rounds.map(r => r.identity), done.rounds.map(r => r.identity));
+  assert.deepEqual(replay.rounds.map(r => r.request_key), done.rounds.map(r => r.request_key));
+  assert.equal(replay.cumulative_payload_bytes, total);
+  assert.equal(t.inference(), 3);
 });

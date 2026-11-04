@@ -84,11 +84,11 @@ export async function continueHandoff(base, { route, send, relay, poll, persist,
   const save = async () => { await persist(structuredClone(state)); };
   try {
     for (let index = 0; index < RETRIEVAL_LIMITS.rounds; index++) {
-      const payloadBytes = bytes(prepared.payload);
+      const payloadJson = JSON.stringify(prepared.payload), payloadBytes = Buffer.byteLength(payloadJson);
       cumulative += payloadBytes;
       if (payloadBytes > RETRIEVAL_LIMITS.payload || cumulative > RETRIEVAL_LIMITS.cumulative) fail('cumulative-limit');
       const slot = state.rounds[index];
-      const identity = { challenge: prepared.payload.challenge, payload_sha256: sha(JSON.stringify(prepared.payload)), payload_bytes: payloadBytes };
+      const identity = { challenge: prepared.payload.challenge, payload_sha256: sha(payloadJson), payload_bytes: payloadBytes };
       if (slot && (!same(slot.identity, identity) || (slot.delivery && slot.delivery.deadline_at !== state.deadline_at))) fail('resume-round');
       if (!slot) {
         // Durable deterministic question identity exists before any send/inference.

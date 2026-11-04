@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T04:59:01.181Z
+generated_at: 2026-11-04T05:20:44.370Z
 
 ---
 
@@ -256,6 +256,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | Deliver portable packets through existing cross-harness inboxes | story | done |
 | epics/WP-24/stories/story-preflight-managed-handoffs-and-generate-private-route-configuration.md | Preflight managed handoffs and generate private route configuration | story | done |
 | epics/WP-24/stories/story-recover-handoffs-after-forced-interruption-within-an-overall-deadline.md | Recover handoffs after forced interruption within an overall deadline | story | done |
+| epics/WP-24/stories/story-serialize-each-handoff-round-payload-once-for-size-and-identity.md | Serialize each handoff round payload once for size and identity | story | done |
 | epics/WP-24/stories/story-serve-bounded-handoff-document-requests-through-the-existing-host.md | Serve bounded handoff document requests through the existing host | story | done |
 | epics/WP-24/stories/story-transfer-content-addressed-handoff-deltas-with-confirmed-receiver-baselines.md | Transfer content-addressed handoff deltas with confirmed receiver baselines | story | done |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | Measure the boot identity on macOS: kern.boottime, uptime and a sleep | runbook | draft |
@@ -801,6 +802,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-preflight-managed-handoffs-and-generate-private-route-configuration.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-recover-handoffs-after-forced-interruption-within-an-overall-deadline.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-serialize-each-handoff-round-payload-once-for-size-and-identity.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-serve-bounded-handoff-document-requests-through-the-existing-host.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-transfer-content-addressed-handoff-deltas-with-confirmed-receiver-baselines.md |
 | epics/WP-24/epic.md | wikilink | epics/WP-24/stories/story-capture-command-outcomes-with-selected-input-snapshots.md |
@@ -816,6 +818,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-24/stories/story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet.md | mdlink | epics/WP-24/epic.md |
 | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | mdlink | epics/WP-24/epic.md |
 | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | mdlink | epics/WP-24/epic.md |
+| epics/WP-24/stories/story-serialize-each-handoff-round-payload-once-for-size-and-identity.md | mdlink | epics/WP-24/epic.md |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | ops/paired-token-economy-experiment-revision-2-over-a-sealed-read-only-source.md | wikilink | adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md |
