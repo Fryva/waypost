@@ -75,8 +75,10 @@ export function buildNodeIndex(cfg, layout) {
   const byStem = new Map();
   const add = (map, key, node) => {
     const k = key.toLowerCase();
-    if (!map.has(k)) map.set(k, []);
-    if (!map.get(k).includes(node)) map.get(k).push(node);
+    const bucket = map.get(k);
+    // Each node's adds form one batch, so a repeat is already the last member.
+    if (!bucket) map.set(k, [node]);
+    else if (bucket[bucket.length - 1] !== node) bucket.push(node);
   };
   for (const n of nodes) {
     if (n.identity) add(byIdentity, n.identity, n);

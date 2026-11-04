@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T21:05:20.505Z
+generated_at: 2026-11-04T22:10:27.544Z
 
 ---
 
@@ -68,6 +68,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Bound each CLI migration stage and measure the final layout | `bin/waypost.mjs`, `tests/helpers/cli-namespace.mjs`, `tests/helpers/cli-static-closure.mjs`, `tests/helpers/cli-modules.mjs` |
 | WP-21 | Bounded compressed Codex rollout accounting | `scripts/token-codex.mjs`, `tests/token-codex.test.mjs`, `docs/how-it-works.md` |
 | WP-21 | Budgeted sealed-source evaluation route | `scripts/evaluation-source.mjs`, `scripts/codex-evaluation-surface.mjs`, `scripts/team-host.mjs`, `scripts/team-cli.mjs`, `scripts/team-subscription.mjs`, `scripts/team-transport.mjs`, `scripts/team-native-action.mjs`, `tests/evaluation-source.test.mjs`, `tests/evaluation-transport.test.mjs`, `tests/team-host.test.mjs`, `tests/team-subscription.test.mjs` |
+| WP-21 | Build node lookup buckets without rescanning their members | `scripts/lib-node-index.mjs`, `tests/lib-node-index.test.mjs` |
 | WP-21 | Check every CLI module before the first split | `tests/helpers/cli-modules.mjs`, `tests/helpers/cli-namespace.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs` |
 | WP-21 | Check safe Zstandard member handling across Node versions | `tests/token-codex.test.mjs`, `scripts/token-codex.mjs`, `docs/how-it-works.md` |
 | WP-21 | Compact cleanup status in default brief | `scripts/brief.mjs`, `tests/limit.test.mjs`, `tests/harness.test.mjs`, `docs/cli-reference.md` |

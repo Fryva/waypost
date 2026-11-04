@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T21:13:28.154Z
+generated_at: 2026-11-04T22:17:55.048Z
 
 ---
 
@@ -117,6 +117,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | Bound each CLI migration stage and measure the final layout | story | done |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | Bounded compressed Codex rollout accounting | story | done |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | Budgeted sealed-source evaluation route | story | done |
+| epics/WP-21/stories/story-build-node-lookup-buckets-without-rescanning-their-members.md | Build node lookup buckets without rescanning their members | story | done |
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | Check every CLI module before the first split | story | done |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | Check safe Zstandard member handling across Node versions | story | done |
 | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md | Compact cleanup status in default brief | story | done |
@@ -494,6 +495,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-build-node-lookup-buckets-without-rescanning-their-members.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md |
@@ -663,6 +665,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-build-node-lookup-buckets-without-rescanning-their-members.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md | mdlink | epics/WP-21/epic.md |

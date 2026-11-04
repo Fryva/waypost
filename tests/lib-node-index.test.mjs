@@ -43,3 +43,28 @@ test("node index import adds no I/O, probes, writes or timers",()=>{
 test("node index filesystem calls add no writes or process probes",t=>{
   const{cfg,layout}=fixture(t),url=new URL("../scripts/lib-node-index.mjs",import.meta.url).href;const out=child(`import fs from"node:fs";import cp from"node:child_process";import{syncBuiltinESMExports}from"node:module";let calls=0;const blocked=()=>{calls++;throw Error("unexpected mutation")};for(const name of["writeFileSync","appendFileSync","mkdirSync","unlinkSync","renameSync","rmSync"])fs[name]=blocked;cp.spawnSync=blocked;syncBuiltinESMExports();const m=await import(${JSON.stringify(url)});const count=m.buildNodeIndex(${JSON.stringify(cfg)},${JSON.stringify(layout)}).nodes.length;if(calls)throw Error("mutation");try{fs.writeFileSync("blocked","x")}catch{}try{cp.spawnSync("blocked")}catch{}console.log(JSON.stringify({count,calls}));`);assert.deepEqual(out,{count:7,calls:2});
 });
+
+test("node index keeps colliding buckets in node order without removing repeated readings", t => {
+  const { vault, cfg } = fixture(t);
+  for (const [rel, id] of [["adr/ADR-007-common.md", "Shared"], ["adr/common.md", "shared"], ["research/common.md", "SHARED"]])
+    writeFileSync(join(vault, rel), `---\nid: "${id}"\n---\n`);
+  const adr = { kind: "adr", path: "adr", prefix: "ADR-" };
+  const layout = { folders: [adr, { kind: "research", path: "research" }, adr] };
+  const index = focused.buildNodeIndex(cfg, layout);
+  const expected = index.nodes.filter(n => ["adr/ADR-007-common.md", "adr/common.md", "research/common.md"].includes(n.path));
+  assert.equal(expected.length, 5, "repeated layout paths create distinct objects");
+  const ordinal = node => index.nodes.indexOf(node);
+  for (const bucket of [index.byIdentity.get("shared"), index.byStem.get("common")]) {
+    assert.deepEqual(bucket.map(ordinal), expected.map(ordinal));
+    bucket.forEach((node, i) => assert.equal(node, expected[i]));
+  }
+  const numbered = index.nodes.find(n => n.path === "adr/ADR-007-common.md");
+  assert.deepEqual(numbered.stemReadings, ["adr-007-common", "adr-007-common", "common"]);
+  assert.equal(index.byPath.get(numbered.path), expected[3]);
+  assert.notEqual(expected[0], expected[3]);
+  assert.equal(index.byStem.get("common").length, 5, "one entry per object, not per reading or unique path");
+  const next = focused.buildNodeIndex(cfg, layout);
+  assert.deepEqual([...next.byStem].map(([key, nodes]) => [key, nodes.map(n => next.nodes.indexOf(n))]),
+    [...index.byStem].map(([key, nodes]) => [key, nodes.map(ordinal)]));
+  assert.notEqual(next.byStem.get("common"), index.byStem.get("common"));
+});
