@@ -146,6 +146,7 @@ export async function main(argv = process.argv.slice(2)) {
     const operation = opt('--operation');
     const host = await hostOf();
     if (operation === 'bootstrap') print(await host.bootstrap({ participant: opt('--participant'), descriptor: opt('--descriptor-file') ? json(resolve(opt('--descriptor-file'))) : undefined }));
+    else if (operation === 'preflight') print(await host.preflightHandoff({estimateTokens:opt('--estimate-tokens')||'16000'}));
     else if (operation === 'subscription-bootstrap') print(await host.subscriptionBootstrap({nonce:opt('--nonce'),estimateTokens:opt('--estimate-tokens')||'16000',maxTokens:opt('--max-tokens')||'20000'}));
     else if (operation === 'calibration-cohort-open') print(host.openCalibrationCohort(json(resolve(opt('--request-file') || ''))));
     else if (operation === 'evaluation') { const c=consent({yes:flag('--yes'),reason:opt('--reason')});if(!c.ok)throw new Error('owner-consent-required: pass --yes and --reason');print(await host.evaluateReadOnly({...json(resolve(opt('--request-file')||'')),owner_reason:c.reason})); }
@@ -198,7 +199,7 @@ export async function main(argv = process.argv.slice(2)) {
     } else if (operation === 'observe-quota') print(await host.observeQuota());
     else if (operation === 'redistribute') print(await host.driveQuotaHandover());
     else if (operation === 'recover-publication') print(host.recoverPublication({ gitChildStopped: flag('--git-child-confirmed-stopped') }));
-    else throw new Error('host-operation-required:native-work-revise|native-work-publish|native-work-publish-recover|native-work-publish-abort|native-work-review|native-work-review-recover|native-work-plan|native-work-plan-recover|native-work-plan-review|native-work-plan-review-recover|native-work-capture|native-work-execute|native-work-enable|native-work-manifest|native-work-cancel|native-leader-resume|native-delivery-enable|native-control-reconcile|unknown-usage-accept|native-quota-enable|native-handover-enable|native-quota-observe|native-quota-handover|native-handover-ack|native-handover-recover|bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
+    else throw new Error('host-operation-required:preflight|native-work-revise|native-work-publish|native-work-publish-recover|native-work-publish-abort|native-work-review|native-work-review-recover|native-work-plan|native-work-plan-recover|native-work-plan-review|native-work-plan-review-recover|native-work-capture|native-work-execute|native-work-enable|native-work-manifest|native-work-cancel|native-leader-resume|native-delivery-enable|native-control-reconcile|unknown-usage-accept|native-quota-enable|native-handover-enable|native-quota-observe|native-quota-handover|native-handover-ack|native-handover-recover|bootstrap|subscription-bootstrap|calibration-cohort-open|calibration-trial|calibration-summary|calibration-policy-proposal|native-policy-install|model-inventory|protocol-control-enable|protocol-review-enable|native-leader-ack|native-leader-ack-recover|native-leadership-audit|native-leadership-audit-recover|register-participant-host|inspect|relay|review|checkout|candidate|dispatch|publish|recover-publication');
     return;
   }
   // Slice 7 (owner, 2026-10-11): the owner opens a plan request, reads the leader's exact proposal and installs it whole.
@@ -472,7 +473,11 @@ export async function main(argv = process.argv.slice(2)) {
     if (['submit','work-ack','supervise','cancel'].includes(mode)) command.work_id = opt('--work') || supplied.work_id;
   }
   const actor = authorizeActor(v.state, team, cred);
-  command = { ...command, actor, incarnation: cred.incarnation || null, epoch: command.epoch ?? supplied.epoch ?? Number(opt('--epoch') ?? v.state?.teams[team]?.epoch ?? 0), request_key: command.request_key || key, at: command.at || supplied.at || at };
+  // Generated timestamps must stay stable on send retries. The authority still
+  // compares the entire command and reauthorizes the actor under its mutex.
+  const sent = mode === 'send' ? v.requests.find(r => r.actor === actor && r.key === key) : null;
+  const replayAt = sent?.result?.sender === actor && sent?.result?.id === key ? sent.command_at : null;
+  command = { ...command, actor, incarnation: cred.incarnation || null, epoch: command.epoch ?? supplied.epoch ?? Number(opt('--epoch') ?? v.state?.teams[team]?.epoch ?? 0), request_key: command.request_key || key, at: command.at || supplied.at || replayAt || at };
   const revision = Number(opt('--revision') ?? v.revision);
   print(mutateAuthority(root, { key: command.request_key, actor, expected_revision: revision, command }, reduceTeamEvent, {
     confirmedLocal: flag('--confirm-local'),

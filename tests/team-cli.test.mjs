@@ -229,3 +229,23 @@ test('team roles names each bound binary as verified, unverified or not pinned',
   const s = await identityFixture(), t = s.teams.team, listed = rolesListing(s, t, null, p => p.id === 'peer-a' ? { version: '2.1.300', verified: false, blocker: 'x' } : null);
   assert.equal(listed.participants.find(p => p.participant === 'peer-a').binary.verified, false); assert.equal(listed.participants.find(p => p.participant === 'peer-b').binary, null);
 });
+
+
+test('real CLI send retries retain generated time while changed commands and revoked senders fail', () => {
+ const f=fixture(), a=f.ok('join','fixture-team','--model','model.json','--credential','a.json'), b=f.ok('join','fixture-team','--model','model.json','--credential','b.json');
+ const args=['send','fixture-team','--credential','a.json','--to',b.result.participant,'--kind','question','--request-key','stable-send','--request-file','retry.json'];
+ writeFileSync(join(f.root,'retry.json'),JSON.stringify({payload:{question:'same bytes'}}));
+ const first=f.ok(...args);
+ f.ok('ack','fixture-team','--credential','b.json','--message',first.result.id);
+ const replay=f.ok(...args);
+ assert.equal(replay.replayed,true); assert.deepEqual(replay.result,first.result); assert.equal(replay.revision,first.revision);
+ writeFileSync(join(f.root,'retry.json'),JSON.stringify({payload:{question:'changed bytes'}}));
+ assert.match(f.run(...args).stderr,/authority-request-key-reused/);
+ writeFileSync(join(f.root,'retry.json'),JSON.stringify({payload:{question:'same bytes'},at:'2020-01-01T00:00:00.000Z'}));
+ assert.match(f.run(...args).stderr,/authority-request-key-reused/);
+ writeFileSync(join(f.root,'retry.json'),JSON.stringify({payload:{question:'same bytes'}}));
+ const changedKind=args.slice(); changedKind[changedKind.indexOf('question')]='notice';
+ assert.match(f.run(...changedKind).stderr,/authority-request-key-reused/);
+ f.ok('revoke','fixture-team','--participant',a.result.participant);
+ assert.equal(f.run(...args).status,1);
+});

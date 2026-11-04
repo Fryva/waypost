@@ -136,7 +136,7 @@ function snapshotEntry(c, reducer, host, files, events, names) {
     last = parseEvent(files[i], join(events, names[i]));
     seen.add(checkEvent(last, i, previous, host, seen)); previous = last.hash;
     digests.push(createHash('sha256').update(files[i]).digest('hex'));
-    requests.push(deepFreeze({ actor: last.actor, key: last.key, digest: last.request_digest, revision: last.seq, result: last.result }));
+    requests.push(deepFreeze({ actor: last.actor, key: last.key, digest: last.request_digest, command_at: last.command.at, revision: last.seq, result: last.result }));
   }
   if (last.hash !== c.event_hash || c.state_digest !== last.state_digest) return undefined;
   return { reducer, host, state: c.state, revision: c.revision, previous, requests, seen, digests, verified: true };
@@ -205,7 +205,7 @@ function replayAt(root, reducer, { cached = true } = {}) {
     if (!next || !Object.hasOwn(next, 'state') || !Object.hasOwn(next, 'result') || digest(next.state) !== e.state_digest || digest(next.result) !== digest(e.result)) fail('authority-replay-mismatch', { revision });
     state = next.state; revision = e.seq; previous = hash; seen.add(requestId);
     digests.push(createHash('sha256').update(files[i]).digest('hex'));
-    requests.push(deepFreeze({ actor: e.actor, key: e.key, digest: e.request_digest, revision, result: e.result }));
+    requests.push(deepFreeze({ actor: e.actor, key: e.key, digest: e.request_digest, command_at: e.command.at, revision, result: e.result }));
   }
   if (cached) {
     REPLAY_CACHE.delete(root);
