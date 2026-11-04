@@ -199,25 +199,67 @@ test('post-command replaced/grown log is bounded and makes capture incomplete', 
   }
 });
 
-test('routing resolves input in shell cwd, scopes heavy slot to project, and preserves refusal', async () => {
+test('routing preserves getter reads, bare callbacks, heavy scope and refusal', async () => {
   const f = fixture(), other = fixture();
   const originalCwd = process.cwd(), originalCode = process.exitCode;
   writeFileSync(join(other.root, 'shell-input'), JSON.stringify(input()));
-  let calls = 0;
+  let calls = 0, rootReads = 0, runnerReads = 0;
+  const events = [];
   try {
     process.chdir(other.root);
     await handleCapture(['--input', 'shell-input', '--output-dir', 'capture', '--', process.execPath, '-e', ''], {
-      projectRoot: () => f.root,
-      async handleRun(args) {
-        calls++; assert.equal(process.cwd(), f.root);
-        assert.deepEqual(args.slice(0, 3), ['--heavy', '--', process.execPath]);
-        assert.equal(args[args.indexOf('--input') + 1], join(other.root, 'shell-input'));
-        assert.equal(args[args.indexOf('--root') + 1], f.root);
-        process.exitCode = 75;
+      get projectRoot() {
+        events.push('root-read'); rootReads++;
+        if (rootReads === 1) return () => { throw new Error('first root value must not be called'); };
+        return function () { assert.equal(this, undefined); events.push('root-call'); return f.root; };
+      },
+      get handleRun() {
+        events.push('runner-read'); runnerReads++;
+        if (runnerReads === 1) return () => { throw new Error('first runner value must not be called'); };
+        return async function (args) {
+          assert.equal(this, undefined); events.push('runner-call'); calls++;
+          assert.equal(process.cwd(), f.root);
+          assert.deepEqual(args.slice(0, 3), ['--heavy', '--', process.execPath]);
+          assert.equal(args[args.indexOf('--input') + 1], join(other.root, 'shell-input'));
+          assert.equal(args[args.indexOf('--root') + 1], f.root);
+          process.exitCode = 75;
+        };
       },
     });
-    assert.equal(calls, 1); assert.equal(process.exitCode, 75);
-    assert.equal(process.cwd(), other.root);
+    assert.equal(calls, 1); assert.equal(rootReads, 2); assert.equal(runnerReads, 2);
+    assert.deepEqual(events, ['root-read', 'root-read', 'root-call', 'runner-read', 'runner-read', 'runner-call']);
+    assert.equal(process.exitCode, 75); assert.equal(process.cwd(), other.root);
     assert.equal(existsSync(join(f.root, 'capture')), false, 'admission refusal cannot reserve output or run command');
+  } finally { process.chdir(originalCwd); process.exitCode = originalCode; }
+});
+
+test('capture preflight and dependency exceptions restore cwd without launching work', async () => {
+  const originalCwd = process.cwd(), originalCode = process.exitCode;
+  try {
+    for (const phase of ['preflight', 'root-getter', 'runner-getter', 'runner-call']) {
+      const f = fixture(), other = fixture();
+      writeFileSync(join(other.root, 'shell-input'), JSON.stringify(input()));
+      if (phase === 'preflight') mkdirSync(join(f.root, 'capture'));
+      let runnerReads = 0, runnerCalls = 0;
+      process.chdir(other.root); process.exitCode = undefined;
+      await handleCapture(['--input', 'shell-input', '--output-dir', 'capture', '--', process.execPath, '-e', ''], {
+        get projectRoot() {
+          if (phase === 'root-getter') throw new Error('injected root getter');
+          return () => f.root;
+        },
+        get handleRun() {
+          runnerReads++;
+          if (phase === 'runner-getter') throw new Error('injected runner getter');
+          return async function () {
+            runnerCalls++; assert.equal(this, undefined); assert.equal(process.cwd(), f.root);
+            throw new Error('injected runner call');
+          };
+        },
+      });
+      assert.equal(process.exitCode, 1); assert.equal(process.cwd(), other.root);
+      assert.equal(runnerReads, ['preflight', 'root-getter'].includes(phase) ? 0 : phase === 'runner-getter' ? 1 : 2);
+      assert.equal(runnerCalls, phase === 'runner-call' ? 1 : 0);
+      assert.equal(existsSync(join(f.root, 'capture', 'capture.json')), false);
+    }
   } finally { process.chdir(originalCwd); process.exitCode = originalCode; }
 });

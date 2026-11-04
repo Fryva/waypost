@@ -14,9 +14,9 @@ function overlaps(a, b) {
   a = a.toLowerCase(); b = b.toLowerCase();
   return a === b || a.startsWith(b + sep) || b.startsWith(a + sep);
 }
-function newDestination(root, relative) {
+function newDestination(root, relativeDestination) {
   let current = root;
-  const parts = relative.split('/');
+  const parts = relativeDestination.split('/');
   for (const [i, part] of parts.entries()) {
     const match = readdirSync(current).find(name => name.toLowerCase() === part.toLowerCase());
     if (i === parts.length - 1) {
@@ -165,13 +165,13 @@ export async function handleCapture(rest, dependencies = {}) {
   const cwd = process.cwd();
   try {
     const options = parseCaptureArgs(rest);
-    const { projectRoot } = dependencies.projectRoot ? dependencies : await import('./core.mjs');
-    const root = realpathSync(resolve(projectRoot()));
+    const resolveCaptureRoot = (dependencies['projectRoot'] ? dependencies : await import('./core.mjs'))['projectRoot'];
+    const root = realpathSync(resolve(resolveCaptureRoot()));
     options.root = root; options.input = resolve(cwd, options.input);
     preflightCapture(options); // Reject malformed/colliding inputs even before admission.
-    const { handleRun } = dependencies.handleRun ? dependencies : await import('./run.mjs');
+    const runCaptureCommand = (dependencies['handleRun'] ? dependencies : await import('./run.mjs'))['handleRun'];
     process.chdir(root);
-    await handleRun(['--heavy', '--', process.execPath, fileURLToPath(import.meta.url), '--root', root,
+    await runCaptureCommand(['--heavy', '--', process.execPath, fileURLToPath(import.meta.url), '--root', root,
       '--input', options.input, '--output-dir', options.outputDir, '--timeout-ms', String(options.timeoutMs),
       '--max-log-bytes', String(options.maxLogBytes), '--', ...options.argv]);
   } catch (e) { process.stderr.write(`waypost handoff capture: ${e.message}\n`); process.exitCode = 1; }

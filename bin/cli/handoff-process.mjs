@@ -6,7 +6,7 @@ export function runHandoffCommand(executable, args, { deadlineAt, now = Date.now
   cleanupGraceMs = COMMAND_CLEANUP_GRACE_MS, env = process.env } = {}) {
   if (!Number.isSafeInteger(deadlineAt) || deadlineAt <= now()) return Promise.reject(new Error('handoff-delivery-deadline'));
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1048576 || !Number.isSafeInteger(cleanupGraceMs) || cleanupGraceMs < 100 || cleanupGraceMs > 5000) return Promise.reject(new Error('handoff-team-command-options'));
-  return new Promise((resolve, reject) => {
+  return new Promise((resolveCommandResult, reject) => {
     const child = spawn(executable, args, { env, stdio: ['ignore', 'pipe', 'pipe'], shell: false });
     let bytes = 0, output = [], failure = null, settled = false, closed = false, killTimer, drainTimer;
     const timer = setTimeout(() => stop('handoff-delivery-deadline'), Math.max(1, deadlineAt - now()));
@@ -18,7 +18,7 @@ export function runHandoffCommand(executable, args, { deadlineAt, now = Date.now
         failure.command_cleanup = { process_closed: closed, native_closure: 'unknown', grace_ms: cleanupGraceMs };
         reject(failure);
       } else {
-        try { resolve(JSON.parse(Buffer.concat(output).toString('utf8'))); }
+        try { resolveCommandResult(JSON.parse(Buffer.concat(output).toString('utf8'))); }
         catch { reject(new Error('handoff-team-command-json')); }
       }
     };

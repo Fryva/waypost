@@ -1882,6 +1882,9 @@ test("CLI namespace excludes non-code occurrences while preserving syntax valida
   const scan = source => inspectNamespace([{ path: "text.mjs", source }], ["need"], ambientEnv());
   for (const source of [
     'export const f="need";',
+    'const deps={}; export const f=()=>deps["need"];',
+    'import * as handlers from "must-not-link"; export const f=()=>handlers["need"]();',
+    'export async function f(deps){const callback=(deps["need"]?deps:await import("must-not-link"))["need"];return callback();}',
     "export const f='need';",
     'export const f="escaped \\\"need\\\"";',
     '// need\nexport const f=1;',
@@ -1894,6 +1897,7 @@ test("CLI namespace excludes non-code occurrences while preserving syntax valida
     'import value from "need"; export const f="need";',
     'const astral="💡"; /* need */ export const f="need";',
   ]) assert.deepEqual(scan(source).checked[0].selected, [], source);
+  assert.throws(() => scan('const deps={}; export const f=()=>{deps["need"];need();};'), /not defined/);
   assert.throws(() => scan('/* need */ export const f=;'), /cli-namespace-failed/);
 });
 
