@@ -55,7 +55,7 @@ export function sealProtocolMeasurement(t,invocation,receipt,now){
  const native=object(seal.native_receipt,['invocation_id','native_id','usage_span','actualModel','context_manifest','output'],32768);
  if(routingDigest(native)!==digest(seal.native_receipt_digest)||native.invocation_id!==invocation.nonce||native.native_id!==invocation.context.native_id||native.output!==seal.original_output||native.context_manifest?.native_id!==native.native_id||!same({provider:native.actualModel?.provider??null,model_id:native.actualModel?.model_id??null,reasoning:native.actualModel?.reasoning??null},receipt.observed_model)||native.usage_span?.native_id!==native.native_id||native.usage_span?.turn_id!==receipt.turn_id||native.usage_span?.schema!==receipt.counter_schema)fail('native-receipt-projection-binding');
  if(receipt.coverage!=='complete')return null;
- if(native.usage_span.coverage!=='complete'||['before','after','actual_tokens'].some(k=>native.usage_span[k]!==receipt[k]))fail('native-receipt-counter-binding');
+ if(native.usage_span.coverage!=='complete'||['before','after','actual_tokens'].some(k=>native.usage_span[k]!==receipt[k])||Object.hasOwn(native.usage_span,'native_usage')!==Object.hasOwn(receipt,'native_usage')||(Object.hasOwn(receipt,'native_usage')&&!same(native.usage_span.native_usage,receipt.native_usage)))fail('native-receipt-counter-binding');
  const measured=Date.parse(seal.observed_at);
  if(!Number.isFinite(measured)||measured>now||now-measured>30000||Date.parse(native.actualModel?.observed_at)!==measured)fail('terminal-observation-clock');
 

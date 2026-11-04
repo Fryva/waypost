@@ -1,3 +1,4 @@
+import { nativeUsage } from './native-usage.mjs';
 // Managed native conversations. No shell, personal-session discovery or retries.
 import { spawn, execFileSync } from 'node:child_process';
 import { isDeepStrictEqual } from 'node:util';
@@ -503,6 +504,7 @@ async function codexEndpoint(d, spawnProcess, evaluation = null) {
             before:complete ? String(initial.totalTokens) : null,after:complete ? String(terminalCounters.totalTokens) : null,
             actual_tokens:complete ? String(terminalCounters.totalTokens-initial.totalTokens) : null,
             blockers:complete ? [] : [counterProblem ? 'native-token-span-binding-or-counter-conflict' : !sawCounters ? 'native-token-counters-absent' : 'native-token-baseline-unverified']};
+          usage_span.native_usage = nativeUsage(usage_span,complete ? initial : null,terminalCounters);
           // A gap invalidates the chain; never attribute later cumulative usage to it.
           previousCounters = complete ? terminalCounters : null;
           if (isEvaluation) {evalGuard.close();evaluation.broker.close('terminal');}
@@ -686,6 +688,8 @@ async function claudeEndpoint(d, spawnProcess) {
     const result = {output:typeof m.result === 'string' ? m.result : '',actualModel:{provider:process.env.ANTHROPIC_BASE_URL ? 'unknown' : 'anthropic',model_id:models.length === 1 ? models[0] : 'unknown',reasoning:'unknown',observed_at:new Date().toISOString()},usage:m.usage || null,native_id:nativeId,
       usage_span:{protocol:1,schema,native_id:nativeId,turn_id:ownTerminal ? m.uuid : null,coverage:complete ? 'complete' : top ? 'partial' : 'absent',before:complete ? '0' : null,after:complete ? String(sum) : null,actual_tokens:complete ? String(sum) : null,scope:'observed-first-owned-main-loop-buckets',baseline_source:complete ? 'native-first-turn-matched-model-usage' : null},
       context_manifest:manifest(d,nativeId,first,{tools:initTools,preflight:bound,read_only:isolated,isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated && first,reasoning_requested:d.reasoning || null})};
+    const buckets = top ? Object.fromEntries(snake.map((key,i)=>[key,top[i]])) : null;
+    result.usage_span.native_usage = nativeUsage(result.usage_span,complete ? Object.fromEntries(snake.map(key=>[key,0])) : null,buckets);
     if (m.is_error) throw Object.assign(fail('native-turn-failed'),{native_receipt:result});
     return result;
   },close:() => {offInit();peer.close();},stopAndWait:options => {offInit();return peer.stopAndWait(options);} };
@@ -761,6 +765,8 @@ async function opencodeEndpoint(d, fetchImpl) {
     // This local span covers one observed normalized step, not hidden provider
     // retries, invoice amounts, subscription availability or account identity.
     const usage_span = {protocol:1,schema:OPENCODE_COUNTER_SCHEMA,native_id:nativeId,turn_id:bounded(info.id,128)?info.id:null,coverage:complete?'complete':info.tokens?'partial':'absent',baseline_source:complete?'native-empty-owned-step-inventory':null,before:complete?'0':null,after:complete?String(buckets):null,actual_tokens:complete?String(buckets):null,raw_total:Number.isSafeInteger(info.tokens?.total)&&info.tokens.total>=0?String(info.tokens.total):null,blockers};
+    const diagnostic = matchingCounters ? {input:info.tokens.input,output:info.tokens.output,reasoning:info.tokens.reasoning,cache_read:info.tokens.cache.read,cache_write:info.tokens.cache.write} : null;
+    usage_span.native_usage = nativeUsage(usage_span,complete ? Object.fromEntries(Object.keys(diagnostic).map(key=>[key,0])) : null,diagnostic);
     const isolated = before.verified && after.verified;
     const result = {output:(Array.isArray(parts) ? parts : []).filter(p => p.type === 'text').map(p => typeof p.text === 'string' ? p.text : '').join(''),actualModel:{provider:bounded(info.providerID,128) ? info.providerID : 'unknown',model_id:bounded(info.modelID,256) ? info.modelID : 'unknown',reasoning:bounded(info.variant,128) ? info.variant : 'unknown',observed_at:new Date().toISOString()},usage:info.tokens || null,usage_span,native_id:nativeId,context_manifest:manifest({...d,version:health.version},nativeId,emptyHistory,{version_provenance:'native-health',read_only:isolated,tools:isolated ? []:null,isolation:isolated ? 'read-only':'managed-context',provenance:isolated ? 'adapter-isolated':'unverified',fresh_review_verified:isolated,read_only_evidence:isolated ? 'native-config-session-deny-rules-and-empty-history':'server-configuration-unverified',model_provider_is_billing_route:true})};
     if(d.owned_server&&(!correlated||!bound&&!info.error)){const error=fail('native-turn-binding-unverified');error.native_receipt=nativeReceipt(result,null);throw error;}

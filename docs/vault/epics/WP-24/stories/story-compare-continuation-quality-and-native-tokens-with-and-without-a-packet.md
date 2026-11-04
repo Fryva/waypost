@@ -3,19 +3,19 @@ type: story
 id: "story-compare-continuation-quality-and-native-tokens-with-and-without-a-packet"
 epic: "WP-24"
 title: "Compare continuation quality and native tokens with and without a packet"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-11-02
-updated: 2026-11-02
+updated: 2026-11-04
 external_refs: {}
 tags: []
-code_refs: ["scripts/handoff-delivery.mjs", "scripts/team-host.mjs", "scripts/run-budget.mjs", "docs/handoffs.md", "docs/handoff-experiment-2026-11-02.md"]
+code_refs: ["scripts/handoff-delivery.mjs", "scripts/team-host.mjs", "scripts/run-budget.mjs", "docs/handoffs.md", "docs/handoff-experiment-2026-11-02.md", "scripts/native-usage.mjs", "tests/native-usage.test.mjs", "docs/handoff-experiment-2026-11-04.md"]
 specs: []
 blocked_by: ["WP-24/story-deliver-portable-packets-through-existing-cross-harness-inboxes"]
 started_at: "2026-11-02T21:04:31.485Z"
-closed_at: null
-plan_updated_at: "2026-11-02T21:04:31.485Z"
+closed_at: "2026-11-04T04:58:56.747Z"
+plan_updated_at: "2026-11-03T00:37:11.421Z"
 ---
 
 # Compare continuation quality and native tokens with and without a packet
@@ -23,7 +23,7 @@ plan_updated_at: "2026-11-02T21:04:31.485Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-24](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -41,12 +41,12 @@ Run a small frozen analytical continuation comparison through the existing count
 
 - [x] Owner 500000 allocation is configured with preserved prior accounting evidence; every measured native call is admitted and settled or unknown/blocked. — evidence: final authority replay revision48: five settled complete calls,32187 new tokens, historical17520 preserved; current restored policy/reserved0 verified independently.
 - [x] Baseline and packet conditions use frozen equal tasks/snapshots and the same actual receiver profile with deterministic quality scoring. — evidence: all four payload hashes/facts/answers independently matched frozen inputs and oracle; anthropic/claude-sonnet-5-5 with reasoning unknown, distinct retired native contexts.
-- [ ] Report native input/cache/output totals, preparation/delivery overhead and missing coverage separately; no tokenizer counts substituted for native usage.
+- [x] Report native input/cache/output totals, preparation/delivery overhead and missing coverage separately; no tokenizer counts substituted for native usage. — evidence: docs/handoff-experiment-2026-11-04.md;17 new complete native bucket diagnostics, fresh ABBA18414vs11671, timing and missing historical buckets separately retained.
 - [x] Paired outcomes, numerical token differences and limitations are independently reviewed; unfavorable or inconclusive results are retained. — evidence: independent final review verified18478 vs11682 (6796/36.778872%), all answers correct, both pre-inference refusals retained; docs/handoff-experiment-2026-11-02.md.
 
 ## Final Summary
 
-Frozen six-case ABBA comparison completed after owner login. Actual anthropic/claude-sonnet-5-5, reasoning unknown; five complete settled native receipts, distinct retired contexts, verified isolation. Full-history arms9266+9212=18478; packet5877+5805=11682; reduction6796 (36.78%). All four answers matched the deterministic six-case oracle. Control2027, total32187 of owner500000. Prior17520 ledger and events preserved, total49707/reserved0 after policy restoration. Both earlier refusals cost0. Operational sender preparation made0 model calls; development/driving chat excluded. Requested raw input/cache/output breakdown remains unavailable, so full AC3 is not met and this story must remain open. See docs/handoff-experiment-2026-11-02.md; independent final reviewer verified AC1/2/4; full AC3 remains not met. The story stays in-progress for raw bucket coverage, not for another unneeded paid repeat.
+Frozen six-case ABBA comparison completed after owner login. Actual anthropic/claude-sonnet-5-5, reasoning unknown; five complete settled native receipts, distinct retired contexts, verified isolation. Full-history arms9266+9212=18478; packet5877+5805=11682; reduction6796 (36.78%). All four answers matched the deterministic six-case oracle. Control2027, total32187 of owner500000. Prior17520 ledger and events preserved, total49707/reserved0 after policy restoration. Both earlier refusals cost0. Operational sender preparation made0 model calls; development/driving chat excluded. Historical raw input/cache/output remains unavailable and is not reconstructed. The approved continuation now closes the measurement gap with17 new complete diagnostic receipts and a separate fresh ABBA repeat18414vs11671. All4 new analytical answers are correct. See docs/handoff-experiment-2026-11-04.md for complete buckets/timings, coding outcomes, retained failures and cumulative130706/500000 owner spend. Independent final acceptance of the combined report precedes lifecycle close.
 
 ## Frozen live protocol
 
@@ -72,3 +72,18 @@ profile drift or failed control. Fresh receiver profile/version and raw native
 counts must match scope; no model judge. Sender fixture preparation/hydration is
 deterministic and makes zero additional model requests; one-time implementation
 and driving-chat usage are outside this operational comparison and not savings.
+
+
+## Approved continuation: native details and timing
+
+Owner approved completing the remaining measurement gap before preparation,
+recovery, real coding comparison, bounded retrieval and deltas. Preserve optional
+versioned native_usage inside the authoritative receipt and its native seals,
+not a second spending ledger. Adapter-specific complete before/after/delta counters
+must agree with the existing scalar usage span. Missing diagnostics do not erase
+known actual spending or become zero. Historical events remain replay-compatible.
+Record monotonic prepare/send/relay/poll/total milliseconds per handoff attempt,
+with absent measurements null. Resume timings describe the new attempt, not
+provider total. Add focused counter/Host/replay/seal/timing regressions and an
+independent review before a new native check. Historical32187 calls cannot gain
+missing buckets retrospectively; keep old results honestly missing.

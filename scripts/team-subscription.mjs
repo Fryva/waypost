@@ -1,3 +1,4 @@
+import { validateNativeUsage } from './native-usage.mjs';
 import {assertNativeBillingQuotaEligible} from './team-native-quota.mjs';
 // Versioned local subscription token accounting. No native adapter or privilege is minted here.
 import { applyNativeProtocolControl,validateProtocolAction,consumeProtocolAction,sealProtocolAction,reconcileProtocolControl,applyNativeIdentity,sealIdentityReceipt } from './team-native-action.mjs';
@@ -312,7 +313,10 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
    } else {
     if(!['consumed','uncertain','settled'].includes(x.state))fail('subscription-consumed-invocation-required');
     const receipt=bounded(c.receipt,65536);
-    fields(receipt,['nonce','context_id','native_id','incarnation','unit_scope','counter_schema','turn_id','billing_before','billing_after','observed_model','coverage','before','after','actual_tokens','isolation_verified','measurement','action_seal','delivery','work_seal','identity_seal','evaluation']);
+    fields(receipt,['nonce','context_id','native_id','incarnation','unit_scope','counter_schema','turn_id','billing_before','billing_after','observed_model','coverage','before','after','actual_tokens','isolation_verified','measurement','action_seal','delivery','work_seal','identity_seal','evaluation','native_usage','native_usage_blocker']);
+    if(receipt.native_usage_blocker!==undefined&&receipt.native_usage_blocker!=='native-usage-invalid')fail('subscription-native-usage-blocker-invalid');
+    let nativeUsageBlocker=receipt.native_usage_blocker??null;
+    if(receipt.native_usage!==undefined)try{validateNativeUsage(receipt.native_usage,receipt);}catch{delete receipt.native_usage;nativeUsageBlocker=receipt.native_usage_blocker='native-usage-invalid';}
     evaluationPayload(receipt,x.purpose,x.evaluation);
     if(x.purpose==='evaluation'&&c.delivery_output!==undefined)fail('subscription-evaluation-payload-forbidden');
     if(receipt.work_seal!==undefined&&x.purpose!=='work')fail('native-work-purpose-required');
@@ -355,13 +359,14 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
      t.subscription_native_identity||={};t.subscription_native_identity[identityKey]=refined;
     }
     x.binding_changes=binding_changes;
+    if(nativeUsageBlocker)x.native_usage_blocker=nativeUsageBlocker;
     if(measurementBlocker)x.measurement_blocker=measurementBlocker;
     if(actionBlocker)x.action_blocker=actionBlocker;
     if(identityBlocker)x.identity_blocker=identityBlocker;
     if(changed)for(const context of Object.values(t.subscription_contexts||{}))if(context.protocol===2&&context.native_id===x.context.native_id&&context.collector===x.collector)context.quarantined=true;
     settleProtocolDelivery(t,x,receipt,{complete:receipt.coverage==='complete',changed},c.at,c.delivery_output);
     settleProtocolWork(t,x,receipt,{complete:receipt.coverage==='complete',changed},c.at);
-    if(receipt.coverage!=='complete') {x.state='uncertain';x.partial_receipt=receipt;result={uncertain:x.id,reservation_retained:true,binding_changes,context_quarantined:changed};}
+    if(receipt.coverage!=='complete') {x.state='uncertain';x.partial_receipt=receipt;result={uncertain:x.id,reservation_retained:true,binding_changes,context_quarantined:changed,...(nativeUsageBlocker?{native_usage_blocker:nativeUsageBlocker}:{})};}
     else {
      if(measurementSeal)x.measurement_seal=measurementSeal;
      if(actionSeal)x.action_seal=actionSeal;
@@ -369,7 +374,7 @@ function applyInheritedNativeAccounting(s,t,c,now,H) {
      x.state='settled';x.receipt=receipt;x.charged_tokens=receipt.actual_tokens;x.settled_at=c.at;
      if(actual>decimal(x.estimate_tokens))x.overshoot_allocation_revision=s.subscription_allocations[x.unit_digest].revision;
      const used=totals(s,x.unit_digest),allocation=s.subscription_allocations[x.unit_digest];
-     result={settled:x.id,actual_tokens:x.charged_tokens,overshoot:actual>decimal(x.estimate_tokens),allocation_blocked:used.overshoot||used.actual+used.reserved>decimal(allocation.max_tokens),binding_changes,context_quarantined:changed,...(measurementBlocker?{measurement_blocker:measurementBlocker}:{}),...(actionBlocker?{action_blocker:actionBlocker}:{}),...(identityBlocker?{identity_blocker:identityBlocker}:{})};
+     result={settled:x.id,actual_tokens:x.charged_tokens,overshoot:actual>decimal(x.estimate_tokens),allocation_blocked:used.overshoot||used.actual+used.reserved>decimal(allocation.max_tokens),binding_changes,context_quarantined:changed,...(nativeUsageBlocker?{native_usage_blocker:nativeUsageBlocker}:{}),...(measurementBlocker?{measurement_blocker:measurementBlocker}:{}),...(actionBlocker?{action_blocker:actionBlocker}:{}),...(identityBlocker?{identity_blocker:identityBlocker}:{})};
     }
    }
   }

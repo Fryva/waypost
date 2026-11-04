@@ -1,3 +1,4 @@
+import {nativeUsage} from '../scripts/native-usage.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applySubscriptionAccounting, validateSubscriptionUnit, validateEvaluationBinding } from '../scripts/team-subscription.mjs';
@@ -393,4 +394,30 @@ test('context retirement remains authorized cleanup after accounting mode change
  f.t.accounting={protocol:1,mode:'subscription-tokens',revision:2};f.t.routing={protocol:3,required:true};
  assert.equal(retireNative(f).result.admission_withdrawn,true);assert.equal(Object.keys(f.t.subscription_retired_native).length,1);
  assert.throws(()=>f.send(f.t,'subscription-context-retire-v2',{participant_id:f.p.id,native_id:'native-first',descriptor_digest:hash,participant_incarnation:f.p.incarnation},'owner:fixture'),/collector/);
+});
+
+
+test('v2 retains validated bucket diagnostics immutably and old receipts keep their historical digest',()=>{
+ const schema='codex-thread-cumulative-total-v1',after={totalTokens:'30',inputTokens:'20',cachedInputTokens:'15',outputTokens:'8',reasoningOutputTokens:'5'},before=Object.fromEntries(Object.keys(after).map(k=>[k,'0']));
+ const diagnostic=nativeUsage({schema,coverage:'complete',before:'0',after:'30',actual_tokens:'30'},before,after);
+ const f=nativeFixture();f.nativeReady();f.nativeReserve();f.nativeConsume();f.nativeUsage(f.first,'v2-call-1',{native_usage:diagnostic});
+ const x=f.s.subscription_invocations['v2-call-1'];assert.deepEqual(x.receipt.native_usage,diagnostic);diagnostic.delta.totalTokens='999';assert.equal(x.receipt.native_usage.delta.totalTokens,'30');
+ const saved=structuredClone(x.receipt);assert.equal(f.nativeUsage(f.first,'v2-call-1',{native_usage:saved.native_usage}).result.unchanged,true);
+ const old=nativeFixture();old.nativeReady();old.nativeReserve();old.nativeConsume();old.nativeUsage();const historical=structuredClone(old.s.subscription_invocations['v2-call-1'].receipt),digest=routingDigest(historical);
+ assert.equal(Object.hasOwn(historical,'native_usage'),false);assert.equal(old.nativeUsage().result.unchanged,true);assert.equal(routingDigest(old.s.subscription_invocations['v2-call-1'].receipt),digest);
+});
+test('malformed optional diagnostics cannot discard already proved scalar spend in reducer replay',()=>{
+ for(const diagnostic of [null,{protocol:1},{protocol:2,schema:'codex-thread-cumulative-total-v1',coverage:'complete',before:{},after:{},delta:{}}]){
+  const f=nativeFixture();f.nativeReady();f.nativeReserve();f.nativeConsume();const result=f.nativeUsage(f.first,'v2-call-1',{native_usage:diagnostic}).result;
+  const x=f.s.subscription_invocations['v2-call-1'];assert.equal(result.actual_tokens,'30');assert.equal(result.native_usage_blocker,'native-usage-invalid');assert.equal(x.state,'settled');assert.equal(x.charged_tokens,'30');assert.equal(Object.hasOwn(x.receipt,'native_usage'),false);
+  assert.equal(f.nativeUsage(f.first,'v2-call-1',{native_usage:diagnostic}).result.unchanged,true);
+ }
+});
+
+
+test('native diagnostic blocker accepts only its fixed literal without changing historical receipts',()=>{
+ const f=nativeFixture();f.nativeReady();f.nativeReserve();f.nativeConsume();
+ assert.throws(()=>f.nativeUsage(f.first,'v2-call-1',{native_usage_blocker:'private diagnostic'}),/native-usage-blocker-invalid/);
+ const result=f.nativeUsage(f.first,'v2-call-1',{native_usage_blocker:'native-usage-invalid'}).result,x=f.s.subscription_invocations['v2-call-1'];
+ assert.equal(result.actual_tokens,'30');assert.equal(result.native_usage_blocker,'native-usage-invalid');assert.equal(x.native_usage_blocker,'native-usage-invalid');assert.equal(x.receipt.native_usage_blocker,'native-usage-invalid');
 });

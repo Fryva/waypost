@@ -228,6 +228,9 @@ test('Codex native cumulative span binds two own turns without summing cached or
   assert.equal(a.usage_span.before,'0');assert.equal(a.usage_span.after,'10');assert.equal(a.usage_span.actual_tokens,'10');
   assert.equal(b.usage_span.coverage,'complete');assert.equal(b.usage_span.before,'10');assert.equal(b.usage_span.after,'30');assert.equal(b.usage_span.actual_tokens,'20');
   assert.equal(b.usage_span.turn_id,'token-turn-1');assert.equal(b.usage_span.native_id,b.native_id);
+  assert.deepEqual(b.usage_span.native_usage.before,Object.fromEntries(Object.entries(first).map(([k,v])=>[k,String(v)])));
+  assert.deepEqual(b.usage_span.native_usage.after,Object.fromEntries(Object.entries(second).map(([k,v])=>[k,String(v)])));
+  assert.equal(b.usage_span.native_usage.delta.totalTokens,'20');assert.equal(b.usage_span.native_usage.delta.cachedInputTokens,'0');
   assert.deepEqual(b.usage,{total:second,last});assert.equal(b.usage_span.baseline_source,'previous-bound-terminal');
  }finally{endpoint.close();}
 });
@@ -348,6 +351,8 @@ test('OpenCode counts disjoint normalized step buckets and binds own request/his
   const r=await endpoint.send('probe',{id:'nonce'});
   assert.match(fixture.request.messageID,/^msg_[a-f0-9]{12}[0-9A-Za-z]{14}$/);
   assert.equal(r.usage_span.coverage,'complete');assert.equal(r.usage_span.actual_tokens,'30');assert.equal(r.usage_span.raw_total,'999');
+  assert.equal(r.usage_span.native_usage.coverage,'complete');assert.deepEqual(Object.keys(r.usage_span.native_usage.delta).sort(),['cache_read','cache_write','input','output','reasoning']);
+  assert.equal(Object.values(r.usage_span.native_usage.delta).reduce((sum,n)=>sum+BigInt(n),0n),30n);assert.equal(Object.hasOwn(r.usage_span.native_usage.delta,'total'),false);
   assert.equal(r.usage_span.turn_id,'msg_assistant');assert.equal(r.context_manifest.read_only,true);
   // A repeated native ID/history cannot mint another complete span.
   await assert.rejects(endpoint.send('probe',{id:'nonce2'}),error=>{assert.equal(error.code,'native-turn-binding-unverified');assert.equal(error.native_receipt.usage_span.coverage,'partial');return true;});endpoint.close();
