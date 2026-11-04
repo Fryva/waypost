@@ -737,6 +737,71 @@ test("bin/waypost graph query: compact directions round-trip and ambiguous rows 
   }
 });
 
+test("bin/waypost graph query: adjacent edge labels preserve ordered facts and the row cap", () => {
+  const { proj, vault } = makeVaultProject();
+  const target = "adr/center.md", kind = "future:type:";
+  const decode = output => {
+    const triples = []; let group = null;
+    for (const line of output.split("\n").slice(4)) {
+      if (line.startsWith("  …and ") || !line) continue;
+      if (line.startsWith("    ")) {
+        assert.ok(group, "endpoint must have a label");
+        const endpoint = line.slice(4);
+        triples.push(group[0] === "out" ? [target, group[1], endpoint] : [endpoint, group[1], target]);
+      } else {
+        const header = /^  (in|out) (.+):$/.exec(line);
+        if (header) { group = header.slice(1); continue; }
+        group = null;
+        const single = /^  (in|out) (.+?): (.*)$/.exec(line);
+        assert.ok(single, line);
+        triples.push(single[1] === "out" ? [target, single[2], single[3]] : [single[3], single[2], target]);
+      }
+    }
+    return triples;
+  };
+  for (const eol of ["\n", "\r\n"]) for (const direction of ["in", "out"]) for (const count of [4, 5, 60, 61, 65]) {
+    const triples = Array.from({ length: count }, (_, i) => {
+      const endpoint = ` adr/Путь 🚀:${i % 4} with spaces.md `;
+      return direction === "out" ? [target, kind, endpoint] : [endpoint, kind, target];
+    });
+    writeFileSync(join(vault, "graph.md"), ["## Nodes", `| ${target} | Center | adr | accepted |`, "## Edges",
+      ...triples.map(row => `| ${row.join(" | ")} |`), ""].join(eol));
+    const result = runBinRaw(proj, ["graph", "--for", target]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(decode(result.stdout), triples.slice(0, 60), "duplicates, raw endpoint spaces and order survive");
+    assert.ok(result.stdout.startsWith(`${target}\n  Center · adr · accepted\n\nedges (${count}):\n`));
+    const firstEdge = result.stdout.split("\n")[4];
+    assert.equal(firstEdge, count < 5 ? `  ${direction} ${kind}: ${triples[0][direction === "out" ? 2 : 0]}` : `  ${direction} ${kind}:`);
+    assert.equal(result.stdout.endsWith(`  …and ${count - 60} more\n`), count > 60);
+  }
+});
+
+test("bin/waypost graph query: self, fallback, direction and raw kind changes break edge groups", () => {
+  const { proj, vault } = makeVaultProject(); const target = "adr/center.md";
+  const out = kind => `| ${target} | ${kind} | adr/other.md |`;
+  const self = `| ${target} | wikilink | ${target} |`;
+  const fallback = `|${target}|wikilink|adr/fallback.md|`;
+  const incoming = `| adr/source.md | wikilink | ${target} |`;
+  const rows = [...Array(4).fill(out("wikilink")), self, ...Array(4).fill(out("wikilink")), fallback,
+    ...Array(4).fill(out("wikilink")), incoming, ...Array(4).fill(out("wikilink")), out("Wikilink"), ...Array(4).fill(out("wikilink"))];
+  writeFileSync(join(vault, "graph.md"), ["## Nodes", `| ${target} | Center | adr | accepted |`, "## Edges", ...rows, ""].join("\n"));
+  const result = runBinRaw(proj, ["graph", "--for", target]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.split("\n").filter(line => line === "  out wikilink: adr/other.md").length, 20);
+  assert.ok(result.stdout.includes("  out Wikilink: adr/other.md\n"));
+  assert.ok(result.stdout.includes("  self wikilink\n"));
+  assert.ok(result.stdout.includes(`  ${target} → wikilink → adr/fallback.md\n`));
+  assert.ok(result.stdout.includes("  in wikilink: adr/source.md\n"));
+  assert.ok(!result.stdout.includes("\n    "));
+  writeFileSync(join(vault, "graph.md"), ["## Nodes", `| ${target} | Center | adr | accepted |`, "## Edges",
+    ...Array(56).fill(self), ...Array(5).fill(out("wikilink")), ""].join("\n"));
+  const capped = runBinRaw(proj, ["graph", "--for", target]);
+  assert.equal(capped.status, 0, capped.stderr);
+  assert.equal(capped.stdout.split("\n").filter(line => line === "  out wikilink: adr/other.md").length, 4);
+  assert.ok(!capped.stdout.includes("\n    "), "the fifth matching row outside the cap cannot complete a group");
+  assert.ok(capped.stdout.endsWith("  …and 1 more\n"));
+});
+
 test("bin/waypost graph query: exact node metadata inherits the header while mixed fallbacks stay full", () => {
   const { proj, vault } = makeVaultProject();
   const target = `epics/${"long-".repeat(20)}/stories/Путь with spaces.md`;

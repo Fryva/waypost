@@ -43,6 +43,7 @@ function handleGraphQuery(target, args) {
   }
   if (edges.length) {
     process.stdout.write(`\nedges (${edges.length}):\n`);
+    const edgeRows = [];
     for (const l of edges.slice(0, 60)) {
       // The header supplies the queried endpoint. Only canonical, unambiguous
       // rows can omit it; diagnostic/substring matches keep their full form.
@@ -51,11 +52,28 @@ function handleGraphQuery(target, args) {
         const [, from, kind, to] = row;
         const direction = from === needle ? (to === needle ? "self" : "out") : to === needle ? "in" : null;
         if (direction) {
-          process.stdout.write(`  ${direction} ${kind}${direction === "self" ? "" : `: ${direction === "out" ? to : from}`}\n`);
+          const endpoint = direction === "out" ? to : from;
+          edgeRows.push({ direction, kind, endpoint,
+            text: `  ${direction} ${kind}${direction === "self" ? "" : `: ${endpoint}`}\n` });
           continue;
         }
       }
-      process.stdout.write(`  ${l.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").replace(/\s*\|\s*/g, " → ")}\n`);
+      edgeRows.push({ text: `  ${l.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").replace(/\s*\|\s*/g, " → ")}\n` });
+    }
+    for (let edgeAt = 0; edgeAt < edgeRows.length;) {
+      const edgeFirst = edgeRows[edgeAt];
+      let edgeEnd = edgeAt + 1;
+      if (edgeFirst.direction === "in" || edgeFirst.direction === "out") {
+        while (edgeEnd < edgeRows.length && edgeRows[edgeEnd].direction === edgeFirst.direction &&
+          edgeRows[edgeEnd].kind === edgeFirst.kind) edgeEnd++;
+      }
+      const edgeRun = edgeRows.slice(edgeAt, edgeEnd);
+      const edgeLegacy = edgeRun.map(edgeItem => edgeItem.text).join("");
+      const edgeGrouped = edgeRun.length >= 5
+        ? `  ${edgeFirst.direction} ${edgeFirst.kind}:\n` + edgeRun.map(edgeItem => `    ${edgeItem.endpoint}\n`).join("") : null;
+      process.stdout.write(edgeGrouped !== null && Buffer.byteLength(edgeGrouped) < Buffer.byteLength(edgeLegacy)
+        ? edgeGrouped : edgeLegacy);
+      edgeAt = edgeEnd;
     }
     if (edges.length > 60) process.stdout.write(`  …and ${edges.length - 60} more\n`);
   }
