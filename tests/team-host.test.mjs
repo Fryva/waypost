@@ -1,3 +1,4 @@
+import {nativeUsage} from '../scripts/native-usage.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, realpathSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
@@ -778,4 +779,45 @@ test('evaluation rejects changed effective global/configuration inputs before in
  await assert.rejects(f.host.evaluateReadOnly({...f.request,nonce:'changed-config',control:false,identityInvocation:identity.invocation_id}),/effective-surface-mismatch/);
  assert.equal(f.calls.filter(x=>x==='native-send').length,count);
  await assert.rejects(f.host.evaluateReadOnly({...f.request,nonce:'changed-config-pin',control:false,expectedSurfaceDigest:pin,identityInvocation:identity.invocation_id}),/observed-identity-required/);
+});
+
+
+for(const malformed of [false,true])test('Host preserves scalar charge and sanitizes optional native diagnostics before sealing: '+malformed,async t=>{
+ const calls=[],schema='claude-native-first-turn-total-v1',after={input_tokens:'10',output_tokens:'5',cache_creation_input_tokens:'3',cache_read_input_tokens:'12'},before=Object.fromEntries(Object.keys(after).map(k=>[k,'0']));
+ const diagnostic=nativeUsage({schema,coverage:'complete',before:'0',after:'30',actual_tokens:'30'},before,after),make=claudePreflightTransport(calls);
+ const transport=async()=>{const endpoint=await make(),send=endpoint.send;return {...endpoint,async send(...args){const receipt=await send(...args);receipt.actualModel.observed_at=new Date().toISOString();receipt.usage_span.native_usage=malformed?{...diagnostic,delta:{...diagnostic.delta,output_tokens:'500'}}:diagnostic;return receipt;}};};
+ const f=await claudeSubscriptionFixture(t,transport),nonce='diagnostic-'+malformed;
+ // Identity seals are emitted only for owner-authorized native policy bootstrap.
+ f.team.native_policy_bootstrap=true;
+ const result=await f.host.subscriptionBootstrap({nonce,estimateTokens:'40',maxTokens:'100'}),x=f.state.subscription_invocations['subscription-'+nonce];
+ assert.equal(result.actual_tokens,'30');assert.equal(x.state,'settled');assert.equal(x.charged_tokens,'30');assert.ok(x.identity_seal);
+ if(malformed){assert.equal(result.native_usage_blocker,'native-usage-invalid');assert.equal(x.native_usage_blocker,'native-usage-invalid');assert.equal(x.receipt.native_usage_blocker,'native-usage-invalid');assert.ok(x.identity_seal.native_receipt.usage_span.blockers.includes('native-usage-invalid'));assert.equal(Object.hasOwn(x.receipt,'native_usage'),false);assert.equal(Object.hasOwn(x.receipt.identity_seal.native_receipt.usage_span,'native_usage'),false);}
+ else {assert.deepEqual(x.receipt.native_usage,diagnostic);assert.deepEqual(x.receipt.identity_seal.native_receipt.usage_span.native_usage,diagnostic);}
+});
+
+async function handoffPreflightFixture(t,{stopConfirmed=true,versionVerified=true,isolationVerified=true}={}){
+ const nativeCalls=[];
+ const f=fixture(t,{vaultPath:true,dependencies:{nativeVersionStatus:()=>({version:versionVerified?'2.1.296':'999.0.0',verified:versionVerified,blocker:versionVerified?null:'native-claude-preflight-version-unverified'}),createNativeEndpoint:async()=>{
+  nativeCalls.push('create');return {native_id:'preflight-native',usage_counter_schema:'claude-native-first-turn-total-v1',owns_process:true,async inspectContext(){nativeCalls.push('inspect');return {verified:isolationVerified,blocker:isolationVerified?null:'native-claude-context-not-fresh-no-tools'};},async captureAccountingMetadata(){nativeCalls.push('metadata');return {consistent:true,mode:'unknown',paid_fallback:'unknown',auth_method:null};},async send(){assert.fail('preflight must never invoke a model');},async stopAndWait(){nativeCalls.push('stop');return {stopped:stopConfirmed,native_id:'preflight-native',owned_processes:1,process_group_closed:stopConfirmed};}};
+ }}});
+ await f.host.bootstrap({participant:'participant',descriptor:{managed:true,harness:'claude',cwd:f.root,mode:'read-only',executable:join(f.root,'supported-claude')}});await f.host.registerParticipantHost();
+ const unit={scope:'team-native-counter',team:'team',counter_schema:'claude-native-first-turn-total-v1'},unitDigest=routingDigest(unit),expiry=new Date(Date.now()+300000).toISOString();
+ Object.assign(f.team,{accounting:{protocol:2,billing_policy:'inherited-native'},policy:{protocol:2,expires_at:expiry},native_delivery_policy:{revision:1,max_calls:2,max_estimate_tokens:'40',timeout_ms:60000,expires_at:expiry,unit_allocations:[{unit_digest:unitDigest,max_tokens:'80'}]}});
+ f.state.subscription_allocations={[unitDigest]:{protocol:2,unit_scope:unit,max_tokens:'100',revision:1}};
+ return {...f,nativeCalls,unitDigest};
+}
+test('Host preflight accepts a supported absolute Claude path and observes metadata in an owned operation without consuming',async t=>{
+ const f=await handoffPreflightFixture(t),before=structuredClone(f.state),result=await f.host.preflightHandoff({estimateTokens:'30'});
+ assert.equal(result.ready,true);assert.equal(result.native.version,'2.1.296');assert.equal(result.native.closed,true);assert.equal(result.native.authentication,'unknown');assert.equal(result.actual_model,'unknown-until-native-receipt');assert.equal(result.proof_reusable,false);assert.equal(result.model_requests,0);
+ assert.deepEqual(f.state,before);assert.deepEqual(f.nativeCalls.slice(0,4),['create','inspect','metadata','stop']);assert.ok(f.nativeCalls.filter(c=>c==='stop').length>=2);assert.equal(f.calls.some(c=>/subscription-(reserve|consume)/.test(c)),false);
+ const again=await f.host.preflightHandoff({estimateTokens:'30'});assert.equal(again.ready,true);assert.equal(f.nativeCalls.filter(c=>c==='create').length,2);
+});
+for(const condition of [{versionVerified:false},{isolationVerified:false},{stopConfirmed:false}])test('Host preflight reports failed native condition and cannot publish readiness: '+JSON.stringify(condition),async t=>{
+ const f=await handoffPreflightFixture(t,condition),result=await f.host.preflightHandoff({estimateTokens:'30'});
+ assert.equal(result.ready,false);assert.ok(result.blockers.length);assert.equal(result.model_requests,0);assert.equal(f.state.subscription_invocations,undefined);
+ if(condition.versionVerified===false){assert.equal(f.nativeCalls.length,0);assert.ok(result.blockers.includes('native-claude-preflight-version-unverified'));}
+});
+test('Host preflight refuses an exhausted owner call ceiling before native launch',async t=>{
+ const f=await handoffPreflightFixture(t);f.team.native_delivery_policy.max_calls=1;f.state.subscription_invocations={prior:{team:'team',unit_digest:f.unitDigest,purpose:'delivery',delivery_policy_revision:1,state:'settled',charged_tokens:'30'}};
+ const result=await f.host.preflightHandoff({estimateTokens:'30'});assert.equal(result.ready,false);assert.ok(result.blockers.includes('delivery-owner-call-ceiling-exceeded'));assert.deepEqual(f.nativeCalls,[]);
 });

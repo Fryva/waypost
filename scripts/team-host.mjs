@@ -1,3 +1,5 @@
+import {assertOwnedReadOnlyDescriptor,handoffAdmissionReadiness,collectHandoffNativePreflight} from './handoff-prepare.mjs';
+import { validateNativeUsage } from './native-usage.mjs';
 // Host-owned collectors and Git workflows. Native calls are consumed before dispatch.
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { resolve, join, dirname, parse } from 'node:path';
@@ -34,7 +36,7 @@ import { promptFor as boundedEditPrompt } from './team-implement-suite.mjs';
 import { parseProtocolJSON } from './team-role-suite.mjs';
 import { leasesOverStaged } from './commit.mjs';
 import { sessionId, storyRefOf } from './lib.mjs';
-import { admitRunBudget, removeRunBudgetEntry, runBudgetActive, defaultRunBudgetPath, readAuthorityState } from './run-budget.mjs';
+import { admitRunBudget, removeRunBudgetEntry, runBudgetActive, defaultRunBudgetPath, readAuthorityState, readRunBudget, runBudgetStatus } from './run-budget.mjs';
 const sha = x => createHash('sha256').update(typeof x === 'string' ? x : JSON.stringify(x)).digest('hex');
 function fail(code) { throw Object.assign(new Error(code),{code}); }
 // A lost write race is retried within a short total budget: the wait blocks this
@@ -116,7 +118,7 @@ export function createTeamHost(config, dependencies={}) {
   // External OpenCode sessions have no owned process to supervise.
   if(dependencies.createNativeEndpoint&&!forceOwned)return await fn();
   const d=endpoint(),{t}=getTeam(),p=t.participants[d.participant];
-  if(d.descriptor.mode==='workspace-write'||(d.descriptor.executable&&!['codex','claude','opencode'].includes(d.descriptor.executable)&&![CODEX_SURFACE_R1.id,CODEX_EVALUATION_SURFACE.id].includes(d.descriptor.tool_surface)))fail('host-owned-supervision-verified-read-only-adapter-required');
+  assertOwnedReadOnlyDescriptor(d.descriptor,dependencies.nativeVersionStatus);
   if(d.descriptor.harness==='opencode'&&!d.descriptor.spawn_server){if(forceOwned)fail('host-owned-control-endpoint-required');return await fn();}
   let epoch=t.epoch;
   if(nativeHandoverControl){
@@ -134,6 +136,33 @@ export function createTeamHost(config, dependencies={}) {
   const result=await runtime.run({kind,...(operation?{operation}:{})},async scope=>{activeOperation=scope;try{return await fn();}finally{activeOperation=null;}});
   return afterCompletion?await afterCompletion(result,{directory:runtimeDirectory,team,participant:p.id,incarnation:p.incarnation,epoch,descriptorDigest:routingDigest(d.descriptor),operation}):result;
   }finally{operationBusy=false;}
+ }
+ async function preflightHandoff({estimateTokens='16000'}={}) {
+  owner();const d=endpoint(),{v,t}=getTeam(),p=t.participants[d.participant],pc=credential(participantCredential);
+  if(authorizeActor(v.state,team,pc)!==p.id)fail('host-preflight-participant-binding-required');
+  // Resolve all registered private paths before any native process starts.
+  const registered=readParticipantHost({state:v.state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)});
+  if(registered.manifest.endpoint_file!==resolve(endpointPath)||registered.manifest.collector_file!==resolve(collectorPath)||registered.manifest.participant_credential_file!==resolve(participantCredential))fail('host-preflight-registered-paths-required');
+  const readiness=()=>{
+   const checked=handoffAdmissionReadiness({state:load().state,team,participant:p.id,descriptor:d.descriptor,estimateTokens,now:Date.parse(now())});
+   try{
+    const budget=readRunBudget(runBudgetPath()),status=budget&&runBudgetStatus({path:runBudgetPath(),deps:{readState:a=>a===realpathSync(authorityRoot)?load().state:readAuthorityState(a)}}),schema={codex:'codex-thread-cumulative-total-v1',claude:'claude-native-first-turn-total-v1',opencode:'opencode-native-normalized-step-total-v1'}[d.descriptor.harness];
+    checked.run_budget=status?{schema:status.schemas[schema]??null,total:status.total}:null;
+    if(budget&&Object.keys(budget.caps).length&&!Object.hasOwn(budget.caps,schema))checked.blockers.push('run-budget-schema-uncapped');
+    if(status&&[status.schemas[schema],status.total].some(row=>row?.remaining!==null&&row?.remaining!==undefined&&BigInt(row.remaining)<BigInt(estimateTokens)))checked.blockers.push('run-budget-exhausted');
+   }catch{checked.blockers.push('handoff-preflight-run-budget-unknown');}
+   checked.ready=checked.blockers.length===0;return checked;
+  };
+  const admission=readiness();
+  if(!admission.ready)return {protocol:1,...admission,native:null,proof_reusable:false,model_requests:0,actual_model:'unknown-until-native-receipt'};
+  try{return await managedOperation('preflight',async()=>{
+   const observed=await collectHandoffNativePreflight({descriptor:d.descriptor,create:native,versionStatus:dependencies.nativeVersionStatus});
+   const current=readiness(),blockers=[...new Set([...observed.blockers,...current.blockers])];
+   return {protocol:1,...current,...observed,ready:blockers.length===0,blockers,actual_model:'unknown-until-native-receipt'};
+  },{forceOwned:true});}catch(error){
+   const blocker=/^[a-z][a-z0-9-]{1,127}$/.test(error.code||error.message||'')?(error.code||error.message):'handoff-preflight-owned-operation-failed';
+   return {protocol:1,...readiness(),ready:false,blockers:[...new Set([...readiness().blockers,blocker])],native:null,proof_reusable:false,model_requests:0,actual_model:'unknown-until-native-receipt'};
+  }
  }
  async function subscriptionBootstrap({nonce,estimateTokens='16000',maxTokens='20000',operationId=null}={}) {
   return subscriptionSingleCall({nonce,estimateTokens,maxTokens,operationId});
@@ -790,6 +819,11 @@ export function createTeamHost(config, dependencies={}) {
      if(evidence.accounting_valid===false||evidence.violation!=='native-evaluation-tool-call')receipt={...receipt,usage_span:{...receipt.usage_span,coverage:'partial',actual_tokens:null,blockers:[...(receipt.usage_span?.blockers||[]),evidence.violation]}};
     }
    }
+   // Invalid optional diagnostics cannot erase a proved scalar terminal span.
+   let nativeUsageBlocker=null;
+   if(receipt.usage_span?.native_usage!==undefined){
+    try{validateNativeUsage(receipt.usage_span.native_usage,receipt.usage_span);}catch{const {native_usage,...span}=receipt.usage_span;nativeUsageBlocker='native-usage-invalid';receipt={...receipt,usage_span:{...span,blockers:[...(Array.isArray(span.blockers)?span.blockers:[]),nativeUsageBlocker]}};}
+   }
    const span=receipt.usage_span;
    const coverage=span?.schema===unit.counter_schema&&span.native_id===transport.native_id?span.coverage:'absent';
    const observed={provider:receipt.actualModel?.provider||'unknown',model_id:receipt.actualModel?.model_id||'unknown',reasoning:receipt.actualModel?.reasoning||'unknown'};
@@ -800,7 +834,7 @@ export function createTeamHost(config, dependencies={}) {
    const measurementSeal=trialBinding&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=8192?{...trialBinding.measurement,observed_at:receipt.actualModel?.observed_at??now(),original_output:rawOutput,output_digest:routingDigest(rawOutput),native_receipt_digest:routingDigest(nativeReceipt),native_receipt:nativeReceipt,outcome:nativeFailure===null?'completed':'failed'}:null;
    // The work seal (a private Git ref) is written before settlement, so a sealed dispatch never names a missing ref.
    const workSeal=workCall?await workCall.seal(rawOutput,nativeFailure):null;
-   const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&(evaluationCall?receipt.context_manifest?.evaluation_isolation_verified===true:receipt.context_manifest?.fresh_review_verified===true)&&(!transport.preflight_before_consume||typeof binding.preflight==='string'&&receipt.context_manifest?.preflight?.evidence_digest===binding.preflight),billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null,...(evaluationCall?{evaluation:evaluationCall.binding}:{}),...(measurementSeal?{measurement:measurementSeal}:{}),...(actionSeal?{action_seal:actionSeal}:{}),...(identitySeal?{identity_seal:identitySeal}:{}),...(workSeal?{work_seal:workSeal}:{}),...(deliveryMessage&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=DELIVERY_MAX_ANSWER_BYTES?{delivery:{output_digest:routingDigest(rawOutput),outcome:nativeFailure!==null?'failed':JSON.stringify(deliveryAnswerPayload(rawOutput,nonce)).length>16384?'too-large':'completed'}}:{})},...(deliveryMessage&&nativeFailure===null&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=DELIVERY_MAX_ANSWER_BYTES&&JSON.stringify(deliveryAnswerPayload(rawOutput,nonce)).length<=16384?{delivery_output:rawOutput}:{})},collector());
+   const settled=mutate('subscription-usage-v2',{invocation_id:invocationId,nonce,receipt:{nonce,context_id:contextId,native_id:transport.native_id,incarnation:p.incarnation,unit_scope:unit,counter_schema:unit.counter_schema,turn_id:span?.turn_id??null,isolation_verified:receipt.context_manifest?.native_id===transport.native_id&&receipt.context_manifest?.fresh===true&&receipt.context_manifest?.read_only===true&&(evaluationCall?receipt.context_manifest?.evaluation_isolation_verified===true:receipt.context_manifest?.fresh_review_verified===true)&&(!transport.preflight_before_consume||typeof binding.preflight==='string'&&receipt.context_manifest?.preflight?.evidence_digest===binding.preflight),billing_before:before,billing_after:after,observed_model:observed,coverage,before:span?.before??null,after:span?.after??null,actual_tokens:span?.actual_tokens??null,...(span?.native_usage!==undefined?{native_usage:span.native_usage}:{}),...(nativeUsageBlocker?{native_usage_blocker:nativeUsageBlocker}:{}),...(evaluationCall?{evaluation:evaluationCall.binding}:{}),...(measurementSeal?{measurement:measurementSeal}:{}),...(actionSeal?{action_seal:actionSeal}:{}),...(identitySeal?{identity_seal:identitySeal}:{}),...(workSeal?{work_seal:workSeal}:{}),...(deliveryMessage&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=DELIVERY_MAX_ANSWER_BYTES?{delivery:{output_digest:routingDigest(rawOutput),outcome:nativeFailure!==null?'failed':JSON.stringify(deliveryAnswerPayload(rawOutput,nonce)).length>16384?'too-large':'completed'}}:{})},...(deliveryMessage&&nativeFailure===null&&rawOutput!==null&&Buffer.byteLength(rawOutput)<=DELIVERY_MAX_ANSWER_BYTES&&JSON.stringify(deliveryAnswerPayload(rawOutput,nonce)).length<=16384?{delivery_output:rawOutput}:{})},collector());
    const probePassed=!trialBinding&&nativeFailure===null&&typeof receipt.output==='string'&&receipt.output.trim()===token;
    let controlPassed=false;if(controlAction&&nativeFailure===null&&rawOutput!==null)try{readProtocolActionResponse(rawOutput,controlAction);controlPassed=true;}catch{}
    const eligibleReceipt=evaluationCall?false:controlAction?controlPassed&&actionSeal!==null:trialBinding?nativeFailure===null&&measurementSeal!==null:probePassed;
@@ -956,7 +990,7 @@ export function createTeamHost(config, dependencies={}) {
   // descriptor. Historical consumes without whole-operation ledgers block stop.
   const {descriptor,binding}=readParticipantHost({state:v.state,teamId:team,participantId:p.id,authorityRoot:resolve(authorityRoot),projectRoot:resolve(projectRoot),vaultPath:config.vaultPath&&resolve(config.vaultPath)});
   if(descriptor.harness==='opencode'&&!descriptor.spawn_server)fail('native-process-stop-unverified-external-server');
-  if(descriptor.mode==='workspace-write'||(descriptor.executable&&!['codex','claude','opencode'].includes(descriptor.executable)&&![CODEX_SURFACE_R1.id,CODEX_EVALUATION_SURFACE.id].includes(descriptor.tool_surface)))fail('host-owned-supervision-verified-read-only-adapter-required');
+  assertOwnedReadOnlyDescriptor(descriptor,dependencies.nativeVersionStatus);
   const required=[...Object.values(t.runtime_requests||{}).filter(r=>r.participant===p.id&&r.incarnation===p.incarnation&&r.epoch===epoch&&r.consumed).map(r=>r.nonce),...Object.values(t.review_requests||{}).filter(r=>r.reviewer===p.id&&r.epoch===epoch&&r.consumed).map(r=>r.nonce),...Object.values(t.deliveries||{}).filter(r=>r.participant===p.id&&r.incarnation===p.incarnation&&r.epoch===epoch).map(r=>r.nonce)];
   for(const x of Object.values(v.state.invocations||{})){
    if(x.team!==team||x.epoch!==epoch||['prepared','aborted'].includes(x.state))continue;
@@ -1334,5 +1368,5 @@ export function createTeamHost(config, dependencies={}) {
   if(redistribution_required){try{return {...result.result,redistribution_required,redistribution:await driveQuotaHandover()};}catch(error){return {...result.result,redistribution_required,redistribution_blocker:error.code||error.message};}}
   return {...result.result,redistribution_required};
  }
- return {bootstrap,evaluateReadOnly,requestWorkPlan,planNativeWork,recoverWorkPlan,reviewNativeWorkPlan,recoverWorkPlanReview,installWorkPlan,reviseNativeWork,publishNativeWork,recoverNativePublication,abortNativePublication,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
+ return {bootstrap,preflightHandoff,evaluateReadOnly,requestWorkPlan,planNativeWork,recoverWorkPlan,reviewNativeWorkPlan,recoverWorkPlanReview,installWorkPlan,reviseNativeWork,publishNativeWork,recoverNativePublication,abortNativePublication,executeNativeWork,captureNativeWork,reviewNativeWork,recoverWorkReview,enableNativeWork,installWorkManifest,cancelNativeWork,resumeProtocolLeadership,reconcileProtocolControl,acceptUnknownUsage,enableNativeProtocolQuota,enableNativeProtocolHandover,observeNativeProtocolQuota,maintainNativeQuotaLease,driveNativeProtocolQuotaHandover,captureNativeProtocolStop,acknowledgeNativeProtocolHandover,recoverProtocolHandover,enableProtocolControl,enableProtocolReview,acknowledgeProtocolLeadership,auditProtocolLeadership,recoverProtocolLeadership,recoverProtocolAudit,openCalibrationCohort,calibrationSummary,calibrationPolicyProposal,installNativePolicy,observeModelInventory:()=>managedOperation('model-inventory',observeModelInventory),subscriptionCalibrationTrial:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('calibration-trial',()=>subscriptionCalibrationTrial({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},subscriptionBootstrap:async options=>{await ensureNativeQuotaLease();const operationId=randomUUID();return managedOperation('subscription-bootstrap',()=>subscriptionBootstrap({...options,operationId}),{operation:operationId,forceOwned:dependencies.ownedSubscriptionCalls===true});},registerParticipantHost,inspect:options=>managedOperation('inspect',()=>inspect(options)),checkout:options=>dependencies.createNativeEndpoint?checkout(options):managedOperation('checkout',()=>checkout(options)),candidate:options=>dependencies.createNativeEndpoint?candidate(options):managedOperation('candidate',()=>candidate(options)),publish:options=>managedOperation('publish',()=>publish(options)),review:options=>managedOperation('review',()=>review(options)),relay:options=>getTeam().t.accounting?.protocol===2?relaySubscription(options):managedOperation('relay',()=>relay(options)),enableNativeDelivery,installRoutingGrant,dispatchRouted:options=>managedOperation('dispatch',()=>dispatchRouted(options)),recoverPublication,observeQuota,driveQuotaHandover,acknowledgeHandover,acknowledgeAdoption};
 }
