@@ -133,3 +133,57 @@ test('bounded pagination persists progress without asking for a second native qu
   const state = t.writes.at(-1); assert.equal(state.poll_cursor, '1600');
   assert.equal(state.message_id, 'question'); assert.equal(t.calls.filter(c => c[0] === 'send').length, 1);
 });
+
+test('monotonic attempt timing measures each operation, including a failed relay and resume', async () => {
+  const p = fixture().prepare(), t = transport(p); let now = 0;
+  const wrap = (name, ms) => { const operation = t.deps[name]; t.deps[name] = async (...args) => { now += ms; return operation(...args); }; };
+  wrap('send', 3); wrap('relay', 7); wrap('poll', 2);
+  const first = await deliverHandoff(p, { ...t.deps, prepareMs: 5, clock: () => now });
+  assert.deepEqual(first.timings, { protocol: 1, scope: 'current-attempt', prepare_ms: 5, send_ms: 3, relay_ms: 7, poll_ms: 2, orchestration_ms: 12, total_ms: 17 });
+  assert.deepEqual(t.writes.at(-1).timings, first.timings);
+  const broken = transport(p, { relay: async () => { now += 11; throw Error('relay-stopped'); } });
+  await assert.rejects(deliverHandoff(p, { ...broken.deps, prepareMs: 4, clock: () => now }), /relay-stopped/);
+  const previous = broken.writes.at(-1);
+  assert.equal(previous.timings.relay_ms, 11); assert.equal(previous.timings.poll_ms, null); assert.equal(previous.timings.total_ms, 15);
+  const next = transport(p), resumed = await deliverHandoff(p, { ...next.deps, previous, clock: () => now });
+  assert.equal(resumed.request_key, previous.request_key);
+  assert.equal(resumed.timings.scope, 'current-attempt'); assert.equal(resumed.timings.relay_ms, 0);
+  assert.equal(resumed.timings.prepare_ms, null); assert.equal(resumed.timings.total_ms, null);
+  assert.equal(resumed.timings.orchestration_ms, 0);
+});
+test('poll timing aggregates pages without inventing a preparation duration', async () => {
+  const p = fixture().prepare(), t = transport(p); let now = 0, pages = 0;
+  t.deps.poll = async () => { now += 4; return ++pages === 1 ? { messages: [], cursor: 'next' } : { messages: [t.reply()] }; };
+  const state = await deliverHandoff(p, { ...t.deps, clock: () => now });
+  assert.equal(state.timings.poll_ms, 8); assert.equal(state.timings.orchestration_ms, 8);
+  assert.equal(state.timings.prepare_ms, null); assert.equal(state.timings.total_ms, null);
+  await assert.rejects(deliverHandoff(p, { ...t.deps, prepareMs: -1 }), /prepare-time/);
+});
+
+test('overall deadline persists across resume and expires without another send', async () => {
+  const p = fixture().prepare(), t = transport(p); let now = 1000;
+  t.deps.relay = async () => { now += 21; throw Error('interrupted'); };
+  await assert.rejects(deliverHandoff(p, { ...t.deps, timeoutMs: 20, wallClock: () => now }), /interrupted/);
+  const previous = t.writes.at(-1), next = transport(p);
+  assert.equal(previous.deadline_at, 1020);
+  await assert.rejects(deliverHandoff(p, { ...next.deps, previous, timeoutMs: 300000, wallClock: () => now }), /deadline/);
+  assert.equal(next.calls.length, 0); assert.equal(next.writes.at(-1).deadline_at, 1020);
+});
+test('callback boundaries share remaining deadline and preserve last acknowledged stage on overrun', async () => {
+  const p = fixture().prepare(), t = transport(p); let now = 1000, mono = 0;
+  t.deps.relay = async (_id, context) => {
+    assert.deepEqual(context, { deadlineAt: 1010, remainingMs: 10 });
+    now = 1011; mono = 11; return { results: [] };
+  };
+  await assert.rejects(deliverHandoff(p, { ...t.deps, timeoutMs: 10, wallClock: () => now, clock: () => mono }), /deadline/);
+  const state = t.writes.at(-1);
+  assert.equal(state.stage, 'sent'); assert.equal(state.timings.relay_ms, 11);
+  assert.equal(state.error, 'handoff-delivery-deadline');
+});
+test('legacy state receives one deadline without rebinding its question; timeout inputs are bounded', async () => {
+  const p = fixture().prepare(), t = transport(p), initial = await deliverHandoff(p, t.deps);
+  delete initial.deadline_at;
+  const next = transport(p), state = await deliverHandoff(p, { ...next.deps, previous: initial, wallClock: () => 1000, timeoutMs: 100 });
+  assert.equal(state.deadline_at, 1100); assert.equal(state.request_key, initial.request_key);
+  for (const timeoutMs of [0, -1, 300001, 1.5, NaN]) await assert.rejects(deliverHandoff(p, { ...t.deps, timeoutMs }), /timeout/);
+});

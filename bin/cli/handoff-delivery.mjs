@@ -2,11 +2,12 @@
 import { writeFileSync, openSync, closeSync, mkdtempSync, rmSync, realpathSync, renameSync, unlinkSync } from 'node:fs';
 import { resolve, dirname, basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { spawnSync } from 'node:child_process';
+import { runHandoffCommand } from './handoff-process.mjs';
 import { createHash, randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { projectRoot, ROOT } from './core.mjs';
 import { readHandoffJson, readHandoffFile } from '../../scripts/handoff.mjs';
-import { prepareHandoffDelivery, deliverHandoff, assertDeliveryDestination } from '../../scripts/handoff-delivery.mjs';
+import { prepareHandoffDelivery, deliverHandoff, assertDeliveryDestination, DELIVERY_DEFAULT_TIMEOUT_MS, DELIVERY_MAX_TIMEOUT_MS } from '../../scripts/handoff-delivery.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 export function writeDeliveryState(path, state, expected) {
@@ -31,16 +32,19 @@ function routeConfig(value) {
   return value;
 }
 export async function handleDelivery(rest) {
+  const preparationStarted = performance.now(), executionStarted = Date.now();
   let scratch;
   try {
     const options = {};
     for (let i = 0; i < rest.length; i += 2) {
       const [key, value] = rest.slice(i, i + 2);
-      if (!['--packet', '--task', '--config', '--state', '--resume'].includes(key) || Object.hasOwn(options, key) || !value || value.startsWith('--')) throw new Error('handoff-delivery-arguments');
+      if (!['--packet', '--task', '--config', '--state', '--resume', '--timeout-ms'].includes(key) || Object.hasOwn(options, key) || !value || value.startsWith('--')) throw new Error('handoff-delivery-arguments');
       options[key] = value;
     }
     const resuming = Object.hasOwn(options, '--resume');
-    if (!options['--config'] || (resuming ? Object.keys(options).length !== 2 : !options['--packet'] || !options['--task'] || !options['--state'] || Object.keys(options).length !== 4)) throw new Error('usage: handoff deliver --packet <relative-json> --task <json> --config <route-json> --state <new-json>; or --config <route-json> --resume <state-json>');
+    if (!options['--config'] || (resuming ? Object.keys(options).length !== 2 : !options['--packet'] || !options['--task'] || !options['--state'] || Object.keys(options).length !== (options['--timeout-ms'] ? 5 : 4))) throw new Error('usage: handoff deliver --packet <relative-json> --task <json> --config <route-json> --state <new-json> [--timeout-ms <1..300000>]; or --config <route-json> --resume <state-json>');
+    const timeoutMs = options['--timeout-ms'] === undefined ? DELIVERY_DEFAULT_TIMEOUT_MS : Number(options['--timeout-ms']);
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > DELIVERY_MAX_TIMEOUT_MS) throw new Error('handoff-delivery-timeout');
     const route = routeConfig(readHandoffJson(resolve(options['--config']))), selectedState = resolve(options[resuming ? '--resume' : '--state']);
     const statePath = join(realpathSync(dirname(selectedState)), basename(selectedState));
     let previous = null, prepared, expected;
@@ -62,12 +66,8 @@ export async function handleDelivery(rest) {
       expected = sha('');
     }
     const entry = join(ROOT, 'bin', 'waypost.mjs');
-    const command = args => {
-      const r = spawnSync(process.execPath, [entry, '--project', prepared.root, 'team', ...args], { encoding: 'utf8', maxBuffer: 1048576,
-        env: { ...process.env, WAYPOST_NO_BEAT: '1' } });
-      if (r.error || r.status !== 0) throw new Error('handoff-team-command-failed:' + (r.error?.code || r.status));
-      return JSON.parse(r.stdout);
-    };
+    const command = (args, context) => runHandoffCommand(process.execPath, [entry, '--project', prepared.root, 'team', ...args], {
+      ...context, env: { ...process.env, WAYPOST_NO_BEAT: '1' } });
     const persist = state => {
       expected = writeDeliveryState(statePath, state, expected);
     };
@@ -76,12 +76,12 @@ export async function handleDelivery(rest) {
     const request = join(scratch, 'request.json');
     const fd = openSync(request, 'wx', 0o600);
     try { writeFileSync(fd, JSON.stringify({ payload: prepared.payload }) + '\n'); } finally { closeSync(fd); }
-    const state = await deliverHandoff(prepared, { route, previous, persist,
-      send: (_payload, key) => command(['send', route.team, '--credential', route.sender_credential, '--to', route.receiver, '--kind', 'question', '--request-key', key, '--request-file', request]).result,
-      relay: id => command(['host', route.team, '--operation', 'relay', '--participant', route.receiver, '--credential', route.receiver_credential,
-        '--owner-credential', route.owner_credential, '--collector-credential', route.collector_credential, '--endpoint-file', route.endpoint, '--limit', '1', '--message-id', id]),
-      poll: cursor => command(['poll', route.team, '--credential', route.sender_credential, ...(cursor ? ['--cursor', cursor] : [])]) });
-    process.stdout.write(JSON.stringify({ stage: state.stage, message_id: state.message_id, challenge: state.challenge, answer: state.answer, state: statePath }, null, 2) + '\n');
+    const state = await deliverHandoff(prepared, { route, previous, persist, prepareMs: performance.now() - preparationStarted, timeoutMs, deadlineAt: executionStarted + timeoutMs,
+      send: async (_payload, key, context) => (await command(['send', route.team, '--credential', route.sender_credential, '--to', route.receiver, '--kind', 'question', '--request-key', key, '--request-file', request], context)).result,
+      relay: (id, context) => command(['host', route.team, '--operation', 'relay', '--participant', route.receiver, '--credential', route.receiver_credential,
+        '--owner-credential', route.owner_credential, '--collector-credential', route.collector_credential, '--endpoint-file', route.endpoint, '--limit', '1', '--message-id', id], context),
+      poll: (cursor, context) => command(['poll', route.team, '--credential', route.sender_credential, ...(cursor ? ['--cursor', cursor] : [])], context) });
+    process.stdout.write(JSON.stringify({ stage: state.stage, message_id: state.message_id, challenge: state.challenge, answer: state.answer, timings: state.timings, deadline_at: state.deadline_at, state: statePath }, null, 2) + '\n');
   } catch (e) {
     process.stderr.write(`waypost handoff deliver: ${e.message}${e.delivery_state ? ` (stage ${e.delivery_state.stage}, message ${e.delivery_state.message_id || 'not-sent'})` : ''}\n`);
     process.exitCode = 1;
