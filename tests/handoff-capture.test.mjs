@@ -126,7 +126,8 @@ test('SIGTERM to waypost kills the command group and re-raises the signal', posi
 
 test('inherited pipes have an independent bounded drain deadline', async () => {
   const f = fixture();
-  f.argv = [process.execPath, '-e', 'require("child_process").spawn(process.execPath,["-e","setTimeout(()=>{},2600)"],{stdio:["ignore",1,2]}).unref()'];
+  // Windows: a node child's own children die with it (libuv's job object) unless detached.
+  f.argv = [process.execPath, '-e', 'require("child_process").spawn(process.execPath,["-e","setTimeout(()=>{},2600)"],{stdio:["ignore",1,2],detached:process.platform==="win32"}).unref()'];
   const r = await captureCommand(f);
   assert.equal(r.status, 1); assert.equal(r.receipt.command.exit_code, 0);
   assert.equal(r.receipt.capture.reason, 'capture-pipe-drain-timeout');

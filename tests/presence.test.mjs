@@ -1304,6 +1304,8 @@ test("doctor says so when there is no process table, and says nothing when there
   // The reason this check exists at all: on the host that found WP-19 the table
   // parsed to nothing, and doctor reported clean. Every liveness decision was
   // quietly downgraded and no check mentioned it.
+  // Windows has no process table to miss: liveness there never asks for one.
+  if (platform() === "win32") { assert.deepEqual(checkProcessTable(null), []); return; }
   const findings = checkProcessTable(null);
   assert.equal(findings.length, 1);
   assert.equal(findings[0].check, "process-table");

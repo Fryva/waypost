@@ -106,12 +106,12 @@ test("presence storage module: Git common directory, outside vault and root-vaul
   withProject(root, () => {
     const vault = join(root, "docs", "vault"), c = focused.coordinationDirs(vault);
     assert.equal(c.primary, join(root, ".git", "waypost", "docs-vault"));
-    assert.equal(c.common, join(root, ".git")); assert.equal(c.legacy, join(vault, ".projectstore"));
+    assert.equal(c.common, join(root, ".git").replace(/\\/g, "/")); assert.equal(c.legacy, join(vault, ".projectstore"));
     assert.equal(focused.legacyPresenceDir(vault), join(c.legacy, "presence"));
     assert.equal(focused.legacyLeaseDir(vault), join(c.legacy, "leases"));
     assert.equal(focused.coordinationDirs(root).primary, join(root, ".git", "waypost", "vault"));
     const away = join(root, "..", "outside-vault");
-    assert.deepEqual(focused.coordinationDirs(away), { primary: join(away, ".projectstore"), legacy: null, common: join(root, ".git") });
+    assert.deepEqual(focused.coordinationDirs(away), { primary: join(away, ".projectstore"), legacy: null, common: join(root, ".git").replace(/\\/g, "/") });
   });
 });
 
@@ -135,5 +135,5 @@ test("presence storage module: linked worktree inherits the main binding and ove
   const a = withProject(root, () => focused.coordinationDirs(join(root, "vault")));
   const b = withProject(linked, () => focused.coordinationDirs(join(linked, "vault")));
   assert.notEqual(a, b); assert.equal(a.primary, join(root, "coord")); assert.equal(b.primary, a.primary);
-  assert.equal(b.common, join(root, ".git")); assert.equal(b.legacy, join(linked, "vault", ".projectstore"));
+  assert.equal(b.common, join(root, ".git").replace(/\\/g, "/")); assert.equal(b.legacy, join(linked, "vault", ".projectstore"));
 });
