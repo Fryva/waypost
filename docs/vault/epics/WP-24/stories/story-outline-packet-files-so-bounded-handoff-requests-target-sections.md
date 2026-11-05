@@ -3,7 +3,7 @@ type: story
 id: "story-outline-packet-files-so-bounded-handoff-requests-target-sections"
 epic: "WP-24"
 title: "Outline packet files so bounded handoff requests target sections"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-11-05
@@ -13,7 +13,7 @@ tags: []
 code_refs: ["scripts/handoff-retrieval.mjs", "bin/cli/handoff-retrieval.mjs", "tests/handoff-retrieval.test.mjs", "docs/handoffs.md"]
 specs: []
 started_at: "2026-11-05T13:45:23.237Z"
-closed_at: null
+closed_at: "2026-11-05T22:01:31.957Z"
 plan_updated_at: "2026-11-05T13:45:23.237Z"
 ---
 
@@ -22,7 +22,7 @@ plan_updated_at: "2026-11-05T13:45:23.237Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-24](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -55,7 +55,7 @@ Waypost already ships rather than to model internals.
       advisory; range requests stay exactly as they are.
 - [x] Deterministic tests: headings/declarations, CRLF and BOM, empty and
       outline-less files, truncation at the bounds, stale file refused as before.
-- [ ] One retained native example on the same task with and without outline:
+- [x] One retained native example on the same task with and without outline:
       request rounds, fragment bytes, answer correctness, native counters.
 
 ## Implementation Plan
@@ -106,14 +106,42 @@ as CLI state stores it; only a 512-character line prefix is matched.
       fragment, and grant no tools or authority. — evidence: outline sentence of the response contract; a tampered label fails rebuild with resume-context (test "the outline is opt-in…").
 - [x] V1 one-shot delivery and packets created before this change behave as
       before. — evidence: no diff in scripts/handoff.mjs, scripts/handoff-delivery.mjs, bin/cli/handoff-delivery.mjs; outline is opt-in and an outline-less payload is byte-identical; states resume with the choice they were prepared with; tests/handoff-delivery.test.mjs green.
-- [ ] A retained native example reports rounds, fragment bytes and native
+- [x] A retained native example reports rounds, fragment bytes and native
       counters with and without outline; no token saving is claimed without
-      complete counters and an equally correct answer.
+      complete counters and an equally correct answer. — evidence: owner-approved
+      live run 2026-11-05 (Claude 2.1.296, observed `claude-sonnet-5-5`, fresh
+      read-only contexts, every call settled with complete coverage; ceiling 7
+      calls / 80000 tokens, prior budget policy restored). Same task: the
+      escalation code of one section of a 592-line, 24582-byte handbook (line
+      450), two decoy files, nothing inlined. Without outline: one round, the
+      receiver asked for `docs/handbook.md` 1-200 (8211 bytes), refused
+      fail-closed as `handoff-retrieval-fragment-limit`, no answer, 3133 tokens.
+      With outline: round 1 asked for exactly the listed range 425-466 (1736
+      bytes), round 2 answered correctly; 2 rounds, 7761 cumulative payload
+      bytes, 3604 + 4402 = 8006 tokens. Control 2035; total 4 calls, 13174
+      tokens. The answers are not equally correct, so no saving is claimed; one
+      example, not a measurement of how often blind requests fail. Machine-local
+      evidence: `~/.local/state/waypost/experiments/wp24-outline-20261105-62d93d84-c91d-4bfe-bef7-5a5187666bf1/`
+      (`live-results.json`, `study.json`, drivers in `evidence/`).
 
 ## Final Summary
 
 <!-- Written at the done gate (waypost story close): what changed, why,
      tests executed, risks and follow-ups. -->
+
+`handoff continue` accepts `"outline": true` in the request JSON. The first
+retrieval payload then carries an advisory table of contents of the packet's
+non-inlined markdown/JS files: `"start_line-end_line bytes label"` entries on
+the same LF lines and verified bytes the host serves, bounded per file and in
+total, dropped from a later round that cannot carry it. Off by default, so
+existing payloads, V1 one-shot delivery and resumed states stay byte-identical.
+Implemented in c6af106 (`scripts/handoff-retrieval.mjs`, CLI task key,
+`docs/handoffs.md`); two waypost-reviewer passes; focused retrieval and delivery
+suites green (the state-file cap found on the way was fixed separately in
+b240580). The live example shows the failure the outline exists for: a blind
+200-line request overran the 8 KiB fragment limit, while the outlined receiver
+asked for the exact section and answered. Follow-ups: no CLI test for the
+`outline` key yet; ranking `waypost search` by section is a separate idea.
 
 ## Technical Notes
 
