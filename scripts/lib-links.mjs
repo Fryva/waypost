@@ -22,11 +22,12 @@ export function stripCodeSpans(s) {
 export function extractLinks(text) {
   const prose = stripCodeSpans(text);
   const out = [];
-  for (const m of prose.matchAll(/\[\[([^\]]+)\]\]/g)) {
+  // Stripping may join delimiters, so inspect prose rather than the raw input.
+  if (typeof prose !== "string" || prose.includes("[[")) for (const m of prose.matchAll(/\[\[([^\]]+)\]\]/g)) {
     const target = m[1].split(/\\?\|/)[0].split("#")[0].trim();
     if (target) out.push({ type: "wikilink", target });
   }
-  for (const m of prose.matchAll(/\]\(([^)\s]+)\)/g)) {
+  if (typeof prose !== "string" || prose.includes("](")) for (const m of prose.matchAll(/\]\(([^)\s]+)\)/g)) {
     const t = m[1];
     if (!t.startsWith("./") && !t.startsWith("../")) continue;
     const target = t.split("#")[0];

@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-04T22:51:58.008Z
+generated_at: 2026-11-05T01:02:38.263Z
 
 ---
 
@@ -189,6 +189,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | WP-21 | Share adjacent graph edge labels in query output | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Share the observed-token label across Codex context rows | `scripts/token-codex-format.mjs`, `tests/token-codex-format.test.mjs`, `docs/cli-reference.md` |
 | WP-21 | Skip impossible numbered artifact regex matches | `scripts/lib-identity.mjs`, `tests/lib-identity.test.mjs` |
+| WP-21 | Skip link-family scans without their prose delimiters | `scripts/lib-links.mjs`, `tests/lib-links.test.mjs` |
 | WP-21 | Skip parsing search documents that cannot match the query | `bin/cli/views.mjs`, `tests/scripts.test.mjs`, `scripts/lib-frontmatter.mjs`, `tests/harness.test.mjs`, `tests/state-migrate.test.mjs`, `docs/vault/adr/0008-token-budget.md` |
 | WP-21 | State repeated ADR check execution guidance once per doctor group | `scripts/doctor-report.mjs`, `tests/doctor-report.test.mjs`, `tests/scripts.test.mjs` |
 | WP-21 | Stream explicit JSON previews for derived views | `bin/cli/views.mjs`, `bin/cli/core.mjs`, `scripts/graph.mjs`, `scripts/kanban.mjs`, `scripts/codemap.mjs`, `tests/harness.test.mjs`, `tests/scripts.test.mjs`, `tests/state-migrate.test.mjs`, `docs/cli-reference.md`, `docs/vault/adr/0008-token-budget.md` |

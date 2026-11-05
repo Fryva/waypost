@@ -121,3 +121,36 @@ test("legacy link matching retains raw anchors, duplicates and higher tier prece
   Object.defineProperty(index, "nodes", { get() { throw Error("tier 3 must remain lazy"); } });
   assert.equal(focused.resolveLinkTarget("ADR-004", "ref", ctx).node, first);
 });
+
+test("link-family guards inspect stripped prose and preserve joined delimiters", () => {
+  for (const removed of ["`cut`", "<!--cut-->", "```\ncut\n```"])
+    assert.deepEqual(focused.extractLinks(`[${removed}[joined]] [x]${removed}(./joined.md)`), [
+      { type: "wikilink", target: "joined" }, { type: "mdlink", target: "./joined.md" },
+    ]);
+  for (const text of ["", "ordinary prose", "[ ] unchecked", "`[[hidden]]` <!-- [x](./hidden.md) -->"])
+    assert.deepEqual(focused.extractLinks(text), []);
+  assert.deepEqual(focused.extractLinks("[[only]]"), [{ type: "wikilink", target: "only" }]);
+  assert.deepEqual(focused.extractLinks("](./without-opening-bracket.md)"), [{ type: "mdlink", target: "./without-opening-bracket.md" }]);
+});
+
+test("link-family guards retain non-string replace/matchAll calls and error identities", () => {
+  for (const failAt of [null, 1, 2]) {
+    const calls = [], failure = new Error("matchAll failed"); let matches = 0;
+    const text = {
+      replace(re, replacement) { calls.push(["replace", re.source, replacement]); return this; },
+      get includes() { throw Error("non-string includes must not be read"); },
+      matchAll(re) {
+        calls.push(["matchAll", re.source]);
+        if (++matches === failAt) throw failure;
+        return [["ignored", matches === 1 ? "target" : "./target.md"]];
+      },
+    };
+    if (failAt) assert.throws(() => focused.extractLinks(text), error => error === failure);
+    else assert.deepEqual(focused.extractLinks(text), [{ type: "wikilink", target: "target" }, { type: "mdlink", target: "./target.md" }]);
+    assert.deepEqual(calls.slice(0, 3).map(call => call[0]), ["replace", "replace", "replace"]);
+    assert.equal(calls.length, 3 + (failAt || 2));
+  }
+  for (const input of [null, undefined, 42]) assert.throws(() => focused.extractLinks(input), TypeError);
+  const failure = new Error("replace failed");
+  assert.throws(() => focused.extractLinks({ replace() { throw failure; } }), error => error === failure);
+});
