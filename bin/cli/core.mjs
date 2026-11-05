@@ -117,6 +117,16 @@ function opt(args, name, dflt = null) {
   return eq ? eq.slice(name.length + 1) : dflt;
 }
 
+// `<cmd> --help` on a command with no help of its own used to RUN the
+// command — `setup --help` bound a vault and wrote roles into the project.
+// Only the commands that parse --help/-h themselves keep them; for the rest
+// the entry prints the general help instead. After `--` they belong to the
+// wrapped argv (`run --heavy -- cmd -h`), which flag() already respects.
+const OWN_HELP = new Set(["agents", "harnesses", "tokens"]);
+function asksHelp(cmd, args) {
+  return !!cmd && !OWN_HELP.has(cmd) && (flag(args, "--help") || flag(args, "-h"));
+}
+
 function positionals(args) {
   const { head, tail } = splitAtTerminator(args);
   const out = [];
@@ -298,4 +308,4 @@ function bootAuthority(capacity) {
   return BOOT_AUTHORITY;
 }
 
-export { INHERITED_SESSION_ID, INHERITED_HARNESS, INHERITED_PROC, ROOT, SCRIPT, SCRIPT_URL, VERSION, fail, run, runJson, projectRoot, configPath, readConfig, VALUED, splitAtTerminator, flag, opt, positionals, withRegistryHome, registryReadFailed, detectedHarnesses, runningHarness, passThrough, GB, tildeHome, warnedCleanNowProbed, lastCleanNowHonored, cleanNow, warnIfProbed, BOOT_AUTHORITY, bootAuthority };
+export { INHERITED_SESSION_ID, INHERITED_HARNESS, INHERITED_PROC, ROOT, SCRIPT, SCRIPT_URL, VERSION, fail, run, runJson, projectRoot, configPath, readConfig, VALUED, splitAtTerminator, flag, opt, asksHelp, positionals, withRegistryHome, registryReadFailed, detectedHarnesses, runningHarness, passThrough, GB, tildeHome, warnedCleanNowProbed, lastCleanNowHonored, cleanNow, warnIfProbed, BOOT_AUTHORITY, bootAuthority };

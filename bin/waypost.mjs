@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { accountStateDir, expandHome, isLinkedWorktree, legacyDirsToMove, legacyStateDirs, machineStateDir, sessionId, sessionIdFlag, worktreeTag } from "../scripts/lib.mjs";
-import { SCRIPT_URL, VERSION, fail, opt, positionals, readConfig, run, withRegistryHome } from "./cli/core.mjs";
+import { SCRIPT_URL, VERSION, asksHelp, fail, opt, positionals, readConfig, run, withRegistryHome } from "./cli/core.mjs";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
@@ -118,7 +118,8 @@ async function main() {
   // invoked the CLI here — not inside a script bin/waypost spawns, whose parent
   // pid is bin/waypost itself and differs on every invocation. Every child this
   // process spawns inherits both via `env: { ...process.env }`.
-  const [cmd = "", ...rest] = args;
+  let [cmd = "", ...rest] = args;
+  if (asksHelp(cmd, rest)) cmd = "help";
   if (cmd && !["help", "--help", "-h", "version", "--version", "-v"].includes(cmd)) await migrateStateIfNeeded();
   // The harness process first (ADR-0007 amendment): the scripts this command
   // spawns beat as well, and from inside them the nearest ancestor is this very

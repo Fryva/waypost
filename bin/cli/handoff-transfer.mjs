@@ -29,7 +29,7 @@ export async function handleTransfer(rest) {
       if (!modes[mode].includes(key) || Object.hasOwn(options, key) || typeof value !== 'string' || !value || value.startsWith('--')) throw new Error('handoff-transfer-options');
       options[key] = value;
     }
-    const required = mode === 'export' ? ['--config', '--packet', '--selection', '--output'] : ['--config', '--store', ...(mode === 'import' ? ['--input'] : mode === 'report' ? ['--manifest'] : [])];
+    const required = mode === 'export' ? ['--config', '--packet', '--selection', '--output'] : ['--config', '--store', ...(mode === 'import' ? ['--input'] : mode === 'report' ? ['--manifest'] : ['--keep'])]; // gc without --keep would collect every snapshot
     if (required.some(key => !options[key]) || Boolean(options['--base']) !== Boolean(options['--availability-id'])) throw new Error('handoff-transfer-required-options');
     const cfg = readConfig(); if (!cfg?.vault_path) throw new Error('bind-a-vault-before-handoff-transfer');
     const root = resolve(projectRoot()), authorityRoot = join(coordinationDirs(cfg.vault_path).primary, 'teams', 'authority');

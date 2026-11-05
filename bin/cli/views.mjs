@@ -44,7 +44,19 @@ function handleGraphQuery(target, args) {
   if (edges.length) {
     process.stdout.write(`\nedges (${edges.length}):\n`);
     const edgeRows = [];
-    for (const l of edges.slice(0, 60)) {
+    // Backlinks are what a query is usually for, yet on a hub (an epic with a
+    // hundred stories) its own outgoing rows filled the whole bound and hid
+    // every incoming one. Past the bound incoming rows go first — those from a
+    // node this one does not itself link to before the mirrored ones (a
+    // story's link back to its epic) — and `--all` lifts it.
+    let shown = edges;
+    if (edges.length > 60 && !flag(args, "--all")) {
+      const cells = l => /^\| ([^|]+) \| [^|]+ \| ([^|]+) \|\r?$/.exec(l);
+      const outTo = new Set(edges.map(cells).filter(r => r && r[1] === needle).map(r => r[2]));
+      const rank = l => { const r = cells(l); return !r || r[2] !== needle || r[1] === needle ? 2 : outTo.has(r[1]) ? 1 : 0; };
+      shown = [0, 1, 2].flatMap(k => edges.filter(l => rank(l) === k)).slice(0, 60);
+    }
+    for (const l of shown) {
       // The header supplies the queried endpoint. Only canonical, unambiguous
       // rows can omit it; diagnostic/substring matches keep their full form.
       const row = /^\| ([^|]+) \| ([^|]+) \| ([^|]+) \|\r?$/.exec(l);
@@ -75,7 +87,7 @@ function handleGraphQuery(target, args) {
         ? edgeGrouped : edgeLegacy);
       edgeAt = edgeEnd;
     }
-    if (edges.length > 60) process.stdout.write(`  …and ${edges.length - 60} more\n`);
+    if (shown.length < edges.length) process.stdout.write(`  …and ${edges.length - shown.length} more (--all)\n`);
   }
 }
 

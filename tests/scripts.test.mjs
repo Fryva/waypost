@@ -688,13 +688,19 @@ test("bin/waypost graph query: section identity bounds all edge kinds and preser
     writeFileSync(join(vault, "graph.md"), ["## Nodes", "", "| Path | Title | Type | Status |",
       `| ${target} | links | adr | accepted |`, "", "## Edges", "", "| From | Kind | To |",
       ...edges.map(cells => `| ${cells.join(" | ")} |`), ""].join(eol));
+    const render = shown => `${target}\n  links · adr · accepted\n` + (count
+      ? `\nedges (${count}):\n` + shown.map(([from, kind, to]) => from === target
+        ? `  out ${kind}: ${to}\n` : `  in ${kind}: ${from}\n`).join("") +
+        (shown.length < count ? `  …and ${count - shown.length} more (--all)\n` : "") : "");
+    // Past the bound incoming rows go first, so a hub's backlinks stay visible.
+    const bounded = count > 60
+      ? [...edges.filter(([from]) => from !== target), ...edges.filter(([from]) => from === target)].slice(0, 60) : edges;
     const r = runBinRaw(proj, ["graph", "--for", ".\\adr\\center.md"]);
     assert.equal(r.status, 0, r.stderr);
-    const expected = `${target}\n  links · adr · accepted\n` + (count
-      ? `\nedges (${count}):\n` + edges.slice(0, 60).map(([from, kind, to]) => from === target
-        ? `  out ${kind}: ${to}\n` : `  in ${kind}: ${from}\n`).join("") +
-        (count > 60 ? `  …and ${count - 60} more\n` : "") : "");
-    assert.equal(r.stdout, expected);
+    assert.equal(r.stdout, render(bounded));
+    const all = runBinRaw(proj, ["graph", "--for", target, "--all"]);
+    assert.equal(all.status, 0, all.stderr);
+    assert.equal(all.stdout, render(edges));
   }
   const missing = runBinRaw(proj, ["graph", "--for", "adr/not-here.md"]);
   assert.notEqual(missing.status, 0);
@@ -704,6 +710,21 @@ test("bin/waypost graph query: section identity bounds all edge kinds and preser
   const absent = runBinRaw(proj, ["graph", "--for", target]);
   assert.notEqual(absent.status, 0);
   assert.match(absent.stderr, /no graph.md yet/);
+});
+
+test("bin/waypost graph query: past the bound a backlink from an unlinked node precedes mirrored ones", () => {
+  const { proj, vault } = makeVaultProject();
+  const target = "epics/E1/epic.md", stories = Array.from({ length: 40 }, (_, i) => `epics/E1/stories/s${i}.md`);
+  const rows = [...stories.map(s => [target, "epic-contains", s]), ...stories.map(s => [s, "mdlink", target]),
+    ["research/note.md", "wikilink", target]];
+  writeFileSync(join(vault, "graph.md"), ["## Nodes", `| ${target} | Epic | epic | in-progress |`, "## Edges",
+    ...rows.map(r => `| ${r.join(" | ")} |`), ""].join("\n"));
+  const r = runBinRaw(proj, ["graph", "--for", target]);
+  assert.equal(r.status, 0, r.stderr);
+  const edgeLines = r.stdout.split("\nedges (81):\n")[1].split("\n");
+  assert.equal(edgeLines[0], "  in wikilink: research/note.md", "the one real backlink is not lost behind mirrored ones");
+  assert.equal(edgeLines[1], "  in mdlink:", "then the mirrored backlinks, grouped");
+  assert.ok(r.stdout.endsWith("  …and 21 more (--all)\n"));
 });
 
 test("bin/waypost graph query: compact directions round-trip and ambiguous rows keep full fallback", () => {
@@ -772,7 +793,7 @@ test("bin/waypost graph query: adjacent edge labels preserve ordered facts and t
     assert.ok(result.stdout.startsWith(`${target}\n  Center · adr · accepted\n\nedges (${count}):\n`));
     const firstEdge = result.stdout.split("\n")[4];
     assert.equal(firstEdge, count < 5 ? `  ${direction} ${kind}: ${triples[0][direction === "out" ? 2 : 0]}` : `  ${direction} ${kind}:`);
-    assert.equal(result.stdout.endsWith(`  …and ${count - 60} more\n`), count > 60);
+    assert.equal(result.stdout.endsWith(`  …and ${count - 60} more (--all)\n`), count > 60);
   }
 });
 
@@ -799,7 +820,7 @@ test("bin/waypost graph query: self, fallback, direction and raw kind changes br
   assert.equal(capped.status, 0, capped.stderr);
   assert.equal(capped.stdout.split("\n").filter(line => line === "  out wikilink: adr/other.md").length, 4);
   assert.ok(!capped.stdout.includes("\n    "), "the fifth matching row outside the cap cannot complete a group");
-  assert.ok(capped.stdout.endsWith("  …and 1 more\n"));
+  assert.ok(capped.stdout.endsWith("  …and 1 more (--all)\n"));
 });
 
 test("bin/waypost graph query: exact node metadata inherits the header while mixed fallbacks stay full", () => {

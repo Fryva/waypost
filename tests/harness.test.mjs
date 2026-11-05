@@ -1481,6 +1481,37 @@ test("unknown commands and unbound vaults fail loudly, never silently", () => {
   }
 });
 
+test("<cmd> --help prints help instead of running a command that has none", () => {
+  const proj = project();
+  const before = readdirSync(proj).sort();
+  // Hermetic: were the interception to break, `setup` would really run discovery.
+  const env = hermeticDiscoveryEnv();
+  for (const args of [["setup", "--help"], ["bind", "-h"], ["team", "--help"], ["run", "--heavy", "-h"]]) {
+    const r = waypost(proj, args, { env });
+    assert.match(r.stdout, /^waypost — /, `${args.join(" ")} prints the general help`);
+  }
+  assert.deepEqual(readdirSync(proj).sort(), before, "no command ran: nothing was bound or installed");
+  assert.match(waypost(proj, ["tokens", "--help"], { env }).stdout, /^Usage: /, "tokens keeps its own help");
+  // After `--` the flag belongs to the wrapped argv; the commands that parse help keep it.
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e",
+    `const { asksHelp } = await import(${moduleUrl(REPO, "bin", "cli", "core.mjs")});` +
+    `console.log(JSON.stringify([asksHelp("run", ["--heavy", "--", "echo", "x", "-h"]), asksHelp("search", ["--", "-h"]),` +
+    `asksHelp("harnesses", ["-h"]), asksHelp("agents", ["show", "reviewer", "--help"]), asksHelp("commit", ["--help"])]))`],
+    { encoding: "utf8", env: { ...ambientEnv(), ...env } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout), [false, false, false, false, true]);
+});
+
+test("handoff transfer gc refuses to run without --keep instead of collecting every snapshot", () => {
+  const proj = project();
+  const gc = ["handoff", "transfer", "gc", "--config", "route.json", "--store", "store"];
+  const r = waypost(proj, gc, { expectFail: true });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr + r.stdout, /handoff-transfer-required-options/);
+  const kept = waypost(proj, [...gc, "--keep", "a".repeat(64)], { expectFail: true });
+  assert.doesNotMatch(kept.stderr + kept.stdout, /handoff-transfer-required-options/, "--keep satisfies the option check");
+});
+
 test("help lists every command the dispatcher actually implements", () => {
   const proj = project();
   const help = waypost(proj, ["help"]).stdout;
