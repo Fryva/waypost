@@ -3,18 +3,18 @@ type: story
 id: "story-outline-packet-files-so-bounded-handoff-requests-target-sections"
 epic: "WP-24"
 title: "Outline packet files so bounded handoff requests target sections"
-status: planned
+status: in-progress
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-11-05
 updated: 2026-11-05
 external_refs: {}
 tags: []
-code_refs: ["scripts/handoff.mjs", "scripts/handoff-delivery.mjs", "scripts/handoff-retrieval.mjs", "tests/handoff-retrieval.test.mjs", "docs/handoffs.md"]
+code_refs: ["scripts/handoff-retrieval.mjs", "bin/cli/handoff-retrieval.mjs", "tests/handoff-retrieval.test.mjs", "docs/handoffs.md"]
 specs: []
-started_at: null
+started_at: "2026-11-05T13:45:23.237Z"
 closed_at: null
-plan_updated_at: null
+plan_updated_at: "2026-11-05T13:45:23.237Z"
 ---
 
 # Outline packet files so bounded handoff requests target sections
@@ -22,7 +22,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-24](../epic.md) |
-| **Status** | planned |
+| **Status** | in-progress |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -45,15 +45,15 @@ Waypost already ships rather than to model internals.
 
 ## Decomposition
 
-- [ ] Deterministic outline extractor, pure node: markdown ATX headings and
+- [x] Deterministic outline extractor, pure node: markdown ATX headings and
       top-level JS/MJS declarations (`export function|class|const`,
       `function`); any other file type gets no outline.
-- [ ] Attach the outline to the delivered payload, computed from the same
+- [x] Attach the outline to the delivered payload, computed from the same
       verified bytes whose `sha256` the packet records; bounded per file and in
       total, counted inside the existing 16 KiB payload limit.
-- [ ] Response-contract text tells the receiver the outline exists and is
+- [x] Response-contract text tells the receiver the outline exists and is
       advisory; range requests stay exactly as they are.
-- [ ] Deterministic tests: headings/declarations, CRLF and BOM, empty and
+- [x] Deterministic tests: headings/declarations, CRLF and BOM, empty and
       outline-less files, truncation at the bounds, stale file refused as before.
 - [ ] One retained native example on the same task with and without outline:
       request rounds, fragment bytes, answer correctness, native counters.
@@ -64,22 +64,48 @@ Waypost already ships rather than to model internals.
      codebase. When a spec covers this story, this is a thin route through the
      spec's contracts: which contracts, in what order, which files. -->
 
+Decided at plan (waypost-planner, fresh context): the outline lives in the
+retrieval payload, not in the packet. The packet schema is strict and versioned,
+its content is caller-written and would have to be recomputed anyway, and old
+packets need delivery-time computation regardless. Only
+`prepareHandoffRetrieval` adds it, so V1 one-shot payloads, bindings and the
+benchmark driver stay byte-identical.
+
+1. `scripts/handoff-retrieval.mjs`: share packet references, verified text and
+   LF splitting between `readHandoffRequests` and the outline (same error codes
+   and order); `OUTLINE_LIMITS`; pure `outlineLines(path, lines)`;
+   `attachOutline` after the request grammar, greedy in packet order, skipping
+   inline documents, non-UTF-8 and non-md/js files; key and contract sentence
+   only when at least one file is outlined.
+2. `rebuildHandoffRetrieval` passes `outline: Object.hasOwn(payload, 'outline')`
+   so states prepared before this change keep their round identities.
+3. Tests in `tests/handoff-retrieval.test.mjs`; the paragraph in
+   `docs/handoffs.md`.
+4. The native example needs the owner's go-ahead on calls and model.
+
+Revised after the first waypost-reviewer pass: the outline is opt-in
+(`"outline": true` in the request JSON; library default off) so the frozen
+three-arm protocol driving `handoff continue` keeps its payloads; a later round
+that cannot carry the outline drops it instead of failing after a paid
+inference; entries are compact strings and the total is measured pretty-printed,
+as CLI state stores it; only a 512-character line prefix is matched.
+
 ## Acceptance Criteria
 
 <!-- How do we know we're done? Each criterion testable. Checked only with
      evidence at close: - [x] <criterion> — evidence: <test | command | file:line> -->
 
-- [ ] Each outlined file lists entries with a label and an inclusive LF line
-      range that matches the bytes the host would return for that range.
-- [ ] The outline is bounded (entries per file, label length, total bytes) and
+- [x] Each outlined file lists entries with a label and an inclusive LF line
+      range that matches the bytes the host would return for that range. — evidence: tests/handoff-retrieval.test.mjs "outline ranges are exactly what the host returns…" (CRLF, BOM, no final LF, every entry re-read through readHandoffRequests); waypost-reviewer pass 2.
+- [x] The outline is bounded (entries per file, label length, total bytes) and
       a truncated outline says so explicitly; the payload never exceeds the
-      existing limit because of it.
-- [ ] The outline is advisory, not an allowlist: every range request valid
-      before stays valid, and stale/hash/UTF-8/range checks are unchanged.
-- [ ] Outline labels are delivered as untrusted source data, like any other
-      fragment, and grant no tools or authority.
-- [ ] V1 one-shot delivery and packets created before this change behave as
-      before.
+      existing limit because of it. — evidence: OUTLINE_LIMITS in scripts/handoff-retrieval.mjs; later rounds drop it (prepareRetrievalRound); tests "…pretty-printed total…", "a later round that cannot carry the outline drops it…", "worst-case pretty-printed state…".
+- [x] The outline is advisory, not an allowlist: every range request valid
+      before stays valid, and stale/hash/UTF-8/range checks are unchanged. — evidence: readHandoffRequests keeps its codes and order (shared verifiedText/splitLines); the 35 pre-existing tests pass unchanged; cross-entry range test.
+- [x] Outline labels are delivered as untrusted source data, like any other
+      fragment, and grant no tools or authority. — evidence: outline sentence of the response contract; a tampered label fails rebuild with resume-context (test "the outline is opt-in…").
+- [x] V1 one-shot delivery and packets created before this change behave as
+      before. — evidence: no diff in scripts/handoff.mjs, scripts/handoff-delivery.mjs, bin/cli/handoff-delivery.mjs; outline is opt-in and an outline-less payload is byte-identical; states resume with the choice they were prepared with; tests/handoff-delivery.test.mjs green.
 - [ ] A retained native example reports rounds, fragment bytes and native
       counters with and without outline; no token saving is claimed without
       complete counters and an equally correct answer.

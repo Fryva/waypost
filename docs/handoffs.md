@@ -315,6 +315,30 @@ fail; data is never silently truncated. Verified fragments accumulate in later
 fresh contexts, with identical repeats deduplicated. These retained bytes remain
 subject to the same payload limits; additional rounds may cost more tokens.
 
+So the receiver does not request ranges blind, a request JSON may add
+`"outline": true` (off by default, so existing runs keep their payloads). The
+first payload then carries an advisory `outline` of packet files that are not
+inlined: markdown ATX headings outside code fences and front matter, and
+column-0 JS/MJS declarations (`export`/`function`/`class`), computed from the
+verified bytes on the same LF lines. Each `outline.files[].entries` item is the
+string `"start_line-end_line bytes label"`; ranges are flat (each runs to the
+line before the next kept entry, the last to EOF), and `bytes` is the size of
+the fragment the host would return, so a receiver can see when a section
+exceeds the 200-line or 8KiB request limits. Labels are untrusted source text
+clipped to 80 bytes; only the first 512 characters of a line are examined. At
+most 24 entries per file (shallowest kept) and 4KiB of pretty-printed JSON in
+total (measured pretty-printed, so a state file, which nests it a few levels
+deeper and stores about a third more, stays bounded), and only while the first payload stays
+within 8KiB; files that do not fit are left out and `truncated: true` says so,
+and when none fits there is no outline at all. A later round repeats the outline
+when it fits and otherwise goes without it, so the hint never makes a paid round
+fail; it counts toward the cumulative limit. This is the only thing ever
+shortened, because it is a hint: every valid range may still be requested, and
+fragments still fail rather than shrink. One-shot delivery is unchanged, a
+payload without an outline is byte-identical to before, and a state resumes
+with the outline choice it was prepared with; a state prepared under a different
+outline extractor fails closed with `resume-context`.
+
 Every next round binds root challenge, packet digest, round number and previous
 authoritative output digest. Its stable key is persisted before inference. Resume
 rereads prior authoritative replies and reconstructs the same context and keys;

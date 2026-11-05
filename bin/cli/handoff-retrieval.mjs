@@ -43,7 +43,8 @@ export async function handleRetrieval(rest) {
       prepared = rebuildHandoffRetrieval(prepared);
     } else {
       const task = readHandoffJson(resolve(options['--task']));
-      if (!task || Object.keys(task).some(k => !['task', 'include'].includes(k))) throw new Error('handoff-retrieval-task');
+      if (!task || Object.keys(task).some(k => !['task', 'include', 'outline'].includes(k)) ||
+          (Object.hasOwn(task, 'outline') && typeof task.outline !== 'boolean')) throw new Error('handoff-retrieval-task');
       prepared = prepareHandoffRetrieval(projectRoot(), options['--packet'], task);
     }
     assertDeliveryDestination(prepared, statePath);
