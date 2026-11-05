@@ -74,3 +74,50 @@ test("link leaf imports and executes without filesystem I/O or process probes",(
   try{fs.readFileSync("blocked")}catch{}try{cp.spawnSync("blocked")}catch{}if(calls!==2)throw Error("inactive guards");console.log("pure");`;
   const result=spawnSync(process.execPath,["--input-type=module","-e",code],{encoding:"utf8",env:ambientEnv()});assert.equal(result.status,0,result.stderr);assert.equal(result.stdout,"pure\n");
 });
+
+test("legacy link matching preserves per-node getters, callback nulls and repeated-call freshness", () => {
+  const events = [], callbackReturns = [];
+  const nodes = Array.from({ length: 4 }, (_, i) => ({
+    path: `adr/${i}.md`,
+    get type() { events.push(`type ${i}`); return i === 3 ? "spec" : "adr"; },
+    get story() { events.push(`story ${i}`); return false; },
+    get prefix() { events.push(`prefix ${i}`); return "ADR-"; },
+    get stem() { events.push(`stem ${i}`); return `ADR-004-choice-${i}`; },
+  }));
+  const actualFilter = nodes.filter;
+  nodes.filter = function(predicate) {
+    return actualFilter.call(this, (node, i, all) => { const value = predicate(node, i, all); callbackReturns.push(value); return value; });
+  };
+  const ctx = { sourceRel: "source.md", index: { nodes, byIdentity: new Map(), byStem: new Map(), byPath: new Map() }, files: [], kinds: ["adr"] };
+  assert.deepEqual(focused.resolveLinkTarget("missing", "ref", ctx), { outcome: "dead" });
+  assert.deepEqual(callbackReturns, [null, null, null, false]);
+  assert.deepEqual(events, ["type 0", "story 0", "prefix 0", "type 1", "story 1", "prefix 1", "type 2", "story 2", "prefix 2", "type 3"]);
+  events.length = 0; callbackReturns.length = 0;
+  assert.deepEqual(focused.resolveLinkTarget("ADR-004", "ref", ctx), { outcome: "ambiguous", candidates: ["adr/0.md", "adr/1.md", "adr/2.md"] });
+  assert.deepEqual(callbackReturns, [true, true, true, false]);
+  assert.deepEqual(events, ["type 0", "story 0", "prefix 0", "stem 0", "type 1", "story 1", "prefix 1", "stem 1", "type 2", "story 2", "prefix 2", "stem 2", "type 3"]);
+  ctx.index.nodes = [{ path: "adr/new.md", type: "adr", prefix: "ADR-", stem: "ADR-005-new" }];
+  assert.equal(focused.resolveLinkTarget("ADR-005", "ref", ctx).node, ctx.index.nodes[0]);
+});
+
+test("legacy link matching keeps stateful non-string prefixes and exceptions live", () => {
+  const failure = new Error("second replace"), events = [];
+  const prefix = { replace() { events.push("replace"); if (events.length === 2) throw failure; return "ADR-"; } };
+  const nodes = [0, 1].map(i => ({ path: `adr/${i}.md`, type: "adr", prefix, stem: `ADR-004-${i}` }));
+  const ctx = { sourceRel: "source.md", index: { nodes, byIdentity: new Map(), byStem: new Map(), byPath: new Map() }, files: [], kinds: ["adr"] };
+  assert.throws(() => focused.resolveLinkTarget("ADR-004", "ref", ctx), error => error === failure);
+  assert.deepEqual(events, ["replace", "replace"]);
+  ctx.index.nodes = [{ path: "adr/bad.md", type: "adr", prefix: 1, stem: "anything" }];
+  assert.throws(() => focused.resolveLinkTarget("missing", "ref", ctx), TypeError);
+});
+
+test("legacy link matching retains raw anchors, duplicates and higher tier precedence", () => {
+  const first = { path: "z.md", type: "adr", prefix: "ADR-", stem: "adr-004-first" };
+  const second = { path: "a.md", type: "adr", prefix: "adr-", stem: "ADR-004-second" };
+  const index = { nodes: [first, first, second, { ...first }], byPath: new Map(), byIdentity: new Map(), byStem: new Map() };
+  const ctx = { sourceRel: "source.md", index, files: [], kinds: ["adr"] };
+  assert.deepEqual(focused.resolveLinkTarget("ADR-004", "ref", ctx), { outcome: "ambiguous", candidates: ["a.md", "z.md", "z.md"] });
+  index.byIdentity.set("adr-004", [first]);
+  Object.defineProperty(index, "nodes", { get() { throw Error("tier 3 must remain lazy"); } });
+  assert.equal(focused.resolveLinkTarget("ADR-004", "ref", ctx).node, first);
+});

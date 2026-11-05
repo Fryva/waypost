@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-04T22:17:54.802Z
+generated_at: 2026-11-05T00:54:13.805Z
 
 ---
 
@@ -210,6 +210,7 @@ generated_at: 2026-11-04T22:17:54.802Z
 - [x] [[epics/WP-21/stories/story-avoid-repeating-exact-search-status-matches|WP-21: Avoid repeating exact search status matches]] #p2 #done
 - [x] [[epics/WP-21/stories/story-build-node-lookup-buckets-without-rescanning-their-members|WP-21: Build node lookup buckets without rescanning their members]] #p2 #done
 - [x] [[epics/WP-21/stories/story-compact-the-empty-readiness-explanation|WP-21: Compact the empty readiness explanation]] #p2 #done
+- [x] [[epics/WP-21/stories/story-reuse-legacy-anchor-matching-within-each-link-resolution|WP-21: Reuse legacy anchor matching within each link resolution]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reuse-repeated-design-link-resolution-within-each-story|WP-21: Reuse repeated design link resolution within each story]] #p2 #done
 - [x] [[epics/WP-21/stories/story-share-adjacent-graph-edge-labels-in-query-output|WP-21: Share adjacent graph edge labels in query output]] #p2 #done
 - [x] [[epics/WP-21/stories/story-share-the-observed-token-label-across-codex-context-rows|WP-21: Share the observed-token label across Codex context rows]] #p2 #done

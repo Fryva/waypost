@@ -132,10 +132,26 @@ export function resolveLinkTarget(rawTarget, linkType, ctx) {
   const tiers = [
     () => (index.byIdentity.get(key) || []).filter(eligible),
     () => (index.byStem.get(key) || []).filter(eligible),
-    () => index.nodes.filter((n) =>
-      eligible(n)
-      && isLegacyNumberedId(bare, n.story ? { story: true } : { prefix: n.prefix })
-      && n.stem.toLowerCase().startsWith(`${key}-`)),
+    () => {
+      let legacyByAnchor = null;
+      const legacyFor = (n) => {
+        const story = n.story;
+        const options = story ? { story: true } : { prefix: n.prefix };
+        const anchor = story ? "story-" : options.prefix;
+        if (typeof anchor !== "string") return isLegacyNumberedId(bare, options);
+        const cached = legacyByAnchor?.get(anchor);
+        if (cached !== undefined) return cached;
+        const result = isLegacyNumberedId(bare, options);
+        // Reuse only pure string anchors in this tier/call; unusual prefixes stay live.
+        if (!legacyByAnchor) legacyByAnchor = new Map();
+        if (legacyByAnchor.size < 32) legacyByAnchor.set(anchor, result);
+        return result;
+      };
+      return index.nodes.filter((n) =>
+        eligible(n)
+        && legacyFor(n)
+        && n.stem.toLowerCase().startsWith(`${key}-`));
+    },
   ];
   for (const tier of tiers) {
     const hits = [...new Set(tier())];
