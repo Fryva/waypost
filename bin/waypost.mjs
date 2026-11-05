@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { accountStateDir, expandHome, isLinkedWorktree, legacyDirsToMove, legacyStateDirs, machineStateDir, sessionId, sessionIdFlag, worktreeTag } from "../scripts/lib.mjs";
-import { SCRIPT_URL, VERSION, asksHelp, fail, opt, positionals, readConfig, run, withRegistryHome } from "./cli/core.mjs";
+import { SCRIPT_URL, asksHelp, fail, importFailure, opt, positionals, printInfo, readConfig, run, withRegistryHome } from "./cli/core.mjs";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
@@ -85,7 +85,7 @@ async function migrateStateIfNeeded() {
 }
 
 async function main() {
-  const onFail = name => err => fail(`requested ./cli/${name}.mjs: ${err.message}`);
+  const onFail = name => err => importFailure(name, err);
   const argv = process.argv.slice(2);
   // The detached deleter's own entry point (spawnDeleter above), dispatched
   // before anything else in this function: not a session, so none of the
@@ -120,7 +120,8 @@ async function main() {
   // process spawns inherits both via `env: { ...process.env }`.
   let [cmd = "", ...rest] = args;
   if (asksHelp(cmd, rest)) cmd = "help";
-  if (cmd && !["help", "--help", "-h", "version", "--version", "-v"].includes(cmd)) await migrateStateIfNeeded();
+  if (await printInfo(cmd)) return;
+  if (cmd) await migrateStateIfNeeded();
   // The harness process first (ADR-0007 amendment): the scripts this command
   // spawns beat as well, and from inside them the nearest ancestor is this very
   // process, gone the moment the command ends — and harness detection reads it
@@ -205,8 +206,6 @@ async function main() {
     case "skills": run("skills", rest); break;
     case "launcher": run("launcher", rest); break;
     case "status": await (0,(await import("./cli/status.mjs").catch(onFail("status")))["handleStatus"])(); break;
-    case "version": case "--version": case "-v": process.stdout.write(`${VERSION}\n`); break;
-    case "help": case "--help": case "-h": (0,(await import("./cli/help.mjs").catch(onFail("help")))["help"])(); break;
     default:
       process.stderr.write(`waypost: unknown command "${cmd}"\n\n`);
       (0,(await import("./cli/help.mjs").catch(onFail("help")))["help"])();

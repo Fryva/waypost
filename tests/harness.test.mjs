@@ -4,7 +4,7 @@
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync } from "node:fs";
+import { cpSync, mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -2715,4 +2715,42 @@ test("role status can inspect one harness without scanning foreign role paths", 
   const brief = waypost(proj, ["brief"], { env: { WAYPOST_HARNESS: "codex" } });
   assert.equal(brief.stderr, "");
   assert.match(brief.stdout, /installed 5 role file/);
+});
+
+test("a lazy import failure names the file that failed, not only the entry module", () => {
+  const root = mkdtempSync(join(tmpdir(), "waypost-import-failure-"));
+  for (const dir of ["bin", "scripts"]) cpSync(join(REPO, dir), join(root, dir), { recursive: true });
+  cpSync(join(REPO, "package.json"), join(root, "package.json"));
+  writeFileSync(join(root, "scripts", "handoff.mjs"), "export const x = ;\n", { flag: "a" });
+  const r = spawnSync(process.execPath, [join(root, "bin", "waypost.mjs"), "handoff", "show", "x"],
+    { encoding: "utf8", env: { ...ambientEnv(), WAYPOST_NO_BEAT: "1", WAYPOST_NO_STATE_MIGRATION: "1" } });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /requested \.\/cli\/handoff\.mjs: .*\(at .*scripts[\\/]handoff\.mjs:\d+\)/);
+});
+
+test("version and help answer before harness detection, process probes and state work", () => {
+  const root = mkdtempSync(join(tmpdir(), "waypost-info-tree-"));
+  for (const dir of ["bin", "scripts"]) cpSync(join(REPO, dir), join(root, dir), { recursive: true });
+  cpSync(join(REPO, "package.json"), join(root, "package.json"));
+  // Importing agents.mjs (detectHarness) or presence.mjs (harnessProcess) leaves a mark.
+  for (const m of ["agents", "presence"])
+    writeFileSync(join(root, "scripts", `${m}.mjs`), `\n(await import("node:fs")).appendFileSync(process.env.WAYPOST_TEST_MARK, "${m}\\n");\n`, { flag: "a" });
+  const home = mkdtempSync(join(tmpdir(), "waypost-info-home-"));
+  const proj = mkdtempSync(join(tmpdir(), "waypost-info-proj-"));
+  const mark = join(home, "mark");
+  const go = a => {
+    writeFileSync(mark, "");
+    const r = spawnSync(process.execPath, [join(root, "bin", "waypost.mjs"), ...a], { encoding: "utf8", env: { ...ambientEnv(), HOME: home,
+      USERPROFILE: home, WAYPOST_HOME: undefined, WAYPOST_PROJECT_DIR: proj, WAYPOST_TEST_MARK: mark,
+      WAYPOST_HARNESS: undefined, WAYPOST_SESSION_ID: undefined, WAYPOST_PROC: undefined } });
+    return { r, marks: readFileSync(mark, "utf8") };
+  };
+  assert.match(go(["prompt", "heavy"]).marks, /agents/, "control: an ordinary command detects the harness");
+  for (const a of ["version", "--version", "-v", "help", "--help", "-h"]) {
+    const { r, marks } = go([a]);
+    assert.equal(r.status, 0, a);
+    assert.match(r.stdout, /v/.test(a) ? /^\d+\.\d+\.\d+/ : /^waypost — /, a);
+    assert.equal(marks, "", `${a} imported neither agents nor presence`);
+  }
+  assert.deepEqual(readdirSync(proj), [], "no project files were created");
 });

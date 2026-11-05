@@ -31,6 +31,30 @@ function fail(msg) {
   process.exit(1);
 }
 
+// A lazy `./cli/<name>.mjs` import failed. A SyntaxError in a dependency names
+// no file in its message or stack, so on that emergency path only, re-import
+// in a child: Node prints the failing `file:///…:<line>` for an uncaught error.
+function importFailure(name, err) {
+  let msg = `requested ./cli/${name}.mjs: ${err.message}`;
+  if (err.code !== "ERR_MODULE_NOT_FOUND") {
+    try {
+      const url = new URL(`./${name}.mjs`, import.meta.url).href;
+      const r = spawnSync(process.execPath, ["--input-type=module", "-e", `await import(${JSON.stringify(url)})`], { encoding: "utf8", timeout: 10000 });
+      const m = /^(file:\/\/\/.*):(\d+)$/m.exec(r.stderr || "");
+      if (m) msg += ` (at ${fileURLToPath(m[1])}:${m[2]})`;
+    } catch { /* keep the plain message */ }
+  }
+  fail(msg);
+}
+
+// version/help answer before any state is touched. True when `cmd` was one.
+async function printInfo(cmd) {
+  if (!["help", "--help", "-h", "version", "--version", "-v"].includes(cmd)) return false;
+  if (cmd.includes("v")) process.stdout.write(`${VERSION}\n`);
+  else (0, (await import("./help.mjs").catch((e) => importFailure("help", e)))["help"])();
+  return true;
+}
+
 // Run a core script. `capture` pipes stdout so the dispatcher can act on the
 // JSON; otherwise the child owns the terminal. Either way the child's exit
 // code is ours — a harness scripting `waypost doctor && ...` must see failures.
@@ -308,4 +332,4 @@ function bootAuthority(capacity) {
   return BOOT_AUTHORITY;
 }
 
-export { INHERITED_SESSION_ID, INHERITED_HARNESS, INHERITED_PROC, ROOT, SCRIPT, SCRIPT_URL, VERSION, fail, run, runJson, projectRoot, configPath, readConfig, VALUED, splitAtTerminator, flag, opt, asksHelp, positionals, withRegistryHome, registryReadFailed, detectedHarnesses, runningHarness, passThrough, GB, tildeHome, warnedCleanNowProbed, lastCleanNowHonored, cleanNow, warnIfProbed, BOOT_AUTHORITY, bootAuthority };
+export { importFailure, printInfo, INHERITED_SESSION_ID, INHERITED_HARNESS, INHERITED_PROC, ROOT, SCRIPT, SCRIPT_URL, VERSION, fail, run, runJson, projectRoot, configPath, readConfig, VALUED, splitAtTerminator, flag, opt, asksHelp, positionals, withRegistryHome, registryReadFailed, detectedHarnesses, runningHarness, passThrough, GB, tildeHome, warnedCleanNowProbed, lastCleanNowHonored, cleanNow, warnIfProbed, BOOT_AUTHORITY, bootAuthority };

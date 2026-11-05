@@ -204,3 +204,23 @@ test("code stripping preserves replacement getter failures across intermediate o
     assert.deepEqual(trace, Array.from({ length: failureStage - 1 }, (_, i) => [`get ${i + 1}`, `call ${i + 1}`]).flat().concat(`get ${failureStage}`));
   }
 });
+
+test("bare-link lookup tables match the plain scans for ring 2, legacy tier 3 and kind scoping",()=>{
+  const node=(stem,type="adr",prefix="adr-")=>({path:`${type}/${stem}.md`,type,identity:stem+"!",stem,prefix,story:false});
+  const nodes=[node("adr-0002-b"),node("adr-0002-a"),node("adr-0007-only"),node("ADR-0009-Case"),node("adr-x-y"),node("spec-0002-s","spec","spec-")];
+  const files=[...nodes.map(n=>({rel:n.path,name:n.stem+".md"})),{rel:"README.md",name:"README.md"},{rel:"a/README.md",name:"README.md"},{rel:"a/Loose.MD",name:"Loose.MD"}];
+  const index={nodes,byPath:new Map(nodes.map(n=>[n.path,n])),byIdentity:new Map(),byStem:new Map()};
+  const ctx=extra=>({sourceRel:"s.md",files,index,...extra});
+  const r=(t,x)=>focused.resolveLinkTarget(t,"wikilink",ctx(x));
+  assert.deepEqual(r("ADR-0002"),{outcome:"ambiguous",candidates:["adr/adr-0002-a.md","adr/adr-0002-b.md"]});
+  assert.equal(r("adr-0007").node,nodes[2]);
+  assert.equal(r("adr-0009").node,nodes[3]);
+  assert.equal(r("adr-x").outcome,"dead","a non-numbered prefix is not a legacy id");
+  assert.equal(r("spec-0002").node,nodes[5]);
+  assert.equal(r("adr-0002",{kinds:["spec"]}).outcome,"dead");
+  assert.deepEqual(r("readme"),{outcome:"out-of-scope"});
+  assert.deepEqual(r("loose.md"),{outcome:"out-of-scope",path:"a/Loose.MD"});
+  assert.equal(r("missing").outcome,"dead");
+  nodes.push(node("adr-0007-late"));
+  assert.equal(r("adr-0007").outcome,"ambiguous","a grown node list rebuilds the table");
+});

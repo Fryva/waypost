@@ -67,6 +67,23 @@ const relDirSegments = (rel) => {
   return segs;
 };
 
+// Per-list lookup (rebuilt on length change). Plain data objects only: any
+// getter, patched filter or falsy keysOf(o) gives null and callers keep scanning.
+const tables = new WeakMap();
+function table(list, fields, keysOf) {
+  let t = tables.get(list);
+  if (!t || t.len !== list.length) {
+    const map = new Map();
+    const ok = list.filter === [].filter && list.every((o) => {
+      const keys = o && fields.every((f) => Object.getOwnPropertyDescriptor(o, f)?.writable) && keysOf(o);
+      for (const k of keys || []) map.has(k) ? map.get(k).push(o) : map.set(k, [o]);
+      return keys;
+    });
+    tables.set(list, t = { len: list.length, map: ok && map });
+  }
+  return t.map;
+}
+
 // The ONE link resolver (spec contract 3), shared by the graph generator
 // and doctor's wikilink check so "dead" means the same thing in both.
 // Outcomes: {outcome: "node", node} | {outcome: "out-of-scope", path?} |
@@ -153,10 +170,17 @@ export function resolveLinkTarget(rawTarget, linkType, ctx) {
         if (legacyByAnchor.size < 32) legacyByAnchor.set(anchor, result);
         return result;
       };
-      return index.nodes.filter((n) =>
+      // Keyed by every stem prefix before a "-".
+      const byPrefix = table(index.nodes, ["type", "story", "prefix", "stem"], (n) => {
+        if (typeof n.stem !== "string" || !(n.prefix == null || typeof n.prefix === "string")) return null;
+        const st = n.stem.toLowerCase(), out = [];
+        for (let i = st.indexOf("-"); i >= 0; i = st.indexOf("-", i + 1)) out.push(st.slice(0, i));
+        return out;
+      });
+      return (byPrefix ? byPrefix.get(key) || [] : index.nodes).filter((n) =>
         eligible(n)
         && legacyFor(n)
-        && n.stem.toLowerCase().startsWith(`${key}-`));
+        && (byPrefix || n.stem.toLowerCase().startsWith(`${key}-`)));
     },
   ];
   for (const tier of tiers) {
@@ -167,7 +191,9 @@ export function resolveLinkTarget(rawTarget, linkType, ctx) {
   if (!kinds) {
     // Ring 2 — only for body links: frontmatter refs point at artifacts
     // by contract, so a non-node reference is simply dead.
-    const ring2 = files.filter((f) => f.name.replace(/\.md$/i, "").toLowerCase() === key);
+    const stemOf = (f) => f.name.replace(/\.md$/i, "").toLowerCase();
+    const byStem = table(files, ["name"], (f) => typeof f.name === "string" && [stemOf(f)]);
+    const ring2 = byStem ? byStem.get(key) || [] : files.filter((f) => stemOf(f) === key);
     if (ring2.length === 1) return { outcome: "out-of-scope", path: ring2[0].rel };
     if (ring2.length > 1) return { outcome: "out-of-scope" };
   }
