@@ -1,3 +1,4 @@
+import "./host-home.mjs";
 import "./env.mjs";
 import { ambientEnv } from "./env.mjs";
 import { test } from "node:test";

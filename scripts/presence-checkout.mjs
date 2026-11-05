@@ -1,8 +1,8 @@
 import { resolve } from "node:path";
-import { hostname } from "node:os";
 import { projectRoot, gitCommonDir, treesOverlap } from "./lib.mjs";
 import { storageOf } from "./presence-storage.mjs";
 import { peers } from "./presence-liveness.mjs";
+import { sameHost } from "./presence-host.mjs";
 
 // A lease is keyed by a path every session spells the same way: vault-relative
 // inside the vault, project-relative outside it (`waypost commit` compares leases
@@ -58,7 +58,6 @@ export function vaultOffset(vault) {
 export function sharedTree(vault, { self = null, now = Date.now(), persist = true, view = null, contain = false } = {}) {
   const v = view || peers(vault, { self, now, persist });
   const root = normPath(projectRoot());
-  const here = hostname().split(".")[0];
   const storage = storageOf(projectRoot());
   const common = gitCommonDir();
   const osPlatform = process.platform;
@@ -73,7 +72,7 @@ export function sharedTree(vault, { self = null, now = Date.now(), persist = tru
     const sameRoot = p.project_root && (contain ? treesOverlap(p.project_root, root, { platform: osPlatform }) : normPath(p.project_root) === root);
     const sameCommon = common && p.common_dir && normPath(p.common_dir) === normPath(common);
     if (sameCommon && !sameRoot) { siblings.push(describe(p, "sibling worktree of this repository")); continue; }
-    if (!p.host || p.host === here) continue;
+    if (!p.host || sameHost(p)) continue;
     if (sameRoot) found.push(describe(p, "same project root"));
     else if (!sameCommon && !p.common_dir && storage.kind !== "local") found.push(describe(p, `project root on ${storage.provider}`));
   }

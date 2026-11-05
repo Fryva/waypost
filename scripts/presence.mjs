@@ -4,8 +4,10 @@ export { vaultRel, vaultOffset, sharedTree, SHARED_TREE_ADVICE, sharedWith } fro
 import { peers, prunePresence, CONFLICT_COPY } from "./presence-liveness.mjs";
 export { LIVE_WINDOW_MS, peers, prunePresence } from "./presence-liveness.mjs";
 import { storageOf, coordinationDirs, presenceDir, leaseDir, legacyPresenceDir, legacyLeaseDir } from "./presence-storage.mjs";
+import { leaseRunEnd } from "./presence-lease-groups.mjs";
 export { storageOf, coordinationDirs, presenceDir, leaseDir, hostSlug } from "./presence-storage.mjs";
 import { harnessProcess } from "./presence-process.mjs";
+import { hostId } from "./presence-host.mjs";
 export { processTable, harnessProcess, argv0Of, startTicks, processGone } from "./presence-process.mjs";
 // waypost — presence.mjs
 // Who is working right now, from which device, OS and harness — across a vault
@@ -69,6 +71,7 @@ export function selfDescriptor(sessionId, harness) {
   return {
     session: sessionId,
     host: hostname().split(".")[0],
+    host_id: hostId(),
     os: osTag(),
     user: (() => { try { return userInfo().username; } catch { return null; } })(),
     harness: harness || process.env.WAYPOST_HARNESS || null,
@@ -194,6 +197,7 @@ export function acquire(vault, paths, { sessionId, harness = null, now = Date.no
       path: rel,
       session: sessionId,
       host: hostname().split(".")[0],
+      host_id: hostId(),
       os: platform(),
       harness: harness || process.env.WAYPOST_HARNESS || null,
       acquired_at: new Date(now).toISOString(),
@@ -339,16 +343,9 @@ function main() {
       if (json) { process.stdout.write(JSON.stringify(rows, null, 2) + "\n"); return; }
       if (!rows.length) { process.stdout.write("no leases\n"); return; }
       const legacy = l => `${l.mine ? "*" : " "} ${l.live ? "live " : "stale"} ${l.path.padEnd(40)} ${l.session} on ${l.host} (${l.harness || "?"})\n`;
-      const oneLine = value => typeof value === "string" && value.length > 0 && !/[\r\n]/.test(value);
-      const groupable = l => oneLine(l.path) && oneLine(l.session) && oneLine(l.host) &&
-        (l.harness == null || typeof l.harness === "string" && !/[\r\n]/.test(l.harness));
       for (let i = 0; i < rows.length;) {
         const l = rows[i];
-        let end = i + 1;
-        if (groupable(l)) {
-          while (end < rows.length && groupable(rows[end]) && rows[end].session === l.session &&
-            rows[end].host === l.host && rows[end].harness === l.harness) end++;
-        }
+        const end = leaseRunEnd(rows, i);
         if (end - i === 1) { process.stdout.write(legacy(l)); i++; continue; }
         const group = rows.slice(i, end);
         const full = group.map(legacy).join("");

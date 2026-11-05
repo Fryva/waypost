@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { readConfig, gatherVaultFacts, renderVaultSkeleton, ignoreEpipe, readCleanupSetting, readLastAutoCleanup } from "./lib.mjs";
 import { peers, readLeases, sharedTree, sharedWith, SHARED_TREE_ADVICE, hostSlug } from "./presence.mjs";
+import { leaseRunEnd } from "./presence-lease-groups.mjs";
 import { sessionId } from "./sessions.mjs";
 import { formatLimit, formatOutcome } from "./cleanup.mjs";
 import { teamOrientation } from "./team-diagnostics.mjs";
@@ -124,16 +125,9 @@ function others(cfg, opts = {}) {
       for (const l of leases) L.push(`- \`${l.path}\` (${l.session} on ${l.host})`);
       } else {
         const legacy = l => `- \`${l.path}\` (${l.session} on ${l.host})`;
-        const oneLine = v => typeof v === "string" && v.length > 0 && !/[\r\n]/.test(v);
-        const groupable = l => oneLine(l.path) && oneLine(l.session) && oneLine(l.host) &&
-          (l.harness == null || typeof l.harness === "string" && !/[\r\n]/.test(l.harness));
         for (let i = 0; i < leases.length;) {
           const l = leases[i];
-          let end = i + 1;
-          if (groupable(l)) {
-            while (end < leases.length && groupable(leases[end]) && leases[end].session === l.session &&
-              leases[end].host === l.host && leases[end].harness === l.harness) end++;
-          }
+          const end = leaseRunEnd(leases, i);
           if (end - i === 1) { L.push(legacy(l)); i++; continue; }
           const group = leases.slice(i, end);
           const full = group.map(legacy).join("\n");

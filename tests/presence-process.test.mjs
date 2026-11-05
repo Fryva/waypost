@@ -1,3 +1,4 @@
+import "./host-home.mjs";
 import "./env.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";

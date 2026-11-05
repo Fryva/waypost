@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
-import { hostname, platform } from "node:os";
+import { platform } from "node:os";
 import { spawnSync } from "node:child_process";
+import { sameHost } from "./presence-host.mjs";
 
 // ─── The harness process, on this host ─────────────────────────────────
 //
@@ -114,7 +115,7 @@ export function startTicks(pid) {
 // process recorded, no process table).
 export function processGone(rec, table) {
   const proc = rec && rec.proc;
-  if (!proc || !proc.pid || rec.host !== hostname().split(".")[0]) return null;
+  if (!proc || !proc.pid || !sameHost(rec)) return null;
   if (table === undefined) table = processTable();
   if (!table) return null;
   const p = table.get(Number(proc.pid));

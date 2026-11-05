@@ -36,6 +36,7 @@ import {
   beat, clearPresence, peers, storageOf, readLeases, acquire, release, vaultRel, prunePresence,
   sharedTree, sharedWith, SHARED_TREE_ADVICE, coordinationDirs,
 } from "./presence.mjs";
+import { leaseRunEnd } from "./presence-lease-groups.mjs";
 import {
   readConfig,
   projectRoot,
@@ -216,16 +217,9 @@ function main() {
   }
   const editing = out.leases.filter((x) => !x.mine);
   const legacyEditing = l => `  editing: ${l.path}  (${l.session} on ${l.host})\n`;
-  const oneLine = value => typeof value === "string" && value.length > 0 && !/[\r\n]/.test(value);
-  const groupable = l => oneLine(l.path) && oneLine(l.session) && oneLine(l.host) &&
-    (l.harness == null || typeof l.harness === "string" && !/[\r\n]/.test(l.harness));
   for (let i = 0; i < editing.length;) {
     const l = editing[i];
-    let end = i + 1;
-    if (groupable(l)) {
-      while (end < editing.length && groupable(editing[end]) && editing[end].session === l.session &&
-        editing[end].host === l.host && editing[end].harness === l.harness) end++;
-    }
+    const end = leaseRunEnd(editing, i);
     if (end - i === 1) { process.stdout.write(legacyEditing(l)); i++; continue; }
     const group = editing.slice(i, end);
     const full = group.map(legacyEditing).join("");

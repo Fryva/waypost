@@ -2,6 +2,7 @@
 import { legacyStateDirs, machineStateDir, writeFileAtomic } from "../../scripts/lib.mjs";
 import { acquireLock, releaseLock } from "../../scripts/machine-lock.mjs";
 import { bootAuthority, warnIfProbed } from "./core.mjs";
+import { hostId } from "../../scripts/presence-host.mjs";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { hostname, constants as osConstants, uptime as osUptime } from "node:os";
@@ -45,6 +46,7 @@ function selfMarker(capacity, presence) {
   const self = table ? table.get(process.pid) : null;
   return {
     host: hostname().split(".")[0],
+    host_id: hostId(),
     proc: { pid: process.pid, started: self ? self.started : null, ticks: presence.startTicks(process.pid), comm: basename(process.execPath) },
     boot: capacity.bootIdentity(),
     // What an epoch mismatch is checked against later (WP-18 amendment):

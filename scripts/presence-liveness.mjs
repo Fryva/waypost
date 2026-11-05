@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { hostname } from "node:os";
 import { projectRoot, writeFileAtomic } from "./lib.mjs";
 import { storageOf, coordinationDirs, presenceDir, legacyPresenceDir, observationsPath } from "./presence-storage.mjs";
 import { processTable, processGone } from "./presence-process.mjs";
+import { sameHost } from "./presence-host.mjs";
 
 // A session is considered live while its counter has moved recently, measured
 // locally. The window has to cover the storage's propagation delay, or a peer
@@ -60,7 +60,6 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
   // is re-seeded next time, which is never worse than first sight).
   const next = {};
   const out = [];
-  const here = hostname().split(".")[0];
   let table;
   const tableOnce = () => (table === undefined ? (table = processTable()) : table);
   // Both locations for one minor version (ADR-0010): the new one first, so a
@@ -128,7 +127,7 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
     const isSelf = self != null && rec.session === self;
     // On this host the process table settles "idle or gone" exactly; nothing
     // else about liveness changes (see harnessProcess()).
-    const verdict = !isSelf && rec.proc && rec.host === here ? processGone(rec, tableOnce()) : null;
+    const verdict = !isSelf && rec.proc && sameHost(rec) ? processGone(rec, tableOnce()) : null;
     const gone = verdict === true;
     const live = !gone && sinceLocalChange < window;
 

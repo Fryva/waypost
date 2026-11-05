@@ -1,3 +1,4 @@
+import "./host-home.mjs";
 // waypost — presence, leases and cross-OS safety on a shared vault (ADR-0007).
 // The cases that matter here cannot be produced by running the tool normally:
 // a peer whose clock is wrong, a sync client that duplicates a file, a device
@@ -16,6 +17,7 @@ import {
   prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset, processGone, processTable, startTicks, coordinationDirs,
 } from "../scripts/presence.mjs";
 import { claimsOf, parseDuration } from "../scripts/sessions.mjs";
+import { leaseRunEnd } from "../scripts/presence-lease-groups.mjs";
 import { gitCommonDir } from "../scripts/lib.mjs";
 import { checkPortableNames, checkProcessTable } from "../scripts/doctor.mjs";
 import { ambientEnv } from "./env.mjs";
@@ -489,10 +491,10 @@ test("lease list keeps the legacy prefix before a malformed path and JSON still 
 test("brief editing length guard and fallback keep exact legacy rows", () => {
   const source = readFileSync(join(REPO, "scripts", "brief.mjs"), "utf8");
   const body = source.slice(source.indexOf("function others("), source.indexOf("\nasync function main()"));
-  const render = (rows, full = false) => Function("peers", "readLeases", "sharedTree", "sessionId", "rows", "full",
+  const render = (rows, full = false) => Function("peers", "readLeases", "sharedTree", "sessionId", "leaseRunEnd", "rows", "full",
     `return (${body})({vault_path: "/owned/vault"}, {sessionId: "self", full});`)(
     () => ({peers: [], storage: {kind: "local"}, conflicts: []}), () => rows,
-    () => ({shared: false, siblings: []}), () => "self", rows, full);
+    () => ({shared: false, siblings: []}), () => "self", leaseRunEnd, rows, full);
   const row = (path, session = "s", harness = "codex") => ({path, session, host: "h", harness, live: true, mine: false});
   const legacy = rows => rows.map(r => `- \`${r.path}\` (${r.session} on ${r.host})`).join("\n");
   for (const length of [1, 8, 9, 10]) {

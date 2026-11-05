@@ -2,9 +2,10 @@
 import { REMOVING_DIR, writeFileAtomic } from "../../scripts/lib.mjs";
 import { ROOT, SCRIPT_URL } from "./core.mjs";
 import { selfMarker } from "./slots.mjs";
+import { sameHost } from "../../scripts/presence-host.mjs";
 import { spawn } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, unlinkSync } from "node:fs";
-import { hostname, constants as osConstants, setPriority } from "node:os";
+import { constants as osConstants, setPriority } from "node:os";
 import { basename, join } from "node:path";
 
 // ─── the detached deleter (the amended machine-wide-limit ADR, Decision 4) ──
@@ -93,7 +94,6 @@ function leftoversOf(common, capacity, presence) {
   const table = process.platform === "win32" ? null : presence.processTable();
   const bootNow = capacity.bootIdentity();
   const authority = capacity.authorityOnce();
-  const here = hostname().split(".")[0];
   const isAlive = (marker) => capacity.slotLive(marker, { table, bootNow, authority });
   const entries = new Set(names.filter((n) => !n.endsWith(".json")));
   const adopt = [];
@@ -113,7 +113,7 @@ function leftoversOf(common, capacity, presence) {
       // (the deleter finished removing it and only failed on the marker's
       // own unlink) — always adoptable once its owner is dead, since
       // nothing is left for a live deleter to still be working on.
-      const alive = marker && marker.proc && marker.host === here && isAlive(marker);
+      const alive = marker && marker.proc && sameHost(marker) && isAlive(marker);
       if (alive) leave.push({ name: base, entry: null, markerPath, marker });
       else adopt.push({ name: base, entry: null, markerPath, marker });
       continue;
@@ -125,7 +125,7 @@ function leftoversOf(common, capacity, presence) {
       adopt.push({ name: base, entry: entryPath, markerPath: null, marker: null });
       continue;
     }
-    if (marker.host !== here) { leave.push({ name: base, entry: entryPath, markerPath, marker }); continue; }
+    if (!sameHost(marker)) { leave.push({ name: base, entry: entryPath, markerPath, marker }); continue; }
     if (isAlive(marker)) leave.push({ name: base, entry: entryPath, markerPath, marker });
     else adopt.push({ name: base, entry: entryPath, markerPath, marker });
   }
