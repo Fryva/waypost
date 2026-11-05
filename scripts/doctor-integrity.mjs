@@ -150,6 +150,23 @@ export function checkAcceptanceGate(artifacts, vaultCfg) {
   return out;
 }
 
+// The planner reads the target epic whole, and every other epic's code_refs
+// (agents/planner.md, Phase 0), on every run. An epic that collects each
+// story's outcome and every file a story touched becomes the costliest file
+// in the vault (WP-21 reached 50 KB, 208 code_refs). Past the budget, dated
+// history belongs in research/ or the stories' Final Summaries, and code_refs
+// in the directories that contain them.
+export const EPIC_SIZE_BUDGET = 16384;
+export function checkEpicSize(artifacts) {
+  const out = [];
+  for (const a of artifacts) {
+    const bytes = a.kind === "epic" ? Buffer.byteLength(a.body || "", "utf8") : 0;
+    if (bytes > EPIC_SIZE_BUDGET) out.push(finding("vault", "warn", "epic-size",
+      `Epic is ${Math.ceil(bytes / 1024)} KB, over the ${EPIC_SIZE_BUDGET / 1024} KB budget, and the planner reads it whole — move dated history into research/ or story Final Summaries, and list code_refs as directories.`, a.rel));
+  }
+  return out;
+}
+
 export function checkCodeRefs(artifacts, proj, epicFolderPath = "epics") {
   const out = [];
   const epicRefs = new Map();
@@ -186,7 +203,7 @@ export function checkCodeRefs(artifacts, proj, epicFolderPath = "epics") {
         for (const ref of refs) {
           if (!parent.some((p) => norm(ref).startsWith(norm(p)))) {
             out.push(finding("vault", "warn", "code-refs",
-              `Story code_ref "${ref}" falls outside the parent epic's code_refs.`, a.rel));
+              `Story code_ref "${ref}" falls outside the parent epic's code_refs — add it, or a directory containing it, to the epic.`, a.rel));
           }
         }
       }

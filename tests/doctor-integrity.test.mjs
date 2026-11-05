@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkCodeRefs, checkSupersedes, checkAcceptanceGate } from "../scripts/doctor-integrity.mjs";
+import { checkCodeRefs, checkEpicSize, EPIC_SIZE_BUDGET, checkSupersedes, checkAcceptanceGate } from "../scripts/doctor-integrity.mjs";
 import { buildNodeIndex, loadLayout } from "../scripts/lib.mjs";
 
 function fixture(t) {
@@ -27,7 +27,7 @@ test("doctor integrity module: nested epic footprints cover all three story shap
   const before = JSON.stringify(artifacts);
   assert.deepEqual(checkCodeRefs(artifacts, root, "work/projects"), paths.map(file => ({
     group: "vault", level: "warn", check: "code-refs", file,
-    message: 'Story code_ref "other/file.mjs" falls outside the parent epic\'s code_refs.',
+    message: 'Story code_ref "other/file.mjs" falls outside the parent epic\'s code_refs — add it, or a directory containing it, to the epic.',
   })));
   assert.equal(JSON.stringify(artifacts), before);
 });
@@ -166,4 +166,18 @@ test("doctor integrity module: acceptance stays opt-in and explicit answers pres
     message: 'status is "accepted" while review_status is "pending" (acceptance_gate: on — record the review outcome before accepting).',
   })));
   assert.equal(JSON.stringify(artifacts), before);
+});
+
+test("doctor-integrity warns when an epic outgrows the budget the planner reads whole", () => {
+  const at = n => "x".repeat(n);
+  const artifacts = [
+    { kind: "epic", rel: "epics/E1/epic.md", body: at(EPIC_SIZE_BUDGET) },
+    { kind: "epic", rel: "epics/E2/epic.md", body: at(EPIC_SIZE_BUDGET + 1) },
+    { kind: "research", rel: "research/long.md", body: at(EPIC_SIZE_BUDGET * 4) },
+    { kind: "epic", rel: "epics/E3/epic.md", body: "é".repeat(EPIC_SIZE_BUDGET / 2 + 1) },
+  ];
+  const found = checkEpicSize(artifacts);
+  assert.deepEqual(found.map(f => [f.check, f.level, f.file]), [["epic-size", "warn", "epics/E2/epic.md"], ["epic-size", "warn", "epics/E3/epic.md"]],
+    "bytes, not characters; only epics; the budget itself is allowed");
+  assert.match(found[0].message, /research\/.*code_refs as directories/);
 });

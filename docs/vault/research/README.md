@@ -14,6 +14,7 @@
 | [post-integration-token-accounting-checkpoint](./post-integration-token-accounting-checkpoint.md) | Post-integration token accounting checkpoint | draft | 2026-10-22 |
 | [product-level-paired-evaluation-with-security-and-release-acceptance](./product-level-paired-evaluation-with-security-and-release-acceptance.md) | Product-level paired evaluation with security and release acceptance | draft | 2026-10-22 |
 | [offline-tokenization-of-compact-command-outputs](./offline-tokenization-of-compact-command-outputs.md) | Offline tokenization of compact command outputs | draft | 2026-10-23 |
+| [token-measurement-pilot-and-cli-split-record-of-wp-21](./token-measurement-pilot-and-cli-split-record-of-wp-21.md) | Token measurement, pilot and CLI split record of WP-21 | final | 2026-11-05 |
 
 ---
 

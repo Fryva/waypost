@@ -17,8 +17,8 @@ import { checkPortableNames, checkLineEndings } from "./doctor-portability.mjs";
 export { checkPortableNames, checkLineEndings } from "./doctor-portability.mjs";
 import { walkVaultFiles, checkArtifactIdentity, checkExternalRefsForm, checkArtifactNames } from "./doctor-artifacts.mjs";
 export { walkVaultFiles, checkArtifactIdentity, checkExternalRefsForm, checkArtifactNames } from "./doctor-artifacts.mjs";
-import { checkCodeRefs, checkSupersedes, checkAcceptanceGate } from "./doctor-integrity.mjs";
-export { checkCodeRefs, checkSupersedes, checkAcceptanceGate } from "./doctor-integrity.mjs";
+import { checkCodeRefs, checkEpicSize, checkSupersedes, checkAcceptanceGate } from "./doctor-integrity.mjs";
+export { checkCodeRefs, checkEpicSize, checkSupersedes, checkAcceptanceGate } from "./doctor-integrity.mjs";
 import { checkGuards } from "./doctor-guards.mjs";
 export { checkGuards, projectFiles, GUARD_FILE_MAX, GUARD_FILES_MAX } from "./doctor-guards.mjs";
 // waypost — doctor.mjs
@@ -141,6 +141,7 @@ export function runVaultChecks(cfg) {
     ...checkSharedVaultState(cfg),
     ...checkExternalRefsForm(artifacts),
     ...checkCodeRefs(artifacts, projectRoot(), folderByKind(layout, "epic")?.path),
+    ...checkEpicSize(artifacts),
     ...checkDependencies(cfg.vault_path),
     ...checkAdrNumbers(cfg.vault_path, folderByKind(layout, "adr")?.path || "adr"),
     ...checkSupersedes(nodeIndex, vaultFiles),
