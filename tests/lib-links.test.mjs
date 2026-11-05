@@ -154,3 +154,53 @@ test("link-family guards retain non-string replace/matchAll calls and error iden
   const failure = new Error("replace failed");
   assert.throws(() => focused.extractLinks({ replace() { throw failure; } }), error => error === failure);
 });
+
+
+test("code stripping preserves sequential joins and incomplete notation", () => {
+  for (const [input, expected] of [
+    ["", ""], ["plain prose", "plain prose"],
+    ["before ```hidden``` after", "before  after"],
+    ["```unterminated", "`unterminated"], ["`unterminated", "`unterminated"],
+    ["<!--unterminated", "<!--unterminated"], ["~~~kept~~~", "~~~kept~~~"],
+    ["`cut```hidden```cut`", ""],
+    ["<!```hidden```--hidden-->", ""], ["<!`hidden`--hidden-->", ""],
+    // HTML removal is last: newly joined inline notation is not stripped again.
+    ["`<!--hidden-->`", ""], ["`<!--hidden-->\n`", "`\n`"],
+    ["[[kept]] `[[hidden]]` <!--[[hidden]]-->", "[[kept]]  "],
+  ]) assert.equal(focused.stripCodeSpans(input), expected, input);
+  assert.equal(focused.stripCodeSpans(new String("`hidden` [[kept]]")), " [[kept]]");
+});
+
+test("code stripping keeps custom replacement order and original exception identities", () => {
+  const sources = [/```[\s\S]*?```/g, /`[^`\n]*`/g, /<!--[\s\S]*?-->/g].map(re => re.source);
+  for (const failAt of [null, 1, 2, 3]) {
+    const trace = [], failure = new Error("replace failed");
+    const input = {
+      get includes() { throw Error("non-string includes must not be read"); },
+      replace(re, replacement) { trace.push([re.source, replacement]); if (trace.length === failAt) throw failure; return this; },
+    };
+    if (failAt) assert.throws(() => focused.stripCodeSpans(input), error => error === failure);
+    else assert.equal(focused.stripCodeSpans(input), input);
+    assert.deepEqual(trace, sources.slice(0, failAt || 3).map(source => [source, ""]));
+  }
+  const input = { replace() { return "`hidden`<!--hidden-->[[kept]]"; }, get includes() { throw Error("non-string includes"); } };
+  assert.equal(focused.stripCodeSpans(input), "[[kept]]");
+  for (const value of [null, undefined, 42]) assert.throws(() => focused.stripCodeSpans(value), TypeError);
+});
+
+
+test("code stripping preserves replacement getter failures across intermediate objects", () => {
+  for (const failureStage of [1, 2, 3]) {
+    const trace = [], failure = new Error("replacement getter");
+    const stage = i => ({
+      get includes() { throw Error("non-string includes"); },
+      get replace() {
+        trace.push(`get ${i}`); if (i === failureStage) throw failure;
+        return function() { assert.equal(this, objects[i - 1]); trace.push(`call ${i}`); return objects[i]; };
+      },
+    });
+    const objects = [stage(1), stage(2), stage(3)];
+    assert.throws(() => focused.stripCodeSpans(objects[0]), error => error === failure);
+    assert.deepEqual(trace, Array.from({ length: failureStage - 1 }, (_, i) => [`get ${i + 1}`, `call ${i + 1}`]).flat().concat(`get ${failureStage}`));
+  }
+});

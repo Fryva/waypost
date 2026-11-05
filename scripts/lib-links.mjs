@@ -10,7 +10,12 @@ import { isLegacyNumberedId } from "./lib-identity.mjs";
 export function stripCodeSpans(s) {
   // An HTML comment is not prose either: a commented-out wikilink is not a
   // link to Obsidian, and a commented-out `- [ ]` is not an acceptance item.
-  return s.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "").replace(/<!--[\s\S]*?-->/g, "");
+  // Earlier removals can join later delimiters; inspect each current result.
+  // Keep every original replacement for initially non-string inputs.
+  const stringInput = typeof s === "string";
+  const unfenced = stringInput && !s.includes("```") ? s : s.replace(/```[\s\S]*?```/g, "");
+  const unquoted = stringInput && !unfenced.includes("`") ? unfenced : unfenced.replace(/`[^`\n]*`/g, "");
+  return stringInput && !unquoted.includes("<!--") ? unquoted : unquoted.replace(/<!--[\s\S]*?-->/g, "");
 }
 
 // Every link in one file's text: wikilinks and relative markdown links.

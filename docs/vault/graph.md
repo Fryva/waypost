@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-05T01:11:59.360Z
+generated_at: 2026-11-05T01:32:27.049Z
 
 ---
 
@@ -237,6 +237,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md | Separate project matching and Git evidence from the size scanner | story | done |
 | epics/WP-21/stories/story-share-adjacent-graph-edge-labels-in-query-output.md | Share adjacent graph edge labels in query output | story | done |
 | epics/WP-21/stories/story-share-the-observed-token-label-across-codex-context-rows.md | Share the observed-token label across Codex context rows | story | done |
+| epics/WP-21/stories/story-skip-code-stripping-phases-without-their-current-delimiters.md | Skip code stripping phases without their current delimiters | story | done |
 | epics/WP-21/stories/story-skip-impossible-numbered-artifact-regex-matches.md | Skip impossible numbered artifact regex matches | story | done |
 | epics/WP-21/stories/story-skip-link-family-scans-without-their-prose-delimiters.md | Skip link-family scans without their prose delimiters | story | done |
 | epics/WP-21/stories/story-skip-parsing-search-documents-that-cannot-match-the-query.md | Skip parsing search documents that cannot match the query | story | done |
@@ -617,6 +618,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-share-adjacent-graph-edge-labels-in-query-output.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-share-the-observed-token-label-across-codex-context-rows.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-skip-code-stripping-phases-without-their-current-delimiters.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-skip-impossible-numbered-artifact-regex-matches.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-skip-link-family-scans-without-their-prose-delimiters.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-skip-parsing-search-documents-that-cannot-match-the-query.md |
@@ -793,6 +795,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-separate-project-matching-and-git-evidence-from-the-size-scanner.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-share-adjacent-graph-edge-labels-in-query-output.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-share-the-observed-token-label-across-codex-context-rows.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-skip-code-stripping-phases-without-their-current-delimiters.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-skip-impossible-numbered-artifact-regex-matches.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-skip-link-family-scans-without-their-prose-delimiters.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-skip-parsing-search-documents-that-cannot-match-the-query.md | mdlink | epics/WP-21/epic.md |
