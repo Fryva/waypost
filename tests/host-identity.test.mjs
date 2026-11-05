@@ -9,7 +9,7 @@ import { sharedTree } from "../scripts/presence-checkout.mjs";
 import { join } from "node:path";
 import { tmpdir, hostname } from "node:os";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { leaseRunEnd } from "../scripts/presence-lease-groups.mjs";
 
 const HOST_MODULE = fileURLToPath(new URL("../scripts/presence-host.mjs", import.meta.url));
@@ -23,7 +23,7 @@ function home(t) {
 // A fresh process per call: hostId() is memoized per process.
 function run(h, code) {
   const r = spawnSync(process.execPath, ["--input-type=module", "-e",
-    `import * as m from ${JSON.stringify(HOST_MODULE)}; ${code}`], { encoding: "utf8", env: { ...process.env, HOME: h, USERPROFILE: h } });
+    `import * as m from ${JSON.stringify(pathToFileURL(HOST_MODULE).href)}; ${code}`], { encoding: "utf8", env: { ...process.env, HOME: h, USERPROFILE: h } });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
@@ -88,7 +88,7 @@ test("sameHost: ids decide when both sides have one; names only for legacy recor
 test("processGone: a same-named foreign machine's live record is not ours to judge", (t) => {
   const h = home(t);
   const id = run(h, "console.log(JSON.stringify(m.hostId()))");
-  const out = run(h, `const { processGone } = await import(${JSON.stringify(HOST_MODULE.replace("presence-host", "presence-process"))});
+  const out = run(h, `const { processGone } = await import(${JSON.stringify(pathToFileURL(HOST_MODULE.replace("presence-host", "presence-process")).href)});
     const s = ${JSON.stringify(short)}, table = new Map();
     const proc = { pid: 999999, started: "x", ticks: 1 };
     console.log(JSON.stringify([
