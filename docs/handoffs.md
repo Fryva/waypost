@@ -200,6 +200,11 @@ creates a new challenge. State files must not overlap the packet or its selected
 New state files are exclusive; updates preserve private
 permissions and refuse observed concurrent content changes. Use one owner per
 state file; this is cooperative coordination, not an adversarial filesystem lock.
+State is written as compact JSON under a 64KiB cap, the same measure every payload,
+request and answer limit uses, so the largest state those limits allow (about 45KiB
+for three retrieval rounds) fits with about 18KiB to spare for paths and
+team-issued identifiers; pretty-printed state files from earlier
+versions are still read and resumed.
 CLI exits0 only for a bound, correlated answer with a current selected snapshot;
 errors return1 and retain reached stage/message ID for diagnosis or resumption.
 
@@ -327,8 +332,8 @@ the fragment the host would return, so a receiver can see when a section
 exceeds the 200-line or 8KiB request limits. Labels are untrusted source text
 clipped to 80 bytes; only the first 512 characters of a line are examined. At
 most 24 entries per file (shallowest kept) and 4KiB of pretty-printed JSON in
-total (measured pretty-printed, so a state file, which nests it a few levels
-deeper and stores about a third more, stays bounded), and only while the first payload stays
+total (measured pretty-printed, as introduced, so payloads stay byte-identical;
+state files are compact JSON), and only while the first payload stays
 within 8KiB; files that do not fit are left out and `truncated: true` says so,
 and when none fits there is no outline at all. A later round repeats the outline
 when it fits and otherwise goes without it, so the hint never makes a paid round

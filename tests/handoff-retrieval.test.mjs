@@ -4,7 +4,9 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { createPacket } from '../scripts/handoff.mjs';
+import { createPacket, readHandoffFile } from '../scripts/handoff.mjs';
+import { DELIVERY_LIMITS } from '../scripts/handoff-delivery.mjs';
+import { writeDeliveryState } from '../bin/cli/handoff-delivery.mjs';
 import { routingDigest } from '../scripts/model-routing.mjs';
 import { prepareHandoffRetrieval, rebuildHandoffRetrieval, readHandoffRequests, prepareRetrievalRound, continueHandoff, outlineLines, RETRIEVAL_LIMITS, OUTLINE_LIMITS } from '../scripts/handoff-retrieval.mjs';
 import './env.mjs';
@@ -298,12 +300,80 @@ test('a receiver can pick a section from the outline and a later round that fits
   const replay = await continueHandoff(base, { ...t.deps, previous: first });
   assert.deepEqual(replay.rounds.map(r => r.identity), first.rounds.map(r => r.identity)); assert.equal(t.inference(), 2);
 });
-test('worst-case pretty-printed state with a full outline, three rounds and a full answer stays under the CLI cap', async () => {
+test('worst-case state with a full outline, three rounds and a full answer stays under the CLI cap', async () => {
   const files = {};
   for (let i = 0; i < 16; i++) files[`h${String(i).padStart(2, '0')}.md`] = Array.from({ length: 24 }, (_, j) => `# ${String.fromCharCode(65 + j)}\n`).join('');
   const base = outlined(files);
   const t = transport((_payload, round) => round < 2 ? request('h00.md', 1, 24) : Array(4000).fill(1));
   const state = await continueHandoff(base, t.deps);
   assert.equal(state.stage, 'answered'); assert.equal(state.rounds.length, 3);
-  assert.ok(Buffer.byteLength(JSON.stringify(state, null, 2)) < 65536);
+  assert.ok(Buffer.byteLength(JSON.stringify(state) + '\n') < 65536);
+});
+
+// The CLI persists through writeDeliveryState and reads back under the same cap.
+const STATE_CAP = 65536, size = value => Buffer.byteLength(JSON.stringify(value));
+const hex = value => createHash('sha256').update(value).digest('hex');
+function stateFile() {
+  const dir = mkdtempSync(join(tmpdir(), 'waypost-retrieval-state-')); roots.push(dir);
+  const path = join(dir, 'state.json'); writeFileSync(path, '', { mode: 0o600 });
+  let expected = hex('');
+  return { persist: async state => { expected = writeDeliveryState(path, state, expected); },
+    read: () => readHandoffFile(dir, 'state.json', STATE_CAP),
+    replace: text => { writeFileSync(path, text); expected = hex(text); } };
+}
+function threeRounds(final) {
+  const root = mkdtempSync(join(tmpdir(), 'waypost-retrieval-')); roots.push(root);
+  writeFileSync(join(root, 'doc.md'), ('x'.repeat(99) + '\n').repeat(80));
+  writeFileSync(join(root, 'source.md'), Array.from({ length: 16 }, (_, i) => `line ${i}\n`).join(''));
+  writeFileSync(join(root, 'packet.json'), JSON.stringify(createPacket(root, { goal: 'Read selected source', next_step: 'Answer the task', files: ['doc.md', 'source.md'] })));
+  const base = prepareHandoffRetrieval(root, 'packet.json', { task: 'Explain the source', include: ['doc.md'], challenge: 'a'.repeat(32) });
+  const ranges = round => ({ kind: 'handoff-data-request', requests: [0, 1, 2, 3].map(i => ({ path: 'source.md', start_line: round * 4 + i + 1, end_line: round * 4 + i + 1 })) });
+  return { base, t: transport((_payload, round) => round < 2 ? ranges(round) : final) };
+}
+test('a nested final answer within the answer limit persists after three rounds and resumes from the file', async () => {
+  const answer = Array(1365).fill([[1]]);
+  assert.equal(size(answer), 8191); assert.ok(size(answer) <= DELIVERY_LIMITS.answer);
+  const { base, t } = threeRounds(answer), file = stateFile();
+  assert.equal(Object.hasOwn(base.payload, 'outline'), false);
+  const state = await continueHandoff(base, { ...t.deps, persist: file.persist });
+  assert.equal(state.stage, 'answered'); assert.equal(state.rounds.length, 3); assert.equal(t.inference(), 3);
+  // Indentation alone would have refused this final save after the last paid inference.
+  assert.ok(Buffer.byteLength(JSON.stringify(state, null, 2)) > STATE_CAP);
+  const saved = JSON.parse(file.read());
+  assert.deepEqual(saved, JSON.parse(JSON.stringify(state)));
+  const replay = await continueHandoff(base, { ...t.deps, previous: saved, persist: file.persist });
+  assert.equal(replay.stage, 'answered'); assert.deepEqual(replay.answer.answer, answer); assert.equal(t.inference(), 3);
+  assert.deepEqual(replay.rounds.map(r => r.identity), state.rounds.map(r => r.identity));
+});
+test('a state with every bounded field at its limit at once persists and reads back under the CLI cap', async () => {
+  const { base, t } = threeRounds({ done: true }), state = structuredClone(await continueHandoff(base, t.deps));
+  assert.equal(state.rounds.length, 3);
+  state.prepared.payload.context += 'p'.repeat(RETRIEVAL_LIMITS.payload - size(state.prepared.payload));
+  assert.equal(size(state.prepared.payload), RETRIEVAL_LIMITS.payload);
+  state.answer.answer = [...Array(1022).fill([[[1]]]), 1e13];
+  assert.equal(size(state.answer.answer), DELIVERY_LIMITS.answer);
+  for (const round of state.rounds) {
+    Object.assign(round.delivery, { poll_cursor: 'c'.repeat(4096), error: 'e'.repeat(256), command_cleanup: { process_closed: false, native_closure: 'unknown', grace_ms: 5000 } });
+    if (!round.request) continue;
+    const request = { kind: 'handoff-data-request', requests: Array.from({ length: RETRIEVAL_LIMITS.requests }, () => ({ path: 'q', start_line: 1, end_line: RETRIEVAL_LIMITS.lines })) };
+    request.requests[0].path += 'q'.repeat(RETRIEVAL_LIMITS.request - size(request));
+    assert.equal(size(request), RETRIEVAL_LIMITS.request);
+    round.request.request = request;
+  }
+  state.error = 'e'.repeat(256);
+  const file = stateFile();
+  await file.persist(state);
+  const text = file.read();
+  // Headroom left for the absolute project root and team-issued identifiers.
+  assert.ok(text.length <= STATE_CAP - 8192, `state is ${text.length} bytes`);
+  assert.deepEqual(JSON.parse(text), state);
+});
+test('a legacy pretty-printed state file still resumes and is rewritten compactly', async () => {
+  const base = fixture(), t = transport(), file = stateFile();
+  const first = await continueHandoff(base, t.deps);
+  file.replace(JSON.stringify(first, null, 2) + '\n');
+  const replay = await continueHandoff(base, { ...t.deps, previous: JSON.parse(file.read()), persist: file.persist });
+  assert.equal(replay.stage, 'answered'); assert.equal(t.inference(), 2);
+  assert.deepEqual(replay.rounds.map(r => r.identity), first.rounds.map(r => r.identity));
+  assert.equal(file.read().toString(), JSON.stringify(replay) + '\n');
 });

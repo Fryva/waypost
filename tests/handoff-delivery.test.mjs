@@ -225,3 +225,21 @@ test('an interrupted resume before the deadline does not downgrade a relayed sta
   now = 5000; const last = transport(p), state = await deliverHandoff(p, { ...last.deps, previous: again, wallClock: () => now });
   assert.equal(state.stage, 'answered'); assert.equal(last.calls.some(c => c[0] === 'relay'), false);
 });
+
+test('one-shot state with a nested answer within the answer limit persists and resumes from the file', async () => {
+  const f = fixture('y'.repeat(8192)), prepared = f.prepare(), path = join(f.root, 'state.json');
+  writeFileSync(path, '', { mode: 0o600 }); let expected = sha('');
+  const answer = Array(1023).fill([[[1]]]);
+  assert.ok(Buffer.byteLength(JSON.stringify(answer)) <= 8192);
+  const text = JSON.stringify({ challenge: prepared.payload.challenge, packet_sha256: prepared.payload.packet.sha256, answer });
+  const t = transport(prepared, { persist: async s => { expected = writeDeliveryState(path, s, expected); },
+    relay: async id => ({ delivered: 1, results: [{ message_id: id, forwarded: true, stand_in: true, nonce: 'native-receipt', output_digest: routingDigest(text) }] }),
+    poll: async () => ({ messages: [{ id: 'reply', kind: 'answer', sender: 'receiver', recipient: 'sender', epoch: 0, reply_to: 'question', payload: { stand_in: true, delivery_nonce: 'native-receipt', text } }] }) });
+  const state = await deliverHandoff(prepared, t.deps);
+  assert.equal(state.stage, 'answered');
+  assert.ok(Buffer.byteLength(JSON.stringify(state, null, 2)) > 65536);
+  const saved = JSON.parse(readFileSync(path, 'utf8'));
+  assert.deepEqual(saved.answer.answer, answer);
+  const replay = await deliverHandoff(prepared, { ...t.deps, previous: saved });
+  assert.equal(replay.stage, 'answered'); assert.ok(statSync(path).size <= 65536);
+});

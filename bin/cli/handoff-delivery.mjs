@@ -12,7 +12,8 @@ import { prepareHandoffDelivery, deliverHandoff, assertDeliveryDestination, DELI
 const sha = value => createHash('sha256').update(value).digest('hex');
 export function writeDeliveryState(path, state, expected) {
   const read = () => readHandoffFile(dirname(path), basename(path), 65536);
-  const text = JSON.stringify(state, null, 2) + '\n';
+  // Compact, like every limit it is bounded by; indentation multiplies nested answers. Readers accept older pretty files.
+  const text = JSON.stringify(state) + '\n';
   if (Buffer.byteLength(text) > 65536) throw new Error('handoff-delivery-state-limit');
   if (sha(read()) !== expected) throw new Error('handoff-delivery-state-changed');
   const temp = path + '.' + randomUUID() + '.tmp';
