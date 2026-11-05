@@ -16,7 +16,7 @@ test("link leaf preserves facade bindings, arity and read budget",()=>{
   const arities={stripCodeSpans:1,extractLinks:1,resolveLinkTarget:3};
   assert.deepEqual(Object.keys(focused).sort(),Object.keys(arities).sort());
   for(const [name,arity]of Object.entries(arities)){assert.equal(facade[name],focused[name]);assert.equal(focused[name].name,name);assert.equal(focused[name].length,arity);}
-  assert.ok(readFileSync(new URL("../scripts/lib-links.mjs",import.meta.url)).length<=10000);
+  for(const leaf of ["lib-links.mjs","lib-link-extract.mjs"])assert.ok(readFileSync(new URL("../scripts/"+leaf,import.meta.url)).length<=10000,leaf);
 });
 
 test("link parser preserves exclusions, aliases, relative links, duplicates and ordering",()=>{
@@ -60,7 +60,7 @@ test("link resolver preserves callback ordering, escape refusal and callback exc
 });
 
 test("link leaf imports and executes without filesystem I/O or process probes",()=>{
-  const urls=["lib-links.mjs","lib-identity.mjs"].map(name=>new URL("../scripts/"+name,import.meta.url).href);
+  const urls=["lib-links.mjs","lib-identity.mjs","lib-link-extract.mjs"].map(name=>new URL("../scripts/"+name,import.meta.url).href);
   const code=`import fs from "node:fs";import cp from "node:child_process";import {syncBuiltinESMExports} from "node:module";import {fileURLToPath} from "node:url";
   const allowed=new Set(${JSON.stringify(urls)}.map(u=>fileURLToPath(u)));let calls=0;const blocked=()=>{calls++;throw Error("unexpected I/O")};
   for(const name of ["readFileSync","realpathSync"]){const original=fs[name];fs[name]=(p,...args)=>allowed.has(p instanceof URL?fileURLToPath(p):String(p))?original(p,...args):blocked();}

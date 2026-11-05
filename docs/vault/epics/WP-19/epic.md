@@ -8,7 +8,7 @@ created: 2026-09-30
 updated: 2026-09-30
 external_refs: {}
 tags: []
-code_refs: ["scripts/presence.mjs", "scripts/agents.mjs", "scripts/skills.mjs", "scripts/lib.mjs", "tests/commits.test.mjs", "tests/predicates.test.mjs", "scripts/doctor.mjs", "harnesses/codex.json", "harnesses/claude.json", "harnesses/gemini.json", "bin/waypost", "tests/presence.test.mjs", "tests/harness.test.mjs", "tests/limit.test.mjs", "docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md", "scripts/presence-host.mjs", "scripts/presence-process.mjs", "scripts/presence-lease-groups.mjs", "tests/host-identity.test.mjs", "bin/cli/deleter.mjs", "bin/cli/slots.mjs", "scripts/presence-liveness.mjs", "scripts/presence-checkout.mjs", "scripts/brief.mjs", "scripts/sessions.mjs"]
+code_refs: ["scripts/presence.mjs", "scripts/agents.mjs", "scripts/skills.mjs", "scripts/lib.mjs", "tests/commits.test.mjs", "tests/predicates.test.mjs", "scripts/doctor.mjs", "harnesses/codex.json", "harnesses/claude.json", "harnesses/gemini.json", "bin/waypost", "tests/presence.test.mjs", "tests/harness.test.mjs", "tests/limit.test.mjs", "docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md", "scripts/presence-host.mjs", "scripts/presence-process.mjs", "scripts/presence-lease-groups.mjs", "tests/host-identity.test.mjs", "tests/host-home.mjs", "bin/cli/deleter.mjs", "bin/cli/slots.mjs", "scripts/presence-liveness.mjs", "scripts/presence-checkout.mjs", "scripts/brief.mjs", "scripts/sessions.mjs"]
 review_status: pending
 reviewed_at: null
 ---

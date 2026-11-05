@@ -108,7 +108,8 @@ policy writer. `scripts/lib-vault-facts.mjs` owns budgeted fact collection and i
 existing deadline and late-result behavior.
 `scripts/lib-resources.mjs` owns tool-root resolution, layout loading and template
 rendering. The heading registry and its per-facade cache remain in `lib.mjs`.
-`scripts/lib-links.mjs` owns link parsing and resolution; its caller-owned
+`scripts/lib-links.mjs` owns link resolution and re-exports the parsing from
+`scripts/lib-link-extract.mjs`; the resolver's caller-owned
 `ctx._fileSet` cache and injected attachment lookup retain their existing behavior.
 `scripts/lib-vault-files.mjs` owns read-only vault discovery, story references,
 containment and activity checks. It reads the filesystem at call time and shares
