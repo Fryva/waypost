@@ -181,3 +181,14 @@ test('three Unicode rounds retain exact UTF-8 size and digest identities on repl
   assert.equal(replay.cumulative_payload_bytes, total);
   assert.equal(t.inference(), 3);
 });
+
+test('after the deadline a relayed round is collected without a second relay and keeps its deadline', async () => {
+  const base = fixture(), t = transport(() => ({ done: true })); let now = 1000; const poll = t.deps.poll;
+  t.deps.poll = async () => { throw new Error('interrupted'); };
+  await assert.rejects(continueHandoff(base, { ...t.deps, wallClock: () => now, timeoutMs: 100, deadlineAt: 1100 }), /interrupted/);
+  const saved = t.snapshots.at(-1); assert.equal(saved.rounds[0].delivery.stage, 'relayed'); assert.ok(saved.rounds[0].delivery.relay);
+  t.deps.poll = poll; now = 5000; const relays = t.calls.filter(c => c[0] === 'relay').length;
+  const done = await continueHandoff(base, { ...t.deps, previous: saved, wallClock: () => now, timeoutMs: 300000, deadlineAt: now + 300000 });
+  assert.equal(done.stage, 'answered'); assert.equal(done.deadline_at, 1100); assert.equal(done.rounds[0].delivery.deadline_at, 1100);
+  assert.equal(t.calls.filter(c => c[0] === 'relay').length, relays); assert.equal(t.inference(), 1);
+});

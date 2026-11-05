@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync, unlinkSync, existsSync, mkdirSync, realpathSync, lstatSync, symlinkSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { tmpdir, hostname } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { createPacket, inspectPacket } from '../scripts/handoff.mjs';
-import { buildTransfer, parseTransfer, applyTransfer, availabilityReport, collectTransferStore, validateAvailability, readTransferFile, writeTransferFile, TRANSFER_LIMITS } from '../scripts/handoff-transfer.mjs';
+import { buildTransfer, parseTransfer, applyTransfer, availabilityReport, collectTransferStore, validateAvailability, readTransferFile, writeTransferFile, TRANSFER_LIMITS, breakStaleLock } from '../scripts/handoff-transfer.mjs';
 import './env.mjs';
 const roots = []; after(() => roots.forEach(root => rmSync(root, { recursive: true, force: true })));
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -155,4 +156,40 @@ test('an exact base digest and explicit deletion list are checked before target 
   const different = structuredClone(f.delta); different.base.manifest_sha256 = '0'.repeat(64);
   assert.throws(() => applyTransfer(f.store, different, { scope, authority: f.state }), /base/);
   assert.equal(existsSync(join(f.store, f.delta.manifest_sha256 + '.manifest')), false);
+});
+
+const lockPath = f => join(f.store, '.lock');
+const holder = (pid, extra = {}) => JSON.stringify({ pid, host: hostname(), started: new Date().toISOString(), nonce: 'n-' + pid, ...extra });
+function deadPid() { const r = spawnSync(process.execPath, ['-e', '']); return r.pid; }
+test('a lock left by a dead process on this host is broken; live, foreign or unreadable holders still refuse', () => {
+  const f = fixture(); applyTransfer(f.store, f.full, { scope });
+  writeFileSync(lockPath(f), holder(deadPid()), { mode: 0o600 });
+  assert.doesNotThrow(() => availabilityReport(f.store, f.full.manifest_sha256, scope));
+  assert.equal(existsSync(lockPath(f)), false);
+  assert.deepEqual(readdirSync(f.store).filter(n => n.includes('.stale-')), []);
+  for (const content of [holder(process.pid), holder(deadPid(), { host: 'elsewhere-' + hostname() }), '', '{not json']) {
+    writeFileSync(lockPath(f), content, { mode: 0o600 });
+    assert.throws(() => availabilityReport(f.store, f.full.manifest_sha256, scope), /EEXIST/);
+    assert.equal(readFileSync(lockPath(f), 'utf8'), content); rmSync(lockPath(f));
+  }
+});
+test('breaking a stale lock never takes a live lock created in the race window', () => {
+  const f = fixture(); applyTransfer(f.store, f.full, { scope });
+  writeFileSync(lockPath(f), holder(deadPid()), { mode: 0o600 });
+  const live = holder(process.pid, { nonce: 'fresh' });
+  const broken = breakStaleLock(lockPath(f), { beforeRename: () => { rmSync(lockPath(f)); writeFileSync(lockPath(f), live, { mode: 0o600 }); } });
+  assert.equal(broken, false); assert.equal(readFileSync(lockPath(f), 'utf8'), live);
+  assert.deepEqual(readdirSync(f.store).filter(n => n.includes('.stale-')), []);
+});
+test('store creation is atomic and leaves no half-built directory', () => {
+  const f = fixture(); const store = join(f.root, 'fresh-store');
+  applyTransfer(store, f.full, { scope });
+  assert.equal(existsSync(join(store, 'owner.json')), true);
+  assert.deepEqual(readdirSync(f.root).filter(n => n.startsWith('fresh-store.tmp-')), []);
+});
+test('gc removes orphaned publish temp files and counts them', () => {
+  const f = fixture(); applyTransfer(f.store, f.full, { scope });
+  const orphan = join(f.store, '.transfer-' + sha('x').slice(0, 8) + '-0000.tmp'); writeFileSync(orphan, 'orphan', { mode: 0o600 });
+  const kept = collectTransferStore(f.store, scope, { keep: [f.full.manifest_sha256] });
+  assert.equal(existsSync(orphan), false); assert.equal(kept.removed, 1); assert.equal(kept.bytes, 6);
 });

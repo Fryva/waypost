@@ -1,6 +1,7 @@
 // Explicit receiver-local content objects. Availability is only a participant hint.
 import { createHash, randomUUID } from 'node:crypto';
-import { constants, lstatSync, realpathSync, mkdirSync, openSync, closeSync, readSync, fstatSync, writeFileSync, linkSync, unlinkSync, renameSync, readdirSync, rmSync } from 'node:fs';
+import { constants, lstatSync, realpathSync, mkdirSync, openSync, closeSync, readSync, fstatSync, writeFileSync, linkSync, unlinkSync, renameSync, readdirSync, rmSync, mkdtempSync, readFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { resolve, dirname, basename, join } from 'node:path';
 import { TextDecoder } from 'node:util';
 import { validatePacket, readHandoffFile, inspectPacket, LIMITS } from './handoff.mjs';
@@ -139,17 +140,57 @@ function publish(root, name, data) {
     return linked;
   } finally { unlinkSync(path); }
 }
+// A lock names its holder. Only a record from this host whose pid is certainly gone is broken;
+// anything unreadable, foreign or alive keeps the old fail-closed EEXIST.
+export function breakStaleLock(lock, { beforeRename = null } = {}) {
+  let held;
+  try {
+    held = JSON.parse(readFileSync(lock, 'utf8'));
+    if (!held || !Number.isSafeInteger(held.pid) || held.pid < 1 || held.host !== hostname() || typeof held.nonce !== 'string') return false;
+    try { process.kill(held.pid, 0); return false; } catch (error) { if (error.code !== 'ESRCH') return false; }
+  } catch { return false; }
+  beforeRename?.();
+  const stale = lock + '.stale-' + randomUUID();
+  try { renameSync(lock, stale); } catch { return false; }
+  try {
+    let moved = null;
+    try { moved = JSON.parse(readFileSync(stale, 'utf8')); } catch {}
+    if (moved?.nonce === held.nonce) return true;
+    // A live holder replaced the dead one between the read and the rename: give its lock back.
+    try { linkSync(stale, lock); } catch {}
+    return false;
+  } finally { try { unlinkSync(stale); } catch {} }
+}
+function acquireLock(lock) {
+  for (let attempt = 0; ; attempt++) {
+    let fd;
+    try { fd = openSync(lock, 'wx', 0o600); }
+    catch (error) { if (error.code === 'EEXIST' && attempt === 0 && breakStaleLock(lock)) continue; throw error; }
+    const nonce = randomUUID();
+    try { writeFileSync(fd, JSON.stringify({ pid: process.pid, host: hostname(), started: new Date().toISOString(), nonce })); }
+    catch (error) { closeSync(fd); try { unlinkSync(lock); } catch {} throw error; }
+    return { fd, nonce };
+  }
+}
 function withStore(path, scope, action, create = false) {
   validateTransferScope(scope);
   const absolute = resolve(path); safeDirectory(dirname(absolute));
   try { lstatSync(absolute); } catch (error) {
     if (error.code !== 'ENOENT' || !create) throw error;
-    mkdirSync(absolute, { mode: 0o700 });
-    publish(absolute, 'owner.json', json({ kind: 'waypost-handoff-store', version: 1, scope, owned: [] }));
+    // Build the store beside its destination so a crash never leaves a directory without owner.json.
+    const building = mkdtempSync(absolute + '.tmp-');
+    try {
+      publish(building, 'owner.json', json({ kind: 'waypost-handoff-store', version: 1, scope, owned: [] }));
+      renameSync(building, absolute);
+    } catch (e) {
+      rmSync(building, { recursive: true, force: true });
+      // Lost a creation race: POSIX says EEXIST/ENOTEMPTY, Windows EPERM.
+      if (e.code !== 'EEXIST' && e.code !== 'ENOTEMPTY' && !(e.code === 'EPERM' && lstatSync(absolute, { throwIfNoEntry: false }))) throw e;
+    }
   }
   const root = safeDirectory(absolute);
   if (process.platform !== 'win32' && (lstatSync(root).mode & 0o077)) fail('store-permissions');
-  const lock = join(root, '.lock'), fd = openSync(lock, 'wx', 0o600);
+  const lock = join(root, '.lock'), { fd, nonce } = acquireLock(lock);
   try {
     const owner = JSON.parse(readLocal(root, 'owner.json', TRANSFER_LIMITS.manifest));
     keys(owner, ['kind', 'version', 'scope', 'owned']);
@@ -159,7 +200,12 @@ function withStore(path, scope, action, create = false) {
       renameSync(join(root, temp), join(root, 'owner.json'));
     };
     return action(root, owner, save);
-  } finally { closeSync(fd); unlinkSync(lock); }
+  } finally {
+    closeSync(fd);
+    // Release only our own lock: a stale-lock breaker may have replaced it.
+    let held = null; try { held = JSON.parse(readFileSync(lock, 'utf8')); } catch {}
+    if (held?.nonce === nonce) unlinkSync(lock);
+  }
 }
 function verifyStored(root, sha, scope) {
   if (!digest(sha)) fail('digest');
@@ -253,6 +299,11 @@ export function collectTransferStore(store, scope, { keep = [] } = {}) {
       objectRefs(manifest).forEach(r => retained.add(r.sha256 + '.obj'));
     }
     let removed = 0, bytes = 0;
+    // Orphans of a crashed publish; under the lock no live writer owns one.
+    for (const name of readdirSync(root)) if (/^\.transfer-[a-f0-9-]+\.tmp$/.test(name)) {
+      try { const stat = lstatSync(join(root, name)); if (stat.isFile()) { unlinkSync(join(root, name)); removed++; bytes += stat.size; } }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
     for (const name of owner.owned) if (!retained.has(name)) {
       try { const stat = lstatSync(join(root, name)); if (stat.isSymbolicLink() || !stat.isFile()) fail('store-path'); unlinkSync(join(root, name)); removed++; bytes += stat.size; }
       catch (error) { if (error.code !== 'ENOENT') throw error; }

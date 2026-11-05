@@ -187,3 +187,41 @@ test('legacy state receives one deadline without rebinding its question; timeout
   assert.equal(state.deadline_at, 1100); assert.equal(state.request_key, initial.request_key);
   for (const timeoutMs of [0, -1, 300001, 1.5, NaN]) await assert.rejects(deliverHandoff(p, { ...t.deps, timeoutMs }), /timeout/);
 });
+
+test('after the deadline a relayed question is recovered without relaying again; deadline_at stays', async () => {
+  const p = fixture().prepare(), t = transport(p); let now = 1000;
+  t.deps.poll = async () => { throw Error('interrupted'); };
+  await assert.rejects(deliverHandoff(p, { ...t.deps, timeoutMs: 20, wallClock: () => now }), /interrupted/);
+  const previous = t.writes.at(-1); assert.equal(previous.stage, 'relayed'); assert.equal(previous.deadline_at, 1020);
+  now = 5000; const next = transport(p), state = await deliverHandoff(p, { ...next.deps, previous, wallClock: () => now });
+  assert.equal(state.stage, 'answered'); assert.equal(state.deadline_at, 1020); assert.equal(state.timings.recovery, true);
+  assert.deepEqual(next.calls.map(c => c[0]), ['send', 'poll']);
+  assert.equal(next.writes.every(w => w.stage !== 'sent'), true);
+  await assert.rejects(deliverHandoff(p, { ...transport(p).deps, previous: state, wallClock: () => now }), /deadline/);
+});
+test('recovery needs a relayed question and expires after its own window', async () => {
+  const p = fixture().prepare(), t = transport(p); let now = 1000;
+  t.deps.relay = async () => { throw Error('interrupted'); };
+  await assert.rejects(deliverHandoff(p, { ...t.deps, timeoutMs: 20, wallClock: () => now }), /interrupted/);
+  now = 5000; const sent = transport(p);
+  await assert.rejects(deliverHandoff(p, { ...sent.deps, previous: t.writes.at(-1), wallClock: () => now }), /deadline/);
+  assert.equal(sent.calls.length, 0);
+  const u = transport(p); u.deps.poll = async () => { throw Error('interrupted'); };
+  await assert.rejects(deliverHandoff(p, { ...u.deps, timeoutMs: 20, wallClock: () => 1000 }), /interrupted/);
+  const previous = u.writes.at(-1), slow = transport(p); now = 5000;
+  slow.deps.poll = async () => { now += 60001; return { messages: [] }; };
+  await assert.rejects(deliverHandoff(p, { ...slow.deps, previous, wallClock: () => now }), /deadline/);
+  assert.equal(slow.calls.some(c => c[0] === 'relay'), false); assert.equal(slow.writes.at(-1).deadline_at, 1020);
+});
+
+test('an interrupted resume before the deadline does not downgrade a relayed stage', async () => {
+  const p = fixture().prepare(), t = transport(p); let now = 1000;
+  t.deps.poll = async () => { throw Error('interrupted'); };
+  await assert.rejects(deliverHandoff(p, { ...t.deps, timeoutMs: 1000, wallClock: () => now }), /interrupted/);
+  const previous = t.writes.at(-1), next = transport(p);
+  next.deps.relay = async () => { throw Error('stopped-again'); };
+  await assert.rejects(deliverHandoff(p, { ...next.deps, previous, wallClock: () => now }), /stopped-again/);
+  const again = next.writes.at(-1); assert.equal(again.stage, 'relayed'); assert.ok(again.relay);
+  now = 5000; const last = transport(p), state = await deliverHandoff(p, { ...last.deps, previous: again, wallClock: () => now });
+  assert.equal(state.stage, 'answered'); assert.equal(last.calls.some(c => c[0] === 'relay'), false);
+});

@@ -9,6 +9,7 @@ import { readHandoffFile, inspectPacket, formatInspection, LIMITS } from './hand
 
 export const DELIVERY_DEFAULT_TIMEOUT_MS = 180000;
 export const DELIVERY_MAX_TIMEOUT_MS = 300000;
+export const DELIVERY_RECOVERY_MS = 60000;
 export const DELIVERY_LIMITS = Object.freeze({ payload: 16384, document: 8192, documents: 16, task: 4096, answer: 8192 });
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const fail = code => { throw new Error(code); };
@@ -77,14 +78,19 @@ export async function deliverHandoff(prepared, { route, send, relay, poll, persi
   const selectedDeadline = state.deadline_at ?? deadlineAt ?? wallClock() + timeoutMs;
   if (!Number.isSafeInteger(selectedDeadline) || selectedDeadline < 1 || selectedDeadline > wallClock() + DELIVERY_MAX_TIMEOUT_MS) fail('handoff-delivery-deadline-invalid');
   state.deadline_at = selectedDeadline;
+  // A relayed question has been paid for. After the stored deadline a resume may only collect it:
+  // re-read the message by request key, reuse the stored relay result and poll, inside a fixed
+  // recovery window of this attempt. deadline_at itself never moves.
+  const recovering = state.stage === 'relayed' && typeof state.message_id === 'string' && !!state.message_id && !!state.relay && wallClock() >= state.deadline_at, reuseRelay = recovering, recoveryUntil = wallClock() + DELIVERY_RECOVERY_MS;
   const budget = () => {
-    const remainingMs = state.deadline_at - wallClock();
+    const limit = recovering ? recoveryUntil : state.deadline_at, remainingMs = limit - wallClock();
     if (remainingMs <= 0) fail('handoff-delivery-deadline');
-    return { deadlineAt: state.deadline_at, remainingMs };
+    return { deadlineAt: limit, remainingMs };
   };
   if (prepareMs !== null && (!Number.isFinite(prepareMs) || prepareMs < 0)) fail('handoff-delivery-prepare-time');
   const started = clock(), duration = start => Math.max(0, Math.round((clock() - start) * 1000) / 1000);
   const timings = state.timings = { protocol: 1, scope: 'current-attempt', prepare_ms: prepareMs, send_ms: null, relay_ms: null, poll_ms: null, orchestration_ms: 0, total_ms: null };
+  if (recovering) timings.recovery = true;
   const save = async () => {
     timings.orchestration_ms = duration(started);
     timings.total_ms = prepareMs === null ? null : Math.round((prepareMs + timings.orchestration_ms) * 1000) / 1000;
@@ -101,9 +107,9 @@ export async function deliverHandoff(prepared, { route, send, relay, poll, persi
     // Reusing the exact request key lets existing authority recover a prior send.
     const message = await timed('send_ms', context => send(prepared.payload, state.request_key, context));
     if (!message || typeof message.id !== 'string' || !message.id || message.sender !== route.sender || message.recipient !== route.receiver || (state.message_id !== null && state.message_id !== message.id)) fail('handoff-delivery-message-binding');
-    state.message_id = message.id; state.stage = 'sent'; await save();
+    state.message_id = message.id; if (state.stage !== 'relayed') state.stage = 'sent'; await save();
     assertDeliveryFresh(prepared);
-    const delivered = await timed('relay_ms', context => relay(message.id, context));
+    const delivered = reuseRelay ? state.relay : await timed('relay_ms', context => relay(message.id, context));
     state.relay = delivered; state.stage = 'relayed'; await save();
     let responses = [], exhausted = false;
     for (let page = 0; page < 16; page++) {

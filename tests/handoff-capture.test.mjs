@@ -5,6 +5,7 @@ import { mkdtempSync, realpathSync, writeFileSync, readFileSync, mkdirSync, exis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { spawn, spawnSync } from 'node:child_process';
 import { captureCommand, handleCapture } from '../bin/cli/handoff-capture.mjs';
 import { parseCaptureArgs, reserveCapturePacket, validateCaptureReceipt, CAPTURE_LIMITS } from '../scripts/handoff-capture.mjs';
 import { createPacket, inspectPacket, validatePacket } from '../scripts/handoff.mjs';
@@ -71,6 +72,56 @@ test('timeout kills a direct child ignoring TERM within bounded time', async () 
   const start = Date.now(), r = await captureCommand(f);
   assert.ok(Date.now() - start < 4000); assert.equal(r.status, 124);
   assert.equal(r.receipt.capture.complete, false); assert.equal(r.receipt.capture.reason, 'capture-timeout');
+});
+
+test('timeout kills the whole process group, not just the direct child', { skip: process.platform === 'win32' }, async () => {
+  const f = fixture(); f.timeoutMs = 300; const marker = 'sleep ' + (40 + (process.pid % 900));
+  f.argv = ['/bin/sh', '-c', marker + ' & wait'];
+  const r = await captureCommand(f);
+  assert.equal(r.status, 124);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const alive = spawnSync('pgrep', ['-f', marker], { encoding: 'utf8' }).stdout.trim();
+  if (alive) spawnSync('pkill', ['-f', marker]);
+  assert.equal(alive, '');
+});
+
+const alive = marker => spawnSync('pgrep', ['-f', marker], { encoding: 'utf8' }).stdout.trim() !== '';
+const settle = ms => new Promise(resolve => setTimeout(resolve, ms));
+const posix = { skip: process.platform === 'win32' };
+let sleepSeed = 3000 + (process.pid % 1000);
+async function leftovers(f, script, check = () => {}) {
+  const marker = 'sleep ' + (sleepSeed++); f.argv = ['/bin/sh', '-c', script.replaceAll('SLEEP', marker)];
+  const r = await captureCommand(f); check(r); await settle(200);
+  const left = alive(marker); if (left) spawnSync('pkill', ['-f', marker]);
+  assert.equal(left, false);
+}
+test('a TERM-ignoring descendant is killed after timeout', posix, async () => {
+  const f = fixture(); f.timeoutMs = 300;
+  await leftovers(f, "(trap '' TERM; exec SLEEP) & wait", r => assert.equal(r.status, 124));
+});
+test('drain timeout leaves no descendant holding the pipes', posix, async () => {
+  await leftovers(fixture(), 'SLEEP & exit 0', r => assert.equal(r.receipt.capture.reason, 'capture-pipe-drain-timeout'));
+});
+test('normal exit leaves no detached descendant', posix, async () => {
+  await leftovers(fixture(), 'SLEEP >/dev/null 2>&1 &', r => assert.equal(r.status, 0));
+});
+test('signal forwarders are removed after success and timeout', posix, async () => {
+  const count = () => ['SIGINT', 'SIGTERM', 'SIGHUP'].map(sig => process.listenerCount(sig)).join();
+  const before = count(); await captureCommand(fixture()); assert.equal(count(), before);
+  const f = fixture(); f.timeoutMs = 100; f.argv = [process.execPath, '-e', 'setInterval(()=>{},1000)'];
+  await captureCommand(f); assert.equal(count(), before);
+});
+test('SIGTERM to waypost kills the command group and re-raises the signal', posix, async () => {
+  const f = fixture(), marker = 'sleep ' + (sleepSeed++);
+  f.argv = ['/bin/sh', '-c', marker + ' & wait'];
+  const script = `import { captureCommand } from ${JSON.stringify(new URL('../bin/cli/handoff-capture.mjs', import.meta.url).href)}; await captureCommand(JSON.parse(process.argv[1]));`;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', script, JSON.stringify(f)], { stdio: 'ignore' });
+  const closed = new Promise(resolve => child.once('close', (code, sig) => resolve(sig)));
+  for (let i = 0; i < 100 && !alive(marker); i++) await settle(50);
+  assert.equal(alive(marker), true); child.kill('SIGTERM');
+  assert.equal(await closed, 'SIGTERM'); await settle(200);
+  const left = alive(marker); if (left) spawnSync('pkill', ['-f', marker]);
+  assert.equal(left, false);
 });
 
 test('inherited pipes have an independent bounded drain deadline', async () => {

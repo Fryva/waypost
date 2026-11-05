@@ -143,7 +143,8 @@ before spawn. All output files must fit existing v1 bounds.
 
 Runtime defaults to120000ms, max300000; combined raw logs are bounded to4MiB;
 receipt to256KiB. --timeout-ms and --max-log-bytes may lower these bounds. On
-errors/timeout the direct child receives TERM then KILL after a bounded grace;
+errors/timeout the command's whole process group (POSIX; `taskkill /T` on Windows) receives TERM then KILL after a bounded grace, and
+any leftover group member is killed when capture returns;
 pipe drain has its own deadline. Forced closure/log failures mark incomplete.
 Logs close before hashing, receipt is finalized before packet, packet is last.
 Partial diagnostics can remain after storage failure; they never claim pass.
@@ -272,6 +273,11 @@ Timeout/overflow uses TERM then KILL only on the held child process, with bounde
 cleanup grace. This proves only the observed CLI child closure; native closure
 remains unknown unless the existing owned Host records its own proof. A timed-out
 or SIGKILL-consumed native operation retains existing reservation/refusal rules.
+After the deadline a resume of a state at stage relayed only collects the paid
+answer: it re-reads the message by request key, reuses the stored relay result
+(no second relay) and polls within a fixed 60-second recovery window of that
+attempt (timings.recovery). deadline_at never moves; earlier stages still fail
+with handoff-delivery-deadline. Before the deadline a resume repeats relay as before.
 No replacement question is created automatically. Generic library callbacks must
 cooperate with the provided deadline context; a callback ignoring it cannot be
 forcibly stopped by the library. SIGKILL of the caller cannot execute finally;
@@ -348,8 +354,10 @@ never overwrites an existing checkout.
 The envelope is at most64MiB, an object at most8MiB, selected bytes at most32MiB
 plus the64KiB packet. Default store quota is64MiB (a smaller explicit quota can be
 set on import), with a1024file bound. Atomic publication and ownership provenance
-limit interrupted writes; explicit GC removes only store-owned unretained data.
-A hard process crash can leave a lock: automatic foreign-lock deletion is not
-implemented. Use a new explicit store and full transfer when lock ownership cannot
-be established. Keep byte-transfer/storage savings separate from native input:
+limit interrupted writes; explicit GC removes only store-owned unretained data and orphaned `.transfer-*.tmp`
+files. The lock records pid, host and nonce; after a hard crash it is broken only
+when it was written on this host and that pid is certainly gone (renamed aside,
+nonce re-checked, restored if a live holder raced in). Anything unclear (empty,
+unreadable, other host, live pid) refuses. Use a new explicit store and full
+transfer when lock ownership cannot be established. Keep byte-transfer/storage savings separate from native input:
 fresh model sessions still need the context their task requires.

@@ -2,7 +2,7 @@
 import { lstatSync, realpathSync, readdirSync, mkdirSync, openSync, writeSync, closeSync, writeFileSync, ftruncateSync } from 'node:fs';
 import { resolve, join, sep, isAbsolute } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants as osConstants } from 'node:os';
 import { createPacket, readHandoffJson, readHandoffFile, validatePacket } from '../../scripts/handoff.mjs';
@@ -72,7 +72,10 @@ export async function captureCommand(options, dependencies = {}) {
     let settled = false, exited = false;
     const finish = () => {
       if (settled) return;
-      settled = true; clearTimeout(timer); clearTimeout(killTimer); clearTimeout(drainTimer); done();
+      settled = true;
+      // Whatever the outcome, no descendant outlives the capture (best effort; an empty group is ESRCH).
+      if (group && Number.isSafeInteger(child?.pid) && child.pid > 1) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
+      for (const [sig, handler] of forwarders) process.off(sig, handler); clearTimeout(timer); clearTimeout(killTimer); clearTimeout(drainTimer); done();
     };
     const boundDrain = () => {
       if (drainTimer) return;
@@ -82,17 +85,38 @@ export async function captureCommand(options, dependencies = {}) {
         finish();
       }, 2000);
     };
+    // POSIX: the command leads its own process group and signals go to the whole group, so
+    // descendants die with it. Windows: taskkill /T walks the tree.
+    const group = process.platform !== 'win32';
+    const signal = sig => {
+      if (group && Number.isSafeInteger(child.pid) && child.pid > 1) {
+        try { process.kill(-child.pid, sig); return; } catch (e) { if (e.code !== 'ESRCH' && e.code !== 'EPERM') throw e; }
+      } else if (process.platform === 'win32' && Number.isSafeInteger(child.pid)) {
+        try { if (spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).status === 0) return; } catch {}
+      }
+      child.kill(sig);
+    };
     const terminate = () => {
       if (!child) return;
-      try { child.kill('SIGTERM'); } catch (e) { recordError(e); }
+      try { signal('SIGTERM'); } catch (e) { recordError(e); }
       if (!killTimer && !exited) killTimer = setTimeout(() => {
-        try { child.kill('SIGKILL'); } catch (e) { recordError(e); }
+        try { signal('SIGKILL'); } catch (e) { recordError(e); }
       }, 500);
       boundDrain();
     };
+    // A signal to waypost itself must not orphan the group: kill it, then re-raise for the normal exit code.
+    const forwarders = group ? ['SIGINT', 'SIGTERM', 'SIGHUP'].map(sig => {
+      const handler = () => {
+        try { signal('SIGKILL'); } catch {}
+        for (const [s, h] of forwarders) process.off(s, h);
+        process.kill(process.pid, sig);
+      };
+      return [sig, handler];
+    }) : [];
+    for (const [sig, handler] of forwarders) process.on(sig, handler);
     const write = dependencies.write || writeSync;
     try {
-      child = (dependencies.spawn || spawn)(options.argv[0], options.argv.slice(1), { cwd: root, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = (dependencies.spawn || spawn)(options.argv[0], options.argv.slice(1), { cwd: root, shell: false, detached: group, stdio: ['ignore', 'pipe', 'pipe'] });
       for (const name of ['stdout', 'stderr']) {
         child[name].on('error', e => { recordError(e); terminate(); });
         child[name].on('data', chunk => {
@@ -113,7 +137,7 @@ export async function captureCommand(options, dependencies = {}) {
       child.once('exit', (code, signal) => {
         exited = true; command.exit_code = Number.isSafeInteger(code) && code >= 0 ? code : null;
         command.signal = signal;
-        clearTimeout(timer); clearTimeout(killTimer); boundDrain();
+        clearTimeout(timer); boundDrain();
       });
       child.once('close', (code, signal) => {
         command.exit_code = Number.isSafeInteger(code) && code >= 0 ? code : null;

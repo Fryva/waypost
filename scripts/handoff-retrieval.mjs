@@ -61,7 +61,7 @@ export function prepareRetrievalRound(base, index, previous, fragments) {
 }
 function compact(delivery) {
   const result = {};
-  for (const key of ['version', 'binding', 'challenge', 'request_key', 'message_id', 'stage', 'deadline_at', 'poll_cursor', 'reply_id', 'error', 'timings', 'command_cleanup']) {
+  for (const key of ['version', 'binding', 'challenge', 'request_key', 'message_id', 'stage', 'deadline_at', 'poll_cursor', 'reply_id', 'error', 'timings', 'command_cleanup', 'relay']) {
     if (Object.hasOwn(delivery, key)) result[key] = delivery[key];
   }
   return result;
