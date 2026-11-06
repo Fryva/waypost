@@ -46,7 +46,9 @@ this is not scoped to the current project.
 
 4. **On refusal (exit 75), report it or retry — never run the work outside
    waypost to "save time".** stderr names which limit is binding (slots, cpu
-   or memory) and gives the exact retry command. Either:
+   or memory, or `agents live` — `waypost team` peers still running) and
+   gives the exact retry command. `--beside-agents` is the owner's call, not
+   an agent's. Either:
    - report the reason to whoever is waiting on it and stop, or
    - retry later, or
    - pass `--wait <Ns|Nm>` to wait for a slot instead of failing at once (it

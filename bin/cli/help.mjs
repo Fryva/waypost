@@ -176,7 +176,9 @@ PROCEDURES
   run --heavy -- <cmd…>    claim a machine-wide slot, run at lowered priority
                            (nice +10), and release it on exit
                            [--wait <Ns|Nm>] (refused: exit 75, with the
-                           reason and the retry command)
+                           reason and the retry command); refused beside
+                           live waypost team peers too, unless the owner
+                           passes [--beside-agents]
 
 HARNESS-AGNOSTIC
   No hooks, no status line, no slash commands: the CLI is the interface, and

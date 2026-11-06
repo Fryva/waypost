@@ -108,6 +108,8 @@ Decision drivers:
 
      *Amended by [Memory for heavy work](memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) (2026-11-05): in (c) the share is the smaller of 2 GB and half the memory, and each live holder reserves one share: memory for a new job is available − holders × share.*
 
+     *Amended 2026-11-06 (owner; story [A heavy job started while waypost team peers run…](../epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them.md), WP-18, under Decision 6 of [Memory for heavy work](memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md)): `run --heavy` (and `handoff capture`, which runs through it) has a fourth condition — no live `waypost team` peer on this machine (`agents-live`, exit 75, unless the owner passes `--beside-agents`). It is a refusal on top of `can_start`, which stays the machine's own answer; `clean`, `size --global` and `setup`'s audit are not subject to it.*
+
    Load averages lag, so (a) — enforced under the lock of Decision 2 — is
    what stops two jobs starting in the same minute. (b) and (c) are what make
    a machine already loaded by anything else wait. `WAYPOST_HEAVY_MAX` can
@@ -352,6 +354,8 @@ Decision drivers:
      or tests.
 
    *Amended by [Cleanup to a machine-wide limit](cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md) (2026-09-18): the slot record also holds the working directory and the git root it was claimed from, computed before the lock; the automatic cleanup at the end of a run reads them.*
+
+   *Amended 2026-11-06 (owner; story [A heavy job started while waypost team peers run…](../epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them.md), WP-18): the slot lock has a second kind of holder. A `team` peer registers under it — reads the live jobs, refuses beside one, else writes its record into `peers.<hostSlug>/` beside the slot table — so a peer start and a claim never both pass. A peer waits up to 15 s for the lock and fails closed (`peer-registration-failed`); the claim keeps its immediate refusal. Peer records are slot-shaped and read by the same liveness rules, except that on win32 a peer's image name is unknown (signal-0 and the 24-hour cap decide); `capacity --release` reaches them.*
 
 3. **The rule reaches every project.** The routing block that
    `waypost agents register` installs gains one line of about 45 characters:

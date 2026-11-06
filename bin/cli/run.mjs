@@ -151,13 +151,13 @@ async function runHeavy(argv, claim, where, mods) {
   process.exitCode = status;
 }
 
-// waypost run --heavy [--wait <Ns|Nm>] -- <argv…>. No wait: refuse at once,
+// waypost run --heavy [--wait <Ns|Nm>] [--beside-agents] -- <argv…>. No wait: refuse at once,
 // with the reason and the exact retry command, exit EX_TEMPFAIL. --wait
 // retries every 5 seconds until the deadline, repeating the reason every 30.
 async function handleRun(args) {
   if (!flag(args, "--heavy")) fail('run: only "run --heavy -- <argv…>" is supported (see `waypost help`)');
   const { tail: argv } = splitAtTerminator(args);
-  if (!argv.length) fail("run --heavy: usage: waypost run --heavy [--wait <Ns|Nm>] -- <argv…>");
+  if (!argv.length) fail("run --heavy: usage: waypost run --heavy [--wait <Ns|Nm>] [--beside-agents] -- <argv…>");
 
   let waitMs = null;
   const waitSpec = opt(args, "--wait");
@@ -174,6 +174,7 @@ async function handleRun(args) {
 
   const dir = slotsDir(presence);
   try { ensureMachineStateDir(dir); } catch (e) { fail(`run --heavy: ${stateWriteHint(dir, e)}`); }
+  const besideAgents = flag(args, "--beside-agents");
   const retryCmd = `waypost run --heavy -- ${argv.map(shellQuote).join(" ")}`;
   const deadline = waitMs != null ? Date.now() + waitMs : null;
   let lastPrinted = 0;
@@ -183,7 +184,7 @@ async function handleRun(args) {
   const where = slotWhere(process.cwd());
 
   for (;;) {
-    const claim = await claimSlot(dir, argv, capacity, presence, where);
+    const claim = await claimSlot(dir, argv, capacity, presence, where, { agents: true, beside: besideAgents });
     if (claim.ok) {
       recordAuthority(claim.file, capacity);
       await runHeavy(argv, claim, where, { capacity, presence });
@@ -196,7 +197,7 @@ async function handleRun(args) {
       // A holder whose boot could not be confirmed is kept rather than pruned
       // (WP-18 amendment), so the way out of a phantom has to be said out
       // loud: the only other one is waiting for the 24-hour cap.
-      if (/^slots:/.test(String(claim.reason || ""))) {
+      if (/^slots:/.test(String(claim.reason || "")) || claim.code === "agents-live") {
         process.stderr.write("  who holds it: waypost capacity"
           + "     (a holder that is not really there: waypost capacity --release <id> --force)\n");
       }

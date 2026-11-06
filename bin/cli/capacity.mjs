@@ -1,6 +1,7 @@
 // Waypost CLI: capacity.
 import { GB, SCRIPT_URL, bootAuthority, fail, flag, opt, warnIfProbed } from "./core.mjs";
 import { legacySlotsDirs, slotsDir } from "./slots.mjs";
+import { peerLine, peersDir, readPeers } from "../../scripts/heavy-jobs.mjs";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
@@ -29,6 +30,8 @@ async function handleCapacity(args) {
   try { holders = capacity.readHolders({ dir, dirs: legacySlotsDirs(presence), authority: bootAuthority(capacity) }); }
   catch { holders = { live: [], stale: [] }; }
 
+  const peers = readPeers({ authority: bootAuthority(capacity) }).live;
+
   let m;
   try {
     m = await capacity.measure({ holders: holders.live, env: process.env });
@@ -36,7 +39,7 @@ async function handleCapacity(args) {
   warnIfProbed(m);
 
   if (flag(args, "--json")) {
-    process.stdout.write(JSON.stringify({ ...m, holders_live: holders.live.map(holderSummary) }, null, 2) + "\n");
+    process.stdout.write(JSON.stringify({ ...m, holders_live: holders.live.map(holderSummary), agents_live: peers.map((p) => ({ ...holderSummary(p), pid: p.proc && p.proc.pid })) }, null, 2) + "\n");
     return;
   }
 
@@ -51,6 +54,12 @@ async function handleCapacity(args) {
   if (holders.live.length) {
     process.stdout.write("\nholders:\n");
     for (const h of holders.live) process.stdout.write(`  ${holderLine(h)}\n`);
+  }
+  // The other order of "no agents beside a heavy job": `can start` counts
+  // the machine, and `run --heavy` refuses beside these on top of it.
+  if (peers.length) {
+    process.stdout.write("\nagents live (waypost team) — run --heavy refuses beside them:\n");
+    for (const p of peers) process.stdout.write(`  ${peerLine(p)}\n`);
   }
 }
 
@@ -70,14 +79,16 @@ async function handleCapacityRelease(capacity, presence, id, force, json) {
   // separator and no dot, so --release can never reach a file outside it.
   if (!/^[A-Za-z0-9_-]+$/.test(String(id))) fail(`capacity --release: "${id}" is not a slot id`);
   const dir = slotsDir(presence);
-  const file = [dir, ...legacySlotsDirs(presence)].map((d) => join(d, `${id}.json`)).find((p) => existsSync(p))
+  const pdir = peersDir();
+  const file = [dir, ...legacySlotsDirs(presence), pdir].map((d) => join(d, `${id}.json`)).find((p) => existsSync(p))
     || join(dir, `${id}.json`);
   if (!existsSync(file)) fail(`capacity --release: no such holder "${id}"`);
   let rec;
   try { rec = JSON.parse(readFileSync(file, "utf8")); }
   catch (e) { fail(`capacity --release: ${file}: ${e.message}`); }
   if (!rec || rec.id !== id || !rec.proc) fail(`capacity --release: ${file} is not a slot record for "${id}"`);
-  const live = capacity.slotLive(rec, { authority: bootAuthority(capacity) });
+  // A peer's own pid has no known image name on win32 (heavy-jobs.mjs).
+  const live = capacity.slotLive(rec, { authority: bootAuthority(capacity), ...(file.startsWith(pdir) ? { tasklist: () => null } : {}) });
   if (live && !force) {
     fail(`capacity --release: ${id} still looks alive (${rec.session || "?"} on ${rec.host}, pid ${rec.proc && rec.proc.pid}) — pass --force to release it anyway`);
   }

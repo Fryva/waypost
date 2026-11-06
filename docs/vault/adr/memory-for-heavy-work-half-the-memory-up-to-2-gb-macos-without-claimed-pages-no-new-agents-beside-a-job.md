@@ -12,7 +12,7 @@ superseded_by: null
 review_status: reviewed
 reviewed_at: 2026-11-05
 drafted_by: {"harness":"claude","provider":null,"date":"2026-09-28"}
-code_refs: ["scripts/capacity.mjs", "scripts/capacity-admission.mjs", "scripts/capacity-memory.mjs", "bin/cli/run.mjs", "bin/cli/slots.mjs", "tests/capacity.test.mjs", "tests/capacity-memory.test.mjs", "tests/capacity-admission.test.mjs", "tests/slots.test.mjs", "templates/agents-block.md.tmpl", "scripts/agents-registry.mjs", "prompts/heavy.md", "tests/harness.test.mjs", "AGENTS.md"]
+code_refs: ["scripts/capacity.mjs", "scripts/capacity-admission.mjs", "scripts/capacity-memory.mjs", "bin/cli/run.mjs", "bin/cli/slots.mjs", "scripts/heavy-jobs.mjs", "scripts/team-transport.mjs", "tests/capacity.test.mjs", "tests/capacity-memory.test.mjs", "tests/capacity-admission.test.mjs", "tests/slots.test.mjs", "templates/agents-block.md.tmpl", "scripts/agents-registry.mjs", "prompts/heavy.md", "tests/harness.test.mjs", "AGENTS.md"]
 related: "heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first, ADR-0001, ADR-0008"
 guards: [{"require": "no agents beside it", "in": "AGENTS.md", "why": "the routing block keeps background agents and a heavy job from running side by side, in either order"}]
 ---
@@ -170,6 +170,8 @@ fallback exists"; the "81 %" figures; Owner's decisions item 1.
    and showing a live slot in `brief` and `status`, is a separate story
    (owner, 2026-11-05).
 
+   *Amended 2026-11-06 (owner; story [A heavy job started while waypost team peers run…](../epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them.md), WP-18): not a warning but a refusal, in both orders. A peer start beside a live job is refused (`heavy-job-live`, the earlier story); `run --heavy` beside a live conversation peer — claude, `codex app-server`, a managed `opencode serve`, not the short metadata sessions — is refused too (`agents-live`, exit 75), unless the owner passes `--beside-agents`.*
+
 ## Alternatives Considered
 
 ### A fixed 2 GB share everywhere
@@ -283,6 +285,10 @@ order.
 **Negative / trade-offs**:
 - with two jobs running, the reserve counts the first one's memory twice
 - on a large machine, critic and reviewer wait for every build to finish
+- any heavy job on the machine, in any project, waits for any live
+  conversation peer of any `waypost team` (amended 2026-11-06); a sandboxed
+  team worker cannot take a slot at all, so its own heavy work is outside
+  the rule in both orders
 - at normal pressure macOS still counts inactive anonymous memory as
   available (4.0 GB on the loaded Mac when it read normal)
 - mapped executables of running apps are file-backed and count as available

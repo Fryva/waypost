@@ -1009,7 +1009,7 @@ export function createTeamHost(config, dependencies={}) {
  }
  async function inspect({action,nonce=randomUUID(),keepAlive=false}={}) {
   // Refused before the journal records a consumed invocation (the factory checks again).
-  if(!dependencies.createNativeEndpoint)assertNoHeavyJob(dependencies);
+  if(!dependencies.createNativeEndpoint)assertNoHeavyJob(dependencies,process.env,null,{peer:true});
   await ensureQuotaFresh();
   portable(nonce);const o=owner(),c=collector(),d=endpoint();const {t}=getTeam();const p=t.participants[d.participant];if(!p||p.revoked||!quotaEligible(p,Date.parse(now())))fail('participant-unavailable');
   if(typeof action!=='string'||!action||action.length>1024)fail('runtime-action-required');
@@ -1246,7 +1246,7 @@ export function createTeamHost(config, dependencies={}) {
  }
  async function dispatchRouted({workId,attempt=1,invocationId='invoke-'+randomUUID(),reserveKey=randomUUID()}={}) {
   // Refused before the journal records a consumed invocation (the factory checks again).
-  if(!dependencies.createNativeEndpoint)assertNoHeavyJob(dependencies);
+  if(!dependencies.createNativeEndpoint)assertNoHeavyJob(dependencies,process.env,null,{peer:true});
   await ensureQuotaFresh();
   // No provider charges before the host has a real bounded usage collector.
   if(typeof dependencies.collectBoundedUsage!=='function')fail('host-bounded-provider-usage-unavailable');

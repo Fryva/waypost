@@ -3,18 +3,18 @@ type: story
 id: "story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them"
 epic: "WP-18"
 title: "A heavy job started while waypost team peers run sees them and does not start beside them"
-status: planned
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-11-06
 updated: 2026-11-06
 external_refs: {}
 tags: []
-code_refs: ["scripts/team-transport.mjs", "scripts/team-quota-native.mjs", "bin/cli/slots.mjs", "bin/cli/run.mjs", "bin/cli/capacity.mjs", "scripts/heavy-jobs.mjs", "tests/heavy-job-visibility.test.mjs"]
+code_refs: ["scripts/heavy-jobs.mjs", "scripts/team-transport.mjs", "scripts/team-host.mjs", "bin/cli/slots.mjs", "bin/cli/run.mjs", "bin/cli/capacity.mjs", "prompts/heavy.md", "tests/heavy-job-visibility.test.mjs"]
 specs: []
-started_at: null
-closed_at: null
-plan_updated_at: null
+started_at: "2026-11-06T04:42:43.396Z"
+closed_at: "2026-11-06T05:48:28.572Z"
+plan_updated_at: "2026-11-06T04:42:43.396Z"
 ---
 
 # A heavy job started while waypost team peers run sees them and does not start beside them
@@ -22,7 +22,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-18](../epic.md) |
-| **Status** | planned |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -73,7 +73,7 @@ cannot write the machine state dir, so its `run --heavy` fails before any
 peer check — recorded, not solved here); mixed versions (an older
 `run --heavy` does not read peers, an older `team` writes none).
 
-**Owner decisions this story needs before code** (recommendation first):
+**Owner decisions** (all four recommendations accepted by the owner, 2026-11-06):
 1. *What counts as a peer.* Conversation peers only — `processPeer`
    (claude, `codex app-server` with a thread) and managed `opencode serve`.
    The ≤30 s metadata sessions (Codex quota lease renewal every watch pass,
@@ -98,16 +98,17 @@ peer check — recorded, not solved here); mixed versions (an older
 
 <!-- Granular checklist of concrete tasks. Each item should be small enough to complete in a session. -->
 
-- [ ] owner decisions 1–4 above recorded, ADR amendments drafted
-- [ ] `registerPeer()` — one record per spawned peer process, written under
+- [x] owner decisions 1–4 above recorded (2026-11-06)
+- [x] ADR amendments
+- [x] `registerPeer()` — one record per spawned peer process, written under
       the slot lock right before its spawn, removed on the child's `close`
       and in `finally`; `assertNoHeavyJob` stays read-only
-- [ ] liveness: by `job` once known (POSIX and win32), by `proc` before
-- [ ] `run --heavy` refuses with `agents-live` (and `--wait` waits);
+- [x] liveness: by `job` once known (POSIX and win32), by `proc` before
+- [x] `run --heavy` refuses with `agents-live` (and `--wait` waits);
       `--beside-agents` starts it and names the peers
-- [ ] `capacity` text and JSON show live peers; `--release` reaches them
-- [ ] docs: `prompts/heavy.md`, `docs/cli-reference.md`, `waypost help`
-- [ ] tests
+- [x] `capacity` text and JSON show live peers; `--release` reaches them
+- [x] docs: `prompts/heavy.md`, `docs/cli-reference.md`, `waypost help`
+- [x] tests
 
 ## Implementation Plan
 
@@ -123,12 +124,20 @@ peer check — recorded, not solved here); mixed versions (an older
    `selfMarker()` + `{kind:"peer", harness, participant?, job:null}`; after
    the lock, `authority` as `recordAuthority` does. Returns
    `{ setJob(pid), release() }`. A lock or write failure fails closed with
-   its own code `peer-registration-failed`, before any journal write.
-2. `scripts/heavy-jobs.mjs` liveness: a peer record is live while its `job`
-   is (POSIX ticks; win32 signal-0 plus image name) once `job` is set, and
-   while `proc` is before — not "proc OR job", so a peer that died on its own
-   stops blocking while waypost lives. One process table read before the
-   lock, passed as `table` to every `readHolders` under it.
+   its own code `peer-registration-failed`. Registration runs at the spawn
+   site, after `inspect`/`dispatchRouted` journal writes, so their read-only
+   pre-checks (and `createNativeEndpoint`) first test that the peer table is
+   writable (`assertPeerTableWritable`) and refuse beside a job; only a slot
+   lock busy past 15 s still lands after the journal — the same place the
+   factory's own `heavy-job-live` re-check already sat.
+2. `scripts/heavy-jobs.mjs` liveness, with `readHolders`/`slotLive`
+   unchanged: `setJob(pid)` moves `proc` to the peer itself (the waypost
+   process becomes `owner`), so the record is live while the peer is — a
+   peer that died on its own stops blocking while waypost lives, an orphan
+   that outlives waypost still blocks. On win32 a peer's image name is
+   unknown, so peer readers pass `tasklist: () => null` (signal-0 and the
+   24-hour cap). The peer table is read only when it has files, so the
+   claim's refusal budget is untouched in the common case.
 3. `scripts/team-transport.mjs`: `registerPeer` at the two conversation spawn
    sites — `processPeer` (`:165`; each `codexEndpoint` restart re-registers,
    so a restart re-checks heavy jobs) and `opencode serve` (`:837`).
@@ -154,37 +163,60 @@ peer check — recorded, not solved here); mixed versions (an older
 <!-- How do we know we're done? Each criterion testable. Checked only with
      evidence at close: - [x] <criterion> — evidence: <test | command | file:line> -->
 
-- [ ] with a live peer record, `waypost run --heavy -- <cmd>` exits 75, does
+- [x] with a live peer record, `waypost run --heavy -- <cmd>` exits 75, does
       not run `<cmd>`, stderr names the peer (harness, pid, since) and the
-      `capacity --release <id> --force` way out
-- [ ] `--wait` starts the job once the peer record is released, and not before
-- [ ] `--beside-agents` runs the job and names the peers; `WAYPOST_BESIDE_HEAVY`
-      does not bypass `agents-live`
-- [ ] `clean`, `size --global` and `setup` are not refused by peers
-- [ ] a peer record whose `job` is gone stops refusing while its waypost
+      `capacity --release <id> --force` way out — evidence: tests/heavy-job-visibility.test.mjs "run --heavy beside a live peer: exit 75, the command never runs, the peer and the way out are named"
+- [x] `--wait` starts the job once the peer record is released, and not before — evidence: tests/heavy-job-visibility.test.mjs "run --heavy --wait starts once the peer ends, not before; the claim prunes its record"
+- [x] `--beside-agents` runs the job and names the peers; `WAYPOST_BESIDE_HEAVY`
+      does not bypass `agents-live` — evidence: tests/heavy-job-visibility.test.mjs "run --heavy beside a live peer…" (WAYPOST_BESIDE_HEAVY=1 still 75; --beside-agents runs and names the peer)
+- [x] `clean`, `size --global` and `setup` are not refused by peers — evidence: tests/heavy-job-visibility.test.mjs "claimSlot: only a caller that asks (run --heavy) is refused…"; clean/size/setup call claimSlot without `agents`
+- [x] a peer record whose `job` is gone stops refusing while its waypost
       process lives; one whose `proc` and `job` are both gone is pruned by the
-      claim; an epoch mismatch without authority is kept, as for slots
-- [ ] `capacity` lists peers and `agents_live` in JSON, `can_start`
+      claim; an epoch mismatch without authority is kept, as for slots — evidence: tests/heavy-job-visibility.test.mjs "peer liveness: a peer that died on its own…", "--wait … the claim prunes its record"; epoch rule by construction (slotLive unchanged, authority passed)
+- [x] `capacity` lists peers and `agents_live` in JSON, `can_start`
       unchanged; `capacity --release <id>` removes a peer record (with
-      `--force` when live); without peers the output is as before
-- [ ] one record per spawned peer process: a real spawn writes it, the
+      `--force` when live); without peers the output is as before — evidence: tests/heavy-job-visibility.test.mjs "run --heavy beside a live peer…" (text, agents_live, --release with/without --force); can_start from measure() unchanged
+- [x] one record per spawned peer process: a real spawn writes it, the
       child's exit or a failed start removes it, a `codexEndpoint` restart
       leaves exactly one live; an injected `spawnProcess`/`fetchImpl` and the
       `inspect`/`dispatchRouted` pre-checks write none; the metadata sessions
-      write none (if decision 1 stands)
-- [ ] a win32 `stopAndWait` that throws still removes the record
-- [ ] a registration that cannot take the lock or write fails with
-      `peer-registration-failed` before any journal write
-- [ ] a peer registration and a heavy claim cannot both succeed: with the
+      write none (if decision 1 stands) — evidence: tests/heavy-job-visibility.test.mjs "transport: a Codex restart leaves exactly one live record…", "transport: a spawn that throws releases its record; inventory and injected spawns register nothing"; real spawn checked by the reviewer's probe
+- [x] a win32 `stopAndWait` that throws still removes the record — evidence: by construction: release is bound to the child's 'close' (team-transport.mjs bindPeerRecord), which resolves before the win32 throw; no win32 test
+- [x] a registration that cannot write fails with `peer-registration-failed`
+      before any journal write (the conversation pre-checks test the peer
+      table first); one that cannot take the lock in 15 s fails closed at the
+      spawn site; neither spawns anything unrecorded — evidence: tests/heavy-job-visibility.test.mjs "an unwritable peer table fails closed: in the pre-check, and at registration…", "a peer start and a heavy claim exclude each other…" (lock busy → peer-registration-failed)
+- [x] a peer registration and a heavy claim cannot both succeed: with the
       slot lock held by a test, the claim refuses "lock busy" and the
-      registration waits, then sees the slot and refuses `heavy-job-live`
-- [ ] without peers and without jobs, `run --heavy` and the team factories
-      behave as before — npm test green under `waypost run --heavy`
+      registration waits, then sees the slot and refuses `heavy-job-live` — evidence: tests/heavy-job-visibility.test.mjs "a peer start and a heavy claim exclude each other…", "a registration waiting on the lock sees the slot its holder claimed, and refuses"
+- [x] without peers and without jobs, `run --heavy` and the team factories
+      behave as before — npm test green under `waypost run --heavy` — evidence: npm test in a detached worktree on the final tree: 2545 tests, 2535 pass, 0 fail, 10 skipped
 
 ## Final Summary
 
 <!-- Written at the done gate (waypost story close): what changed, why,
      tests executed, risks and follow-ups. -->
+
+The other order of "no agents beside a heavy job". Every conversation peer
+`team` spawns (claude, `codex app-server`, a managed `opencode serve`; not
+the metadata sessions) registers in `peers.<hostSlug>/` beside the slot
+table, under the slot lock and re-checking live jobs there
+(`registerPeer` in scripts/heavy-jobs.mjs); the record follows the child
+(`proc` becomes the peer, removed on its 'close'), so slotLive decides it
+unchanged. `run --heavy` refuses beside live peers with `agents-live`,
+exit 75, `--wait` waits, `--beside-agents` is the owner's non-inherited
+go-ahead; `capacity` lists them (`agents_live`) and `--release` reaches
+them; `clean`/`size`/`setup` are untouched. Conversation pre-checks test the
+peer table is writable before the journal. Both ADRs carry an amendment;
+help, `prompts/heavy.md`, the CLI reference updated.
+
+Tests: tests/heavy-job-visibility.test.mjs 20/20; npm test (detached
+worktree, final tree) 2545 / 2535 pass / 0 fail / 10 skipped. Critic and
+reviewer passes in Technical Notes. Risks and follow-ups: win32 phantom peer
+after pid reuse (no image name recorded), `handoff capture` has no
+`--beside-agents`, an orphaned `opencode serve` is released not killed, the
+process table is still read inside the lock, a slot lock busy past 15 s
+still fails after the journal.
 
 ## Technical Notes
 
@@ -207,6 +239,22 @@ of scope; (7) no way out of an orphaned `opencode serve` — pid in the line,
 `--release` reaches peers; (8) ADR amendments, `can_start` in JSON, the
 epoch rule, `prompts/heavy.md`; (9) one process table before the lock;
 (10) the inherited env go-ahead — `--beside-agents`.
+Reviewer pass 2026-11-06 (waypost-reviewer, fresh context): commit, close
+after gaps. Folded in: the predictable registration failures now refuse
+before the journal (pre-check tests the peer table; the AC reworded back to
+that, with the remaining 15 s lock case named); `'error'` releases only a
+child that never got a pid; `--beside-agents` names the peers once, when the
+job starts; the lock-busy reason names peer registration; a truncated record
+is removed; tests for the waiting-registration sequence, an unwritable table
+and the peers named beside. Critic (9) only in part: the peer table is read
+only when it has files, but the process table is still read inside the lock
+(~0.1 s at load 4–7). Left open (follow-ups): on win32 a peer's image name is
+not recorded, so a reused pid after a killed host can hold a phantom peer up
+to the 24-hour cap (`capacity --release --force` is the way out);
+`handoff capture` inherits the refusal with no `--beside-agents` of its own;
+an orphaned `opencode serve` is released by `--release`, not killed;
+`registerPeer` repeats `selfMarker`'s fields.
+
 Not taken: write-then-check on both sides without the peer taking the lock
 (both may back off; the lock is already the primitive the claim uses).
 

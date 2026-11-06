@@ -3,6 +3,7 @@ import { legacyStateDirs, machineStateDir, writeFileAtomic } from "../../scripts
 import { acquireLock, releaseLock } from "../../scripts/machine-lock.mjs";
 import { bootAuthority, warnIfProbed } from "./core.mjs";
 import { hostId } from "../../scripts/presence-host.mjs";
+import { peerLine, readPeers } from "../../scripts/heavy-jobs.mjs";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { hostname, constants as osConstants, uptime as osUptime } from "node:os";
@@ -97,14 +98,30 @@ function slotWhere(dir) {
 // (capacity.blockingHolder) — null when the caller never computed one (kept
 // optional so a caller with nothing meaningful to report, if one is ever
 // added, is not forced to invent a location).
-async function claimSlot(dir, argv, capacity, presence, where = null) {
+// `agents` (only `run --heavy` passes it — owner, 2026-11-06): no job beside
+// live `team` peers either, the other order of "no agents beside a heavy job"
+// (ADR "Memory for heavy work"). Peers register under this same lock
+// (heavy-jobs.mjs registerPeer), so a peer start and a claim never both pass.
+// `beside` is the owner's go-ahead (`--beside-agents`): the peers are named
+// and the claim goes on.
+async function claimSlot(dir, argv, capacity, presence, where = null, { agents = false, beside = false } = {}) {
   const lockDir = await acquireLock(dir, presence, capacity);
   if (!lockDir) {
-    return { ok: false, reason: "the slot lock is busy — another `waypost run --heavy` is claiming right now" };
+    return { ok: false, reason: "the slot lock is busy — another `waypost run --heavy` is claiming, or a `waypost team` peer is registering, right now" };
   }
   try {
     const holders = capacity.readHolders({ dir, dirs: legacySlotsDirs(presence), authority: bootAuthority(capacity) });
     for (const rec of holders.stale) { try { unlinkSync(rec.file); } catch {} }
+    let besideNamed = null;
+    if (agents) {
+      const peers = readPeers({ authority: bootAuthority(capacity) });
+      for (const rec of peers.stale) { try { unlinkSync(rec.file); } catch {} }
+      if (peers.live.length) {
+        const named = peers.live.map(peerLine).join("; ");
+        if (!beside) return { ok: false, code: "agents-live", reason: `agents live — ${named}; no heavy job beside them` };
+        besideNamed = named;
+      }
+    }
     const m = await capacity.measure({ holders: holders.live, env: process.env });
     warnIfProbed(m);
     if (m.can_start <= 0) return { ok: false, reason: m.reason || "no heavy job slot available" };
@@ -126,6 +143,8 @@ async function claimSlot(dir, argv, capacity, presence, where = null) {
     };
     const file = join(dir, `${id}.json`);
     writeFileSync(file, JSON.stringify(rec, null, 2) + "\n", "utf8");
+    // Said once, when the job really starts — not on every --wait retry.
+    if (besideNamed) process.stderr.write(`waypost run --heavy: starting beside live agents (--beside-agents) — ${besideNamed}\n`);
     return { ok: true, id, file, release: () => { try { unlinkSync(file); } catch {} } };
   } finally {
     releaseLock(lockDir);
