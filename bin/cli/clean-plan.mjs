@@ -1,5 +1,7 @@
 // Waypost CLI: clean-plan.
 import { machineStateDir, readCleanupSetting } from "../../scripts/lib.mjs";
+import { formatLimit } from "../../scripts/cleanup-limit.mjs";
+import { gitTimeoutFor } from "../../scripts/sizes-git.mjs";
 import { GB, SCRIPT_URL, projectRoot, readConfig, tildeHome } from "./core.mjs";
 import { existsSync, lstatSync, readFileSync, statfsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -95,7 +97,9 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery },
       stopAtGit: walk.stopAtGit, locators: walk.locators, deadline: walk.deadline,
     });
     const relCandidates = scan.dirs.filter((d) => d.match !== "locator").map((d) => d.path);
-    const gf = sizes.gitFacts(root, relCandidates);
+    // The walk's own deadline bounds this call too (the amended ADR's one-
+    // deadline rule), not only the git calls inside scanProject.
+    const gf = sizes.gitFacts(root, relCandidates, gitTimeoutFor(walk.deadline));
     projectItems = scan.dirs.map((d) => {
       const abs = d.match === "locator" ? d.path : resolve(root, d.path);
       return {
@@ -208,8 +212,10 @@ function gatherCleanContext({ cleanup, sizes, toolchains, presence, discovery },
     sharedProject = presence.sharedTree(vault, { self: sess }).shared;
   }
 
+  // `deadline`: the walk's own, kept so a recheck right before removal
+  // (remove.mjs freshFactsFor) bounds its git call by the same clock.
   return {
-    root, home, stateDir, platform, vault, reg, metadataNames, host, scan,
+    root, home, stateDir, platform, vault, reg, metadataNames, host, scan, deadline: walk.deadline ?? null,
     projectItems, machineItems, runningTools, leases, sharedProject,
     projectEcosystems, projectEcosystemRunning, inUseSignal,
   };
@@ -270,16 +276,25 @@ function formatPlanItem(it) {
   };
 }
 
-function formatPlan(classified, ctx, now) {
+// `limit`: the active setting the plan's `picked` was computed against
+// (activeLimitFor), null without one — what lets the text plan say what the
+// limit would take, not only `--json`.
+function formatPlan(classified, ctx, now, limit = null) {
   return {
     host: ctx.host, root: ctx.root, generated_at: new Date(now).toISOString(),
-    in_use_signal: ctx.inUseSignal, items: classified.map(formatPlanItem),
+    in_use_signal: ctx.inUseSignal, limit, items: classified.map(formatPlanItem),
   };
 }
 
 function printCleanPlan(result) {
   process.stdout.write(`host  ${result.host}\n`);
   process.stdout.write(`root  ${tildeHome(result.root)}\n`);
+  if (result.limit) {
+    const picked = result.items.filter((it) => it.picked);
+    const gb = picked.reduce((sum, it) => sum + (it.bytes || 0), 0) / GB;
+    process.stdout.write(`limit ${formatLimit(result.limit)} — `
+      + (picked.length ? `would take ${picked.length} item(s), ${gb.toFixed(2)} GB now (marked <- limit)\n` : "would take nothing now\n"));
+  }
   if (result.in_use_signal === "recency-only") {
     process.stdout.write("(no live process table — in-use protection is by recent modification time only)\n");
   }
@@ -294,7 +309,7 @@ function printCleanPlan(result) {
     process.stdout.write(`\n${cls} (${items.length})\n`);
     for (const it of items) {
       const where = it.rel || tildeHome(it.path);
-      process.stdout.write(`  ${it.id}  ${(it.bytes / GB).toFixed(2)} GB  [${it.scope}]  ${where}\n    ${it.reason}\n`);
+      process.stdout.write(`  ${it.id}  ${(it.bytes / GB).toFixed(2)} GB  [${it.scope}]  ${where}${it.picked ? "  <- limit" : ""}\n    ${it.reason}\n`);
       if (it.manual && it.clean) process.stdout.write(`    manual: ${it.clean}\n`);
     }
   }

@@ -1,4 +1,5 @@
 // Waypost CLI: clean.
+import { LIMIT_PROMPT_TIMEOUT_MS } from "../../scripts/cleanup-limit.mjs";
 import { LIMIT_WRITER, askYesNo, ensureMachineStateDir, machineStateDir, readCleanupSetting, readLastAutoCleanup, writeFileAtomic } from "../../scripts/lib.mjs";
 import { applyClean, limitFlagValue, parseApplySelection, printApplyResult, selectionDescriptorOf } from "./clean-apply.mjs";
 import { activeLimitFor, formatPlan, gatherCleanContext, isHarnessDetected, planFromContext, printCleanPlan } from "./clean-plan.mjs";
@@ -84,8 +85,15 @@ function printLimitPreview(parsed, mods, now) {
   }
 }
 
-async function handleCleanLimit(rawValue, mods, json, now) {
+// `io` is a test seam, deliberately a parameter and never an environment
+// variable: anything reachable from the command line would let an agent fake
+// a terminal and a harness-free ancestry and walk through this very gate.
+// `isTTY`, `ask(question, { timeoutMs })` and `gate()` default to the real
+// terminal, askYesNo and gateCheck.
+async function handleCleanLimit(rawValue, mods, json, now, io = {}) {
   const { cleanup, capacity, presence } = mods;
+  const isTTY = "isTTY" in io ? Boolean(io.isTTY) : Boolean(process.stdin.isTTY);
+  const ask = io.ask || askYesNo;
   const host = presence.hostSlug();
 
   if (rawValue == null) {
@@ -129,7 +137,7 @@ async function handleCleanLimit(rawValue, mods, json, now) {
   let gateResult = null;
   let gateError = null;
   try {
-    gateResult = agents.gateCheck({
+    gateResult = io.gate ? io.gate() : agents.gateCheck({
       env: process.env,
       dirs: [join(ROOT, "harnesses"), join(projectRoot(), ".waypost", "harnesses")],
     });
@@ -137,7 +145,7 @@ async function handleCleanLimit(rawValue, mods, json, now) {
 
   const decision = cleanup.limitDecision({
     gated, harness: gateResult ? gateResult.harness : null,
-    checkError: Boolean(gateError), isTTY: Boolean(process.stdin.isTTY),
+    checkError: Boolean(gateError), isTTY,
   });
 
   if (decision.ok === false) {
@@ -150,7 +158,7 @@ async function handleCleanLimit(rawValue, mods, json, now) {
 
   if (decision.method === "prompt") {
     printLimitPreview(parsed, mods, now);
-    const answered = await askYesNo(`Set the cleanup limit to ${cleanup.formatLimit(parsed)}? [y/N] `, { timeoutMs: 60000 });
+    const answered = await ask(`Set the cleanup limit to ${cleanup.formatLimit(parsed)}? [y/N] `, { timeoutMs: LIMIT_PROMPT_TIMEOUT_MS });
     if (!answered) {
       process.stderr.write("waypost clean --limit: not set\n");
       process.exitCode = 1;
@@ -165,7 +173,7 @@ async function handleCleanLimit(rawValue, mods, json, now) {
     via: gateResult ? gateResult.via : null,
     ancestors: gateResult ? gateResult.ancestors : [],
     markers: gateResult ? gateResult.markers : [],
-    tty: Boolean(process.stdin.isTTY),
+    tty: isTTY,
     answer: decision.method === "prompt" ? true : null,
   };
   const setAt = new Date(now).toISOString();
@@ -290,7 +298,7 @@ async function handleClean(args) {
       const ctx = gatherCleanContext(mods);
       const { limit, shortfall, dev } = activeLimitFor(ctx.root, cleanup, presence);
       const classified = planFromContext(ctx, cleanup, now, { limit, shortfall, dev });
-      result = formatPlan(classified, ctx, now);
+      result = formatPlan(classified, ctx, now, limit);
     } else {
       applyResult = true;
       result = await applyClean(applySel, consentDecision, mods, now);

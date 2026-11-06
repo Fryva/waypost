@@ -224,7 +224,10 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
       if (savedHome === undefined) delete process.env.WAYPOST_HOME; else process.env.WAYPOST_HOME = savedHome;
     }
 
-    if (ctx.scan && ctx.scan.stopped_by === "deadline") {
+    // The walk can finish in time and still leave its git calls cut at the
+    // deadline: their conservative answer counts nothing, which must read as
+    // the deadline, not as a quiet "ran, nothing to do".
+    if (ctx.scan && (ctx.scan.stopped_by === "deadline" || Date.now() >= deadline)) {
       return void logAndReportAuto(finish("ran", "deadline", {
         counted: 0, need: 0, shortfall: 0, renamed: [], skipped_items: [], stayed: [], excluded: [],
         nested_skipped: ctx.scan.nested_skipped, deadline: true, elapsed_ms: Date.now() - t0,

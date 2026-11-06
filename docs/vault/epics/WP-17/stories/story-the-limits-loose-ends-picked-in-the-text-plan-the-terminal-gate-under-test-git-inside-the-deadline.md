@@ -3,19 +3,19 @@ type: story
 id: "story-the-limits-loose-ends-picked-in-the-text-plan-the-terminal-gate-under-test-git-inside-the-deadline"
 epic: "WP-17"
 title: "The limit's loose ends: picked in the text plan, the terminal gate under test, git inside the deadline"
-status: planned
+status: in-progress
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-11-06
 updated: 2026-11-06
 external_refs: {}
 tags: []
-code_refs: ["bin/cli/clean.mjs", "bin/cli/clean-plan.mjs", "bin/cli/auto-clean.mjs", "bin/cli/remove.mjs", "bin/cli/size.mjs", "bin/cli/status.mjs", "scripts/cleanup.mjs", "scripts/cleanup-limit.mjs", "scripts/sizes-git.mjs", "tests/limit.test.mjs", "tests/cleanup.test.mjs", "tests/sizes.test.mjs"]
+code_refs: ["bin/cli/clean.mjs", "bin/cli/clean-plan.mjs", "bin/cli/auto-clean.mjs", "bin/cli/remove.mjs", "bin/cli/size.mjs", "bin/cli/status.mjs", "scripts/cleanup.mjs", "scripts/cleanup-limit.mjs", "scripts/sizes-git.mjs", "tests/limit.test.mjs", "tests/cleanup-limit.test.mjs", "tests/cleanup.test.mjs", "tests/sizes.test.mjs"]
 specs: []
 blocked_by: ["WP-17/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run"]
-started_at: null
+started_at: "2026-11-06T04:14:17.459Z"
 closed_at: null
-plan_updated_at: null
+plan_updated_at: "2026-11-06T04:14:17.459Z"
 ---
 
 # The limit's loose ends: picked in the text plan, the terminal gate under test, git inside the deadline
@@ -23,7 +23,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-17](../epic.md) |
-| **Status** | planned |
+| **Status** | in-progress |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -79,22 +79,22 @@ per-OS evidence is collected.
 
 <!-- Granular checklist of concrete tasks. Each item should be small enough to complete in a session. -->
 
-- [ ] `printCleanPlan` marks the items the active limit would take, and says
+- [x] `printCleanPlan` marks the items the active limit would take, and says
       so when a limit is set but nothing qualifies; the wording stays inside
       the context budget the plan's own output already has.
-- [ ] An end-to-end test of the chain: a setting in a temp machine state
+- [x] An end-to-end test of the chain: a setting in a temp machine state
       directory, a fixture over it, `waypost clean` in text and `--json`,
       asserting `picked` in both.
-- [ ] A test of the refusal path with a stubbed prompt: a false answer leaves
+- [x] A test of the refusal path with a stubbed prompt: a false answer leaves
       the setting file untouched and prints "not set"; the 60 s timeout is
       read from one named constant the test can assert.
-- [ ] A test that the preview above the question names the counted total and
+- [x] A test that the preview above the question names the counted total and
       what would be taken.
-- [ ] Tests for `status`: the setting line, the `none` fallback, and one of
+- [x] Tests for `status`: the setting line, the `none` fallback, and one of
       each outcome (`ran`, `skipped`, `failed`).
-- [ ] A test for `size --project`'s `waypost-removing/` line, in text and
+- [x] A test for `size --project`'s `waypost-removing/` line, in text and
       `waypost_removing_bytes` in `--json`.
-- [ ] `clean-plan.mjs` and `remove.mjs` pass the time left to `gitFacts`; a
+- [x] `clean-plan.mjs` and `remove.mjs` pass the time left to `gitFacts`; a
       test with a probe-shortened deadline shows the git call bounded by it.
 
 ## Implementation Plan
@@ -102,6 +102,39 @@ per-OS evidence is collected.
 <!-- Written at the work-start gate (waypost story plan), AFTER studying the
      codebase. When a spec covers this story, this is a thin route through the
      spec's contracts: which contracts, in what order, which files. -->
+
+1. **`picked` in the text plan** (`bin/cli/clean-plan.mjs`, `bin/cli/clean.mjs`).
+   `formatPlan` takes the active limit and carries it as `limit` in the
+   result (additive in `--json`). `printCleanPlan(result, formatLimit)`
+   prints one `limit` line under `root` — the limit, and either how many
+   items / GB it would take now or that nothing qualifies — and a
+   `<- limit` mark on each picked item's line. No line at all without a
+   limit (or with `off`), so today's output is unchanged there.
+2. **The prompt's seams** (`bin/cli/clean.mjs`, `scripts/cleanup-limit.mjs`).
+   The 60 s becomes `LIMIT_PROMPT_TIMEOUT_MS` in `scripts/cleanup-limit.mjs`
+   (a scripts module, so the bin/cli namespace inventory does not move).
+   `handleCleanLimit` gains a last `io = {}` parameter — `isTTY`, `ask`,
+   `gate` — defaulting to `process.stdin.isTTY`, `askYesNo` and the real
+   `gateCheck`. Deliberately a function parameter and not an environment
+   probe: anything reachable from the command line would let an agent
+   fake a terminal and a harness-free ancestry and walk through the very
+   gate this tests. Tests call it in-process with a temp state directory.
+3. **git inside the deadline** (`scripts/sizes-git.mjs`, `scripts/sizes.mjs`,
+   `bin/cli/clean-plan.mjs`, `bin/cli/remove.mjs`). One helper,
+   `gitTimeoutFor(deadline)` — `min(15000, time left)`, 15000 with no
+   deadline — replaces scanProject's inline one and is used by
+   `gatherCleanContext`'s `gitFacts` (from `walk.deadline`) and by
+   `freshFactsFor` (from `ctx.deadline`, which `gatherCleanContext` now
+   records). The manual `clean`/`--apply` path has no deadline and keeps
+   15 s per call; the automatic path's recheck inherits the deadline
+   through ctx, so `auto-clean.mjs` needs no change.
+4. **Tests** (`tests/limit.test.mjs`): picked end to end in text and JSON;
+   the prompt refused, timed out and accepted, with the preview asserted;
+   `status`'s setting line, `none` and `ran`/`skipped`/`failed`;
+   `size --project`'s `waypost-removing/` line and `waypost_removing_bytes`;
+   a passed deadline making `gitFacts` answer conservatively without git
+   in both call sites, and (POSIX) a fake slow `git` on PATH under a short
+   `deadline_ms` probe finishing well inside its 15 s per-call budget.
 
 ## Acceptance Criteria
 

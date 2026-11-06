@@ -48,12 +48,16 @@ export function limitChange(cur, next) {
   return { change: "switch", gated: true };
 }
 
+// How long `waypost clean --limit`'s [y/N] waits for the owner before
+// reading silence as "no" (the amended ADR's gate).
+export const LIMIT_PROMPT_TIMEOUT_MS = 60000;
+
 // Whether a gated change may proceed, from facts bin/waypost already
 // gathered — never itself reads a flag, an environment variable or a
 // keystroke, the same posture as consent() above. There is no `--yes
 // --reason` path for this one (Decision 2: "only the owner, in their own
 // terminal"): `method: "prompt"` means the caller still has to actually ask
-// (with an unbounded [y/N], answered false after 60s); everything else is a
+// (a [y/N] answered false after LIMIT_PROMPT_TIMEOUT_MS); everything else is a
 // final answer. `checkError` is set by the caller when the gate itself could
 // not be evaluated (the shipped harness registry was unreadable) — refused,
 // never treated as "no harness found".

@@ -19,6 +19,15 @@ import { gitCommonDir } from "./lib.mjs";
 export const GIT_CALL_COST = 1000;
 export const SUBPROCESS_CALL_COST = GIT_CALL_COST;
 
+// The time a git call about to run may take under an absolute `deadline`
+// (a Date.now() reading): what is left of it, capped at the 15s ceiling
+// every call here always had, and that ceiling itself with no deadline.
+// 0 means none is left — the calls below then answer conservatively without
+// spawning check-ignore or ls-files.
+export function gitTimeoutFor(deadline, now = Date.now()) {
+  return deadline == null ? 15000 : Math.max(0, Math.min(15000, deadline - now));
+}
+
 // ─── git check-ignore, batched once per scan ────────────────────────────
 //
 // Any outcome other than "at least one of these is ignored" (status 0) or
@@ -128,7 +137,9 @@ function hasGitAnywhereAbove(dir) {
 // the same conservative answer any other git failure here already does,
 // before ever spawning either call — a git repository that answers "cannot
 // tell right now" and one this scan simply had no time left for read the
-// same way to every caller.
+// same way to every caller. `timeoutMs` bounds the PAIR of calls, not each:
+// ls-files gets only what check-ignore left of it. (gitCommonDir's own
+// rev-parse runs first, with its own 5s, and is cached per root.)
 export function gitFacts(root, relPaths, timeoutMs = 15000) {
   if (!relPaths.length) return { repo: true, ignored: new Set(), tracked: new Set() };
   const conservative = () => ({ repo: true, ignored: new Set(), tracked: new Set(relPaths) });
@@ -136,6 +147,7 @@ export function gitFacts(root, relPaths, timeoutMs = 15000) {
     return hasGitAnywhereAbove(root) ? conservative() : { repo: false, ignored: new Set(), tracked: new Set() };
   }
   if (timeoutMs <= 0) return conservative();
+  const until = Date.now() + timeoutMs;
 
   const posix = relPaths.map((p) => p.split(sep).join("/"));
 
@@ -155,9 +167,11 @@ export function gitFacts(root, relPaths, timeoutMs = 15000) {
   const ignoredPosix = new Set((r.stdout || "").split("\0").filter(Boolean));
   const ignored = new Set(relPaths.filter((_, i) => ignoredPosix.has(posix[i])));
 
+  const left = until - Date.now();
+  if (left <= 0) return conservative();
   let tr;
   try {
-    tr = spawnSync("git", ["--literal-pathspecs", "-C", root, "ls-files", "-z", "--", ...posix], { encoding: "utf8", timeout: timeoutMs });
+    tr = spawnSync("git", ["--literal-pathspecs", "-C", root, "ls-files", "-z", "--", ...posix], { encoding: "utf8", timeout: left });
   } catch {
     return conservative();
   }

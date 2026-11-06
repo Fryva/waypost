@@ -9,7 +9,8 @@ import {checkGuards} from "../scripts/doctor-guards.mjs";
 
 test("cleanup limit leaf preserves aliases, arities and a bounded I/O-free surface",()=>{
   const arities={consent:0,formatLimit:1,formatOutcome:1,limitChange:2,limitDecision:0,logLine:1,parseLimit:1,shortfallOf:0};
-  assert.deepEqual(Object.keys(leaf),Object.keys(arities));assert.equal(Object.keys(owner).length,24);
+  // LIMIT_PROMPT_TIMEOUT_MS is the leaf's one constant, read by bin/cli/clean.mjs directly, not through the facade.
+  assert.deepEqual(Object.keys(leaf),["LIMIT_PROMPT_TIMEOUT_MS",...Object.keys(arities)]);assert.equal(leaf.LIMIT_PROMPT_TIMEOUT_MS,60000);assert.equal(owner.LIMIT_PROMPT_TIMEOUT_MS,undefined);assert.equal(Object.keys(owner).length,24);
   for(const[name,n]of Object.entries(arities)){assert.equal(owner[name],leaf[name]);assert.equal(leaf[name].name,name);assert.equal(leaf[name].length,n);}
   const source=readFileSync(new URL("../scripts/cleanup-limit.mjs",import.meta.url),"utf8");assert.ok(Buffer.byteLength(source)<=12000);assert.doesNotMatch(source,/^import |\bprocess\s*\.|\bDate\s*\./m);
 });

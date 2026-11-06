@@ -1,5 +1,6 @@
 // Waypost CLI: remove.
 import { ensureMachineStateDir } from "../../scripts/lib.mjs";
+import { gitTimeoutFor } from "../../scripts/sizes-git.mjs";
 import { factsFrom } from "./clean-plan.mjs";
 import { spawnSync } from "node:child_process";
 import { appendFileSync, lstatSync, renameSync, rmSync, statSync } from "node:fs";
@@ -36,7 +37,9 @@ function freshFactsFor(item, ctx, mods, now) {
   let ignored, tracked;
   if (item.scope === "project" && item.match !== "locator" && inspected.exists && inspected.is_directory) {
     const rel = relative(ctx.root, item.path);
-    const gf = sizes.gitFacts(ctx.root, [rel]);
+    // Bounded by the deadline the plan was built under (the automatic
+    // path's), never past it; the manual path has none and keeps 15s.
+    const gf = sizes.gitFacts(ctx.root, [rel], gitTimeoutFor(ctx.deadline));
     ignored = gf.ignored.has(rel);
     tracked = gf.tracked.has(rel);
   }

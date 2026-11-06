@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { compileArtifacts, ownerOf, compileLocatorOwners, isSureName, isMaybeName, keepSuffixesOf } from "./sizes-rules.mjs";
 export { keepSuffixesOf } from "./sizes-rules.mjs";
-import { GIT_CALL_COST, SUBPROCESS_CALL_COST, gitIgnoredSet, gitTrackedDirs } from "./sizes-git.mjs";
+import { GIT_CALL_COST, SUBPROCESS_CALL_COST, gitIgnoredSet, gitTimeoutFor, gitTrackedDirs } from "./sizes-git.mjs";
 export { GIT_CALL_COST, SUBPROCESS_CALL_COST, gitFacts } from "./sizes-git.mjs";
 import { metadataNamesOf, inspectDir, cacheCandidates, measureCaches, scanGlobal, dirBytes } from "./sizes-measure.mjs";
 export { metadataNamesOf, inspectDir, cacheCandidates, measureCaches, scanGlobal } from "./sizes-measure.mjs";
@@ -182,10 +182,8 @@ export function scanProject(dir, {
   // uses, so the cost of asking the clock never competes with the walk it
   // bounds.
   const deadlinePassed = () => deadline != null && entriesVisited > 0 && entriesVisited % 512 === 0 && Date.now() > deadline;
-  // The time actually left before the deadline, for a git call about to run
-  // — capped at the same 15s ceiling this module always used, never above
-  // it just because a caller passed no deadline at all.
-  const gitTimeoutMs = () => (deadline == null ? 15000 : Math.max(0, Math.min(15000, deadline - Date.now())));
+  // The time actually left before the deadline, for a git call about to run.
+  const gitTimeoutMs = () => gitTimeoutFor(deadline);
 
   // Attempts to charge one subprocess call (git or a locator's own) against
   // the budget, charging and returning true only if it is affordable; an

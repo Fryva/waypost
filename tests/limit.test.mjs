@@ -1025,3 +1025,379 @@ test("AC13: a deleter that cannot be spawned at all leaves the exit status alone
   assert.equal(r.status, 7, `the child's own exit code survived the failed spawn: ${r.stderr}`);
   assert.equal(JSON.parse(r.stdout).pid, null, "no pid is reported for a deleter that never started");
 });
+
+// ─── WP-17 loose ends: picked in the text plan, the gate's terminal branch,
+// ─── status / size lines, git inside the deadline ────────────────────────
+
+// Runs `fn` with THIS process pointed at a temp HOME (and project), stdout/
+// stderr captured, and everything — env, the two writers, process.exitCode —
+// put back in `finally`. handleCleanLimit sets exitCode = 1 on a refusal;
+// leaving that behind would fail the whole test file.
+async function inProcess({ home, proj }, fn) {
+  const keys = ["HOME", "USERPROFILE", "XDG_STATE_HOME", "LOCALAPPDATA", "WAYPOST_PROJECT_DIR", "WAYPOST_NO_BEAT"];
+  const savedEnv = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const savedOut = process.stdout.write;
+  const savedErr = process.stderr.write;
+  const savedExit = process.exitCode;
+  const cap = { stdout: "", stderr: "", exitCode: undefined };
+  try {
+    Object.assign(process.env, {
+      HOME: home, USERPROFILE: home, XDG_STATE_HOME: home, LOCALAPPDATA: home,
+      WAYPOST_PROJECT_DIR: proj, WAYPOST_NO_BEAT: "1",
+    });
+    // The test runner reports this file's results to its parent over the same
+    // stdout, as binary chunks: only strings (the code under test) are captured,
+    // everything else goes through, or finished tests would vanish from the report.
+    process.stdout.write = (chunk, ...rest) => (typeof chunk === "string" ? (cap.stdout += chunk, true) : savedOut.call(process.stdout, chunk, ...rest));
+    process.stderr.write = (chunk, ...rest) => (typeof chunk === "string" ? (cap.stderr += chunk, true) : savedErr.call(process.stderr, chunk, ...rest));
+    cap.result = await fn(cap);
+    cap.exitCode = process.exitCode;
+  } finally {
+    process.stdout.write = savedOut;
+    process.stderr.write = savedErr;
+    for (const k of keys) { if (savedEnv[k] === undefined) delete process.env[k]; else process.env[k] = savedEnv[k]; }
+    process.exitCode = savedExit;
+  }
+  return cap;
+}
+
+async function loadMods() {
+  const [cleanup, sizes, toolchains, capacity, presence, discovery] = await Promise.all(
+    ["cleanup", "sizes", "toolchains", "capacity", "presence", "discovery"].map((n) => import(`../scripts/${n}.mjs`)));
+  return { cleanup, sizes, toolchains, capacity, presence, discovery };
+}
+
+const NO_HARNESS_GATE = () => ({ harness: null, via: null, ancestors: [], markers: [], process_table: true });
+
+// Three idle items, oldest first, over a tiny GB limit: only `a` is picked.
+function pickedFixture(prefix) {
+  const home = tmpRoot(`${prefix}-home-`);
+  const proj = gitProject(`${prefix}-proj-`, ["a", "b", "c"]);
+  touchTree(tagFixture(proj, "a", 45000)); sleepMs(30);
+  touchTree(tagFixture(proj, "b", 45000)); sleepMs(30);
+  touchTree(tagFixture(proj, "c", 45000));
+  return { home, proj };
+}
+
+test("picked end to end: setting -> plan, in --json (picked/limit) and in the text (limit line + '<- limit' marks)", () => {
+  const { home, proj } = pickedFixture("waypost-limit-picked");
+  writeCurrentSetting(home, { kind: "gb", gb: 0.0001, bytes: 0.0001 * GB });
+  const env = autoCleanEnv(home, { WAYPOST_PROJECT_DIR: proj });
+
+  const j = runWaypost(proj, ["clean", "--json"], env);
+  assert.equal(j.status, 0, j.stderr);
+  const plan = JSON.parse(j.stdout);
+  assert.equal(plan.limit.kind, "gb");
+  const byRel = Object.fromEntries(plan.items.filter((i) => i.scope === "project").map((i) => [i.rel, i]));
+  assert.equal(byRel.a.picked, true, JSON.stringify(byRel.a));
+  assert.equal(byRel.b.picked, false);
+  assert.equal(byRel.c.picked, false);
+  assert.equal(plan.items.filter((i) => i.picked).length, 1);
+
+  const t = runWaypost(proj, ["clean"], env);
+  assert.equal(t.status, 0, t.stderr);
+  const lines = t.stdout.split("\n");
+  assert.equal(lines.filter((l) => /^limit .* would take 1 item\(s\), \d+\.\d\d GB now \(marked <- limit\)$/.test(l)).length, 1, t.stdout);
+  const marked = lines.filter((l) => l.endsWith("  <- limit"));
+  assert.equal(marked.length, 1, t.stdout);
+  assert.match(marked[0], /\[project\]\s+a {2}<- limit$/);
+  for (const n of ["b", "c"]) assert.ok(lines.some((l) => /\[project\]/.test(l) && l.endsWith(`  ${n}`)), `${n} listed, unmarked`);
+});
+
+test("picked: a limit that takes nothing says so; no setting, or off, prints no limit line at all", () => {
+  const { home, proj } = pickedFixture("waypost-limit-picked-none");
+  const env = autoCleanEnv(home, { WAYPOST_PROJECT_DIR: proj });
+  const limitLines = (out) => out.split("\n").filter((l) => /^limit /.test(l));
+
+  writeCurrentSetting(home, { kind: "gb", gb: 50, bytes: 50 * GB });
+  const roomy = runWaypost(proj, ["clean"], env);
+  assert.equal(roomy.status, 0, roomy.stderr);
+  assert.equal(limitLines(roomy.stdout).length, 1, roomy.stdout);
+  assert.match(limitLines(roomy.stdout)[0], /^limit .* — would take nothing now$/);
+  assert.ok(!roomy.stdout.includes("<- limit"));
+  assert.equal(JSON.parse(runWaypost(proj, ["clean", "--json"], env).stdout).items.filter((i) => i.picked).length, 0);
+
+  writeCurrentSetting(home, { kind: "off" });
+  const off = runWaypost(proj, ["clean"], env);
+  assert.deepEqual(limitLines(off.stdout), []);
+  assert.ok(!off.stdout.includes("<- limit"));
+
+  rmSync(settingPathOf(home), { force: true });
+  const none = runWaypost(proj, ["clean"], env);
+  assert.equal(none.status, 0, none.stderr);
+  assert.deepEqual(limitLines(none.stdout), []);
+  assert.ok(!none.stdout.includes("<- limit"));
+  assert.equal(JSON.parse(runWaypost(proj, ["clean", "--json"], env).stdout).limit, null);
+});
+
+// ─── the gate's terminal branch, in-process through the io seam ───────────
+
+test("the prompt's timeout is one named constant: 60 s", async () => {
+  const { LIMIT_PROMPT_TIMEOUT_MS } = await import("../scripts/cleanup-limit.mjs");
+  assert.equal(LIMIT_PROMPT_TIMEOUT_MS, 60000);
+});
+
+test("gate prompt refused ('n'): the setting file is byte for byte unchanged, 'not set', the 60 s timeout and [y/N] reached the prompt", async () => {
+  const home = tmpRoot("waypost-limit-prompt-no-home-");
+  const proj = gitProject("waypost-limit-prompt-no-proj-", []);
+  writeCurrentSetting(home, { kind: "gb", gb: 20, bytes: 20 * GB });
+  const before = readFileSync(settingPathOf(home));
+  const logBefore = existsSync(logPathOf(home));
+  const mods = await loadMods();
+  const { askYesNo } = await import("../scripts/lib.mjs");
+  const { PassThrough } = await import("node:stream");
+  const seen = [];
+  // The real askYesNo, over a stream answering "n" — only the stream is fake.
+  const ask = (q, o) => {
+    seen.push([q, o]);
+    const input = new PassThrough();
+    setImmediate(() => input.write("n\n"));
+    return askYesNo(q, { input, output: new PassThrough(), timeoutMs: o.timeoutMs });
+  };
+  const cap = await inProcess({ home, proj }, () => import("../bin/cli/clean.mjs").then(({ handleCleanLimit }) =>
+    handleCleanLimit("10", mods, false, Date.now(), { isTTY: true, gate: NO_HARNESS_GATE, ask })));
+  assert.equal(seen.length, 1);
+  assert.match(seen[0][0], /\[y\/N\]/);
+  assert.equal(seen[0][1].timeoutMs, 60000);
+  assert.match(cap.stderr, /not set/);
+  assert.equal(cap.exitCode, 1);
+  assert.ok(readFileSync(settingPathOf(home)).equals(before), "the setting file is untouched");
+  assert.equal(existsSync(logPathOf(home)), logBefore, "nothing logged either");
+});
+
+test("gate prompt left unanswered until the timeout: the real askYesNo reads silence as no — setting byte for byte unchanged", async () => {
+  const { askYesNo } = await import("../scripts/lib.mjs");
+  const { PassThrough } = await import("node:stream");
+  const home = tmpRoot("waypost-limit-prompt-timeout-home-");
+  const proj = gitProject("waypost-limit-prompt-timeout-proj-", []);
+  writeCurrentSetting(home, { kind: "gb", gb: 20, bytes: 20 * GB });
+  const before = readFileSync(settingPathOf(home));
+  const mods = await loadMods();
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let asked = "";
+  output.on("data", (d) => { asked += d; });
+  const cap = await inProcess({ home, proj }, () => import("../bin/cli/clean.mjs").then(({ handleCleanLimit }) =>
+    handleCleanLimit("10", mods, false, Date.now(), {
+      isTTY: true, gate: NO_HARNESS_GATE, ask: (q) => askYesNo(q, { input, output, timeoutMs: 50 }),
+    })));
+  assert.match(asked, /Set the cleanup limit to .*\[y\/N\]/);
+  assert.match(cap.stderr, /not set/);
+  assert.equal(cap.exitCode, 1);
+  assert.ok(readFileSync(settingPathOf(home)).equals(before), "the setting file is untouched");
+});
+
+test("gate prompt accepted: the setting is written with the terminal's own answer, and the preview names the counted total and what would be taken", async () => {
+  const { home, proj } = pickedFixture("waypost-limit-prompt-yes");
+  writeCurrentSetting(home, { kind: "gb", gb: 20, bytes: 20 * GB });
+  const mods = await loadMods();
+  let previewBeforeQuestion = "";
+  const cap = await inProcess({ home, proj }, (live) => import("../bin/cli/clean.mjs").then(({ handleCleanLimit }) =>
+    handleCleanLimit("0.0001", mods, false, Date.now() + 8 * 24 * 60 * 60 * 1000, {
+      isTTY: true, gate: NO_HARNESS_GATE, ask: async () => { previewBeforeQuestion = live.stderr; return true; },
+    })));
+  assert.equal(cap.exitCode, undefined);
+  assert.match(previewBeforeQuestion, /would need to be freed/, "the preview is on screen before the question is asked");
+  assert.match(cap.stderr, /build output counts \d+\.\d\d GB towards the limit/);
+  assert.match(cap.stderr, /\d+\.\d\d GB would need to be freed\. Oldest first/);
+  assert.match(cap.stderr, /GB {2}idle \d+d {2}a\n/, cap.stderr);
+  assert.doesNotMatch(cap.stderr, /Nothing would need to be removed/);
+  assert.match(cap.stdout, /cleanup limit set to .* \(tighten\)/);
+  const rec = JSON.parse(readFileSync(settingPathOf(home), "utf8"));
+  assert.equal(rec.limit.gb, 0.0001);
+  assert.equal(rec.change, "tighten");
+  assert.equal(rec.gate.answer, true);
+  assert.equal(rec.gate.tty, true);
+  assert.equal(rec.gate.required, true);
+  assert.equal(lastLogRecord(home).kind, "limit");
+});
+
+test("gate prompt preview: a limit that takes nothing says so before the question", async () => {
+  const { home, proj } = pickedFixture("waypost-limit-prompt-roomy");
+  writeCurrentSetting(home, { kind: "gb", gb: 200, bytes: 200 * GB });
+  const mods = await loadMods();
+  const cap = await inProcess({ home, proj }, () => import("../bin/cli/clean.mjs").then(({ handleCleanLimit }) =>
+    handleCleanLimit("100", mods, false, Date.now() + 8 * 24 * 60 * 60 * 1000, {
+      isTTY: true, gate: NO_HARNESS_GATE, ask: async () => false,
+    })));
+  assert.match(cap.stderr, /counts \d+\.\d\d GB towards the limit/);
+  assert.match(cap.stderr, /Nothing would need to be removed right now\./);
+  assert.doesNotMatch(cap.stderr, /would need to be freed/);
+});
+
+// ─── status: the cleanup lines ────────────────────────────────────────────
+
+function statusOf(home, proj) {
+  const r = runWaypost(proj, ["status"], autoCleanEnv(home, { WAYPOST_PROJECT_DIR: proj }));
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout;
+}
+function writeAutoLog(home, rec) {
+  mkdirSync(stateDirOf(home), { recursive: true });
+  writeFileSync(logPathOf(home), JSON.stringify({ kind: "auto", ...rec }) + "\n", "utf8");
+}
+
+test("status: no setting reads 'cleanup  none' and no last-run line", () => {
+  const home = tmpRoot("waypost-limit-status-none-home-");
+  const proj = gitProject("waypost-limit-status-none-proj-", []);
+  const out = statusOf(home, proj);
+  assert.match(out, /^cleanup {2}none$/m);
+  assert.doesNotMatch(out, /last run/);
+});
+
+test("status: a setting prints its limit, set date and how it was made", async () => {
+  const { formatLimit } = await import("../scripts/cleanup.mjs");
+  const home = tmpRoot("waypost-limit-status-set-home-");
+  const proj = gitProject("waypost-limit-status-set-proj-", []);
+  const limit = { kind: "gb", gb: 10, bytes: 10 * GB };
+  writeCurrentSetting(home, limit);
+  const out = statusOf(home, proj);
+  assert.ok(out.includes(`cleanup  ${formatLimit(limit)} — set 2026-01-01 (no gate required; gate: env-markers-only)\n`), out);
+  assert.doesNotMatch(out, /cleanup {2}none/);
+  assert.doesNotMatch(out, /last run/);
+
+  writeCurrentSetting(home, limit, { gate: { required: true, checked: "process-table+env-markers", harness: null, via: null, ancestors: [], markers: [], tty: true, answer: true } });
+  assert.match(statusOf(home, proj), /— set 2026-01-01 \(terminal; gate: process-table\+env-markers\)/);
+});
+
+test("status: the last automatic run is named — ran, skipped and failed each with their own text", async () => {
+  const { formatOutcome } = await import("../scripts/cleanup.mjs");
+  const home = tmpRoot("waypost-limit-status-outcome-home-");
+  const proj = gitProject("waypost-limit-status-outcome-proj-", []);
+  writeCurrentSetting(home, { kind: "gb", gb: 10, bytes: 10 * GB });
+  const at = "2026-02-03T04:05:06.000Z";
+  const cases = [
+    [{ result: "ran", at, renamed: [{}, {}], stayed: [{}] }, `last run automatic cleanup: ran (${at}) — 2 item(s) removed, 1 stayed`],
+    [{ result: "skipped", at, reason: "not in a git work tree" }, `last run automatic cleanup: skipped (${at}) — not in a git work tree`],
+    [{ result: "failed", at, reason: "cannot scan" }, `last run automatic cleanup: failed (${at}) — cannot scan`],
+  ];
+  for (const [rec, expected] of cases) {
+    writeAutoLog(home, rec);
+    const out = statusOf(home, proj);
+    assert.ok(out.includes(`        ${expected}\n`), `${rec.result}: ${out}`);
+    assert.ok(out.includes(`last run ${formatOutcome({ kind: "auto", ...rec })}`));
+  }
+});
+
+// ─── size --project: waypost-removing/ ────────────────────────────────────
+
+test("size --project: items already handed to the deleter are reported in text and as waypost_removing_bytes in --json", () => {
+  const home = tmpRoot("waypost-limit-size-home-");
+  const proj = gitProject("waypost-limit-size-proj-", []);
+  const env = autoCleanEnv(home, { WAYPOST_PROJECT_DIR: proj });
+
+  const empty = runWaypost(proj, ["size", "--project"], env);
+  assert.equal(empty.status, 0, empty.stderr);
+  assert.doesNotMatch(empty.stdout, /waypost-removing/);
+  const emptyJson = JSON.parse(runWaypost(proj, ["size", "--project", "--json"], env).stdout);
+  assert.ok("waypost_removing_bytes" in emptyJson);
+  assert.equal(emptyJson.waypost_removing_bytes, null);
+
+  const leftover = join(gitCommonOf(proj), REMOVING_DIR, "pending-item");
+  mkdirSync(leftover, { recursive: true });
+  writeFileSync(join(leftover, "file.bin"), Buffer.alloc(200000, 1));
+  const text = runWaypost(proj, ["size", "--project"], env);
+  assert.equal(text.status, 0, text.stderr);
+  assert.match(text.stdout, /^ {2}\d+\.\d\d GB {2}waypost-removing\/ \(already handed to the deleter\)$/m);
+  const j = JSON.parse(runWaypost(proj, ["size", "--project", "--json"], env).stdout);
+  assert.ok(j.waypost_removing_bytes >= 200000, String(j.waypost_removing_bytes));
+});
+
+// ─── git inside the deadline ──────────────────────────────────────────────
+
+test("git inside the deadline: a passed deadline makes gatherCleanContext's gitFacts answer conservatively; without one it asks git", async () => {
+  const { gatherCleanContext } = await import("../bin/cli/clean-plan.mjs");
+  const home = tmpRoot("waypost-limit-deadline-ctx-home-");
+  const proj = gitProject("waypost-limit-deadline-ctx-proj-", ["a"]);
+  tagFixture(proj, "a", 5000);
+  const mods = await loadMods();
+  const gather = (deadline) => inProcess({ home, proj }, () => gatherCleanContext(mods, {
+    root: proj, vault: null, includeMachine: false,
+    walk: { stopAtGit: true, locators: false, ...(deadline !== undefined ? { deadline } : {}) },
+  })).then((c) => c.result);
+  const itemA = (ctx) => ctx.projectItems.find((i) => i.rel === "a");
+
+  const late = await gather(Date.now() - 1);
+  assert.equal(typeof late.deadline, "number");
+  assert.equal(itemA(late).tracked, true, "no time left: conservative, never 'untracked'");
+  assert.equal(itemA(late).ignored, false);
+
+  const free = await gather(undefined);
+  assert.equal(free.deadline, null);
+  assert.equal(itemA(free).tracked, false);
+  assert.equal(itemA(free).ignored, true);
+});
+
+test("git inside the deadline: freshFactsFor's recheck is bounded by ctx.deadline too", async () => {
+  const { gatherCleanContext } = await import("../bin/cli/clean-plan.mjs");
+  const { freshFactsFor } = await import("../bin/cli/remove.mjs");
+  const home = tmpRoot("waypost-limit-deadline-fresh-home-");
+  const proj = gitProject("waypost-limit-deadline-fresh-proj-", ["a"]);
+  tagFixture(proj, "a", 5000);
+  const mods = await loadMods();
+  const { result } = await inProcess({ home, proj }, async () => {
+    const ctx = gatherCleanContext(mods, { root: proj, vault: null, includeMachine: false, walk: { stopAtGit: true, locators: false } });
+    const item = ctx.projectItems.find((i) => i.rel === "a");
+    const now = Date.now() + 8 * 24 * 60 * 60 * 1000;
+    return {
+      open: freshFactsFor(item, ctx, mods, now).fresh,
+      late: freshFactsFor(item, { ...ctx, deadline: Date.now() - 1 }, mods, now).fresh,
+    };
+  });
+  assert.equal(result.open.tracked, false);
+  assert.equal(result.open.ignored, true);
+  assert.equal(result.late.tracked, true, "past the deadline: conservative without asking git");
+});
+
+test("git inside the deadline: a git that hangs on check-ignore/ls-files is cut at the sweep's deadline, not its 15 s per call",
+  { skip: process.platform === "win32" ? "POSIX shell script as git" : false }, () => {
+    const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+    assert.ok(realGit, "a real git to delegate to");
+    const bin = tmpRoot("waypost-limit-slowgit-bin-");
+    writeFileSync(join(bin, "git"),
+      "#!/bin/sh\nfor a in \"$@\"; do case \"$a\" in check-ignore|ls-files) exec sleep 30;; esac; done\nexec \"$WAYPOST_TEST_REAL_GIT\" \"$@\"\n", { mode: 0o755 });
+    const home = tmpRoot("waypost-limit-slowgit-home-");
+    const proj = gitProject("waypost-limit-slowgit-proj-", ["a", "b"]);
+    touchTree(tagFixture(proj, "a", 20000)); sleepMs(30);
+    touchTree(tagFixture(proj, "b", 20000));
+    writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+    const env = autoCleanEnv(home, {
+      PATH: `${bin}:${process.env.PATH}`, WAYPOST_TEST_REAL_GIT: realGit,
+      WAYPOST_AUTOCLEAN_PROBE: JSON.stringify({ deadline_ms: 1500 }),
+    });
+    const t0 = Date.now();
+    const r = runHeavyChild(proj, ["node", "-e", "1"], env);
+    const took = Date.now() - t0;
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(took < 10000, `the hanging git held the sweep for ${took} ms`);
+    // A git that could not answer never lets anything be removed.
+    assert.ok(existsSync(join(proj, "a")) && existsSync(join(proj, "b")));
+    // ...and the run says it hit the deadline rather than "ran, nothing to do".
+    const rec = lastLogRecord(home);
+    assert.equal(rec.deadline, true, JSON.stringify(rec));
+    assert.equal(rec.reason, "deadline");
+  });
+
+test("git inside the deadline: gitFacts' timeout bounds check-ignore and ls-files together, not each",
+  { skip: process.platform === "win32" ? "POSIX shell script as git" : false }, async () => {
+    const { gitFacts } = await import("../scripts/sizes-git.mjs");
+    const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+    const proj = gitProject("waypost-limit-pairgit-proj-", ["a"]);
+    tagFixture(proj, "a", 5000);
+    gitFacts(proj, ["a"]); // warms gitCommonDir's per-root cache with the real git
+    const bin = tmpRoot("waypost-limit-pairgit-bin-");
+    // check-ignore answers after 1 s; ls-files would hang for 30 s.
+    writeFileSync(join(bin, "git"),
+      `#!/bin/sh\nfor a in "$@"; do case "$a" in check-ignore) sleep 1; exec "${realGit}" "$@";; ls-files) exec sleep 30;; esac; done\nexec "${realGit}" "$@"\n`, { mode: 0o755 });
+    const savedPath = process.env.PATH;
+    let facts, took;
+    try {
+      process.env.PATH = `${bin}:${savedPath}`;
+      const t0 = Date.now();
+      facts = gitFacts(proj, ["a"], 2000);
+      took = Date.now() - t0;
+    } finally { process.env.PATH = savedPath; }
+    // Each call given the full 2 s would take ~3 s (1 s + 2 s).
+    assert.ok(took < 2700, `the pair took ${took} ms under a 2000 ms budget`);
+    assert.equal(facts.tracked.has("a"), true, "ls-files cut short: conservative");
+  });
