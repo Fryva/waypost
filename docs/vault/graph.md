@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-05T01:32:27.049Z
+generated_at: 2026-11-06T14:35:32.632Z
 
 ---
 
@@ -34,10 +34,11 @@ full typed neighborhood, both directions, in one call.
 | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md | Budgeted read-only role evaluation over a sealed source snapshot | adr | accepted |
 | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md | Cleanup to a machine-wide limit: set by the owner, idle artifacts oldest first | adr | accepted |
 | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md | Disk hygiene by discovery: a toolchain registry, a machine and project profile, and cleanup only after a yes | adr | accepted |
+| adr/disk-space-for-heavy-work-a-free-space-floor-at-admission-idle-linked-worktrees-on-the-automatic-path.md | Disk space for heavy work: a free-space floor at admission, idle linked worktrees on the automatic path | adr | proposed |
 | adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md | Enforce the owner's token budget for live runs across teams | adr | accepted |
 | adr/harness-tool-surfaces-bound-by-evidence-instead-of-an-empty-tool-list.md | Harness tool surfaces bound by evidence instead of an empty tool list | adr | accepted |
 | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md | Heavy work sized to the machine: waypost capacity, a machine-wide slot, and a rule to check first | adr | accepted |
-| adr/memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md | Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job | adr | proposed |
+| adr/memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md | Memory for heavy work: half the memory up to 2 GB, macOS by pressure level, no agents beside a job | adr | accepted |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | Model-aware teams across harness sessions with one authority and independent review | adr | accepted |
 | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md | Native configuration profiles ranked by fresh role-specific calibration | adr | accepted |
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | Owner-assigned team roles by default with calibration as an optional check | adr | accepted |
@@ -74,12 +75,15 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains.md | Detectors: superseded device support, unavailable simulators, duplicate toolchains | story | planned |
 | epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md | Discovery and the profile: the scheme of what Waypost works with | story | done |
 | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | doctor and next surface build artifacts | story | planned |
-| epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md | The machine-wide limit: automatic cleanup at the end of a heavy run | story | in-progress |
+| epics/WP-17/stories/story-the-limits-loose-ends-picked-in-the-text-plan-the-terminal-gate-under-test-git-inside-the-deadline.md | The limit's loose ends: picked in the text plan, the terminal gate under test, git inside the deadline | story | done |
+| epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md | The machine-wide limit: automatic cleanup at the end of a heavy run | story | done |
 | epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md | Verified on Linux and Windows virtual machines | story | planned |
 | epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | waypost clean: a classified plan, removal after a yes, the setup audit | story | done |
 | epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md | The toolchain registry and a tool-agnostic waypost size | story | done |
 | epics/WP-18/epic.md | Heavy work sized to the machine | epic | planned |
+| epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them.md | A heavy job started while waypost team peers run sees them and does not start beside them | story | done |
 | epics/WP-18/stories/story-a-live-holder-started-through-a-differently-cased-path-still-reads-as-live-on-windows.md | A live holder started through a differently cased path still reads as live on Windows | story | done |
+| epics/WP-18/stories/story-agents-waypost-starts-itself-see-a-live-heavy-job-and-brief-and-status-name-it.md | Agents waypost starts itself see a live heavy job, and brief and status name it | story | done |
 | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md | Capacity verified on Linux and Windows virtual machines | story | in-progress |
 | epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable.md | Cleanup tests prove a live holder on Windows: fixtures record the comm tasklist reports, and the fake clean tool is a real executable | story | done |
 | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md | The heavy-work rule in every project, and Waypost's own heavy work | story | done |
@@ -92,6 +96,8 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md | Codex keeps one session and direct installers see the running harness | story | in-progress |
 | epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share.md | Project rules reach Claude sessions on a VM whose checkout is on a network share | story | planned |
 | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md | ps in the C locale, so the process table exists on any host | story | done |
+| epics/WP-19/stories/story-same-named-machines-keep-each-others-live-records.md | Same-named machines keep each other's live records | story | done |
+| epics/WP-19/stories/story-the-presence-and-capture-suites-pass-on-windows.md | The presence and capture suites pass on Windows | story | done |
 | epics/WP-20/epic.md | One task coordinated across harnesses and AI models | epic | planned |
 | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md | Addressed messages and verified harness delivery | story | planned |
 | epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md | Assignments supervision and stronger-model handover | story | planned |
@@ -114,12 +120,14 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-avoid-repeating-exact-paths-in-reconciliation-rows.md | Avoid repeating exact paths in reconciliation rows | story | done |
 | epics/WP-21/stories/story-avoid-repeating-exact-search-status-matches.md | Avoid repeating exact search status matches | story | done |
 | epics/WP-21/stories/story-avoid-repeating-search-result-filenames-as-titles.md | Avoid repeating search result filenames as titles | story | done |
+| epics/WP-21/stories/story-bare-link-resolution-import-failures-and-help-answer-without-needless-work.md | Bare-link resolution, import failures and help answer without needless work | story | done |
 | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | Bound each CLI migration stage and measure the final layout | story | done |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | Bounded compressed Codex rollout accounting | story | done |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | Budgeted sealed-source evaluation route | story | done |
 | epics/WP-21/stories/story-build-node-lookup-buckets-without-rescanning-their-members.md | Build node lookup buckets without rescanning their members | story | done |
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | Check every CLI module before the first split | story | done |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | Check safe Zstandard member handling across Node versions | story | done |
+| epics/WP-21/stories/story-close-cli-gaps-found-by-the-post-optimization-audit.md | Close CLI gaps found by the post-optimization audit | story | done |
 | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md | Compact cleanup status in default brief | story | done |
 | epics/WP-21/stories/story-compact-empty-groups-in-the-default-doctor-report.md | Compact empty groups in the default Doctor report | story | done |
 | epics/WP-21/stories/story-compact-generated-routing-instructions.md | Compact generated routing instructions | story | done |
@@ -135,6 +143,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions.md | Deduplicate standing role and harness instructions | story | done |
 | epics/WP-21/stories/story-deduplicate-standing-self-install-instructions.md | Deduplicate standing self-install instructions | story | done |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | Distinguish evaluation moderation rejection causes | story | done |
+| epics/WP-21/stories/story-epics-stay-small-enough-for-the-planner-to-read-whole.md | Epics stay small enough for the planner to read whole | story | done |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | Evaluation accepts bounded moderation metadata | story | done |
 | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | Exclude non-code text from the bounded CLI namespace guard | story | done |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | Execute paired token economy smoke under the owner allocation | story | in-progress |
@@ -201,6 +210,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | Keep CLI reference out of standing instructions | story | done |
 | epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget.md | Keep search matches visible within the existing excerpt budget | story | done |
 | epics/WP-21/stories/story-keep-standing-reference-details-on-demand.md | Keep standing reference details on demand | story | done |
+| epics/WP-21/stories/story-link-parsing-moves-to-its-own-leaf-so-the-resolver-has-room-to-change.md | Link parsing moves to its own leaf so the resolver has room to change | story | done |
 | epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md | Make session identity call-time tests portable across Node runtimes | story | done |
 | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | Map CLI dependencies and shared-state ownership before migration | story | done |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | Offline Codex token accounting with explicit coverage | story | done |
@@ -265,6 +275,9 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | Create and inspect a portable task packet with file freshness checks | story | done |
 | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | Deliver portable packets through existing cross-harness inboxes | story | done |
 | epics/WP-24/stories/story-group-unchanged-file-rows-in-cli-handoff-inspection.md | Group unchanged file rows in CLI handoff inspection | story | done |
+| epics/WP-24/stories/story-handoff-capture-store-lock-and-resume-close-their-crash-and-timeout-gaps.md | Handoff capture, store lock and resume close their crash and timeout gaps | story | done |
+| epics/WP-24/stories/story-outline-packet-files-so-bounded-handoff-requests-target-sections.md | Outline packet files so bounded handoff requests target sections | story | done |
+| epics/WP-24/stories/story-persist-handoff-state-compactly-so-the-worst-allowed-case-fits-the-state-cap.md | Persist handoff state compactly so the worst allowed case fits the state cap | story | done |
 | epics/WP-24/stories/story-preflight-managed-handoffs-and-generate-private-route-configuration.md | Preflight managed handoffs and generate private route configuration | story | done |
 | epics/WP-24/stories/story-preserve-lazy-capture-dependencies-under-the-cli-namespace-guard.md | Preserve lazy handoff commands under the CLI namespace guard | story | done |
 | epics/WP-24/stories/story-recover-handoffs-after-forced-interruption-within-an-overall-deadline.md | Recover handoffs after forced interruption within an overall deadline | story | done |
@@ -285,6 +298,7 @@ full typed neighborhood, both directions, in one call.
 | research/paired-implementation-simulation-with-equal-acceptance.md | Paired implementation simulation with equal acceptance | research | draft |
 | research/post-integration-token-accounting-checkpoint.md | Post-integration token accounting checkpoint | research | draft |
 | research/product-level-paired-evaluation-with-security-and-release-acceptance.md | Product-level paired evaluation with security and release acceptance | research | draft |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | Token measurement, pilot and CLI split record of WP-21 | research | final |
 | specs/cross-harness-team-coordination-protocol.md | Cross-harness team coordination protocol | spec | active |
 | specs/objective-native-configuration-calibration-for-protocol-roles.md | Objective native configuration calibration for protocol roles | spec | draft |
 | specs/verified-handoff-continuation-with-measured-usage-bounded-retrieval-and-confirmed-deltas.md | Verified handoff continuation with measured usage bounded retrieval and confirmed deltas | spec | draft |
@@ -311,6 +325,8 @@ full typed neighborhood, both directions, in one call.
 | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md | wikilink | ops/paired-token-economy-experiment-with-blind-acceptance.md |
 | adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
 | adr/enforce-the-owners-token-budget-for-live-runs-across-teams.md | wikilink | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md |
+| adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md | mdlink | epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them.md |
+| adr/memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md | mdlink | epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | mdlink | epics/WP-20/epic.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0005-harness-registry.md |
 | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md | wikilink | adr/0006-commit-protocol.md |
@@ -389,6 +405,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md |
+| epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-the-limits-loose-ends-picked-in-the-text-plan-the-terminal-gate-under-test-git-inside-the-deadline.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md |
@@ -402,6 +419,8 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | mdlink | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md |
 | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
 | epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt.md | mdlink | epics/WP-17/epic.md |
+| epics/WP-17/stories/story-the-limits-loose-ends-picked-in-the-text-plan-the-terminal-gate-under-test-git-inside-the-deadline.md | mdlink | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md |
+| epics/WP-17/stories/story-the-limits-loose-ends-picked-in-the-text-plan-the-terminal-gate-under-test-git-inside-the-deadline.md | mdlink | epics/WP-17/epic.md |
 | epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md | mdlink | adr/cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first.md |
 | epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run.md | mdlink | epics/WP-17/epic.md |
 | epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
@@ -411,7 +430,9 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit.md | mdlink | epics/WP-17/epic.md |
 | epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md | mdlink | adr/disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes.md |
 | epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global.md | mdlink | epics/WP-17/epic.md |
+| epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-a-live-holder-started-through-a-differently-cased-path-still-reads-as-live-on-windows.md |
+| epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-agents-waypost-starts-itself-see-a-live-heavy-job-and-brief-and-status-name-it.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md |
@@ -419,7 +440,9 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work.md |
 | epics/WP-18/epic.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
+| epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-18/stories/story-a-live-holder-started-through-a-differently-cased-path-still-reads-as-live-on-windows.md | mdlink | epics/WP-18/epic.md |
+| epics/WP-18/stories/story-agents-waypost-starts-itself-see-a-live-heavy-job-and-brief-and-status-name-it.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable.md | mdlink | epics/WP-18/epic.md |
@@ -435,11 +458,15 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md |
 | epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share.md |
 | epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md |
+| epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-same-named-machines-keep-each-others-live-records.md |
+| epics/WP-19/epic.md | epic-contains | epics/WP-19/stories/story-the-presence-and-capture-suites-pass-on-windows.md |
 | epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-an-empty-team-authority-on-a-network-share-does-not-block-commits-from-another-machine.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host.md | mdlink | epics/WP-19/epic.md |
+| epics/WP-19/stories/story-same-named-machines-keep-each-others-live-records.md | mdlink | epics/WP-19/epic.md |
+| epics/WP-19/stories/story-the-presence-and-capture-suites-pass-on-windows.md | mdlink | epics/WP-19/epic.md |
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md |
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md |
 | epics/WP-20/epic.md | epic-contains | epics/WP-20/stories/story-automatic-model-routing-by-task-complexity-and-expected-cost.md |
@@ -495,12 +522,14 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-exact-paths-in-reconciliation-rows.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-exact-search-status-matches.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-avoid-repeating-search-result-filenames-as-titles.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bare-link-resolution-import-failures-and-help-answer-without-needless-work.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-build-node-lookup-buckets-without-rescanning-their-members.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-close-cli-gaps-found-by-the-post-optimization-audit.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-empty-groups-in-the-default-doctor-report.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-compact-generated-routing-instructions.md |
@@ -516,6 +545,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-deduplicate-standing-self-install-instructions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-epics-stay-small-enough-for-the-planner-to-read-whole.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
@@ -582,6 +612,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-keep-standing-reference-details-on-demand.md |
+| epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-link-parsing-moves-to-its-own-leaf-so-the-resolver-has-room-to-change.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
@@ -629,35 +660,8 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md |
 | epics/WP-21/epic.md | epic-contains | epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci.md |
-| epics/WP-21/epic.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md |
 | epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md |
-| epics/WP-21/epic.md | wikilink | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md |
-| epics/WP-21/epic.md | wikilink | ops/paired-token-economy-experiment-with-blind-acceptance.md |
-| epics/WP-21/epic.md | wikilink | ops/proposed-revision-3-of-the-sealed-source-token-pilot.md |
-| epics/WP-21/epic.md | wikilink | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md |
-| epics/WP-21/epic.md | wikilink | research/post-integration-token-accounting-checkpoint.md |
+| epics/WP-21/epic.md | wikilink | research/token-measurement-pilot-and-cli-split-record-of-wp-21.md |
 | epics/WP-21/stories/story-avoid-duplicate-story-references-in-default-ready-output.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-duplicate-title-snippets-in-vault-search.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-rebuilding-sealed-range-text-for-every-byte-check.md | mdlink | epics/WP-21/epic.md |
@@ -668,12 +672,14 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-avoid-repeating-exact-paths-in-reconciliation-rows.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeating-exact-search-status-matches.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-avoid-repeating-search-result-filenames-as-titles.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-bare-link-resolution-import-failures-and-help-answer-without-needless-work.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-budgeted-sealed-source-evaluation-route.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-build-node-lookup-buckets-without-rescanning-their-members.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-check-safe-zstandard-member-handling-across-node-versions.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-close-cli-gaps-found-by-the-post-optimization-audit.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-cleanup-status-in-default-brief.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-empty-groups-in-the-default-doctor-report.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-compact-generated-routing-instructions.md | mdlink | epics/WP-21/epic.md |
@@ -689,6 +695,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-deduplicate-standing-role-and-harness-instructions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-deduplicate-standing-self-install-instructions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-distinguish-evaluation-moderation-rejection-causes.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-epics-stay-small-enough-for-the-planner-to-read-whole.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md | mdlink | epics/WP-21/epic.md |
@@ -759,6 +766,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-keep-search-matches-visible-within-the-existing-excerpt-budget.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-keep-standing-reference-details-on-demand.md | mdlink | epics/WP-21/epic.md |
+| epics/WP-21/stories/story-link-parsing-moves-to-its-own-leaf-so-the-resolver-has-room-to-change.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-make-session-identity-call-time-tests-portable-across-node-runtimes.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md | mdlink | epics/WP-21/epic.md |
@@ -833,6 +841,9 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-group-unchanged-file-rows-in-cli-handoff-inspection.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-handoff-capture-store-lock-and-resume-close-their-crash-and-timeout-gaps.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-outline-packet-files-so-bounded-handoff-requests-target-sections.md |
+| epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-persist-handoff-state-compactly-so-the-worst-allowed-case-fits-the-state-cap.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-preflight-managed-handoffs-and-generate-private-route-configuration.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-preserve-lazy-capture-dependencies-under-the-cli-namespace-guard.md |
 | epics/WP-24/epic.md | epic-contains | epics/WP-24/stories/story-recover-handoffs-after-forced-interruption-within-an-overall-deadline.md |
@@ -853,6 +864,9 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-24/stories/story-create-and-inspect-a-portable-task-packet-with-file-freshness-checks.md | mdlink | epics/WP-24/epic.md |
 | epics/WP-24/stories/story-deliver-portable-packets-through-existing-cross-harness-inboxes.md | mdlink | epics/WP-24/epic.md |
 | epics/WP-24/stories/story-group-unchanged-file-rows-in-cli-handoff-inspection.md | mdlink | epics/WP-24/epic.md |
+| epics/WP-24/stories/story-handoff-capture-store-lock-and-resume-close-their-crash-and-timeout-gaps.md | mdlink | epics/WP-24/epic.md |
+| epics/WP-24/stories/story-outline-packet-files-so-bounded-handoff-requests-target-sections.md | mdlink | epics/WP-24/epic.md |
+| epics/WP-24/stories/story-persist-handoff-state-compactly-so-the-worst-allowed-case-fits-the-state-cap.md | mdlink | epics/WP-24/epic.md |
 | epics/WP-24/stories/story-preserve-lazy-capture-dependencies-under-the-cli-namespace-guard.md | mdlink | epics/WP-24/epic.md |
 | epics/WP-24/stories/story-serialize-each-handoff-round-payload-once-for-size-and-identity.md | mdlink | epics/WP-24/epic.md |
 | ops/measure-the-boot-identity-on-macos-kernboottime-uptime-and-a-sleep.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
@@ -877,6 +891,35 @@ full typed neighborhood, both directions, in one call.
 | research/post-integration-token-accounting-checkpoint.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
 | research/post-integration-token-accounting-checkpoint.md | wikilink | adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md |
 | research/post-integration-token-accounting-checkpoint.md | wikilink | epics/WP-21/epic.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | adr/budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/epic.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-bound-each-cli-migration-stage-and-measure-the-final-layout.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-bounded-compressed-codex-rollout-accounting.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-check-every-cli-module-before-the-first-split.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-complete-thin-cli-entry-as-final-migration-stage-f.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-evaluation-accepts-bounded-moderation-metadata.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-exclude-non-code-text-from-the-bounded-cli-namespace-guard.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-execute-paired-token-economy-smoke-under-the-owner-allocation.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-extract-capacity-and-size-command-modules-as-migration-stage-c.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-extract-cleanup-application-and-clean-command-modules-as-migration-stage-e.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-extract-cleanup-planning-and-deletion-modules-as-migration-stage-d.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-extract-orientation-and-vault-command-modules-as-migration-stage-b.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-extract-shared-cli-core-as-migration-stage-a.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-fixed-cohort-and-blind-acceptance-for-token-economy-comparison.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-freeze-and-guard-the-cli-namespace-before-modularization.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-keep-brief-folder-descriptions-behind-full-mode.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-keep-cli-reference-out-of-standing-instructions.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-map-cli-dependencies-and-shared-state-ownership-before-migration.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-pin-team-bound-story-refusal-before-cli-modularization.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-prepare-dependency-and-loader-guards-for-the-cli-split.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-recognize-explicit-inherited-parent-headers-in-codex-accounting.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-scope-unknown-prefix-diagnostics-to-the-requested-period.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | epics/WP-21/stories/story-targeted-evidence-reads-and-reproducible-role-handoffs.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | ops/paired-token-economy-experiment-with-blind-acceptance.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | ops/proposed-revision-3-of-the-sealed-source-token-pilot.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | ops/revision-3-compatibility-controls-under-the-unchanged-allowance.md |
+| research/token-measurement-pilot-and-cli-split-record-of-wp-21.md | wikilink | research/post-integration-token-accounting-checkpoint.md |
 | specs/cross-harness-team-coordination-protocol.md | mdlink | epics/WP-20/epic.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-addressed-messages-and-verified-harness-delivery.md |
 | specs/cross-harness-team-coordination-protocol.md | spec-covers | epics/WP-20/stories/story-assignments-supervision-and-stronger-model-handover.md |

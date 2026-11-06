@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-05T01:32:26.803Z
+generated_at: 2026-11-06T14:35:32.347Z
 
 ---
 
@@ -10,7 +10,7 @@ generated_at: 2026-11-05T01:32:26.803Z
 
 - [ ] [[epics/WP-15/stories/story-the-merge-driver-regenerates-a-derived-view-without-writing-into-the-worktree|WP-15: The merge driver regenerates a derived view without writing into the worktree]] #p2
 - [ ] [[epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot|WP-16: Live verification: Cursor, Gemini CLI and Copilot]] #p2 #blocked
-- [ ] [[epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt|WP-17: doctor and next surface build artifacts]] #p2 #blocked
+- [ ] [[epics/WP-17/stories/story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt|WP-17: doctor and next surface build artifacts]] #p2
 - [ ] [[epics/WP-17/stories/story-verified-on-linux-and-windows-virtual-machines|WP-17: Verified on Linux and Windows virtual machines]] #p2 #blocked
 - [ ] [[epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains|WP-17: Detectors: superseded device support, unavailable simulators, duplicate toolchains]] #p2
 - [ ] [[epics/WP-19/stories/story-project-rules-reach-claude-sessions-on-a-vm-whose-checkout-is-on-a-network-share|WP-19: Project rules reach Claude sessions on a VM whose checkout is on a network share]] #p2
@@ -35,7 +35,6 @@ generated_at: 2026-11-05T01:32:26.803Z
 
 - [ ] [[epics/WP-14/stories/story-live-verification-codex-and-opencode-run-the-whole-loop|WP-14: Live verification: Codex and OpenCode run the whole loop]] #p1
 - [ ] [[epics/WP-15/stories/story-measure-the-git-common-dir-and-worktree-binding-on-macos-windows-and-a-cloud-drive|WP-15: Measure the git common dir and worktree binding on macOS, Windows and a cloud drive]] #p1
-- [ ] [[epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run|WP-17: The machine-wide limit: automatic cleanup at the end of a heavy run]] #p2
 - [ ] [[epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines|WP-18: Capacity verified on Linux and Windows virtual machines]] #p1
 - [ ] [[epics/WP-19/stories/story-agentsmd-is-not-evidence-that-codex-is-used-here|WP-19: setup asked the filesystem alone about which harnesses a project uses]] #p1
 - [ ] [[epics/WP-19/stories/story-codex-keeps-one-session-and-direct-installers-see-the-running-harness|WP-19: Codex keeps one session and direct installers see the running harness]] #p2
@@ -66,14 +65,20 @@ generated_at: 2026-11-05T01:32:26.803Z
 - [x] [[epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with|WP-17: Discovery and the profile: the scheme of what Waypost works with]] #p2 #done
 - [x] [[epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit|WP-17: waypost clean: a classified plan, removal after a yes, the setup audit]] #p2 #done
 - [x] [[epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global|WP-17: The toolchain registry and a tool-agnostic waypost size]] #p2 #done
+- [x] [[epics/WP-17/stories/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run|WP-17: The machine-wide limit: automatic cleanup at the end of a heavy run]] #p2 #done
+- [x] [[epics/WP-17/stories/story-the-limits-loose-ends-picked-in-the-text-plan-the-terminal-gate-under-test-git-inside-the-deadline|WP-17: The limit's loose ends: picked in the text plan, the terminal gate under test, git inside the deadline]] #p2 #done
 - [x] [[epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work|WP-18: The heavy-work rule in every project, and Waypost's own heavy work]] #p1 #done
 - [x] [[epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os|WP-18: waypost capacity: the machine's real free resources, measured by each OS]] #p1 #done
 - [x] [[epics/WP-18/stories/story-waypost-run-heavy-a-machine-wide-slot-for-heavy-work|WP-18: waypost run --heavy: a machine-wide slot for heavy work]] #p1 #done
 - [x] [[epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable|WP-18: Cleanup tests prove a live holder on Windows: fixtures record the comm tasklist reports, and the fake clean tool is a real executable]] #p2 #done
 - [x] [[epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app|WP-18: The heavy-work slot is machine-wide on Windows, not one per packaged app]] #p2 #done
 - [x] [[epics/WP-18/stories/story-a-live-holder-started-through-a-differently-cased-path-still-reads-as-live-on-windows|WP-18: A live holder started through a differently cased path still reads as live on Windows]] #p2 #done
+- [x] [[epics/WP-18/stories/story-agents-waypost-starts-itself-see-a-live-heavy-job-and-brief-and-status-name-it|WP-18: Agents waypost starts itself see a live heavy job, and brief and status name it]] #p2 #done
+- [x] [[epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them|WP-18: A heavy job started while waypost team peers run sees them and does not start beside them]] #p2 #done
 - [x] [[epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host|WP-19: ps in the C locale, so the process table exists on any host]] #p1 #done
 - [x] [[epics/WP-19/stories/story-an-empty-team-authority-on-a-network-share-does-not-block-commits-from-another-machine|WP-19: An empty team authority on a network share does not block commits from another machine]] #p2 #done
+- [x] [[epics/WP-19/stories/story-same-named-machines-keep-each-others-live-records|WP-19: Same-named machines keep each other's live records]] #p2 #done
+- [x] [[epics/WP-19/stories/story-the-presence-and-capture-suites-pass-on-windows|WP-19: The presence and capture suites pass on Windows]] #p2 #done
 - [x] [[epics/WP-21/stories/story-the-team-code-loads-only-for-story-write-and-the-cli-entry-is-an-mjs-the-code-index-sees|WP-21: The team code loads only for story --write, and the CLI entry is an .mjs the code index sees]] #p2 #done
 - [x] [[epics/WP-21/stories/story-reproducible-token-accounting-and-repeated-read-evidence|WP-21: Reproducible token accounting and repeated-read evidence]] #p2 #done
 - [x] [[epics/WP-21/stories/story-offline-codex-token-accounting-with-explicit-coverage|WP-21: Offline Codex token accounting with explicit coverage]] #p2 #done
@@ -215,6 +220,10 @@ generated_at: 2026-11-05T01:32:26.803Z
 - [x] [[epics/WP-21/stories/story-share-adjacent-graph-edge-labels-in-query-output|WP-21: Share adjacent graph edge labels in query output]] #p2 #done
 - [x] [[epics/WP-21/stories/story-share-the-observed-token-label-across-codex-context-rows|WP-21: Share the observed-token label across Codex context rows]] #p2 #done
 - [x] [[epics/WP-21/stories/story-skip-impossible-numbered-artifact-regex-matches|WP-21: Skip impossible numbered artifact regex matches]] #p2 #done
+- [x] [[epics/WP-21/stories/story-bare-link-resolution-import-failures-and-help-answer-without-needless-work|WP-21: Bare-link resolution, import failures and help answer without needless work]] #p2 #done
+- [x] [[epics/WP-21/stories/story-close-cli-gaps-found-by-the-post-optimization-audit|WP-21: Close CLI gaps found by the post-optimization audit]] #p2 #done
+- [x] [[epics/WP-21/stories/story-epics-stay-small-enough-for-the-planner-to-read-whole|WP-21: Epics stay small enough for the planner to read whole]] #p2 #done
+- [x] [[epics/WP-21/stories/story-link-parsing-moves-to-its-own-leaf-so-the-resolver-has-room-to-change|WP-21: Link parsing moves to its own leaf so the resolver has room to change]] #p2 #done
 - [x] [[epics/WP-21/stories/story-skip-code-stripping-phases-without-their-current-delimiters|WP-21: Skip code stripping phases without their current delimiters]] #p2 #done
 - [x] [[epics/WP-21/stories/story-skip-link-family-scans-without-their-prose-delimiters|WP-21: Skip link-family scans without their prose delimiters]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
@@ -233,6 +242,9 @@ generated_at: 2026-11-05T01:32:26.803Z
 - [x] [[epics/WP-24/stories/story-group-unchanged-file-rows-in-cli-handoff-inspection|WP-24: Group unchanged file rows in CLI handoff inspection]] #p2 #done
 - [x] [[epics/WP-24/stories/story-preserve-lazy-capture-dependencies-under-the-cli-namespace-guard|WP-24: Preserve lazy handoff commands under the CLI namespace guard]] #p2 #done
 - [x] [[epics/WP-24/stories/story-serialize-each-handoff-round-payload-once-for-size-and-identity|WP-24: Serialize each handoff round payload once for size and identity]] #p2 #done
+- [x] [[epics/WP-24/stories/story-handoff-capture-store-lock-and-resume-close-their-crash-and-timeout-gaps|WP-24: Handoff capture, store lock and resume close their crash and timeout gaps]] #p2 #done
+- [x] [[epics/WP-24/stories/story-outline-packet-files-so-bounded-handoff-requests-target-sections|WP-24: Outline packet files so bounded handoff requests target sections]] #p2 #done
+- [x] [[epics/WP-24/stories/story-persist-handoff-state-compactly-so-the-worst-allowed-case-fits-the-state-cap|WP-24: Persist handoff state compactly so the worst allowed case fits the state cap]] #p2 #done
 
 
 
