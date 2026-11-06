@@ -12,7 +12,7 @@ superseded_by: null
 review_status: pending
 reviewed_at: null
 drafted_by: {"harness":"claude","provider":null,"date":"2026-11-06"}
-code_refs: ["scripts/capacity-admission.mjs", "scripts/capacity.mjs", "bin/cli/capacity.mjs", "bin/cli/run.mjs", "bin/cli/slots.mjs", "bin/cli/clean.mjs", "bin/cli/size.mjs", "bin/cli/setup.mjs", "bin/cli/auto-clean.mjs", "bin/cli/help.mjs", "scripts/cleanup-selection.mjs", "prompts/heavy.md", "docs/cli-reference.md", ".github/workflows/ci.yml", "tests/capacity-admission.test.mjs", "tests/capacity.test.mjs", "tests/cleanup.test.mjs", "tests/cleanup-selection.test.mjs", "tests/limit.test.mjs"]
+code_refs: ["scripts/capacity-admission.mjs", "scripts/capacity.mjs", "bin/cli/capacity.mjs", "bin/cli/run.mjs", "bin/cli/slots.mjs", "bin/cli/clean.mjs", "bin/cli/size.mjs", "bin/cli/setup.mjs", "bin/cli/auto-clean.mjs", "bin/cli/help.mjs", "scripts/lib-machine-state.mjs", "tests/disk-floor.test.mjs", "scripts/cleanup-selection.mjs", "prompts/heavy.md", "docs/cli-reference.md", ".github/workflows/ci.yml", "tests/capacity-admission.test.mjs", "tests/capacity.test.mjs", "tests/cleanup.test.mjs", "tests/cleanup-selection.test.mjs", "tests/limit.test.mjs"]
 related: "heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first, memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job, cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first, disk-hygiene-by-discovery-a-toolchain-registry-a-machine-and-project-profile-and-cleanup-only-after-a-yes"
 guards: []
 ---
@@ -62,9 +62,12 @@ already idle by its own rule.
 - The idle floor is 1 day instead of 7 (Decision 3).
 - Disk admission is a system reserve of 30 GB plus 20 GB per job
   (Decision 1), each capped for small disks at 15 % and 20 % of the
-  filesystem (confirmed by the owner, 2026-11-06). The cleanup on a disk
-  refusal, the exempted commands, the env switches and Decision 2 are the
-  author's proposal, open to the owner's review.
+  filesystem (confirmed by the owner, 2026-11-06).
+- The owner may set the reserve and the share per machine, lowering them
+  included, with `waypost capacity --disk <reserve>,<share>` (the owner,
+  2026-11-06).
+- The author's proposal, open to the owner's review: the cleanup on a disk
+  refusal, the exempted commands, the env switches and Decision 2.
 
 ## What this amends in accepted ADRs
 
@@ -113,8 +116,21 @@ stands. On acceptance each gets an "Amended by" note pointing here.
      reserve + 20.0 GB for this job) — waypost clean, waypost size --global`.
    - `WAYPOST_DISK_SHARE_GB` may only **raise** the share, the same
      posture as `WAYPOST_HEAVY_MAX` only lowering the slot count; a smaller
-     or invalid value changes nothing. Lowering it is the owner's call
-     (Open questions).
+     or invalid value changes nothing.
+   - **The owner's setting.** `waypost capacity --disk <reserve>,<share>`
+     (GB) replaces both default values on this machine, with no percentage
+     cap; `--disk default` returns to the defaults, and `--disk` alone shows
+     what is in force. It lives in the machine state directory,
+     `disk-floor.<host>.json`; each value is 0–1 000 000 GB (the share at
+     least 1), and a file outside that range reads as no setting. Raising
+     either value works from anywhere; lowering either below what is in
+     force (the nominal 30/20 when no setting exists), and `default` over
+     an existing setting (the real defaults shrink with the disk), take the
+     same gate as `clean --limit`: the owner's own terminal, no harness
+     detected, a [y/N] that reads silence as no. An agent can make the
+     floor stricter, never weaker. Every change is logged in
+     `cleanup.<host>.jsonl` (`kind: "disk-floor"`, with what the harness
+     check found).
    - `waypost capacity` prints the disk figure next to memory, and its
      JSON carries `disk: { free, total, share, reserve, path }`.
    - A `run --heavy` refused for a measured shortage (not for "free space
@@ -278,11 +294,6 @@ under the same rules, that the owner's limit already authorises.
   is not regenerable (`target/package`, benchmark baselines).
 - Verification on Linux and Windows is still to be done, as for the memory
   ADR.
-
-## Open questions for the owner
-
-1. Should the owner be able to lower the share or the reserve (a machine
-   setting like `clean --limit`), or only raise the share by env as now?
 
 ## References
 

@@ -8,7 +8,7 @@ import * as facade from "../scripts/lib.mjs";
 import * as leaf from "../scripts/lib-terminal-prompt.mjs";
 
 test("terminal prompt preserves facade binding, arity and read budget",()=>{
-  assert.deepEqual(Object.keys(leaf),["askYesNo"]);assert.equal(Object.keys(facade).length,100);
+  assert.deepEqual(Object.keys(leaf),["askYesNo"]);assert.equal(Object.keys(facade).length,101);
   assert.equal(facade.askYesNo,leaf.askYesNo);assert.equal(leaf.askYesNo.name,"askYesNo");assert.equal(leaf.askYesNo.length,1);
   assert.ok(readFileSync(new URL("../scripts/lib-terminal-prompt.mjs",import.meta.url)).length<=4000);
 });

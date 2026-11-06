@@ -172,6 +172,10 @@ PROCEDURES
                            reserve + 20 GB per job, capped at 15 %/20 % of the
                            disk) and how many more heavy jobs it can take
                            (never cached) [--json for detail]
+  capacity --disk [<reserve>,<share>|default]
+                           the owner's disk floor in GB; no value shows it;
+                           raising works anywhere, lowering only from your
+                           own terminal with no harness detected, after a [y/N]
   capacity --release <id> [--force]
                            recovery path for a stuck slot: refuses a
                            live-looking holder unless --force is given

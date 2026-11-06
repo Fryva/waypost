@@ -332,6 +332,7 @@ export async function measure({
   dir = process.cwd(),
   statfs = statfsSync,
   reading = undefined,
+  floor = null,
 } = {}) {
   // WAYPOST_CAPACITY_PROBE replaces every machine probe with fixed numbers —
   // for hermetic CLI tests only (WP-18's stress test and its neighbours),
@@ -366,13 +367,14 @@ export async function measure({
     max: env.WAYPOST_HEAVY_MAX,
     disk: diskResult,
     diskRaise: env.WAYPOST_DISK_SHARE_GB,
+    floor: floor ? { reserve: floor.reserve_gb * 1024 ** 3, share: floor.share_gb * 1024 ** 3 } : null,
   });
 
   return {
     cores: coresResult.cores,
     busy: busyResult.busy,
     memory: { available: memoryResult.available, total: memoryResult.total },
-    disk: diskResult ? { ...diskResult, share: started.job_disk, reserve: started.system_disk } : null,
+    disk: diskResult ? { ...diskResult, share: started.job_disk, reserve: started.system_disk, owner_floor: Boolean(floor) } : null,
     ...(diskOff ? { disk_check: "off" } : {}),
     probes: { cores: coresResult.probe, busy: busyResult.probe, memory: memoryResult.probe },
     holders: holderCount,

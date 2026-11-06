@@ -1407,6 +1407,9 @@ test("git inside the deadline: gitFacts' timeout bounds check-ignore and ls-file
 function lowDiskEnv(home, extra = {}) {
   return autoCleanEnv(home, {
     WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB, free: 45 * GB, disk_total: 460 * GB }),
+    // CI exports WAYPOST_DISK_CHECK=off for its own run; these children must
+    // see the check on unless a test turns it off itself.
+    WAYPOST_DISK_CHECK: "", WAYPOST_DISK_SHARE_GB: "",
     ...extra,
   });
 }

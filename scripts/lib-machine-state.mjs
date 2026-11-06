@@ -163,6 +163,19 @@ export function readCleanupSetting({ host, ...stateOpts } = {}) {
   return best;
 }
 
+// The owner's disk floor for heavy-work admission (the disk-space ADR):
+// `{ reserve_gb, share_gb }` from `disk-floor.<host>.json`, written by
+// `waypost capacity --disk`, or null when none is set, the file is missing or
+// corrupt, or a value is not a finite number in range — never thrown, and
+// null means the built-in default.
+export function readDiskFloor({ host, ...stateOpts } = {}) {
+  try {
+    const v = JSON.parse(readFileSync(join(machineStateDir(stateOpts), `disk-floor.${host}.json`), "utf8"));
+    const ok = v && Number.isFinite(v.reserve_gb) && v.reserve_gb >= 0 && v.reserve_gb <= 1e6 && Number.isFinite(v.share_gb) && v.share_gb >= 1 && v.share_gb <= 1e6;
+    return ok ? v : null;
+  } catch { return null; }
+}
+
 // Marks a cleanup-limit record written by this version (bin/waypost
 // handleCleanLimit): the owner's latest explicit choice, which beats copies
 // older versions left behind — a loosening or `off` included.

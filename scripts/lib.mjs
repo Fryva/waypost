@@ -45,7 +45,7 @@ export function configPath() {
   return join(root, ".claude", "projectstore.json");
 }
 
-export { machineStateDir, ensureMachineStateDir, legacyDirsToMove, legacyStateDirs, legacyStateView, stateWriteHint, REMOVING_DIR, readCleanupSetting, LIMIT_WRITER, accountStateDir, stricterLimit, readLastAutoCleanup } from "./lib-machine-state.mjs";
+export { machineStateDir, ensureMachineStateDir, legacyDirsToMove, legacyStateDirs, legacyStateView, stateWriteHint, REMOVING_DIR, readCleanupSetting, readDiskFloor, LIMIT_WRITER, accountStateDir, stricterLimit, readLastAutoCleanup } from "./lib-machine-state.mjs";
 
 // True when `a` and `b` name the same tree, or one is an ancestor of the
 // other, in either direction — used both for "does a live heavy job overlap

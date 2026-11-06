@@ -1,5 +1,5 @@
 // Waypost CLI: slots.
-import { legacyStateDirs, machineStateDir, writeFileAtomic } from "../../scripts/lib.mjs";
+import { legacyStateDirs, machineStateDir, readDiskFloor, writeFileAtomic } from "../../scripts/lib.mjs";
 import { acquireLock, releaseLock } from "../../scripts/machine-lock.mjs";
 import { bootAuthority, warnIfProbed } from "./core.mjs";
 import { hostId } from "../../scripts/presence-host.mjs";
@@ -127,9 +127,9 @@ async function claimSlot(dir, argv, capacity, presence, where = null, { agents =
         besideNamed = named;
       }
     }
-    const m = await capacity.measure({ holders: holders.live, env: process.env, ...(disk ? { reading } : { dir: null }) });
+    const m = await capacity.measure({ holders: holders.live, env: process.env, ...(disk ? { reading, floor: readDiskFloor({ host: presence.hostSlug() }) } : { dir: null }) });
     warnIfProbed(m);
-    if (m.can_start <= 0) return { ok: false, reason: m.reason || "no heavy job slot available" };
+    if (!(m.can_start > 0)) return { ok: false, reason: m.reason || "no heavy job slot available" };
 
     const id = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const rec = {
