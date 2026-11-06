@@ -362,11 +362,19 @@ minutes while the Debian VM booted:
   them with memory also below the share (1.98 GB) — cores are checked first;
 - critical never occurred; swap 4.2–4.5 of 6 GB.
 
-Still to run before acceptance:
-- on the Linux VM at this ADR's head, from the user's desktop session (not
-  `prlctl exec`, which has no user manager): `node --test
-  tests/slots.test.mjs`, recording that the real-scope test reports `ok`, not
-  `# SKIP`, and that the `oom_score_adj` and stand-in `systemd-run` tests pass.
+Linux VM, 2026-11-05, at 02d2e34 (Debian 13.6 arm64, kernel 6.12.115): no
+one was logged in at the greeter, so the user manager was started by hand
+(`systemctl start user@1000.service`, stopped afterwards) and the suite run
+as that user with its `XDG_RUNTIME_DIR` — `systemd-run --user --scope`
+reachable. `node --test tests/slots.test.mjs`: 75 of 75 pass, 0 skipped,
+among them:
+- the real scope — the job's cgroup is a `.scope` of its own, and the
+  command's own exit status comes back;
+- `oom_score_adj` — the job 1000, the wrapper its own value (0);
+- the stand-in `systemd-run` — the scope argv, exit status 3 passed through,
+  a missing command 127 and never wrapped;
+- the job's own pid in the slot record while it runs;
+- without `systemd-run` the job runs where it was started.
 
 ## Review history
 
