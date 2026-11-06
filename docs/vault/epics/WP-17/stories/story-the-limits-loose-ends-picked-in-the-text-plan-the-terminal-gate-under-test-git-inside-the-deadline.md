@@ -3,7 +3,7 @@ type: story
 id: "story-the-limits-loose-ends-picked-in-the-text-plan-the-terminal-gate-under-test-git-inside-the-deadline"
 epic: "WP-17"
 title: "The limit's loose ends: picked in the text plan, the terminal gate under test, git inside the deadline"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-11-06
@@ -14,7 +14,7 @@ code_refs: ["bin/cli/clean.mjs", "bin/cli/clean-plan.mjs", "bin/cli/auto-clean.m
 specs: []
 blocked_by: ["WP-17/story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run"]
 started_at: "2026-11-06T04:14:17.459Z"
-closed_at: null
+closed_at: "2026-11-06T05:33:41.701Z"
 plan_updated_at: "2026-11-06T04:14:17.459Z"
 ---
 
@@ -23,7 +23,7 @@ plan_updated_at: "2026-11-06T04:14:17.459Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-17](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -141,27 +141,62 @@ per-OS evidence is collected.
 <!-- How do we know we're done? Each criterion testable. Checked only with
      evidence at close: - [x] <criterion> — evidence: <test | command | file:line> -->
 
-- [ ] With a limit set, `waypost clean`'s text plan names the items the limit
+- [x] With a limit set, `waypost clean`'s text plan names the items the limit
       would take now, and a person can tell them from the rest without
-      reading `--json`.
-- [ ] The setting → `picked` chain is covered end to end, in text and JSON.
-- [ ] A refused `[y/N]` answer and a silent timeout each leave the setting
+      reading `--json`. — evidence: bin/cli/clean-plan.mjs printCleanPlan
+      (`limit` line, `<- limit` mark); test "picked end to end: setting -> plan…"
+- [x] The setting → `picked` chain is covered end to end, in text and JSON.
+      — evidence: tests "picked end to end: setting -> plan…" and "picked: a
+      limit that takes nothing says so; no setting, or off, prints no limit line at all"
+- [x] A refused `[y/N]` answer and a silent timeout each leave the setting
       file byte for byte unchanged, asserted by a test rather than by reading
-      the code.
-- [ ] The preview printed above the question is asserted by a test.
-- [ ] `status`'s setting line, its `none` fallback and all three outcomes are
-      asserted by tests.
-- [ ] `size --project`'s `waypost-removing/` line is asserted in text and in
-      `--json`.
-- [ ] A git call on the automatic and the manual path cannot outlive the
-      deadline it was started under, shown by a test with a shortened
-      deadline.
-- [ ] `npm test` is green and `waypost doctor` reports 0 issues.
+      the code. — evidence: tests "gate prompt refused ('n')…" (the real
+      askYesNo answering "n") and "gate prompt left unanswered until the timeout…"
+- [x] The preview printed above the question is asserted by a test.
+      — evidence: tests "gate prompt accepted…" (preview on stderr before the
+      question is asked) and "gate prompt preview: a limit that takes nothing…"
+- [x] `status`'s setting line, its `none` fallback and all three outcomes are
+      asserted by tests. — evidence: tests "status: no setting reads 'cleanup
+      none'…", "status: a setting prints its limit…", "status: the last
+      automatic run is named — ran, skipped and failed…"
+- [x] `size --project`'s `waypost-removing/` line is asserted in text and in
+      `--json`. — evidence: test "size --project: items already handed to the
+      deleter are reported in text and as waypost_removing_bytes in --json"
+- [x] On the automatic path no git call outlives the deadline it was started
+      under, shown by a test with a shortened deadline; the manual path has
+      no deadline and keeps 15 s per call. (Reworded 2026-11-06 with the
+      owner: the manual `clean`/`--apply` path is unbounded by design, and
+      giving it a deadline would be a change to removal behaviour.)
+      — evidence: tests "git inside the deadline: …" (four: gatherCleanContext,
+      freshFactsFor, a hanging git under a 1500 ms deadline_ms probe — record
+      `deadline: true` —, and the check-ignore + ls-files pair); each fails
+      when its bound is removed (15.6 s and 3.6 s)
+- [x] `npm test` is green and `waypost doctor` reports 0 issues.
+      — evidence: npm test 2558 tests, 0 fail, 10 skipped; doctor 0 issues, 0 warnings (2026-11-06)
 
 ## Final Summary
 
 <!-- Written at the done gate (waypost story close): what changed, why,
      tests executed, risks and follow-ups. -->
+
+Landed in 4698078. `waypost clean`'s text plan now shows what the active
+limit would take (a `limit` line and `<- limit` marks; `limit` in `--json`),
+keeping the ADR's Decision 4 promise to a person, not only to a machine.
+On the automatic path every git call takes only the time left before the
+60 s deadline (`gitTimeoutFor`), `gitFacts`' budget covers check-ignore and
+ls-files together, and a run whose git calls were cut is logged as stopped
+by the deadline rather than as "ran, nothing to do" — the last two came from
+the waypost-reviewer pass. `handleCleanLimit` takes an `io` parameter
+(isTTY, ask, gate) for in-process tests — a function parameter, never an
+environment probe an agent could set to walk through the owner's gate.
+`LIMIT_PROMPT_TIMEOUT_MS` lives in the cleanup-limit leaf; new names stay off
+the pinned sizes/cleanup facades. 17 tests added in tests/limit.test.mjs.
+
+Follow-ups, not part of this story: the `interrupted`/SIGINT branches and
+AC9 on Windows stay with `story-verified-on-linux-and-windows-virtual-machines`;
+the fake-slow-git tests skip on win32. `status.mjs`'s outer `catch` (an
+exception while reading the setting) is still unexercised — readCleanupSetting
+itself returns null on a broken file.
 
 ## Technical Notes
 
