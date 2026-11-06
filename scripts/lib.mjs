@@ -69,7 +69,12 @@ export function treesOverlap(a, b, { platform = process.platform } = {}) {
   const nb = norm(b);
   if (!na || !nb) return false;
   if (na === nb) return true;
-  return na.startsWith(nb + "/") || nb.startsWith(na + "/");
+  // The separator is appended only when the parent does not already end in
+  // one: a filesystem root normalises to "/" (or "c:/" on win32), and "//"
+  // would make the root an ancestor of nothing at all — a heavy job started
+  // at "/" would then fail to block any project under it.
+  const under = (x, parent) => x.startsWith(parent.endsWith("/") ? parent : parent + "/");
+  return under(na, nb) || under(nb, na);
 }
 
 // `~` is only expanded by an interactive shell — a harness that spawns us

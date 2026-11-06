@@ -3,18 +3,18 @@ type: story
 id: "story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run"
 epic: "WP-17"
 title: "The machine-wide limit: automatic cleanup at the end of a heavy run"
-status: in-progress
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-18
-updated: 2026-09-18
+updated: 2026-11-06
 external_refs: {}
 tags: []
-code_refs: ["bin/waypost", "scripts/cleanup.mjs", "scripts/sizes.mjs", "scripts/capacity.mjs", "scripts/presence.mjs", "scripts/agents.mjs", "scripts/lib.mjs", "scripts/brief.mjs", "scripts/toolchains.mjs", "toolchains/system.json", "toolchains/terraform.json", "docs/toolchains.md", "prompts/cleanup.md", "tests/limit.test.mjs (planned)", "tests/cleanup.test.mjs", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "tests/slots.test.mjs", "CHANGELOG.md"]
+code_refs: ["bin/waypost", "bin/cli/clean.mjs", "bin/cli/clean-plan.mjs", "bin/cli/clean-apply.mjs", "bin/cli/auto-clean.mjs", "bin/cli/deleter.mjs", "bin/cli/remove.mjs", "bin/cli/run.mjs", "bin/cli/slots.mjs", "bin/cli/size.mjs", "bin/cli/status.mjs", "scripts/cleanup.mjs", "scripts/cleanup-limit.mjs", "scripts/cleanup-selection.mjs", "scripts/sizes.mjs", "scripts/sizes-measure.mjs", "scripts/sizes-git.mjs", "scripts/capacity.mjs", "scripts/presence.mjs", "scripts/agents.mjs", "scripts/agents-detection.mjs", "scripts/lib.mjs", "scripts/lib-machine-state.mjs", "scripts/brief.mjs", "scripts/toolchains.mjs", "toolchains/system.json", "toolchains/terraform.json", "docs/toolchains.md", "prompts/cleanup.md", "tests/limit.test.mjs", "tests/cleanup.test.mjs", "tests/cleanup-limit.test.mjs", "tests/cleanup-selection.test.mjs", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "tests/slots.test.mjs", "tests/harness.test.mjs", "CHANGELOG.md"]
 specs: []
 blocked_by: ["WP-17/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit"]
 started_at: "2026-09-18T21:10:42.411Z"
-closed_at: null
+closed_at: "2026-11-06T03:23:41.888Z"
 plan_updated_at: "2026-09-18T21:10:42.411Z"
 ---
 
@@ -23,7 +23,7 @@ plan_updated_at: "2026-09-18T21:10:42.411Z"
 | Field | Value |
 |---|---|
 | **Epic** | [WP-17](../epic.md) |
-| **Status** | in-progress |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -44,25 +44,25 @@ doctor story.
 
 <!-- Granular checklist of concrete tasks. Each item should be small enough to complete in a session. -->
 
-- [ ] `waypost clean --limit [<N>|free:<P>%|off]`: print the setting and the
+- [x] `waypost clean --limit [<N>|free:<P>%|off]`: print the setting and the
       choices; parse and validate (P 5–50); `cleanup-limit.<host>.json` in
       the machine state directory; log every change.
-- [ ] The gate (ADR Decision 2) in `scripts/agents.mjs`: the ancestor chain
+- [x] The gate (ADR Decision 2) in `scripts/agents.mjs`: the ancestor chain
       from the process table plus the registry's environment markers,
       ignoring `WAYPOST_HARNESS`/`WAYPOST_PROC`; a terminal; a preview; `[y/N]`
       answering no after 60 s. Set, tighten and switch go through it; `off`
       and loosening do not.
-- [ ] Registry data: `auto_keep_suffixes` and the OS metadata names in
+- [x] Registry data: `auto_keep_suffixes` and the OS metadata names in
       `toolchains/system.json`; `auto: false` on `.terraform`; the loader
       keeps both only from the shipped registry.
-- [ ] `scripts/cleanup.mjs`: the qualifying set, the counted total and the
+- [x] `scripts/cleanup.mjs`: the qualifying set, the counted total and the
       oldest-first selection for GB and `free:<P>%` (the shortfall computed
       once), as pure functions.
-- [ ] `scripts/sizes.mjs`: a walk mode that stops at any `.git` below the
+- [x] `scripts/sizes.mjs`: a walk mode that stops at any `.git` below the
       root; package suffixes seen during the age walk.
-- [ ] `scripts/capacity.mjs`: the slot record's working directory and root,
+- [x] `scripts/capacity.mjs`: the slot record's working directory and root,
       computed before the lock; a live record without a root blocks.
-- [ ] `bin/waypost run --heavy`: after a normal exit, the conditions of
+- [x] `bin/waypost run --heavy`: after a normal exit, the conditions of
       Decision 4 (root, local storage, overlapping slot holders re-read per
       item, another host's session on the checkout), one 60 s deadline,
       re-classification and `lstat`, rename into
@@ -70,11 +70,11 @@ doctor story.
       detached low-priority deleter with its pid per entry, the stderr
       report, the log with rotation at 1 MB; the wrapped command's exit
       status unchanged.
-- [ ] Any `waypost clean` first purges `waypost-removing/` entries whose
+- [x] Any `waypost clean` first purges `waypost-removing/` entries whose
       deleter is gone.
-- [ ] The active setting and the last automatic outcome in `brief` and
+- [x] The active setting and the last automatic outcome in `brief` and
       `status`.
-- [ ] Tests for each criterion below, removing only inside temporary
+- [x] Tests for each criterion below, removing only inside temporary
       directories and a temporary machine state directory.
 
 ## Implementation Plan
@@ -196,42 +196,174 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
 <!-- How do we know we're done? Each criterion testable. Checked only with
      evidence at close: - [x] <criterion> — evidence: <test | command | file:line> -->
 
-- [ ] Setting, tightening or switching the limit from under a harness is
+- [x] Setting, tightening or switching the limit from under a harness is
       refused — also with `WAYPOST_HARNESS` set to claim none — and nothing
       is written; `off` and loosening are accepted from anywhere.
-- [ ] On a terminal with no answer before the timeout, the limit is not set.
-- [ ] A working set spread over several tagged items, all written within 7
+      — evidence: tests/limit.test.mjs:365 (an ancestor process named after a
+      harness, matched through a symlink; the message names its pid), :335
+      (a lying `WAYPOST_HARNESS`/`WAYPOST_PROC` changes nothing — the gate
+      never reads them), :404 and :416 (tighten and switch refused, the
+      setting file byte for byte unchanged), :430/:446/:462 (`off`, a looser
+      GB limit and a looser `free:` accepted under a harness marker, one
+      `kind: limit` line each); code bin/cli/clean.mjs, scripts/agents-detection.mjs.
+- [x] On a terminal with no answer before the timeout, the limit is not set.
+      — evidence, at unit level only, which is what this story's plan chose
+      ("the terminal `[y/N]` is covered as units"): tests/cleanup.test.mjs:1033
+      (silence past the timeout resolves false), :1041 (EOF resolves false),
+      and bin/cli/clean.mjs:151-159, where a false answer prints "not set" and
+      returns before the write at :176-179. No end-to-end test drives a real
+      terminal, so neither the 60 s constant nor the preview printed above the
+      question is asserted anywhere — see Technical Notes.
+- [x] A working set spread over several tagged items, all written within 7
       days, is left whole over the limit; the report says to raise it.
-- [ ] Over a GB limit, idle qualifying items go oldest first and removal
+      — evidence: tests/limit.test.mjs:592 (three items 2 days idle, a tiny
+      limit: all three survive, stderr says to raise it, nothing renamed);
+      units tests/cleanup.test.mjs:467, :481.
+- [x] Over a GB limit, idle qualifying items go oldest first and removal
       stops as soon as the counted total fits.
-- [ ] Under `free:<P>%`, removal covers the shortfall computed once, even
+      — evidence: tests/limit.test.mjs:609 (of three idle items only the
+      oldest is renamed), :791 (holders re-read between items); unit
+      tests/cleanup.test.mjs:567 (`limitNeed`).
+- [x] Under `free:<P>%`, removal covers the shortfall computed once, even
       when free space does not move after a removal.
-- [ ] A git-ignored generic `build/` holding release output, a tagged
+      — evidence: tests/limit.test.mjs:628 (a frozen `statfs` probe: exactly
+      the two oldest items cover the shortfall; recomputing it per item would
+      have taken all three); unit tests/cleanup.test.mjs:590.
+- [x] A git-ignored generic `build/` holding release output, a tagged
       directory holding a `.pkg`, and `.terraform` are never removed
       automatically.
-- [ ] A nested worktree inside the root is never entered or removed.
-- [ ] With another live heavy job in the same tree (or an ancestor or
+      — evidence: tests/limit.test.mjs:648 (all three survive; `excluded`
+      names each reason: generic name, distributable package, `auto: false`);
+      tests/toolchains.test.mjs:164, :299; toolchains/system.json,
+      toolchains/terraform.json.
+- [x] A nested worktree inside the root is never entered or removed.
+      — evidence: tests/limit.test.mjs:685 (a linked worktree and a nested
+      repository, each holding an idle tagged directory: `nested_skipped`
+      names them, nothing renamed); tests/sizes.test.mjs:560, :577.
+- [x] With another live heavy job in the same tree (or an ancestor or
       descendant), or a live record without a root, nothing is removed.
-- [ ] A wrapped command ended by a signal triggers no cleanup; a signal
+      — evidence: tests/limit.test.mjs:711 (the same root), :728 (an
+      ancestor), :749 (a descendant), :764 (a record naming neither root nor
+      cwd blocks unconditionally), :777 (an unrelated holder does not block),
+      :791 (holders re-read before each item), :817 (another host on this
+      checkout). Narrowed as the plan's own answers state: a record with
+      `root: null` but a `cwd` is compared by that `cwd`, so only a record
+      lacking both blocks unconditionally. The filesystem root was an
+      exception until this close — `treesOverlap("/", …)` was false, so a
+      heavy job started at `/` blocked nothing; fixed in scripts/lib.mjs:76
+      with tests/cleanup.test.mjs:788-790.
+- [x] A wrapped command ended by a signal triggers no cleanup; a signal
       during the cleanup leaves nothing half-removed inside the project.
-- [ ] Past the deadline nothing more is renamed, and the outcome says so in
+      — evidence: tests/limit.test.mjs:848 (the child ends itself by SIGTERM:
+      exit 143, nothing renamed), :862 (a signal to the wrapper mid-sweep:
+      the item already renamed is outside the project, the next is untouched,
+      one marked entry in `waypost-removing/`). The `interrupted` branch (a
+      tool trapping Ctrl-C and exiting itself) and SIGINT are not covered.
+- [x] Past the deadline nothing more is renamed, and the outcome says so in
       `status`.
-- [ ] On non-local storage, outside git, or at the home directory, nothing
+      — evidence: tests/limit.test.mjs:896 (a 1 s deadline probe with a 1.5 s
+      pause: the first item is renamed, the second is not, the record says
+      `deadline`, and `waypost status` prints it); the scan-phase deadline as
+      a unit, tests/sizes.test.mjs:621.
+- [x] On non-local storage, outside git, or at the home directory, nothing
       is removed.
-- [ ] Leftovers in `waypost-removing/` whose deleter is gone are purged by
+      — evidence: tests/limit.test.mjs:917 (a root under a Dropbox path),
+      :941 ("not in a git work tree"), :953 (HOME equal to the root — a
+      protected path); unit tests/cleanup.test.mjs:102 (`refusePath`).
+- [x] Leftovers in `waypost-removing/` whose deleter is gone are purged by
       the next `waypost clean`; an entry whose deleter is alive is left.
-- [ ] `run --heavy` exits with the wrapped command's status whatever the
+      — evidence: tests/limit.test.mjs:512 (a dead pid is adopted and gone
+      within 10 s, a live one is left), :561 (an entry that lost its marker is
+      re-marked and removed; a name of another shape is left and counted).
+- [x] `run --heavy` exits with the wrapped command's status whatever the
       cleanup did; each run appends one log line.
-- [ ] `npm test` is green and `waypost doctor` reports 0 issues.
+      — evidence: tests/limit.test.mjs:966 (exit 3 passes through after a
+      rename), :977 (a cleanup failure does not change it), :1011 (a deleter
+      that cannot be spawned at all: the child keeps its own exit code 7 and
+      reports no pid — before this close the missing `'error'` listener made
+      that an uncaught exception and exit 1, see Technical Notes), :991 (the
+      log grows by exactly one line per run). Narrowed as the plan's own
+      answers state: one line per heavy run only while a limit is set; with
+      no limit or `off` the cleanup exits silently and logs nothing.
+- [x] `npm test` is green and `waypost doctor` reports 0 issues.
+      — evidence: `npm test` on macOS 27 (Darwin 27.2.0), in a detached
+      worktree holding this close's two fixes and nothing else uncommitted:
+      2525 tests, 0 failures, 10 skipped (Linux-only and sleep-only), exit 0.
+      `waypost doctor`: 0 issues, 0 warnings.
 
 ## Final Summary
 
-<!-- Written at the done gate (waypost story close): what changed, why,
-     tests executed, risks and follow-ups. -->
+The limit landed in the three commits the plan proposed — 21487d5 (registry
+data, walk facts, pure decisions), 4ff15dc (`clean --limit`, the slot
+record's location, rename-and-detach removal) and a4f1790 (the automatic path
+in `run --heavy`) — and the story then stayed open for seven weeks while the
+feature ran on the owner's machine. This close is the verification pass, not
+new work: every criterion was re-checked against the current tree (the pure
+decisions have since moved into scripts/cleanup-limit.mjs and
+scripts/cleanup-selection.mjs, and the CLI into bin/cli/) by a fresh-context
+`waypost-reviewer` run, which found two real defects. Both are fixed here:
+
+- **bin/cli/deleter.mjs** — the detached deleter was spawned with no
+  `'error'` listener. A failed spawn (the node binary moved mid-run, or the
+  machine out of processes or descriptors) arrives as an asynchronous event,
+  and with no listener it is an uncaught exception: the process would have
+  died with code 1 and replaced the wrapped command's own exit status — the
+  one thing `run --heavy` promises never to touch. The event is swallowed
+  now, a spawn with no pid reports none, and the entries stay in
+  `waypost-removing/` for the next `waypost clean` to adopt. Reproduced
+  before the fix (exit 1 instead of 7) and covered by
+  tests/limit.test.mjs:1011.
+- **scripts/lib.mjs** — `treesOverlap` appended a separator unconditionally,
+  so the filesystem root compared as `"//"` and overlapped nothing: a live
+  heavy job whose root was `/` blocked no project under it, against AC8.
+  Covered by tests/cleanup.test.mjs:788-790.
+
+Everything else was already closed by code and tests; the evidence is on each
+criterion above. Verification run: `npm test` 2525 passed, 0 failed, 10
+skipped, exit 0 on macOS 27, in a detached worktree carrying only these two
+fixes (the shared checkout had another session's in-flight WP-18 work in
+bin/cli/run.mjs, bin/cli/status.mjs, scripts/capacity.mjs and
+scripts/brief.mjs, which is why the suite was not run in place);
+`waypost doctor` 0 issues, 0 warnings. Live evidence beyond the tests: the
+owner's own log holds 1277 automatic runs since 2026-09-19 (1200 of them
+`ran`, one `failed`, logged without taking the wrapper down with it), three
+real removals under the limit — a 63 MB `target`, a 3.65 GB
+`target-android`, a 39 MB `.gradle` — and three gated changes of the setting
+from a terminal.
+
+Follow-ups, none of them blocking this story:
+
+- `waypost size --project` reports `waypost-removing/` and the manual plan
+  carries `picked` in `--json`, but neither has a test, and `picked` is never
+  printed in the text plan, so a person reading the plan cannot see what the
+  limit would take. (ADR Decision 4 says the plan "shows" it.)
+- The gate's terminal branch — the preview and the `[y/N]` question — is
+  never executed by a test; AC2 rests on `askYesNo` units plus five lines of
+  linear code. Worth a unit with a stubbed prompt.
+- `status` is asserted by a single `/deadline/` regexp; the setting line and
+  the `ran`/`skipped`/`failed` outcomes it prints are untested.
+- git's own timeouts are not nested inside the 60 s deadline outside
+  `scanProject` (bin/cli/clean-plan.mjs, bin/cli/remove.mjs call `gitFacts`
+  without the time left), so a pathological repository can overrun the
+  deadline before the next item is considered. No rename happens past the
+  check, so AC10 holds.
+- The `interrupted` branch and SIGINT are untested, and AC9 is unverified on
+  Windows, where the POSIX-signal tests skip: that belongs to
+  `story-verified-on-linux-and-windows-virtual-machines`.
 
 ## Technical Notes
 
-<!-- Implementation hints, constraints, gotchas. -->
+- The criteria as written are in two places narrower than the implementation,
+  both by the lead's own answers recorded in the Implementation Plan: a holder
+  record with `root: null` but a `cwd` is compared by that `cwd` (otherwise
+  any heavy job outside git would switch the limit off machine-wide), and the
+  one log line per heavy run is written only while a limit is set.
+- AC2 is closed at unit level by the same plan's answer. It is a waiver, not
+  an end-to-end proof; the follow-up above says what would close it fully.
+- The two fixes made at this close are the only code written for it. Both
+  were reproduced against the pre-fix code before being fixed: the deleter
+  one as exit 1 in place of the child's own 7, the `treesOverlap` one as
+  `false` for `("/", "/a/b")`.
 
 ## Dependencies
 
@@ -244,4 +376,4 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
 
 ---
 
-*Last updated: 2026-09-18*
+*Last updated: 2026-11-06*

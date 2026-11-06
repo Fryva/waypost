@@ -66,7 +66,21 @@ function renameForRemoval(item, removingDir, marker) {
 function spawnDeleter(removingDir, names, marker) {
   const child = spawn(process.execPath, [join(ROOT, "bin", "waypost"), "__waypost-delete", removingDir, ...names],
     { detached: true, stdio: "ignore", windowsHide: true });
+  // A detached child nobody waits on still reports a FAILED spawn through an
+  // asynchronous 'error' event (ENOENT when the node binary moved mid-run,
+  // EAGAIN/EMFILE when the machine is out of processes or descriptors). With
+  // no listener that is an uncaught exception: the process would die with
+  // code 1 and replace the wrapped command's own exit status, the one thing
+  // `run --heavy` promises never to touch (bin/cli/run.mjs). Swallowed here
+  // instead: the entries stay in waypost-removing/ carrying this process's
+  // marker, and the next `waypost clean` adopts them once this pid is gone
+  // (purgeLeftovers below) — the same path an interrupted run already takes.
+  child.on("error", () => {});
   child.unref();
+  // A spawn that failed outright has no pid to record. The markers are left
+  // naming this process rather than rewritten with nothing, so the entries
+  // read as "owned by a process that is gone" and are adopted, not stranded.
+  if (!child.pid) return null;
   for (const name of names) {
     const markerPath = join(removingDir, `${name}.json`);
     try {

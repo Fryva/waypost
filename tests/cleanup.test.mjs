@@ -785,6 +785,9 @@ test("treesOverlap: equal, ancestor/descendant in either direction, separators n
   assert.equal(treesOverlap("/a/B", "/a/b", { platform: "linux" }), false, "case-sensitive on linux");
   assert.equal(treesOverlap("C:\\a\\b", "C:/a/b", { platform: "win32" }), true, "backslashes normalize to /");
   assert.equal(treesOverlap("", "/a/b"), false, "an empty path never overlaps anything");
+  assert.equal(treesOverlap("/", "/a/b"), true, "the filesystem root is an ancestor of everything under it");
+  assert.equal(treesOverlap("/a/b", "/"), true, "and the other way round");
+  assert.equal(treesOverlap("C:\\", "C:/a/b", { platform: "win32" }), true, "a win32 drive root too");
 });
 
 test("REMOVING_DIR is the one reserved leaf name", () => {

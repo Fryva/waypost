@@ -5,10 +5,10 @@ title: "Disk hygiene by discovery"
 status: planned
 priority: p2
 created: 2026-09-14
-updated: 2026-09-14
+updated: 2026-11-06
 external_refs: {}
 tags: []
-code_refs: ["toolchains/", "scripts/toolchains.mjs", "scripts/discovery.mjs", "scripts/sizes.mjs", "scripts/cleanup.mjs", "bin/waypost", "package.json", "scripts/doctor.mjs", "scripts/presence.mjs", "scripts/capacity.mjs", "scripts/agents.mjs", "scripts/lib.mjs", "scripts/brief.mjs", "tests/slots.test.mjs", "tests/limit.test.mjs (planned)", "prompts/cleanup.md", "skills/waypost-doctor/SKILL.md", "docs/toolchains.md", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "tests/discovery.test.mjs", "tests/scripts.test.mjs", "tests/harness.test.mjs", "tests/cleanup.test.mjs", "README.md", "AGENTS.md", "CHANGELOG.md"]
+code_refs: ["toolchains/", "scripts/toolchains.mjs", "scripts/discovery.mjs", "scripts/sizes.mjs", "scripts/sizes-measure.mjs", "scripts/sizes-git.mjs", "scripts/cleanup.mjs", "scripts/cleanup-limit.mjs", "scripts/cleanup-selection.mjs", "scripts/lib-machine-state.mjs", "scripts/agents-detection.mjs", "bin/waypost", "bin/cli/", "tests/cleanup-limit.test.mjs", "tests/cleanup-selection.test.mjs", "package.json", "scripts/doctor.mjs", "scripts/presence.mjs", "scripts/capacity.mjs", "scripts/agents.mjs", "scripts/lib.mjs", "scripts/brief.mjs", "tests/slots.test.mjs", "tests/limit.test.mjs", "prompts/cleanup.md", "skills/waypost-doctor/SKILL.md", "docs/toolchains.md", "tests/sizes.test.mjs", "tests/toolchains.test.mjs", "tests/discovery.test.mjs", "tests/scripts.test.mjs", "tests/harness.test.mjs", "tests/cleanup.test.mjs", "README.md", "AGENTS.md", "CHANGELOG.md"]
 review_status: pending
 reviewed_at: null
 ---
@@ -20,7 +20,7 @@ reviewed_at: null
 | **Status** | planned |
 | **Priority** | p2 |
 | **Created** | 2026-09-14 |
-| **Updated** | 2026-09-18 |
+| **Updated** | 2026-11-06 |
 
 ---
 
@@ -55,7 +55,7 @@ Each story is blocked by the one above it.
 | `story-waypost-size-the-read-only-scan-project-and-global` | done | the toolchain registry (`toolchains/*.json`, `scripts/toolchains.mjs`) and a tool-agnostic `waypost size`, keeping the first scan's walk invariants |
 | `story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with` | done | `waypost profile`: tools present, cache paths asked from the tools, the machine and project profiles (facts only) |
 | `story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit` | done | `scripts/cleanup.mjs`, `waypost clean`, the yes and its log, the setup audit, `prompts/cleanup.md` |
-| `story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run` | planned | `waypost clean --limit`, the terminal-only gate, automatic removal of idle exact output at the end of `run --heavy` |
+| `story-the-machine-wide-limit-automatic-cleanup-at-the-end-of-a-heavy-run` | done | `waypost clean --limit`, the terminal-only gate, automatic removal of idle exact output at the end of `run --heavy` |
 | `story-doctor-and-next-surface-build-artifacts-the-cleanup-prompt` | planned | the `build-artifacts` warning in `doctor`, the `next` item pointing at `waypost clean`, the docs |
 | `story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains` | planned | named detectors that prove a device-support version, a simulator or a duplicate toolchain dead; tool versions in the machine profile (deferred from the clean story; blocked by it, not by the rows above) |
 | `story-verified-on-linux-and-windows-virtual-machines` | planned | `npm test`, `profile`, `size` and a `clean` plan on the owner's Linux and Windows virtual machines; `verified` per OS from those runs |
@@ -68,7 +68,7 @@ Each story is blocked by the one above it.
       tool named in its core.
 - [ ] `waypost setup` audits and `waypost clean` removes only after a yes,
       never what is in use, leased or tracked.
-- [ ] A limit set once per machine keeps each project under it without a
+- [x] A limit set once per machine keeps each project under it without a
       full rebuild: idle output goes first, the last week's builds stay.
 - [ ] `waypost doctor` warns above the limit and `waypost next` names
       `waypost clean`; no new standing-context text.
@@ -93,4 +93,4 @@ Each story is blocked by the one above it.
 
 ---
 
-*Last updated: 2026-09-14*
+*Last updated: 2026-11-06*

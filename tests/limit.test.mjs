@@ -1001,3 +1001,27 @@ test("AC13: the log grows by exactly one line per run", () => {
   const linesAfterSecond = readFileSync(logPathOf(home), "utf8").trim().split("\n").filter(Boolean).length;
   assert.equal(linesAfterSecond, 2);
 });
+
+// A failed spawn of the detached deleter is the one path that could still
+// replace the wrapped command's status: 'error' arrives asynchronously, and
+// with no listener it is an uncaught exception worth exit 1. The child below
+// sets its own exit code first, breaks process.execPath so the spawn cannot
+// succeed, and stays alive long enough for the event to be delivered — so it
+// really does exercise the event, not a race that ends before it fires.
+test("AC13: a deleter that cannot be spawned at all leaves the exit status alone and reports no pid", () => {
+  const dir = tmpRoot("waypost-limit-ac13d-");
+  const removing = join(dir, REMOVING_DIR);
+  mkdirSync(removing, { recursive: true });
+  const script = join(dir, "spawn-failure.mjs");
+  writeFileSync(script, [
+    `import { spawnDeleter } from ${JSON.stringify(join(REPO, "bin", "cli", "deleter.mjs"))};`,
+    "process.exitCode = 7;",
+    'Object.defineProperty(process, "execPath", { value: "/nonexistent/waypost-no-such-node", configurable: true });',
+    `const pid = spawnDeleter(${JSON.stringify(removing)}, ["x"], { proc: { comm: "node" } });`,
+    'process.stdout.write(JSON.stringify({ pid }));',
+    "setTimeout(() => {}, 300);",
+  ].join("\n"), "utf8");
+  const r = spawnSync(process.execPath, [script], { encoding: "utf8", timeout: 20000 });
+  assert.equal(r.status, 7, `the child's own exit code survived the failed spawn: ${r.stderr}`);
+  assert.equal(JSON.parse(r.stdout).pid, null, "no pid is reported for a deleter that never started");
+});
