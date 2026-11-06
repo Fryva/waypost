@@ -7,14 +7,14 @@ import "./host-home.mjs";
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, unlinkSync, realpathSync } from "node:fs";
+import { mkdtempSync as fsMkdtemp, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, unlinkSync, realpathSync, symlinkSync } from "node:fs";
 import { join, dirname, delimiter } from "node:path";
 import { tmpdir, hostname, platform } from "node:os";
 import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   beat, peers, acquire, release, readLeases, winnerOf, storageOf, presenceDir, leaseDir, vaultRel,
-  prunePresence, LIVE_WINDOW_MS, sharedTree, vaultOffset, processGone, processTable, startTicks, coordinationDirs,
+  prunePresence, pruneOldPlace, clearPresence, harnessProcess, LIVE_WINDOW_MS, sharedTree, vaultOffset, processGone, processTable, startTicks, coordinationDirs,
 } from "../scripts/presence.mjs";
 import { claimsOf, parseDuration } from "../scripts/sessions.mjs";
 import { leaseRunEnd } from "../scripts/presence-lease-groups.mjs";
@@ -735,27 +735,99 @@ test("commit refuses to write over a file another live session is editing", () =
 
 // ─── coordination follows the repository (ADR-0010) ────────────────────
 
-test("inside a repository presence and leases live in the git common dir, and both places are written for one version", () => {
+test("inside a repository presence and leases live only in the git common dir; prune sweeps the old place (ADR-0010 addendum)", () => {
   const { proj, vault } = project();
   withProject(proj, () => {
     const c = coordinationDirs(vault);
     assert.ok(slashed(c.primary).endsWith("/.git/waypost/vault"), c.primary);
     assert.ok(slashed(c.legacy).endsWith("/vault/.projectstore"), c.legacy);
     beat(vault, "me", {});
-    assert.ok(existsSync(join(c.primary, "presence", "me.json")));
-    assert.ok(existsSync(join(c.legacy, "presence", "me.json")), "dual write: a peer on the previous version still sees us");
-    const old = new Date(Date.now() - 48 * 3600e3).toISOString();
-    writeFileSync(join(c.legacy, "presence", "old-timer.json"), JSON.stringify({
-      session: "old-timer", host: "otherbox", os: "linux", harness: "codex", seq: 1, at: old, started_at: old, project_root: "/x",
-    }), "utf8");
-    assert.ok(peers(vault, { self: "me" }).peers.some((p) => p.session === "old-timer"), "a record only in the old place is still read");
-    assert.equal(prunePresence(vault, { self: "me" }), 1);
-    assert.ok(!existsSync(join(c.legacy, "presence", "old-timer.json")), "and reaped from there");
     acquire(vault, ["src/a.ts"], { sessionId: "me", settleMs: 0 });
+    assert.ok(existsSync(join(c.primary, "presence", "me.json")));
     assert.equal(readdirSync(join(c.primary, "leases")).filter((n) => n.endsWith(".json")).length, 1);
-    assert.equal(readdirSync(join(c.legacy, "leases")).filter((n) => n.endsWith(".json")).length, 1, "leases are dual-written too");
+    assert.ok(!existsSync(join(c.legacy, "presence")), "no dual write of presence");
+    assert.ok(!existsSync(join(c.legacy, "leases")), "no dual write of leases");
+
+    // What the dual-write window left behind: a copy of our own record, an
+    // ended peer, a fresh record of an older-version peer, a stale lease, and
+    // the legacy session registry that must survive (ADR-0004).
+    const now = Date.now();
+    const old = new Date(now - 48 * 3600e3).toISOString();
+    const fresh = new Date(now - 60e3).toISOString();
+    const rec = (session, at) => JSON.stringify({ session, host: "otherbox", os: "linux", harness: "codex", seq: 1, at, started_at: at, project_root: "/x" });
+    mkdirSync(join(c.legacy, "presence"), { recursive: true });
+    mkdirSync(join(c.legacy, "leases"), { recursive: true });
+    mkdirSync(join(c.legacy, "sessions"), { recursive: true });
+    writeFileSync(join(c.legacy, "presence", "me.json"), rec("me", fresh));
+    writeFileSync(join(c.legacy, "presence", "old-timer.json"), rec("old-timer", old));
+    writeFileSync(join(c.legacy, "presence", "still-old-version.json"), rec("still-old-version", fresh));
+    writeFileSync(join(c.legacy, "leases", "x.json"), JSON.stringify({ path: "src/x.ts", session: "old-timer", host: "otherbox", acquired_at: old }));
+    writeFileSync(join(c.legacy, "sessions", "keep.json"), "{}");
+
+    assert.ok(!peers(vault, { self: "me" }).peers.some((p) => p.session === "old-timer"), "the old place is not read");
+    assert.ok(!readLeases(vault, { self: "me" }).some((l) => l.path === "src/x.ts"), "nor are its leases");
+    assert.equal(prunePresence(vault, { self: "me" }), 0, "prunePresence looks at the primary place only");
+
+    assert.equal(pruneOldPlace(vault, { now, dryRun: true }), 3, "a dry run counts the copy, the old record and the old lease");
+    assert.ok(existsSync(join(c.legacy, "presence", "old-timer.json")), "and removes nothing");
+    assert.equal(pruneOldPlace(vault, { now }), 3);
+    assert.deepEqual(readdirSync(join(c.legacy, "presence")), ["still-old-version.json"], "a fresh record waits for the threshold");
+    assert.ok(!existsSync(join(c.legacy, "leases")), "an emptied directory is removed");
+    assert.ok(existsSync(join(c.legacy, "sessions", "keep.json")), "the legacy session registry is never touched");
+    assert.equal(pruneOldPlace(vault, { now, maxAgeMs: 30e3 }), 1, "a lowered threshold takes it");
+    assert.ok(!existsSync(join(c.legacy, "presence")));
+
+    // Our own dual-write copies still go with --end and lease release.
+    mkdirSync(join(c.legacy, "presence"), { recursive: true });
+    mkdirSync(join(c.legacy, "leases"), { recursive: true });
+    writeFileSync(join(c.legacy, "presence", "me.json"), rec("me", fresh));
+    const leaseFile = readdirSync(join(c.primary, "leases")).find((n) => n.endsWith(".json"));
+    writeFileSync(join(c.legacy, "leases", leaseFile), "{}");
     assert.deepEqual(release(vault, { sessionId: "me" }), ["src/a.ts"]);
-    assert.equal(readdirSync(join(c.legacy, "leases")).filter((n) => n.endsWith(".json")).length, 0, "and released from both");
+    assert.ok(!existsSync(join(c.legacy, "leases", leaseFile)), "release removes our own old copy");
+    assert.equal(clearPresence(vault, "me"), true);
+    assert.ok(!existsSync(join(c.legacy, "presence", "me.json")), "ending removes our own old copy");
+  });
+});
+
+test("the old-place sweep keeps a live process's record and its lease, and never runs when the two places are one directory", () => {
+  const { proj, vault } = project();
+  withProject(proj, () => {
+    const c = coordinationDirs(vault);
+    const now = Date.now();
+    const old = new Date(now - 48 * 3600e3).toISOString();
+    mkdirSync(join(c.legacy, "presence"), { recursive: true });
+    mkdirSync(join(c.legacy, "leases"), { recursive: true });
+    const proc = harnessProcess(undefined, process.pid);
+    const here = hostname().split(".")[0];
+    if (proc) {
+      writeFileSync(join(c.legacy, "presence", "alive.json"), JSON.stringify({ session: "alive", host: here, seq: 1, at: old, started_at: old, proc }));
+      writeFileSync(join(c.legacy, "leases", "alive-lease.json"), JSON.stringify({ path: "src/a.ts", session: "alive", host: here, acquired_at: old }));
+    }
+    writeFileSync(join(c.legacy, "leases", "gone-lease.json"), JSON.stringify({ path: "src/b.ts", session: "gone", host: "otherbox", acquired_at: old }));
+    assert.equal(pruneOldPlace(vault, { now }), 1, "only the lease of a session with no kept record goes");
+    if (proc) {
+      assert.ok(existsSync(join(c.legacy, "presence", "alive.json")), "a record whose harness process still runs here is kept whatever its age");
+      assert.ok(existsSync(join(c.legacy, "leases", "alive-lease.json")), "and so is its session's lease");
+    }
+  });
+
+  // coordination_dir naming the vault's own .projectstore by another spelling:
+  // a string comparison sees two places, the real paths see one.
+  const p2 = project();
+  symlinkSync(join(p2.vault, ".projectstore"), join(p2.proj, "coord-link"));
+  mkdirSync(join(p2.vault, ".projectstore"), { recursive: true });
+  const cfgPath = join(p2.proj, ".waypost", "projectstore.json");
+  writeFileSync(cfgPath, JSON.stringify({ ...JSON.parse(readFileSync(cfgPath, "utf8")), coordination_dir: "coord-link" }));
+  withProject(p2.proj, () => {
+    const c = coordinationDirs(p2.vault);
+    assert.ok(c.legacy, "the two spellings differ as strings");
+    beat(p2.vault, "me", {});
+    acquire(p2.vault, ["src/a.ts"], { sessionId: "me", settleMs: 0 });
+    assert.equal(pruneOldPlace(p2.vault, { dryRun: true }), 0);
+    assert.equal(pruneOldPlace(p2.vault), 0, "nothing is taken for its own duplicate");
+    assert.ok(existsSync(join(c.primary, "presence", "me.json")));
+    assert.equal(readLeases(p2.vault, { self: "me" }).length, 1);
   });
 });
 

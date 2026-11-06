@@ -38,10 +38,10 @@ function child(root, code) {
 }
 
 test("presence liveness module: original bindings and namespace27 exclude the shared conflict matcher", () => {
-  for (const n of ["LIVE_WINDOW_MS", "peers", "prunePresence"]) assert.equal(focused[n], facade[n], n);
+  for (const n of ["LIVE_WINDOW_MS", "peers", "pruneOldPlace", "prunePresence"]) assert.equal(focused[n], facade[n], n);
   assert.equal(focused.LIVE_WINDOW_MS, 150000);
-  assert.deepEqual(Object.keys(focused).sort(), ["CONFLICT_COPY", "LIVE_WINDOW_MS", "peers", "prunePresence"]);
-  assert.deepEqual(Object.keys(facade).sort(), ["BEAT_INTERVAL_MS", "LIVE_WINDOW_MS", "SHARED_TREE_ADVICE", "acquire", "argv0Of", "beat", "clearPresence", "coordinationDirs", "harnessProcess", "hostSlug", "leaseDir", "osTag", "peers", "presenceDir", "processGone", "processTable", "prunePresence", "readLeases", "release", "selfDescriptor", "sharedTree", "sharedWith", "startTicks", "storageOf", "vaultOffset", "vaultRel", "winnerOf"]);
+  assert.deepEqual(Object.keys(focused).sort(), ["CONFLICT_COPY", "LIVE_WINDOW_MS", "peers", "pruneOldPlace", "prunePresence"]);
+  assert.deepEqual(Object.keys(facade).sort(), ["BEAT_INTERVAL_MS", "LIVE_WINDOW_MS", "SHARED_TREE_ADVICE", "acquire", "argv0Of", "beat", "clearPresence", "coordinationDirs", "harnessProcess", "hostSlug", "leaseDir", "osTag", "peers", "presenceDir", "processGone", "processTable", "pruneOldPlace", "prunePresence", "readLeases", "release", "selfDescriptor", "sharedTree", "sharedWith", "startTicks", "storageOf", "vaultOffset", "vaultRel", "winnerOf"]);
 });
 
 test("presence liveness module: importing does not probe or mutate coordination", t => {
@@ -91,19 +91,20 @@ test("presence liveness module: a torn record retains observations and a missing
   assert.deepEqual(peers().peers, []); assert.deepEqual(JSON.parse(readFileSync(obs, "utf8")), {});
 });
 
-test("presence liveness module: primary wins duplicates, conflicts survive, dry-run and apply count one peer across both files", t => {
+test("presence liveness module: the old place is not read, conflicts survive, dry-run and apply count one peer", t => {
   const { primary, legacy, put, peers, prune } = fixture(t), old = record("dup", { at: new Date(NOW - 172800000).toISOString() });
-  put("dup.json", old); put("dup.json", { ...old, seq: 9 }, legacy);
+  put("dup.json", old); put("dup.json", { ...old, seq: 9 }, legacy); put("only-old.json", record("only-old"), legacy);
   const conflicts = ["dup 2.json", "dup conflicted copy.json", "dup (конфликт).json", "dup.sync-conflict-.json"];
-  for (const n of conflicts) { assert.equal(focused.CONFLICT_COPY.test(n), true); put(n, "conflict", legacy); }
+  for (const n of conflicts) { assert.equal(focused.CONFLICT_COPY.test(n), true); put(n, "conflict"); }
   const view = peers({ persist: false });
   assert.equal(view.peers.length, 1); assert.equal(view.peers[0].seq, 1);
-  assert.deepEqual(view.peers[0].files, [join(primary, "dup.json"), join(legacy, "dup.json")]);
+  assert.deepEqual(view.peers[0].files, [join(primary, "dup.json")]);
   assert.deepEqual([...view.conflicts].sort(), [...conflicts].sort());
   assert.equal(prune({ dryRun: true }), 1); assert.equal(existsSync(join(primary, "dup.json")), true);
   assert.equal(prune(), 1);
-  assert.equal(existsSync(join(primary, "dup.json")), false); assert.equal(existsSync(join(legacy, "dup.json")), false);
-  assert.deepEqual(readdirSync(legacy).sort(), conflicts.sort());
+  assert.equal(existsSync(join(primary, "dup.json")), false);
+  assert.equal(existsSync(join(legacy, "dup.json")), true, "prunePresence leaves the old place to pruneOldPlace");
+  assert.deepEqual(readdirSync(primary).sort(), conflicts.sort());
 });
 
 test("presence liveness module: one process snapshot per read and pruning preserves self, live and process-alive peers", t => {

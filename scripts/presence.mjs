@@ -2,7 +2,7 @@
 import { vaultRel, vaultOffset } from "./presence-checkout.mjs";
 export { vaultRel, vaultOffset, sharedTree, SHARED_TREE_ADVICE, sharedWith } from "./presence-checkout.mjs";
 import { peers, prunePresence, CONFLICT_COPY } from "./presence-liveness.mjs";
-export { LIVE_WINDOW_MS, peers, prunePresence } from "./presence-liveness.mjs";
+export { LIVE_WINDOW_MS, peers, prunePresence, pruneOldPlace } from "./presence-liveness.mjs";
 import { storageOf, coordinationDirs, presenceDir, leaseDir, legacyPresenceDir, legacyLeaseDir } from "./presence-storage.mjs";
 import { leaseRunEnd } from "./presence-lease-groups.mjs";
 export { storageOf, coordinationDirs, presenceDir, leaseDir, hostSlug } from "./presence-storage.mjs";
@@ -45,7 +45,7 @@ export { processTable, harnessProcess, argv0Of, startTicks, processGone } from "
 import {
   existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync, statSync,
 } from "node:fs";
-import { join, dirname } from "node:path";
+import { basename, join, dirname } from "node:path";
 import { hostname, platform, release as osRelease, userInfo } from "node:os";
 import { fileURLToPath } from "node:url";
 import { readConfig, projectRoot, ignoreEpipe, writeFileAtomic, sessionId, gitCommonDir } from "./lib.mjs";
@@ -88,10 +88,8 @@ export function selfDescriptor(sessionId, harness) {
 export function beat(vault, sessionId, { harness = null, doing = null, claim = null } = {}) {
   ensure(presenceDir(vault));
   const p = join(presenceDir(vault), `${sessionId}.json`);
-  const legacyDir = legacyPresenceDir(vault);
   let prev = null;
   try { prev = JSON.parse(readFileSync(p, "utf8")); } catch {}
-  if (!prev && legacyDir) { try { prev = JSON.parse(readFileSync(join(legacyDir, `${sessionId}.json`), "utf8")); } catch {} }
   const rec = {
     ...selfDescriptor(sessionId, harness || (prev && prev.harness)),
     vault_rel: vaultOffset(vault),
@@ -103,14 +101,12 @@ export function beat(vault, sessionId, { harness = null, doing = null, claim = n
     claim: claim !== null ? claim : (prev ? prev.claim : null),
   };
   writeFileAtomic(p, JSON.stringify(rec, null, 2) + "\n");
-  if (legacyDir) {
-    // Dual write for one minor version: a peer on the previous version reads
-    // only here (ADR-0010).
-    try { ensure(legacyDir); writeFileAtomic(join(legacyDir, `${sessionId}.json`), JSON.stringify(rec, null, 2) + "\n"); } catch {}
-  }
   return rec;
 }
 
+// The old place (ADR-0010 addendum 2026-11-06) is neither written nor read any
+// more, but a copy this session left there during the dual-write window is
+// still its own file: ending the session removes it with the primary one.
 export function clearPresence(vault, sessionId) {
   let any = false;
   for (const d of [presenceDir(vault), legacyPresenceDir(vault)]) {
@@ -151,27 +147,21 @@ export function readLeases(vault, { now = Date.now(), self = null, persist = tru
   const { peers: ps } = peers(vault, { self, now, persist });
   const liveSessions = new Set(ps.filter((p) => p.live).map((p) => p.session));
   const out = [];
-  const seen = new Map();
-  for (const d of [dir, legacyLeaseDir(vault)]) {
-    if (!d) continue;
-    let names = [];
-    try { names = readdirSync(d); } catch { continue; }
-    for (const n of names) {
-      if (!n.endsWith(".json")) continue;
-      if (seen.has(n)) { seen.get(n).files.push(join(d, n)); continue; }
-      let rec;
-      try { rec = JSON.parse(readFileSync(join(d, n), "utf8")); } catch { continue; }
-      if (!rec || !rec.path || !rec.session) continue;
-      const row = {
-        ...rec,
-        file: join(d, n),
-        files: [join(d, n)],
-        conflicted_copy: CONFLICT_COPY.test(n),
-        live: liveSessions.has(rec.session),
-        mine: self != null && rec.session === self,
-      };
-      seen.set(n, row); out.push(row);
-    }
+  let names = [];
+  try { names = readdirSync(dir); } catch { return out; }
+  for (const n of names) {
+    if (!n.endsWith(".json")) continue;
+    let rec;
+    try { rec = JSON.parse(readFileSync(join(dir, n), "utf8")); } catch { continue; }
+    if (!rec || !rec.path || !rec.session) continue;
+    out.push({
+      ...rec,
+      file: join(dir, n),
+      files: [join(dir, n)],
+      conflicted_copy: CONFLICT_COPY.test(n),
+      live: liveSessions.has(rec.session),
+      mine: self != null && rec.session === self,
+    });
   }
   return out;
 }
@@ -227,8 +217,6 @@ export function acquire(vault, paths, { sessionId, harness = null, now = Date.no
     }
     try { writeFileSync(file, JSON.stringify(rec, null, 2) + "\n", "utf8"); }
     catch (e) { results.push({ path: rel, ok: false, reason: "write failed", error: e.message }); continue; }
-    const legacy = legacyLeaseDir(vault);
-    if (legacy) { try { ensure(legacy); writeFileSync(join(legacy, leaseName(rel, sessionId)), JSON.stringify(rec, null, 2) + "\n", "utf8"); } catch {} }
     held.push({ rel, file, rec, forcedOver });
   }
 
@@ -276,6 +264,9 @@ export function release(vault, { sessionId, paths = null }) {
     if (paths && !paths.map((p) => vaultRel(p, vault)).includes(l.path)) continue;
     let any = false;
     for (const f of l.files || [l.file]) { try { unlinkSync(f); any = true; } catch {} }
+    // Our own copy from the dual-write window, if one is still there.
+    const old = legacyLeaseDir(vault);
+    if (old) { try { unlinkSync(join(old, basename(l.file))); } catch {} }
     if (any) out.push(l.path);
   }
   return out;

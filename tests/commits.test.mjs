@@ -490,7 +490,8 @@ test("D-3: a claim from a device whose clock is hours behind blocks the commit o
   // The other device wrote its record itself, on its own clock — six hours back.
   const behind = () => new Date(Date.now() - 6 * 3600e3).toISOString();
   const started = behind(); // minted once per presence file, kept across beats — as beat() does
-  const presence = join(proj, "vault", ".projectstore", "presence");
+  // Inside a repository presence lives in the git common dir (ADR-0010).
+  const presence = join(proj, ".git", "waypost", "vault", "presence");
   mkdirSync(presence, { recursive: true });
   const record = (seq) => writeFileSync(join(presence, "codex-7.json"), JSON.stringify({
     session: "codex-7", host: "otherbox", os: "win32-10", harness: "codex", seq, at: behind(), started_at: started,

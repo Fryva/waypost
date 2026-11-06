@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-06T14:35:32.463Z
+generated_at: 2026-11-06T19:12:16.766Z
 
 ---
 
@@ -13,7 +13,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | Epic | Title | Status | code_refs |
 |------|-------|--------|-----------|
 | [[epics/WP-14/epic\|WP-14]] | Skills as the portable layer, and the first verified harnesses | planned | `harnesses/codex.json`, `harnesses/opencode.json`, `README.md`, `bin/waypost`, `tests/commits.test.mjs`, `tests/presence.test.mjs`, `tests/harness.test.mjs`, `docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md` |
-| [[epics/WP-15/epic\|WP-15]] | Coordination follows the repository, and ready work | planned | — |
+| [[epics/WP-15/epic\|WP-15]] | Coordination follows the repository, and ready work | planned | `scripts/presence.mjs`, `scripts/presence-storage.mjs`, `scripts/presence-liveness.mjs`, `scripts/sessions.mjs`, `tests/presence.test.mjs`, `tests/presence-liveness.test.mjs`, `tests/presence-storage.test.mjs`, `tests/commits.test.mjs` |
 | [[epics/WP-16/epic\|WP-16]] | Decisions that check themselves | planned | — |
 | [[epics/WP-17/epic\|WP-17]] | Disk hygiene by discovery | planned | `toolchains/`, `scripts/toolchains.mjs`, `scripts/discovery.mjs`, `scripts/sizes.mjs`, `scripts/sizes-measure.mjs`, `scripts/sizes-git.mjs`, `scripts/cleanup.mjs`, `scripts/cleanup-limit.mjs`, `scripts/cleanup-selection.mjs`, `scripts/lib-machine-state.mjs`, `scripts/agents-detection.mjs`, `bin/waypost`, `bin/cli/`, `tests/cleanup-limit.test.mjs`, `tests/cleanup-selection.test.mjs`, `package.json`, `scripts/doctor.mjs`, `scripts/presence.mjs`, `scripts/capacity.mjs`, `scripts/agents.mjs`, `scripts/lib.mjs`, `scripts/brief.mjs`, `tests/slots.test.mjs`, `tests/limit.test.mjs`, `prompts/cleanup.md`, `skills/waypost-doctor/SKILL.md`, `docs/toolchains.md`, `tests/sizes.test.mjs`, `tests/toolchains.test.mjs`, `tests/discovery.test.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `tests/cleanup.test.mjs`, `README.md`, `AGENTS.md`, `CHANGELOG.md` |
 | [[epics/WP-18/epic\|WP-18]] | Heavy work sized to the machine | planned | `scripts/capacity.mjs`, `scripts/lib.mjs`, `scripts/presence.mjs`, `scripts/agents.mjs`, `templates/agents-block.md.tmpl`, `bin/waypost`, `AGENTS.md`, `package.json`, `scripts/test.mjs`, `prompts/heavy.md`, `tests/sizes.test.mjs`, `tests/capacity.test.mjs`, `tests/slots.test.mjs`, `tests/test-runner.test.mjs`, `tests/harness.test.mjs`, `tests/presence.test.mjs`, `README.md`, `CHANGELOG.md`, `tests/limit.test.mjs`, `tests/cleanup.test.mjs`, `scripts/heavy-jobs.mjs`, `scripts/team-host.mjs`, `scripts/team-transport.mjs`, `scripts/team-quota-native.mjs`, `scripts/brief.mjs`, `bin/cli/status.mjs`, `bin/cli/run.mjs`, `tests/heavy-job-visibility.test.mjs`, `bin/cli/slots.mjs`, `bin/cli/capacity.mjs` |
@@ -29,6 +29,7 @@ Regenerate via `waypost codemap`; edit refs via `waypost codemap set`.
 | Epic | Story | code_refs |
 |------|-------|-----------|
 | WP-14 | Live verification: Codex and OpenCode run the whole loop | `harnesses/codex.json`, `harnesses/opencode.json`, `README.md`, `bin/waypost`, `tests/commits.test.mjs`, `tests/presence.test.mjs`, `tests/harness.test.mjs`, `docs/vault/ops/verify-a-harness-live-the-whole-waypost-loop-in-one-session.md` |
+| WP-15 | Coordination stops writing and reading the old place; prune sweeps what is left | `scripts/presence.mjs`, `scripts/presence-liveness.mjs`, `scripts/presence-storage.mjs`, `scripts/sessions.mjs`, `tests/presence.test.mjs`, `tests/presence-liveness.test.mjs`, `tests/presence-storage.test.mjs`, `tests/commits.test.mjs` |
 | WP-17 | Detectors: superseded device support, unavailable simulators, duplicate toolchains | `scripts/toolchains.mjs`, `scripts/discovery.mjs`, `toolchains/`, `tests/toolchains.test.mjs` |
 | WP-17 | Discovery and the profile: the scheme of what Waypost works with | `scripts/discovery.mjs`, `scripts/toolchains.mjs`, `toolchains/`, `scripts/sizes.mjs`, `scripts/presence.mjs`, `bin/waypost`, `docs/toolchains.md`, `tests/discovery.test.mjs`, `tests/toolchains.test.mjs`, `tests/sizes.test.mjs`, `tests/scripts.test.mjs`, `tests/harness.test.mjs`, `CHANGELOG.md` |
 | WP-17 | doctor and next surface build artifacts | `scripts/doctor.mjs`, `bin/waypost`, `README.md`, `AGENTS.md`, `CHANGELOG.md` |

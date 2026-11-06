@@ -33,7 +33,7 @@ import { join } from "node:path";
 import { withTeamArtifactGate } from './team-legacy.mjs';
 import { fileURLToPath } from "node:url";
 import {
-  beat, clearPresence, peers, storageOf, readLeases, acquire, release, vaultRel, prunePresence,
+  beat, clearPresence, peers, storageOf, readLeases, acquire, release, vaultRel, prunePresence, pruneOldPlace,
   sharedTree, sharedWith, SHARED_TREE_ADVICE, coordinationDirs,
 } from "./presence.mjs";
 import { leaseRunEnd } from "./presence-lease-groups.mjs";
@@ -105,7 +105,7 @@ function main() {
   const vault = cfg.vault_path;
   const sid = sessionId();
   const json = args.includes("--json");
-  const out = { session_id: sid, vault, touched: false, pruned: 0, pruned_presence: 0, active: [] };
+  const out = { session_id: sid, vault, touched: false, pruned: 0, pruned_presence: 0, pruned_old_place: 0, active: [] };
 
   if (args.includes("--touch")) {
     if (!touchSession(vault, sid)) writeSession(vault, sid, projectRoot());
@@ -151,6 +151,9 @@ function main() {
   }
   if (args.includes("--prune")) {
     out.pruned = cleanupStaleSessions(vault, maxAgeMs / 3600e3, sid);
+    // The old place first: a copy is recognised as one only while its primary
+    // record is still there.
+    out.pruned_old_place = pruneOldPlace(vault, { maxAgeMs });
     out.pruned_presence = prunePresence(vault, { self: sid, maxAgeMs });
   }
 
@@ -189,11 +192,14 @@ function main() {
   if (out.ended) process.stdout.write(`ended      presence cleared\n`);
   if (out.pruned) process.stdout.write(`pruned ${out.pruned} stale session(s)\n`);
   if (out.pruned_presence) process.stdout.write(`pruned ${out.pruned_presence} stale presence record(s)\n`);
+  if (out.pruned_old_place) process.stdout.write(`pruned ${out.pruned_old_place} record(s) from the old coordination place in the vault\n`);
   if (!args.includes("--prune")) {
-    // Both registries count: the legacy per-session files and the presence
-    // records --prune would reap (dry run — nothing is removed here).
+    // Everything --prune would reap counts: the legacy per-session files, the
+    // presence records and the old coordination place (dry run — nothing is
+    // removed here).
     const staleCount = cleanupStaleSessions(vault, 24, sid, { dryRun: true })
-      + prunePresence(vault, { self: sid, dryRun: true });
+      + prunePresence(vault, { self: sid, dryRun: true })
+      + pruneOldPlace(vault, { dryRun: true });
     if (staleCount > 0) {
       process.stdout.write(`${staleCount} stale session record(s) — waypost sessions --prune\n`);
     }

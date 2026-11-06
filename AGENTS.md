@@ -133,8 +133,8 @@ One project may be driven by several sessions at the same time (ADR-0006):
   `<vault>/.projectstore/` as before; `coordination_dir` in the binding
   overrides both. A linked worktree inherits the main worktree's binding, so
   `git worktree add` needs no setup; `brief` and `sessions` name sibling
-  worktrees and their leases, which are a merge conflict on its way. For one
-  minor version both places are written and read.
+  worktrees and their leases, which are a merge conflict on its way. Old
+  vault copies: `sessions --prune` sweeps them.
 - **A shared checkout is the sharper case.** When a session on another host is
   live and reports this same project root, or a vault inside its checkout at
   the same offset as ours, or the project root sits on a cloud/network drive,

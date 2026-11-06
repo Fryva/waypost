@@ -65,9 +65,10 @@ function mountTypeOf(p) {
 // overrides both. The legacy session registry is not here — it stays in the
 // vault for upstream ProjectStore (ADR-0004).
 //
-// Migration: for one minor version writers write both places and readers
-// merge both, so a peer on the previous version keeps seeing claims and
-// leases (`legacy` is null once the two coincide).
+// Migration: 0.15 and 0.16 wrote both places and read both. That window is
+// over (ADR-0010 addendum 2026-11-06): only `primary` is written and read;
+// `legacy` names the old place only so that `waypost sessions --prune` can
+// sweep what is left there (null once the two coincide).
 const _coord = new Map();
 export function coordinationDirs(vault) {
   const root = projectRoot();

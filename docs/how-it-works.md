@@ -261,6 +261,13 @@ when they are missing, as it does roles (not when the vault policy says
   worktree; a linked worktree inherits the main worktree's binding and needs no
   setup; sibling worktrees are named as such. Outside a repository the records
   stay in `<vault>/.projectstore/`. `waypost storage` names the directory in use.
+  Inside a repository nothing is written to or read from
+  `<vault>/.projectstore/{presence,leases}` any more (0.15 and 0.16 wrote and
+  read both places); `waypost sessions --prune` sweeps what is left there:
+  copies of a primary record at once, the rest past the prune threshold, never
+  a presence record whose harness process still runs on this host nor that
+  session's leases, and nothing when both places are one directory. The legacy session
+  registry `.projectstore/sessions/` stays (ADR-0004).
 - A shared *checkout* (a session on another host, live, in this very project
   root, or with its vault at the same offset inside its checkout, or with the
   project root on a cloud/network drive) is named by `brief`, `sessions` and
@@ -270,12 +277,14 @@ when they are missing, as it does roles (not when the vault policy says
 
 Storage classification and coordination path resolution live in
 `scripts/presence-storage.mjs`, including the shared lazy path cache.
-The facade keeps the five original public bindings; readers and writers keep
-their existing primary and legacy locations.
+The facade keeps the five original public bindings; readers and writers use
+the primary location only, and `pruneOldPlace` in `scripts/presence-liveness.mjs`
+sweeps the old one.
 
 Peer liveness, observation persistence and stale-presence pruning live in
-`scripts/presence-liveness.mjs`; the facade preserves the three public bindings.
-Heartbeat and lease writers retain their existing behavior.
+`scripts/presence-liveness.mjs`, with `pruneOldPlace` for the ADR-0010 old
+place; the facade exports four bindings from it. Heartbeat and lease writers
+use the primary place only.
 
 Checkout identity, lease path normalization and shared-checkout advice live in
 `scripts/presence-checkout.mjs`; the facade preserves all five public bindings.

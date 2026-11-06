@@ -8,7 +8,7 @@ created: 2026-09-04
 updated: 2026-09-04
 external_refs: {}
 tags: []
-code_refs: []
+code_refs: ["scripts/presence.mjs", "scripts/presence-storage.mjs", "scripts/presence-liveness.mjs", "scripts/sessions.mjs", "tests/presence.test.mjs", "tests/presence-liveness.test.mjs", "tests/presence-storage.test.mjs", "tests/commits.test.mjs"]
 review_status: pending
 reviewed_at: null
 ---

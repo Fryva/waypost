@@ -120,7 +120,8 @@ hold the same session, and `--prune` reaps in both. A session on the previous
 version therefore still sees a new session's claim and lease — "nothing already
 working stops working" holds for the older peer too, which a dual-read-only
 migration would not give. After that version writers use the new location
-only and the old directory is left to `--prune`.
+only and the old directory is left to `--prune` (done 2026-11-06, see the
+addendum at the end).
 
 **Identity across worktrees.** A session id that arrives from the environment
 (`WAYPOST_SESSION_ID` exported as a constant by a wrapper, ADR-0006) would make
@@ -240,3 +241,48 @@ classifies *it*, not the vault, for the presence lag estimate.
 | not a repository | `fatal: not a git repository` (exit 128) | the ADR-0007 location stays |
 
   Windows and a cloud-drive `.git`: not measured yet (the runbook says how).
+
+## Addendum 2026-11-06: the migration window is closed
+
+The move shipped in 0.15.0 (2026-10-11) and 0.16.0 followed, so the promised
+"one minor version" of dual write and dual read is over. Chosen: **stop both
+writing and reading the old place at once**, rather than keep reading it one
+more release. A dual read without the dual write protects nobody — a peer
+still on 0.14 or earlier reads only the old place, so it no longer sees new
+sessions either way — and keeping it would leave the merged, two-directory
+read path (and its `files` bookkeeping) in every `peers`/`readLeases` call
+for no one's benefit.
+
+- `beat` and `acquire` write only the primary place; `peers` and `readLeases`
+  read only it.
+- `clearPresence` (`sessions --end`) and `release` still unlink the session's
+  own copy in the old place, by its own file name: it is that session's file.
+- `waypost sessions --prune` sweeps `<vault>/.projectstore/{presence,leases}`
+  (`pruneOldPlace`): a record whose file name also exists in the primary place
+  is a dual-write copy and goes at once; any other goes when its own timestamp
+  (`at`, `acquired_at`; the file's mtime only when the record is unreadable) is
+  older than the prune threshold (24h, `--older-than` lowers it), the same rule
+  ADR-0007 gives stale presence; a presence record whose harness process is
+  still running on this host is kept whatever its age, and so is every old-place
+  lease of a session whose presence record there is kept. When the two places
+  are one directory under two spellings (`coordination_dir` pointing at the
+  vault's own `.projectstore` through a symlink, another case or drive letter)
+  the real paths match and nothing is swept. `--prune` sweeps the old place
+  before `prunePresence`, so a copy is still recognised as one. Emptied
+  directories are removed. The dry-run hint in `waypost sessions` counts these
+  records too.
+- `.projectstore/sessions/` is not looked at (ADR-0004). `waypost storage`
+  keeps printing `coordination.legacy`: it now names the place `--prune` sweeps.
+- Accepted risk (proposed by the implementing session, pending the owner's
+  confirmation): a peer still on 0.14 or earlier and this version no longer see
+  each other's presence or leases; nor do two sessions of this version where one
+  falls back to the vault (no git, a failing git, a vault outside the project
+  root — Option 1 above) while the other uses the git common dir, and the
+  repository side's `--prune` may sweep the fallback side's quiet records past
+  the threshold. Mixed fleets must upgrade together; mixed layouts should set
+  one `coordination_dir`.
+- Verified: `tests/presence.test.mjs` "inside a repository presence and leases
+  live only in the git common dir; prune sweeps the old place (ADR-0010
+  addendum)" and "the old-place sweep keeps a live process's record and its
+  lease, and never runs when the two places are one directory",
+  `tests/presence-liveness.test.mjs`.

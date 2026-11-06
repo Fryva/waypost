@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { projectRoot, writeFileAtomic } from "./lib.mjs";
-import { storageOf, coordinationDirs, presenceDir, legacyPresenceDir, observationsPath } from "./presence-storage.mjs";
+import { storageOf, coordinationDirs, presenceDir, leaseDir, legacyPresenceDir, legacyLeaseDir, observationsPath } from "./presence-storage.mjs";
 import { processTable, processGone } from "./presence-process.mjs";
 import { sameHost } from "./presence-host.mjs";
 
@@ -62,24 +62,12 @@ export function peers(vault, { self = null, now = Date.now(), persist = true, wi
   const out = [];
   let table;
   const tableOnce = () => (table === undefined ? (table = processTable()) : table);
-  // Both locations for one minor version (ADR-0010): the new one first, so a
-  // session present in both is read once, from the new one; its other copy is
-  // remembered so a reap removes both.
-  const legacyDir = legacyPresenceDir(vault);
-  const entries = [];
-  const seenNames = new Map();
-  for (const [d, primaryLoc] of [[dir, true], [legacyDir, false]]) {
-    if (!d) continue;
-    let names = [];
-    try { names = readdirSync(d); } catch { continue; }
-    for (const name of names) {
-      if (!name.endsWith(".json")) continue;
-      if (seenNames.has(name)) { seenNames.get(name).files.push(join(d, name)); continue; }
-      const e = { name, dir: d, files: [join(d, name)], primaryLoc };
-      seenNames.set(name, e); entries.push(e);
-    }
-  }
-  if (!entries.length && !existsSync(dir) && !(legacyDir && existsSync(legacyDir))) return { peers: [], storage, conflicts: [] };
+  // One place only: the ADR-0010 dual-read window is over (addendum
+  // 2026-11-06); what is left in the old place is swept by pruneOldPlace().
+  let names = null;
+  try { names = readdirSync(dir); } catch { names = null; }
+  if (names === null && !existsSync(dir)) return { peers: [], storage, conflicts: [] };
+  const entries = (names || []).filter((n) => n.endsWith(".json")).map((name) => ({ name, dir, files: [join(dir, name)] }));
 
   const conflicts = entries.map((e) => e.name).filter((n) => CONFLICT_COPY.test(n));
   for (const { name, dir: d, files } of entries) {
@@ -181,3 +169,55 @@ export function prunePresence(vault, { self = null, maxAgeMs = 24 * 60 * 60 * 10
   return removed;
 }
 
+// The old coordination place, `<vault>/.projectstore/{presence,leases}`, from
+// the ADR-0010 dual-write window. Nothing writes or reads it any more (addendum
+// 2026-11-06), so a record there is either a copy of one in the primary place
+// — removed at once, the primary copy is the one that counts — or a leftover
+// of a session that ended or a peer still on a version before 0.15.0, which
+// sees nobody here anyway. Leftovers go by the same threshold as
+// prunePresence(), judged on the record's own timestamp (24h dwarfs clock
+// skew; mtime only when the record is unreadable), and never while its harness
+// process is still running on this host, nor a lease whose session's
+// presence record there is kept. Empty directories are removed;
+// `.projectstore/sessions/` (ADR-0004) is not looked at.
+//
+// The two places are compared by real path first: `coordination_dir` may name
+// the vault's own `.projectstore` through a symlink or another spelling, and
+// then every record would look like its own duplicate.
+export function pruneOldPlace(vault, { maxAgeMs = 24 * 60 * 60 * 1000, now = Date.now(), dryRun = false } = {}) {
+  let removed = 0;
+  let table;
+  const kept = new Set(); // sessions whose old-place presence record stays
+  const real = (p) => { try { return realpathSync(p); } catch { return null; } };
+  for (const [old, primary, stamp, isLease] of [
+    [legacyPresenceDir(vault), presenceDir(vault), "at", false],
+    [legacyLeaseDir(vault), leaseDir(vault), "acquired_at", true],
+  ]) {
+    if (!old) continue;
+    const ro = real(old);
+    if (ro && ro === real(primary)) continue;
+    let names;
+    try { names = readdirSync(old); } catch { continue; }
+    for (const name of names) {
+      if (!name.endsWith(".json")) continue;
+      const f = join(old, name);
+      let reap = existsSync(join(primary, name));
+      if (!reap) {
+        let rec = null;
+        try { rec = JSON.parse(readFileSync(f, "utf8")); } catch { rec = null; }
+        const keep = () => { if (!isLease && rec && rec.session) kept.add(rec.session); };
+        if (isLease && rec && kept.has(rec.session)) continue;
+        if (!isLease && rec && rec.proc && sameHost(rec) && processGone(rec, table === undefined ? (table = processTable()) : table) === false) { keep(); continue; }
+        let t = rec ? Date.parse(rec[stamp]) : NaN;
+        if (Number.isNaN(t)) { try { t = statSync(f).mtimeMs; } catch { continue; } }
+        reap = now - t > maxAgeMs;
+        if (!reap) keep();
+      }
+      if (!reap) continue;
+      if (!dryRun) { try { unlinkSync(f); } catch { continue; } }
+      removed++;
+    }
+    if (!dryRun) { try { rmdirSync(old); } catch {} }
+  }
+  return removed;
+}
