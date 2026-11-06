@@ -93,7 +93,7 @@ lease-of-live-session gap; all three fixed with tests (mutation-checked).
 Tests: full `npm test` as above; live `waypost storage`, `waypost sessions [--prune]`
 from this worktree's `bin/waypost`.
 Risks/follow-ups: the accepted risk in the addendum (0.14 peers, vault-fallback
-peers) awaits the owner's confirmation; the auto-clean byte ceiling is red on main;
+peers) was confirmed by the owner on 2026-11-06; the auto-clean byte ceiling is red on main;
 the globally installed CLI (0.16) keeps dual-writing until a release.
 
 ## Technical Notes

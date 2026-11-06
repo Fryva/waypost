@@ -273,8 +273,7 @@ for no one's benefit.
   records too.
 - `.projectstore/sessions/` is not looked at (ADR-0004). `waypost storage`
   keeps printing `coordination.legacy`: it now names the place `--prune` sweeps.
-- Accepted risk (proposed by the implementing session, pending the owner's
-  confirmation): a peer still on 0.14 or earlier and this version no longer see
+- Accepted risk (confirmed by the owner, Ivan Morozov, 2026-11-06): a peer still on 0.14 or earlier and this version no longer see
   each other's presence or leases; nor do two sessions of this version where one
   falls back to the vault (no git, a failing git, a vault outside the project
   root — Option 1 above) while the other uses the git common dir, and the
