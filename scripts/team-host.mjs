@@ -20,7 +20,7 @@ import { observeNativeProviderQuota, observeCodexProtocolAccountQuota } from './
 import { CODEX_SURFACE_R1 } from './codex-surface.mjs';
 import { CODEX_EVALUATION_SURFACE } from './codex-evaluation-surface.mjs';
 import { sealEvaluationSource } from './evaluation-source.mjs';
-import { createNativeEndpoint, createNativeModelInventoryEndpoint, nativeInventoryFailureClosure, validateNativeDescriptor } from './team-transport.mjs';
+import { assertNoHeavyJob, createNativeEndpoint, createNativeModelInventoryEndpoint, nativeInventoryFailureClosure, validateNativeDescriptor } from './team-transport.mjs';
 import { harness as harnessDefinition } from './agents.mjs';
 import { collectModelInventory, metadataDescriptor } from './team-model-inventory.mjs';
 import { createProtocolLeaderAckRequest, createProtocolLeadershipAuditRequest, createProtocolHandoverAckRequest, formatProtocolLeaderAck, formatProtocolAction, readProtocolActionResponse, actionPromptDigest } from './team-native-action.mjs';
@@ -1008,6 +1008,8 @@ export function createTeamHost(config, dependencies={}) {
   return stopOwnedRuntime({directory:join(dirname(binding.host_file),'runtime'),team,participant:p.id,incarnation:p.incarnation,epoch,descriptorDigest:p.native_binding.descriptor_digest,requiredOperations:[...new Set(required)]});
  }
  async function inspect({action,nonce=randomUUID(),keepAlive=false}={}) {
+  // Refused before the journal records a consumed invocation (the factory checks again).
+  if(!dependencies.createNativeEndpoint)assertNoHeavyJob(dependencies);
   await ensureQuotaFresh();
   portable(nonce);const o=owner(),c=collector(),d=endpoint();const {t}=getTeam();const p=t.participants[d.participant];if(!p||p.revoked||!quotaEligible(p,Date.parse(now())))fail('participant-unavailable');
   if(typeof action!=='string'||!action||action.length>1024)fail('runtime-action-required');
@@ -1243,6 +1245,8 @@ export function createTeamHost(config, dependencies={}) {
   return mutate('routing-grant-capture-v1',{payload},c);
  }
  async function dispatchRouted({workId,attempt=1,invocationId='invoke-'+randomUUID(),reserveKey=randomUUID()}={}) {
+  // Refused before the journal records a consumed invocation (the factory checks again).
+  if(!dependencies.createNativeEndpoint)assertNoHeavyJob(dependencies);
   await ensureQuotaFresh();
   // No provider charges before the host has a real bounded usage collector.
   if(typeof dependencies.collectBoundedUsage!=='function')fail('host-bounded-provider-usage-unavailable');

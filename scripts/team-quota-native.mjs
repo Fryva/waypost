@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
-import { validateNativeDescriptor, CODEX_ACCOUNT_METADATA_VERSIONS, CODEX_PERSONAL_PLANS, codexAppServerVersion, codexBucketsWithoutCredits } from './team-transport.mjs';
+import { validateNativeDescriptor, CODEX_ACCOUNT_METADATA_VERSIONS, CODEX_PERSONAL_PLANS, codexAppServerVersion, codexBucketsWithoutCredits, assertNoHeavyJob } from './team-transport.mjs';
 import { routingDigest } from './model-routing.mjs';
 import { validateQuotaObservation } from './team-quota.mjs';
 
@@ -92,6 +92,7 @@ export async function observeNativeProviderQuota({descriptor,participant,now=Dat
 // One owned metadata-only app-server: initialize, then the caller's reads. It
 // never starts a thread or turn; any server-initiated operation ends it.
 async function codexMetadataSession(d,spawnProcess,read){
+  assertNoHeavyJob(spawnProcess === spawn ? {} : {spawnProcess});
   const timeout=Math.min(30000,Math.max(100,d.timeout_ms||15000)),deadline=Date.now()+timeout;
   const child=spawnProcess(d.executable||'codex',['-c','features.apps=false','-c','apps._default.enabled=false','app-server','--listen','stdio://'],{cwd:d.cwd,env:d.tool_surface?{PATH:'/usr/bin:/bin',HOME:homedir(),...(d.codex_home?{CODEX_HOME:d.codex_home}:{})}:{...process.env},shell:false,stdio:['pipe','pipe','pipe']});
   let seq=0,buffer='',bytes=0,frames=0,closed=false,fatal=null;

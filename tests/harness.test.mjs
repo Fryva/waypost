@@ -2131,8 +2131,11 @@ test("routine commands answer without pasting the vault into the context", () =>
     [["agents", "list"], 900, "same"],
     [["search", "Decision number 7"], 900, "a search returns pointers, not documents"],
   ];
+  // A temp state root: a heavy job live on this machine (another session's
+  // suite) adds a line to brief and status, and that is not what is measured.
+  const state = mkdtempSync(join(tmpdir(), "waypost-budget-state-"));
   for (const [args, max, why] of budgets) {
-    const out = waypost(proj, args).stdout;
+    const out = waypost(proj, args, { env: { HOME: state, USERPROFILE: state, XDG_STATE_HOME: state, LOCALAPPDATA: state } }).stdout;
     assert.ok(out.length < max, `\`waypost ${args.join(" ")}\` is ${out.length} chars (budget ${max}) — ${why}`);
   }
 });

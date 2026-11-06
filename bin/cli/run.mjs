@@ -76,6 +76,9 @@ async function runHeavy(argv, claim, where, mods) {
   if (INHERITED_SESSION_ID === undefined) delete childEnv.WAYPOST_SESSION_ID;
   if (INHERITED_HARNESS === undefined) delete childEnv.WAYPOST_HARNESS;
   if (INHERITED_PROC === undefined) delete childEnv.WAYPOST_PROC;
+  // The job learns its own slot, so what it starts (a team, a nested brief)
+  // does not take the job it runs inside for one beside it (liveHeavyJobs).
+  childEnv.WAYPOST_HEAVY_SLOT = [childEnv.WAYPOST_HEAVY_SLOT, claim.id].filter(Boolean).join(",");
 
   let [cmd, ...cmdArgs] = argv;
   const useShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(cmd);

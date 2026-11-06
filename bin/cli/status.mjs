@@ -122,11 +122,21 @@ async function cleanupStatusLine() {
   }
 }
 
+// Live heavy jobs on this machine — machine-level like the cleanup line, and
+// nothing at all when there is none. Never throws.
+async function heavyStatusLines() {
+  try {
+    const heavy = await import(SCRIPT_URL("heavy-jobs"));
+    return heavy.liveHeavyJobs().map((h) => `heavy   ${heavy.heavyJobLine(h)} — no agents beside it\n`).join("");
+  } catch { return ""; }
+}
+
 async function handleStatus() {
   const p = configPath();
   const cfg = readConfig();
   process.stdout.write(`waypost ${VERSION}\n`);
   process.stdout.write(await cleanupStatusLine());
+  process.stdout.write(await heavyStatusLines());
   if (!cfg) {
     process.stdout.write(`config  (none — run \`waypost bind <vault-path>\`)\n        expected at ${p}\n`);
     return;

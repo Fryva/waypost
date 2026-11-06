@@ -9,10 +9,28 @@ import { homedir } from 'node:os';
 import { CODEX_SURFACE_R1, CODEX_SURFACE_R1_DIGEST, PROBED_CATALOGS } from './codex-surface.mjs';
 import { CODEX_EVALUATION_SURFACE, CODEX_EVALUATION_SURFACE_DIGEST, EVALUATION_PROBED_CATALOGS, evaluationDynamicTools, evaluationFrameGuard, evaluationToolName } from './codex-evaluation-surface.mjs';
 import { evaluationInputDigest } from './evaluation-source.mjs';
+import { liveHeavyJobs, heavyJobLine } from './heavy-jobs.mjs';
 const surfaceOf = d => d.tool_surface === CODEX_EVALUATION_SURFACE.id ? CODEX_EVALUATION_SURFACE : CODEX_SURFACE_R1;
 const probedOf = d => d.tool_surface === CODEX_EVALUATION_SURFACE.id ? EVALUATION_PROBED_CATALOGS : PROBED_CATALOGS;
 
 const LIMIT = 2 * 1024 * 1024;
+// "No agents beside a heavy job" (ADR "Memory for heavy work") for the agents
+// Waypost starts itself: every peer factory below reads the machine's live
+// heavy slots first and refuses, naming the job. The go-ahead is the owner's
+// (WAYPOST_BESIDE_HEAVY=1), and even then the job is named on stderr. The
+// machine is read only when a real process would start: an injected
+// spawnProcess is a test seam, and so is fetchImpl for an already-running
+// OpenCode server; `dependencies.heavyJobs` injects the reading itself.
+export function assertNoHeavyJob(dependencies = {}, env = process.env, descriptor = null) {
+  const seam = dependencies.spawnProcess || (dependencies.fetchImpl && descriptor?.harness === 'opencode' && descriptor.spawn_server !== true);
+  if (!dependencies.heavyJobs && seam) return;
+  const jobs = (dependencies.heavyJobs || liveHeavyJobs)();
+  if (!jobs.length) return;
+  const named = jobs.map(heavyJobLine).join('; ');
+  if (env.WAYPOST_BESIDE_HEAVY === '1') { process.stderr.write(`waypost: starting agents beside a heavy job (WAYPOST_BESIDE_HEAVY=1) — ${named}\n`); return; }
+  throw Object.assign(new Error(`heavy-job-live: a heavy job is running — ${named}. `
+    + 'No agents beside it: wait until it ends (waypost capacity). Starting them anyway is the owner\'s call (WAYPOST_BESIDE_HEAVY=1), not an agent\'s'), { code: 'heavy-job-live', heavy_jobs: jobs.map(j => ({ id: j.id, command: j.command, host: j.host, since: j.started_at })) });
+}
 const confirmedInventoryFailures = new WeakMap();
 // Only an original error can carry the closure actually awaited by this module.
 export function nativeInventoryFailureClosure(error) {
@@ -783,6 +801,7 @@ async function opencodeEndpoint(d, fetchImpl) {
 }
 
 export async function createNativeEndpoint(descriptor, dependencies = {}) {
+  assertNoHeavyJob(dependencies, process.env, descriptor);
   let server = null;
   if (descriptor?.harness === 'opencode' && descriptor.spawn_server === true) server = await startManagedOpenCodeServer(descriptor,dependencies);
   let d, endpoint;
@@ -810,6 +829,7 @@ export async function createNativeEndpoint(descriptor, dependencies = {}) {
 
 // Starts only a separate owned backend; never changes a desktop's running server.
 export async function startManagedOpenCodeServer(raw, dependencies = {}) {
+  assertNoHeavyJob(dependencies, process.env, raw);
   if (raw?.managed !== true || raw.harness !== 'opencode' || !isAbsolute(raw.cwd || '') || raw.native_id || raw.url || raw.mode === 'workspace-write') throw fail('invalid-managed-server-descriptor');
   const d = validateNativeDescriptor({...raw,url:'http://127.0.0.1:1',password:'validation-only',create_session:true,read_only_enforced:true});
   const password = randomUUID()+randomUUID();
@@ -896,6 +916,7 @@ async function claudeInventoryEndpoint(d,spawnProcess){
 // Metadata inventory uses a separate owned backend and never creates a native
 // conversation. The raw response stays internal until the host allowlists it.
 export async function createNativeModelInventoryEndpoint(raw, dependencies = {}) {
+  assertNoHeavyJob(dependencies, process.env, raw);
   const allowed = ['managed','harness','cwd','executable','timeout_ms','mode','spawn_server'];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key)) || raw.managed !== true || !['codex','opencode','claude'].includes(raw.harness) || !isAbsolute(raw.cwd || '') || (raw.mode !== undefined && raw.mode !== 'read-only')) throw fail('invalid-native-inventory-descriptor');
   if (raw.harness === 'claude') return claudeInventoryEndpoint(validateNativeDescriptor({...raw,mode:'read-only'}),dependencies.spawnProcess||spawn);

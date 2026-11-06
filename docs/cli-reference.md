@@ -36,7 +36,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 | `waypost storage` | what the vault is stored on and how far behind presence can be |
 | `waypost prompt [name]` / `waypost skill [name]` | loop procedures and skills |
 | `waypost capacity [--json] [--release <id>]` | the machine's real free resources right now, and how many more heavy jobs it can take |
-| `waypost run --heavy [--wait <Ns\|Nm>] -- <cmd…>` | the rule: heavy work (a build, a full test suite, a simulator/emulator boot, a whole-disk scan, a background agent that builds or tests) always runs through this, never directly; refused = exit 75 (`waypost prompt heavy`) |
+| `waypost run --heavy [--wait <Ns\|Nm>] -- <cmd…>` | the rule: heavy work (a build, a full test suite, a simulator/emulator boot, a whole-disk scan, a background agent that builds or tests) always runs through this, never directly; refused = exit 75 (`waypost prompt heavy`). The job sees its own slot as `WAYPOST_HEAVY_SLOT`; while another job is live, `brief` and `status` name it and `waypost team` starts no peer (`heavy-job-live`) unless the owner allows it with `WAYPOST_BESIDE_HEAVY=1` |
 | `waypost status`, `waypost help` | summary and full help |
 
 ## Additional commands

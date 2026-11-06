@@ -21,6 +21,7 @@ import { leaseRunEnd } from "./presence-lease-groups.mjs";
 import { sessionId } from "./sessions.mjs";
 import { formatLimit, formatOutcome } from "./cleanup.mjs";
 import { teamOrientation } from "./team-diagnostics.mjs";
+import { liveHeavyJobs, heavyJobLine } from "./heavy-jobs.mjs";
 
 export async function brief(cfg, opts = {}) {
   const facts = await gatherVaultFacts(cfg, opts);
@@ -30,7 +31,17 @@ export async function brief(cfg, opts = {}) {
   if(teams.error)facts.team_authority_error=teams.error;
   const changes = vaultChanges(cfg.vault_path);
   if (changes) facts.vault_changes = changes.facts;
-  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) + (changes ? changes.text : "") + teams.text + cleanupLine(opts.full) };
+  const heavy = (opts.heavyJobs || liveHeavyJobs)();
+  if (heavy.length) facts.heavy_jobs = heavy.map((h) => ({ id: h.id, command: h.command, host: h.host, since: h.started_at }));
+  return { facts, text: (opts.full ? full : condense(full)) + others(cfg, opts) + heavyLine(heavy) + (changes ? changes.text : "") + teams.text + cleanupLine(opts.full) };
+}
+
+// A live heavy job on this machine (ADR "Memory for heavy work"): the one
+// fact that tells a session in any project not to start agents now. Silent
+// when there is none, so it costs the standing context nothing.
+function heavyLine(jobs) {
+  if (!jobs.length) return "";
+  return "\n" + jobs.map((h) => `heavy job live: ${heavyJobLine(h)} — no agents beside it (waypost capacity)`).join("\n") + "\n";
 }
 
 // The machine-wide cleanup-limit setting (the amended machine-wide-limit
