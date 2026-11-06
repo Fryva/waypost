@@ -1,5 +1,5 @@
 // Waypost CLI: auto-clean.
-import { REMOVING_DIR, bindingInfo, readCleanupSetting, resolveVaultPath } from "../../scripts/lib.mjs";
+import { REMOVING_DIR, bindingInfo, readCleanupSetting, resolveVaultPath, treesOverlap } from "../../scripts/lib.mjs";
 import { gatherCleanContext, planFromContext } from "./clean-plan.mjs";
 import { GB, ROOT, SCRIPT_URL, bootAuthority, cleanNow, lastCleanNowHonored } from "./core.mjs";
 import { purgeLeftovers, renameForRemoval, spawnDeleter } from "./deleter.mjs";
@@ -8,6 +8,7 @@ import { legacySlotsDirs, selfMarker, slotsDir } from "./slots.mjs";
 import { existsSync, readFileSync, realpathSync, statSync, statfsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 // ─── the automatic path at the end of `waypost run --heavy` ────────────
 // (the amended machine-wide-limit ADR, Decision 4)
@@ -90,11 +91,75 @@ function autoCleanupReport(rec) {
   }
   if (rec.deadline) process.stderr.write("waypost: automatic cleanup stopped at its 60s deadline\n");
   if (rec.excluded.length) process.stderr.write(`waypost: ${rec.excluded.length} idle item(s) never on the automatic path — waypost clean for detail\n`);
-  if (rec.nested_skipped) process.stderr.write(`waypost: ${rec.nested_skipped} nested repository/repositories never entered\n`);
+  if (rec.nested_skipped) process.stderr.write(`waypost: ${rec.nested_skipped} nested repository/repositories never entered by this tree's walk\n`);
+  const walked = (rec.trees || []).filter((t) => t.path && t.walked).length;
+  const skippedTrees = (rec.trees || []).filter((t) => t.path && t.skipped).length;
+  if (walked || skippedTrees) process.stderr.write(`waypost: other worktrees of this repository: ${walked} walked, ${skippedTrees} skipped — the cleanup log names each\n`);
 }
 
 function safeRealpath(p) {
   try { return realpathSync(p); } catch { return p; }
+}
+
+// The repository's other work trees (the disk-space ADR, Decision 2): every
+// entry of `git worktree list --porcelain` against the common dir except the
+// job's own tree and a bare entry — the main worktree included when the job
+// runs in a linked one, since the repository is one project for the limit.
+// `prunable` is carried so the caller can name it as a skip reason. A git
+// that fails or runs past the deadline yields no trees and an `error`.
+function otherWorkTrees(common, root, deadline) {
+  const timeout = Math.max(1, Math.min(5000, deadline - Date.now()));
+  let r;
+  try { r = spawnSync("git", ["--git-dir", common, "worktree", "list", "--porcelain"], { encoding: "utf8", timeout }); }
+  catch (e) { return { trees: [], error: e.message }; }
+  if (r.status !== 0) return { trees: [], error: r.error ? r.error.message : `git worktree list exited ${r.status}` };
+  const fold = process.platform === "darwin" || process.platform === "win32";
+  const key = (p) => { const r = safeRealpath(p).replace(/\\/g, "/"); return fold ? r.toLowerCase() : r; };
+  const ours = key(root);
+  const gitDir = key(common);
+  const trees = [];
+  for (const block of String(r.stdout).split(/\r?\n\r?\n/)) {
+    const lines = block.split(/\r?\n/).filter(Boolean);
+    const head = lines.find((l) => l.startsWith("worktree "));
+    if (!head || lines.includes("bare")) continue;
+    const path = head.slice("worktree ".length);
+    // A submodule or a --separate-git-dir repository names its git dir as
+    // the main worktree, unmarked as bare: there is no work tree to walk.
+    const at = key(path);
+    if (at === ours || at === gitDir || at.startsWith(gitDir.endsWith("/") ? gitDir : gitDir + "/")) continue;
+    trees.push({ path, prunable: lines.some((l) => l === "prunable" || l.startsWith("prunable ")) });
+  }
+  return { trees, error: null };
+}
+
+// Why one other work tree stays off this sweep, or null when it may be
+// walked — the ADR's skip list, in its order. A live session counts when its
+// project root is the tree or lies inside it: a session rooted in an
+// ancestor (the main checkout, for a worktree nested under it) works on its
+// own tree, which the walk of that tree already stops short of this one —
+// unless it holds a live lease: a lease is keyed relative to its holder's
+// root, which this walk cannot match against the tree's items, so such a
+// session is treated as overlapping the tree too.
+function workTreeSkipReason(tree, { cleanup, presence, capacity, claim, commonDev, home, sessions, leaseHolders }) {
+  if (tree.prunable) return "prunable";
+  if (!existsSync(tree.path)) return "missing";
+  const wt = safeRealpath(tree.path);
+  let dev;
+  try { dev = statSync(wt).dev; } catch (e) { return e.message; }
+  if (dev !== commonDev) return "on another filesystem than the git directory";
+  if (cleanup.refusePath(wt, { home, platform: process.platform })) return "a protected path";
+  const storage = presence.storageOf(wt);
+  if (storage.kind !== "local") return `on ${storage.provider} (${storage.kind}) — not local storage`;
+  const holders = capacity.readHolders({ dir: slotsDir(presence), dirs: legacySlotsDirs(presence), authority: bootAuthority(capacity) });
+  const blocking = capacity.blockingHolder(holders.live, { self: claim.id, root: wt, platform: process.platform, canon: safeRealpath });
+  if (blocking) return `a heavy job overlaps it (${blocking.holder.id})`;
+  const inside = (p) => { const pc = safeRealpath(p); return treesOverlap(pc, wt, { platform: process.platform }) && pc.length >= wt.length; };
+  const live = sessions.find((p) => p.project_root && inside(p.project_root));
+  if (live) return `a live session works there (${live.session}${live.host ? ` on ${live.host}` : ""})`;
+  const above = (p) => { const pc = safeRealpath(p); return treesOverlap(pc, wt, { platform: process.platform }) && pc.length < wt.length; };
+  const leasing = sessions.find((p) => p.project_root && leaseHolders.has(p.session) && above(p.project_root));
+  if (leasing) return `a live session above it holds a lease (${leasing.session}${leasing.host ? ` on ${leasing.host}` : ""})`;
+  return null;
 }
 
 // One JSONL line (matching scripts/cleanup.mjs's own logLine shape by
@@ -237,7 +302,55 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
     }
 
     const now = cleanNow();
-    const classified = planFromContext(ctx, cleanup, now);
+    // Decision 2 of the disk-space ADR: the repository is one project for
+    // the limit. After this tree, every other work tree is walked under the
+    // same rules and the same deadline; their items are counted and picked
+    // together, oldest first. `ctxOf` keeps each item's own context for the
+    // re-check right before its rename; `trees` goes into the log.
+    const ctxOf = new Map();
+    const classified = [];
+    const addTree = (c) => { for (const it of planFromContext(c, cleanup, now)) { ctxOf.set(it, c); classified.push(it); } };
+    addTree(ctx);
+    const trees = [];
+    const listed = otherWorkTrees(where.common, root, deadline);
+    if (listed.error) trees.push({ path: null, skipped: `could not list worktrees: ${listed.error}` });
+    let sessions = [];
+    let leaseHolders = new Set();
+    if (vault && listed.trees.length) {
+      try {
+        sessions = presence.peers(vault, { self: session }).peers.filter((p) => p.live && !p.self);
+        leaseHolders = new Set(presence.readLeases(vault, { self: session }).filter((l) => l.live && !l.mine).map((l) => l.session));
+      } catch (e) { sessions = null; trees.push({ path: null, skipped: `live sessions unreadable: ${e.message}` }); }
+    } else if (listed.trees.length) {
+      trees.push({ path: null, note: "no bound vault — no live sessions to check" });
+    }
+    // The other trees' walks get two thirds of the time left, so a slow one
+    // cannot spend the whole deadline and leave nothing for the re-checks
+    // and renames (the job's own oldest items included).
+    const walkDeadline = Math.min(deadline, Date.now() + Math.floor((deadline - Date.now()) * 2 / 3));
+    for (const tree of listed.trees) {
+      if (Date.now() >= walkDeadline) { trees.push({ path: safeRealpath(tree.path), skipped: "deadline" }); continue; }
+      const why = sessions === null ? "live sessions unreadable"
+        : workTreeSkipReason(tree, { cleanup, presence, capacity, claim, commonDev, home, sessions, leaseHolders });
+      if (why) { trees.push({ path: safeRealpath(tree.path), skipped: why }); continue; }
+      const wt = safeRealpath(tree.path);
+      process.env.WAYPOST_HOME = ROOT;
+      let c;
+      try {
+        c = gatherCleanContext(mods, { root: wt, vault, includeMachine: false, walk: { stopAtGit: true, locators: false, deadline: walkDeadline } });
+      } catch (e) { trees.push({ path: safeRealpath(tree.path), skipped: e.message }); continue; }
+      finally {
+        if (savedHome === undefined) delete process.env.WAYPOST_HOME; else process.env.WAYPOST_HOME = savedHome;
+      }
+      if (c.scan && (c.scan.stopped_by === "deadline" || Date.now() >= walkDeadline)) {
+        trees.push({ path: wt, skipped: "deadline" }); continue;
+      }
+      // The re-check right before a rename runs under the sweep's deadline.
+      c.deadline = deadline;
+      addTree(c);
+      trees.push({ path: wt, walked: true });
+    }
+    const label = (it) => (ctxOf.get(it) === ctx ? (it.rel || it.path) : it.path);
 
     let shortfall = 0;
     let dev = null;
@@ -260,7 +373,7 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
     // case, not merely idle.
     const excludedList = classified
       .filter((it) => it.class !== "keep" && autoExcludedReasonOf(it))
-      .map((it) => ({ id: it.id, path: it.rel || it.path, reason: autoExcludedReasonOf(it) }));
+      .map((it) => ({ id: it.id, path: label(it), reason: autoExcludedReasonOf(it) }));
 
     const removingDir = join(where.common, REMOVING_DIR);
     const marker = selfMarker(capacity, presence);
@@ -274,31 +387,32 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
     for (; i < eligible.length; i++) {
       if (freed >= need) break;
       if (Date.now() > deadline) { deadlineHit = true; break; }
-      const holders = capacity.readHolders({ dir: slotsDir(presence), dirs: oldSlots, authority: bootAuthority(capacity) });
-      const hit = capacity.blockingHolder(holders.live, { self: claim.id, root, platform: process.platform, canon: safeRealpath });
-      if (hit) { holderBlocked = hit; break; }
       const item = eligible[i];
-      const rc = recheckItem(item, ctx, mods, now);
+      const itemCtx = ctxOf.get(item) || ctx;
+      const holders = capacity.readHolders({ dir: slotsDir(presence), dirs: oldSlots, authority: bootAuthority(capacity) });
+      const hit = capacity.blockingHolder(holders.live, { self: claim.id, root: itemCtx.root, platform: process.platform, canon: safeRealpath });
+      if (hit) { holderBlocked = hit; break; }
+      const rc = recheckItem(item, itemCtx, mods, now);
       if (rc.changed || !cleanup.qualifiesForLimit({ ...rc.item, class: rc.class }, now)) {
-        skippedItems.push({ id: item.id, path: item.rel || item.path, reason: rc.changed ? "changed since the plan was built" : (rc.reason || "no longer qualifies") });
+        skippedItems.push({ id: item.id, path: label(item), reason: rc.changed ? "changed since the plan was built" : (rc.reason || "no longer qualifies") });
         continue;
       }
       const renResult = renameForRemoval(item, removingDir, marker);
       if (!renResult.ok) {
-        skippedItems.push({ id: item.id, path: item.rel || item.path, reason: renResult.reason });
+        skippedItems.push({ id: item.id, path: label(item), reason: renResult.reason });
         continue;
       }
       const bytes = Number.isFinite(rc.fresh.bytes) ? rc.fresh.bytes : item.bytes;
-      renamed.push({ id: item.id, path: item.rel || item.path, bytes, name: renResult.name });
+      renamed.push({ id: item.id, path: label(item), bytes, name: renResult.name });
       freed += bytes || 0;
       autoCleanPause(probe && probe.pause_ms, renamed.length);
     }
-    const stayed = eligible.slice(i).map((it) => ({ id: it.id, path: it.rel || it.path, bytes: it.bytes }));
+    const stayed = eligible.slice(i).map((it) => ({ id: it.id, path: label(it), bytes: it.bytes }));
     const deleterPid = renamed.length ? spawnDeleter(removingDir, renamed.map((r) => r.name), marker) : null;
 
-    const reason = deadlineHit ? "deadline" : (holderBlocked ? `another heavy job overlaps this tree (${holderBlocked.holder.id})` : null);
+    const reason = deadlineHit ? "deadline" : (holderBlocked ? `another heavy job overlaps a tree being cleaned (${holderBlocked.holder.id})` : null);
     return logAndReportAuto(finish("ran", reason, {
-      counted, need, shortfall, renamed, skipped_items: skippedItems.slice(0, 20),
+      counted, need, shortfall, renamed, skipped_items: skippedItems.slice(0, 20), trees,
       stayed: stayed.slice(0, 20), excluded: excludedList.slice(0, 20),
       nested_skipped: ctx.scan ? ctx.scan.nested_skipped : 0, deadline: deadlineHit,
       elapsed_ms: Date.now() - t0, deleter_pid: deleterPid, adopted,

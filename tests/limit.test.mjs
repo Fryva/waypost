@@ -19,7 +19,7 @@ import {
 } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { tmpdir, hostname } from "node:os";
-import { spawnSync, spawn } from "node:child_process";
+import { spawnSync, spawn, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { machineStateDir, REMOVING_DIR } from "../scripts/lib.mjs";
@@ -682,9 +682,9 @@ test("AC6: a generic name holding a package, a tagged directory holding a packag
   assert.match(reasons, /auto: false/);
 });
 
-test("AC7: a linked worktree and a nested repository, each holding an idle tag directory, are never entered — nested_skipped names them", () => {
+test("AC7: a nested repository is never entered; a linked worktree is walked as part of the same repository (disk-space ADR, Decision 2)", () => {
   const home = tmpRoot("waypost-limit-ac7-home-");
-  const proj = gitProject("waypost-limit-ac7-proj-", []);
+  const proj = gitProject("waypost-limit-ac7-proj-", ["b"]);
   git(proj, ["branch", "wtbranch"]);
   const wtDir = join(proj, "wt");
   git(proj, ["worktree", "add", "-q", wtDir, "wtbranch"]);
@@ -700,12 +700,136 @@ test("AC7: a linked worktree and a nested repository, each holding an idle tag d
   const env = autoCleanEnv(home);
   const r = runHeavyChild(proj, ["node", "-e", "1"], env);
   assert.equal(r.status, 0, r.stderr);
-  assert.ok(existsSync(join(wtDir, "b")), "the worktree's own idle tag dir survives");
+  assert.ok(!existsSync(join(wtDir, "b")), "the worktree's idle ignored tag dir is renamed");
+  assert.ok(existsSync(join(wtDir, "README.md")), "the worktree's own sources stay");
   assert.ok(existsSync(join(subDir, "c")), "the nested repository's own idle tag dir survives");
   const rec = lastLogRecord(home);
   assert.equal(rec.result, "ran");
   assert.ok(rec.nested_skipped >= 2, JSON.stringify(rec));
-  assert.deepEqual(rec.renamed, []);
+  assert.equal(rec.renamed.length, 1);
+  assert.equal(rec.renamed[0].path, join(realpathSync(wtDir), "b"));
+  assert.deepEqual(rec.trees.filter((t) => t.path).map((t) => [t.path, Boolean(t.walked)]), [[realpathSync(wtDir), true]]);
+  assert.ok(rec.trees.some((t) => !t.path && /no bound vault/.test(t.note)), "without a vault the log says sessions were not checked");
+  assert.match(r.stderr, /other worktrees of this repository: 1 walked, 0 skipped/);
+  assert.match(execFileSync("git", ["-C", proj, "worktree", "list"], { encoding: "utf8" }), /wtbranch/, "the worktree and its branch stay registered");
+});
+
+test("Decision 2: the limit counts every work tree together and picks the oldest item across them", () => {
+  const home = tmpRoot("waypost-limit-wt-sum-home-");
+  const proj = gitProject("waypost-limit-wt-sum-proj-", ["a", "b"]);
+  git(proj, ["branch", "wtbranch"]);
+  const wtDir = tmpRoot("waypost-limit-wt-sum-wt-");
+  rmSync(wtDir, { recursive: true, force: true });
+  git(proj, ["worktree", "add", "-q", wtDir, "wtbranch"]);
+  touchTree(tagFixture(wtDir, "b", 20000)); sleepMs(30);
+  touchTree(tagFixture(proj, "a", 20000));
+  // Each tree alone (20000) is under the limit; together (40000) they are over it.
+  writeCurrentSetting(home, { kind: "gb", gb: 30000 / GB, bytes: 30000 });
+  const r = runHeavyChild(proj, ["node", "-e", "1"], autoCleanEnv(home));
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(join(wtDir, "b")), "the older item, in the other tree, is taken");
+  assert.ok(existsSync(join(proj, "a")), "the newer one, in the job's own tree, stays");
+  const rec = lastLogRecord(home);
+  assert.ok(rec.counted >= 40000, JSON.stringify(rec));
+  assert.equal(rec.renamed.length, 1);
+});
+
+test("Decision 2: the job in a linked worktree walks the main worktree too", () => {
+  const home = tmpRoot("waypost-limit-wt-main-home-");
+  const proj = gitProject("waypost-limit-wt-main-proj-", ["a"]);
+  git(proj, ["branch", "wtbranch"]);
+  const wtDir = tmpRoot("waypost-limit-wt-main-wt-");
+  rmSync(wtDir, { recursive: true, force: true });
+  git(proj, ["worktree", "add", "-q", wtDir, "wtbranch"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const r = runHeavyChild(wtDir, ["node", "-e", "1"], autoCleanEnv(home));
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(join(proj, "a")), "the main worktree's idle item is taken");
+  const rec = lastLogRecord(home);
+  assert.equal(rec.renamed[0].path, join(realpathSync(proj), "a"));
+});
+
+test("Decision 2: a prunable worktree, one held by a heavy job and one with a live session are skipped, each with its reason", () => {
+  const home = tmpRoot("waypost-limit-wt-skip-home-");
+  const proj = gitProject("waypost-limit-wt-skip-proj-", ["b"]);
+  const vault = join(proj, "vault");
+  mkdirSync(vault, { recursive: true });
+  mkdirSync(join(proj, ".waypost"), { recursive: true });
+  writeFileSync(join(proj, ".waypost", "projectstore.json"), JSON.stringify({ vault_path: "vault" }) + "\n", "utf8");
+  const mk = (name) => {
+    git(proj, ["branch", name]);
+    const d = tmpRoot(`waypost-limit-wt-skip-${name}-`);
+    rmSync(d, { recursive: true, force: true });
+    git(proj, ["worktree", "add", "-q", d, name]);
+    return d;
+  };
+  const gone = mk("gone");
+  rmSync(gone, { recursive: true, force: true });
+  const held = mk("held");
+  touchTree(tagFixture(held, "b", 20000));
+  const busy = mk("busy");
+  touchTree(tagFixture(busy, "b", 20000));
+  writeHolderRecord(home, selfHolderRecord("other-wt", { root: realpathSync(held), cwd: realpathSync(held) }));
+  const presenceDir = join(gitCommonOf(proj), "waypost", "vault", "presence");
+  mkdirSync(presenceDir, { recursive: true });
+  writeFileSync(join(presenceDir, "wt-session.json"), JSON.stringify({
+    session: "wt-session", host: hostSlug(), os: "darwin-24", user: "x",
+    harness: "claude", project_root: realpathSync(busy), common_dir: gitCommonOf(proj),
+    vault_rel: ".", proc: null, seq: 1, at: new Date().toISOString(), started_at: new Date().toISOString(),
+    doing: null, claim: null,
+  }) + "\n", "utf8");
+
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const r = runHeavyChild(proj, ["node", "-e", "1"], autoCleanEnv(home));
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(held, "b")), "a tree a heavy job holds is untouched");
+  assert.ok(existsSync(join(busy, "b")), "a tree a live session works in is untouched");
+  const rec = lastLogRecord(home);
+  assert.equal(rec.result, "ran", JSON.stringify(rec));
+  const why = Object.fromEntries(rec.trees.map((t) => [t.path, t.skipped || "walked"]));
+  assert.match(Object.values(why).join(" | "), /prunable|missing/, JSON.stringify(rec.trees));
+  assert.match(Object.values(why).join(" | "), /heavy job overlaps it \(other-wt\)/);
+  assert.match(Object.values(why).join(" | "), /live session works there \(wt-session/);
+});
+
+test("Decision 2: a live session above a nested worktree does not block it alone, but holding a lease it does", () => {
+  const home = tmpRoot("waypost-limit-wt-lease-home-");
+  const proj = gitProject("waypost-limit-wt-lease-proj-", ["b"]);
+  const vault = join(proj, "vault");
+  mkdirSync(vault, { recursive: true });
+  mkdirSync(join(proj, ".waypost"), { recursive: true });
+  writeFileSync(join(proj, ".waypost", "projectstore.json"), JSON.stringify({ vault_path: "vault" }) + "\n", "utf8");
+  git(proj, ["branch", "wtbranch"]);
+  const wtDir = join(proj, "wt");
+  git(proj, ["worktree", "add", "-q", wtDir, "wtbranch"]);
+  touchTree(tagFixture(wtDir, "b", 20000));
+  const coord = join(gitCommonOf(proj), "waypost", "vault");
+  mkdirSync(join(coord, "presence"), { recursive: true });
+  const at = new Date().toISOString();
+  writeFileSync(join(coord, "presence", "main-session.json"), JSON.stringify({
+    session: "main-session", host: hostSlug(), os: "darwin-24", user: "x",
+    harness: "claude", project_root: realpathSync(proj), common_dir: gitCommonOf(proj),
+    vault_rel: "vault", proc: null, seq: 1, at, started_at: at, doing: null, claim: null,
+  }) + "\n", "utf8");
+  // Without a lease the session above does not block: the tree is walked
+  // (a large limit, so nothing is taken yet).
+  writeCurrentSetting(home, { kind: "gb", gb: 1000, bytes: 1000 * GB });
+  const first = runHeavyChild(proj, ["node", "-e", "1"], autoCleanEnv(home));
+  assert.equal(first.status, 0, first.stderr);
+  assert.deepEqual(lastLogRecord(home).trees.filter((t) => t.path).map((t) => [t.path, Boolean(t.walked)]), [[realpathSync(wtDir), true]]);
+
+  mkdirSync(join(coord, "leases"), { recursive: true });
+  writeFileSync(join(coord, "leases", "wt-b.main-session.json"), JSON.stringify({
+    path: "wt/b", session: "main-session", host: hostSlug(), harness: "claude", at,
+  }) + "\n", "utf8");
+
+  writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
+  const r = runHeavyChild(proj, ["node", "-e", "1"], autoCleanEnv(home));
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(wtDir, "b")), "the leased item survives");
+  const rec = lastLogRecord(home);
+  assert.match(rec.trees.map((t) => t.skipped || "walked").join(" | "), /above it holds a lease \(main-session/, JSON.stringify(rec.trees));
 });
 
 test("AC8: a live holder whose root is the fixture itself blocks — nothing renamed", () => {

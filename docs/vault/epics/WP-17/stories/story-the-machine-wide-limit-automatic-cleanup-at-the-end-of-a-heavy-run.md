@@ -222,7 +222,7 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
 - [x] Over a GB limit, idle qualifying items go oldest first and removal
       stops as soon as the counted total fits.
       — evidence: tests/limit.test.mjs:609 (of three idle items only the
-      oldest is renamed), :791 (holders re-read between items); unit
+      oldest is renamed), :915 (holders re-read between items); unit
       tests/cleanup.test.mjs:567 (`limitNeed`).
 - [x] Under `free:<P>%`, removal covers the shortfall computed once, even
       when free space does not move after a removal.
@@ -237,15 +237,17 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
       tests/toolchains.test.mjs:164, :299; toolchains/system.json,
       toolchains/terraform.json.
 - [x] A nested worktree inside the root is never entered or removed.
-      — evidence: tests/limit.test.mjs:685 (a linked worktree and a nested
-      repository, each holding an idle tagged directory: `nested_skipped`
-      names them, nothing renamed); tests/sizes.test.mjs:560, :577.
+      — evidence: tests/sizes.test.mjs:560, :577 (the walk of one tree).
+      Amended by the disk-space ADR, Decision 2 (2026-11-06): the automatic
+      path now walks every work tree of the repository, so idle output in a
+      nested worktree is removed by the same item rules; nested repositories
+      stay never entered (tests/limit.test.mjs:685).
 - [x] With another live heavy job in the same tree (or an ancestor or
       descendant), or a live record without a root, nothing is removed.
-      — evidence: tests/limit.test.mjs:711 (the same root), :728 (an
-      ancestor), :749 (a descendant), :764 (a record naming neither root nor
-      cwd blocks unconditionally), :777 (an unrelated holder does not block),
-      :791 (holders re-read before each item), :817 (another host on this
+      — evidence: tests/limit.test.mjs:835 (the same root), :852 (an
+      ancestor), :873 (a descendant), :888 (a record naming neither root nor
+      cwd blocks unconditionally), :901 (an unrelated holder does not block),
+      :915 (holders re-read before each item), :941 (another host on this
       checkout). Narrowed as the plan's own answers state: a record with
       `root: null` but a `cwd` is compared by that `cwd`, so only a record
       lacking both blocks unconditionally. The filesystem root was an
@@ -254,21 +256,21 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
       with tests/cleanup.test.mjs:788-790.
 - [x] A wrapped command ended by a signal triggers no cleanup; a signal
       during the cleanup leaves nothing half-removed inside the project.
-      — evidence: tests/limit.test.mjs:848 (the child ends itself by SIGTERM:
-      exit 143, nothing renamed), :862 (a signal to the wrapper mid-sweep:
+      — evidence: tests/limit.test.mjs:972 (the child ends itself by SIGTERM:
+      exit 143, nothing renamed), :986 (a signal to the wrapper mid-sweep:
       the item already renamed is outside the project, the next is untouched,
       one marked entry in `waypost-removing/`). The `interrupted` branch (a
       tool trapping Ctrl-C and exiting itself) and SIGINT are not covered.
 - [x] Past the deadline nothing more is renamed, and the outcome says so in
       `status`.
-      — evidence: tests/limit.test.mjs:896 (a 1 s deadline probe with a 1.5 s
+      — evidence: tests/limit.test.mjs:1020 (a 1 s deadline probe with a 1.5 s
       pause: the first item is renamed, the second is not, the record says
       `deadline`, and `waypost status` prints it); the scan-phase deadline as
       a unit, tests/sizes.test.mjs:621.
 - [x] On non-local storage, outside git, or at the home directory, nothing
       is removed.
-      — evidence: tests/limit.test.mjs:917 (a root under a Dropbox path),
-      :941 ("not in a git work tree"), :953 (HOME equal to the root — a
+      — evidence: tests/limit.test.mjs:1041 (a root under a Dropbox path),
+      :1065 ("not in a git work tree"), :1077 (HOME equal to the root — a
       protected path); unit tests/cleanup.test.mjs:102 (`refusePath`).
 - [x] Leftovers in `waypost-removing/` whose deleter is gone are purged by
       the next `waypost clean`; an entry whose deleter is alive is left.
@@ -277,11 +279,11 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
       re-marked and removed; a name of another shape is left and counted).
 - [x] `run --heavy` exits with the wrapped command's status whatever the
       cleanup did; each run appends one log line.
-      — evidence: tests/limit.test.mjs:966 (exit 3 passes through after a
-      rename), :977 (a cleanup failure does not change it), :1011 (a deleter
+      — evidence: tests/limit.test.mjs:1090 (exit 3 passes through after a
+      rename), :1101 (a cleanup failure does not change it), :1135 (a deleter
       that cannot be spawned at all: the child keeps its own exit code 7 and
       reports no pid — before this close the missing `'error'` listener made
-      that an uncaught exception and exit 1, see Technical Notes), :991 (the
+      that an uncaught exception and exit 1, see Technical Notes), :1115 (the
       log grows by exactly one line per run). Narrowed as the plan's own
       answers state: one line per heavy run only while a limit is set; with
       no limit or `off` the cleanup exits silently and logs nothing.
@@ -312,7 +314,7 @@ scripts/cleanup-selection.mjs, and the CLI into bin/cli/) by a fresh-context
   now, a spawn with no pid reports none, and the entries stay in
   `waypost-removing/` for the next `waypost clean` to adopt. Reproduced
   before the fix (exit 1 instead of 7) and covered by
-  tests/limit.test.mjs:1011.
+  tests/limit.test.mjs:1135.
 - **scripts/lib.mjs** — `treesOverlap` appended a separator unconditionally,
   so the filesystem root compared as `"//"` and overlapped nothing: a live
   heavy job whose root was `/` blocked no project under it, against AC8.

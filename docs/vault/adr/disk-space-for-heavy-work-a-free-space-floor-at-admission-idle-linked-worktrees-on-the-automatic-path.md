@@ -81,9 +81,18 @@ stands. On acceptance each gets an "Amended by" note pointing here.
   slot the run still holds", "nothing else removes automatically" and
   Rationale 5 "no new trigger is needed" gain one exception: the cleanup
   on a disk refusal (Decision 1), which runs with no slot held because no
-  job is about to run in that tree. Decision 2 below, once implemented,
-  replaces Decision 1's "per project, N projects may hold N × the limit"
-  with one limit per repository.
+  job is about to run in that tree. Decision 2 below replaces Decision 1's
+  "per project, N projects may hold N × the limit" with one limit per
+  repository, and reverses the answer to the first critic pass's blocker
+  "automatic removal could reach nested worktrees" (a nested worktree was
+  never entered): idle output inside a nested or linked worktree is now
+  removed by the same item rules. Decision 4's "`waypost clean` shows which
+  items the limit would pick" now holds for the job's own tree only
+  (Known limits).
+- **WP-17 story "The machine-wide limit: automatic cleanup at the end of a
+  heavy run"**: the acceptance criterion "A nested worktree inside the root
+  is never entered or removed" holds for the walk of one tree only; the
+  automatic path walks every work tree of the repository.
 - **disk-hygiene ADR**: Owner's decision 1, "7 days for project
   artifacts" (`DEFAULT_PROJECT_STALE_DAYS`), becomes 1 day.
 - **heavy-work ADR**: Decision 1's conditions (a)–(c) gain the disk
@@ -134,8 +143,8 @@ stands. On acceptance each gets an "Amended by" note pointing here.
    - `waypost capacity` prints the disk figure next to memory, and its
      JSON carries `disk: { free, total, share, reserve, path }`.
    - A `run --heavy` refused for a measured shortage (not for "free space
-     unknown") says so on stderr, runs the automatic cleanup of its tree
-     once, with no slot held, and asks again; when that cleanup renamed
+     unknown") says so on stderr, runs the automatic cleanup of its
+     repository (Decision 2) once, with no slot held, and asks again; when that cleanup renamed
      anything, it waits up to 30 s for the deleter before the final
      refusal. Without this a full disk refuses every job, and the cleanup
      that runs only after a job never runs at all. The cleanup frees what
@@ -181,8 +190,16 @@ stands. On acceptance each gets an "Amended by" note pointing here.
 Not decided here, and unchanged: generic names staying off the automatic
 path, `free:<P>%` semantics.
 
-**Implementation state (2026-11-06):** Decisions 1 and 3 are implemented;
-Decision 2 (linked worktrees) is not yet.
+**Implementation state (2026-11-06):** Decisions 1, 2 and 3 are
+implemented. Two readings fixed while implementing Decision 2: "the
+repository's linked worktrees" means every work tree but the job's own, so
+a job in a linked worktree walks the main one too; and a live session
+"overlaps" a worktree when its project root is that tree or lies inside it
+— a session rooted in the main checkout, an ancestor of a nested worktree,
+works on its own tree, whose walk already stops short of the worktree —
+unless it holds a live lease, which then skips the worktree (Known limits).
+`locked` worktrees are walked: git's lock guards against `prune`, not
+against removing ignored build output.
 
 ## Rationale
 
@@ -276,11 +293,30 @@ under the same rules, that the owner's limit already authorises.
 - `bin/cli/run.mjs`: the cleanup on a disk refusal; `bin/cli/slots.mjs`:
   `claimSlot(..., { disk: false })` for clean, size and setup.
 - `scripts/cleanup-selection.mjs`: `DEFAULT_PROJECT_STALE_DAYS` 7 → 1.
-- `bin/cli/auto-clean.mjs`: linked worktrees on the automatic path
-  (planned).
+- `bin/cli/auto-clean.mjs`: linked worktrees on the automatic path;
+  the log record carries `trees` (each walked or skipped, with why).
 - `prompts/heavy.md`: the refusal reason list names disk.
 
 ## Known limits
+
+- `waypost clean` previews the limit's picks (`<- limit`) for the tree it
+  runs in only: with several work trees the automatic path can pick items
+  the preview does not mark, and an item the manual plan shows as `keep —
+  inside a nested repository` (a nested worktree) can be removed by the
+  automatic path.
+- The limit's `counted` total covers the trees actually walked; a tree
+  skipped (a live session, the deadline) is not counted, so the limit is
+  under-, never over-, enforced then.
+- The other work trees' walks get two thirds of the time left before the
+  60 s deadline, the rest stays for the re-checks and renames; a tree the
+  walk did not reach is recorded as `deadline` and its items wait for the
+  next run.
+- A lease key is relative to its holder's root and is matched against
+  item keys computed from the job's root, so it may not match an item in
+  another work tree; a live session whose root lies above such a tree and
+  that holds any lease therefore skips that tree whole. A lease by a
+  session unrelated to the tree is still not matched there (the same limit
+  as before Decision 2).
 
 - The disk is the working directory's: a job writing elsewhere
   (`CARGO_TARGET_DIR`, DerivedData, `~/.gradle`, Docker) is admitted by a
