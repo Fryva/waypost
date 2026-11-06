@@ -2,15 +2,15 @@
 type: adr
 id: "the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge"
 title: "The merge driver keeps our side of a derived view; regeneration happens after the merge"
-status: proposed
+status: accepted
 date: 2026-11-06
 authors: ["Ivan Morozov"]
 tags: ["merge", "derived-views", "adr-0006"]
 external_refs: {}
 supersedes: null
 superseded_by: null
-review_status: pending
-reviewed_at: null
+review_status: reviewed
+reviewed_at: 2026-11-06
 drafted_by: {"harness":"claude","provider":null,"date":"2026-11-06"}
 guards: []
 code_refs: ["scripts/merge-derived.mjs", "scripts/commit.mjs", "scripts/doctor-repairs.mjs", "tests/commits.test.mjs", "scripts/doctor-generated.mjs"]
@@ -20,7 +20,7 @@ code_refs: ["scripts/merge-derived.mjs", "scripts/commit.mjs", "scripts/doctor-r
 
 | Field | Value |
 |---|---|
-| **Status** | proposed |
+| **Status** | accepted |
 | **Date** | 2026-11-06 |
 | **Authors** | Ivan Morozov |
 
@@ -168,6 +168,15 @@ dirty just the same.
   `docs/how-it-works.md`, `AGENTS.md`, CHANGELOG updated.
 - ADR-0006 carries "Amended by" notes on its derived-views paragraph and on the
   `git merge` note in its Decision.
+
+## Acceptance
+
+Accepted by the owner on 2026-11-06, after a fresh-context waypost-critic pass
+(verdict "revise": keeping our side of every README lost human prose, any README
+under the vault was taken for a view, the index staleness did not fail doctor —
+all three addressed before acceptance) and a waypost-reviewer pass over the
+implementation (bafb19a; npm test 2580 pass, 0 fail). The amended passages of
+ADR-0006 carry "Amended by" notes.
 
 ## References
 

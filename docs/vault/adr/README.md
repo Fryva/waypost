@@ -52,7 +52,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [portable-handoff-packets-as-explicit-file-snapshots-not-model-memory](./portable-handoff-packets-as-explicit-file-snapshots-not-model-memory.md) | Portable handoff packets as explicit file snapshots, not model memory | proposed | 2026-11-02 |
 | [bounded-handoff-retrieval-and-content-addressed-receiver-snapshots](./bounded-handoff-retrieval-and-content-addressed-receiver-snapshots.md) | Bounded handoff retrieval and content addressed receiver snapshots | proposed | 2026-11-03 |
 | [disk-space-for-heavy-work-a-free-space-floor-at-admission-idle-linked-worktrees-on-the-automatic-path](./disk-space-for-heavy-work-a-free-space-floor-at-admission-idle-linked-worktrees-on-the-automatic-path.md) | Disk space for heavy work: a free-space floor at admission, idle linked worktrees on the automatic path | proposed | 2026-11-06 |
-| [the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge](./the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge.md) | The merge driver keeps our side of a derived view; regeneration happens after the merge | proposed | 2026-11-06 |
+| [the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge](./the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge.md) | The merge driver keeps our side of a derived view; regeneration happens after the merge | accepted | 2026-11-06 |
 
 ---
 
