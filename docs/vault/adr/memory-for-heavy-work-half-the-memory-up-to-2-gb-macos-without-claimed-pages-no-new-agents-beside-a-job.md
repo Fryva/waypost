@@ -2,15 +2,15 @@
 type: adr
 id: "memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job"
 title: "Memory for heavy work: half the memory up to 2 GB, macOS by pressure level, no agents beside a job"
-status: proposed
+status: accepted
 date: 2026-09-28
 authors: ["Ivan Morozov"]
 tags: []
 external_refs: {}
 supersedes: null
 superseded_by: null
-review_status: pending
-reviewed_at: null
+review_status: reviewed
+reviewed_at: 2026-11-05
 drafted_by: {"harness":"claude","provider":null,"date":"2026-09-28"}
 code_refs: ["scripts/capacity.mjs", "scripts/capacity-admission.mjs", "scripts/capacity-memory.mjs", "bin/cli/run.mjs", "bin/cli/slots.mjs", "tests/capacity.test.mjs", "tests/capacity-memory.test.mjs", "tests/capacity-admission.test.mjs", "tests/slots.test.mjs", "templates/agents-block.md.tmpl", "scripts/agents-registry.mjs", "prompts/heavy.md", "tests/harness.test.mjs", "AGENTS.md"]
 related: "heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first, ADR-0001, ADR-0008"
@@ -21,7 +21,7 @@ guards: [{"require": "no agents beside it", "in": "AGENTS.md", "why": "the routi
 
 | Field | Value |
 |---|---|
-| **Status** | proposed |
+| **Status** | accepted |
 | **Date** | 2026-09-28 |
 | **Authors** | Ivan Morozov |
 
@@ -388,6 +388,12 @@ among them:
   (fixed); "unreadable is stricter" (fixed: the minimum); systemd-oomd, the
   orphaned job (fixed: the job's pid in the record) and nested runs recorded
   in Consequences.
+
+## Acceptance
+
+Accepted by the owner on 2026-11-05, after two waypost-critic passes (Review
+history) and the Linux VM and Mac verification above. The amended passages in
+the heavy-work-sized-to-the-machine ADR carry "Amended by" notes.
 
 ## References
 

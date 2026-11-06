@@ -61,6 +61,8 @@ The traps, measured on the owner's Mac:
 - In a container, Linux `MemAvailable` describes the host, not the
   container's limit.
 
+*Amended by [Memory for heavy work](memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) (2026-11-05): the "81 %" was `kern.memorystatus_level`, which counts resident anonymous memory — every live process's own — as available; on a loaded Mac it read 8.0 of 16 GB with 8 of 9 GB of swap in use. Context there.*
+
 "Real free resources" therefore needs each OS's own measure, with its limits
 applied.
 
@@ -91,6 +93,8 @@ Decision drivers:
      - Windows: `os.freemem()`, which is available physical memory there.
      - Anything else, or when every probe fails: `os.freemem()`, reported as
        a lower bound.
+
+     *Amended by [Memory for heavy work](memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) (2026-11-05): on macOS available memory follows `kern.memorystatus_vm_pressure_level` — normal: `vm_stat` free + inactive + speculative + purgeable; warning: free + file-backed + purgeable; unreadable: the smaller of the two; critical: 0 — with `kern.memorystatus_level` only as a fallback labelled an upper bound. On Linux a cgroup's usage excludes inactive file pages.*
    - **The heavy jobs holding slots** (Decision 2).
 
    From these, `can_start` says how many more heavy jobs the machine takes
@@ -101,6 +105,8 @@ Decision drivers:
      cores, at least one;
    - (c) available memory covers one job's share: the smaller of 2 GB and a
      quarter of the memory, so a small container is not refused forever.
+
+     *Amended by [Memory for heavy work](memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) (2026-11-05): in (c) the share is the smaller of 2 GB and half the memory, and each live holder reserves one share: memory for a new job is available − holders × share.*
 
    Load averages lag, so (a) — enforced under the lock of Decision 2 — is
    what stops two jobs starting in the same minute. (b) and (c) are what make
@@ -336,6 +342,8 @@ Decision drivers:
      on Windows), so the command and everything it starts inherit it. It
      passes interrupts and termination on, releases the slot on exit, and
      exits with the command's code.
+
+     *Amended by [Memory for heavy work](memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) (2026-11-05): on Linux only the job gets `oom_score_adj` 1000 (the wrapper writes its own value back after the spawn); under a reachable systemd user manager the job runs in a scope of its own (`systemd-run --user --scope`); a command not on `PATH` still exits 127; the record names the job's pid and stays live while the job runs.*
    - **One table per machine.** The table lives per host in the machine
      state directory, and every session in any harness and any project,
      Waypost's own jobs included, shares it.
@@ -351,6 +359,8 @@ Decision drivers:
    test (ADR-0008: the block stays under 1400 characters, and it is 1333
    today) without raising it. That leaves about 20 characters, so any later
    addition to the block has to fit the same test.
+
+   *Amended by [Memory for heavy work](memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) (2026-11-05): the line became "Heavy work: `waypost run --heavy -- <cmd>`; no agents beside it." (block v3); the block has been rebudgeted since (v4, ADR-0008's test).*
 
    Everything else is on demand. The refusal message says why and how to
    retry. `waypost prompt heavy` gives the procedure:
@@ -396,6 +406,8 @@ Decision drivers:
    anything else waits.
 4. Each OS's own memory measure avoids the trap measured on the owner's Mac:
    0.18 GB "free" against 81 % of 16 GB available.
+
+   *Amended by [Memory for heavy work](memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) (2026-11-05): the 81 % itself was optimistic — see the amendment in Context.*
 5. A lock around the check, and liveness by start and boot time, make the cap
    hold in exactly the moment it exists for: several sessions starting at
    once, right after a restart.
@@ -469,6 +481,8 @@ stale record would hold the only slot of a small machine indefinitely.
   `vm_stat` fallback on macOS, `/proc` and cgroup files on Linux, a CPU
   sample on Windows. `kern.memorystatus_level` is undocumented, which is why
   the fallback exists.
+
+  *Amended by [Memory for heavy work](memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) (2026-11-05): `vm_stat` is now the first probe on macOS and `kern.memorystatus_level` the fallback.*
 - WSL and native Windows on one computer keep two slot tables: WSL is a Linux
   virtual machine with its own state directory. Each side sees the other only
   as load. This is a known limitation, not in scope.
@@ -496,6 +510,8 @@ On 2026-09-15 the owner answered the open questions and approved this ADR:
 1. One heavy job's share is a quarter of the cores (at least one) and the
    smaller of 2 GB and a quarter of the memory. There is one slot per four
    cores, at least one.
+
+   *Amended by [Memory for heavy work](memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job.md) (2026-11-05): the memory share is the smaller of 2 GB and half the memory (owner, 2026-09-27).*
 2. Heavy work runs at lowered priority: nice +10 on POSIX, below-normal on
    Windows.
 3. The safety bounds stand as written:
