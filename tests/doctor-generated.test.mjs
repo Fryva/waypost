@@ -54,6 +54,7 @@ test("doctor generated module: full index findings preserve escaped pipes, order
   ]);
   const before = JSON.stringify({ layout, arts });
   assert.deepEqual(focused.checkIndexes({ vault_path: root }, layout, arts), [
+    { group: "vault", level: "issue", check: "index", message: "adr/README.md's index table is out of sync with frontmatter — run waypost reconcile --write.", file: "adr/README.md" },
     { group: "vault", level: "issue", check: "index", message: 'adr/README.md lists "bad" as "draft" but its frontmatter says "accepted".', file: "adr/bad.md" },
     { group: "vault", level: "warn", check: "index", message: 'adr/README.md title for "bad" differs from frontmatter title.', file: "adr/bad.md" },
     { group: "vault", level: "issue", check: "index", message: 'adr/README.md row "ghost" points at a missing file: ghost.md', file: "adr/README.md" },

@@ -79,6 +79,11 @@ must be able to comply by adding three lines.
 driver (`waypost merge-derived`) ignores both sides and regenerates the file from the
 artifacts — which git has already merged by then. A conflict in a generated file
 stops existing as a class.
+*Amended by [[the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge]]
+(2026-11-06, proposed): the artifacts are not on disk yet when the driver runs, and
+regenerating wrote into the worktree mid-sequence; the driver keeps our side, and the
+view is re-derived after the merge (`waypost merge`/`commit`/`reconcile`; `doctor`
+reports it stale).*
 
 **Claims.** `waypost story plan --write` records a claim in this session's file in
 the vault and `close` releases it; `waypost sessions` shows who is on what; and
@@ -119,6 +124,10 @@ merges with `--no-commit`, reconciles, and commits through the same path, which
 puts the correct board in the merge commit itself. With a plain `git merge` the
 residual drift is caught by `waypost doctor` (the `kanban` check) and fixed by
 `waypost reconcile --write` — documented behaviour rather than a silent gap.
+*Amended by [[the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge]]
+(2026-11-06, proposed): the driver no longer regenerates at all; it keeps our side of a
+whole view, so a plain `git merge` commits the board of the current branch, stale until
+re-derived.*
 
 Session identity resolves as: `--id` → `$WAYPOST_SESSION_ID` → a harness session env
 var (`CLAUDE_CODE_SESSION_ID`, `CLAUDE_SESSION_ID`, `CODEX_SESSION_ID`) → a
@@ -167,6 +176,9 @@ presence records and two `Waypost-Session` values for one session.
 - The driver regenerates silently; when regeneration is impossible it exits
   non-zero and leaves the conflict to a human, which is preferable to writing a
   guess.
+  *Amended by [[the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge]]
+  (2026-11-06, proposed): it no longer regenerates; a file it cannot tell for a
+  derived view is merged as plain text, with markers on a conflict.*
 
 ## Verification and follow-up
 

@@ -73,7 +73,7 @@ export function applyFixes(cfg, proj, findings) {
       if (!/merge=waypost-derived/.test(text)) {
         const block = [
           "", "# waypost: derived views are regenerated from the artifacts, never merged.",
-          "# `waypost merge-derived` re-derives them; see docs/vault/adr/0006-*.md.",
+          "# `waypost merge-derived` keeps our side; waypost merge/commit/reconcile re-derive it.",
           `${rel}/kanban.md merge=waypost-derived`,
           `${rel}/graph.md merge=waypost-derived`,
           `${rel}/code-map.md merge=waypost-derived`,

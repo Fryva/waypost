@@ -3,21 +3,27 @@ type: story
 id: "story-the-merge-driver-regenerates-a-derived-view-without-writing-into-the-worktree"
 epic: "WP-15"
 title: "The merge driver regenerates a derived view without writing into the worktree"
-status: planned
+status: done
 priority: p2
 assignee: "Ivan Morozov"
 created: 2026-09-24
-updated: 2026-09-24
+updated: 2026-11-06
 external_refs: {}
 tags: ["merge", "commit-protocol", "bug"]
 code_refs:
   - scripts/merge-derived.mjs
-  - scripts/reconcile.mjs
-  - tests/merge-derived.test.mjs (waiting)
+  - scripts/commit.mjs
+  - scripts/doctor-generated.mjs
+  - scripts/doctor-repairs.mjs
+  - tests/commits.test.mjs
+  - tests/doctor-generated.test.mjs
+  - tests/doctor-repairs.test.mjs
+  - bin/cli/help.mjs
+  - docs/how-it-works.md
 specs: []
-started_at: null
-closed_at: null
-plan_updated_at: null
+started_at: "2026-11-06T14:42:51.989Z"
+closed_at: "2026-11-06T17:19:40.871Z"
+plan_updated_at: "2026-11-06T14:42:51.989Z"
 ---
 
 # The merge driver regenerates a derived view without writing into the worktree
@@ -25,7 +31,7 @@ plan_updated_at: null
 | Field | Value |
 |---|---|
 | **Epic** | [WP-15](../epic.md) |
-| **Status** | planned |
+| **Status** | done |
 | **Priority** | p2 |
 | **Assignee** | Ivan Morozov |
 
@@ -70,14 +76,14 @@ right by the next reconcile.
 
 ## Decomposition
 
-- [ ] A reproduction test first: a temporary repo with the driver configured, a branch of two
+- [x] A reproduction test first: a temporary repo with the driver configured, a branch of two
       commits that each change a story and regenerate `kanban.md`, `git cherry-pick` of the range
       onto the base — it fails today
-- [ ] Confirm or refute "reconcile reads the pre-merge vault" with the same fixture
-- [ ] Make the driver write only to `%A` and never to the worktree
-- [ ] Make the result reflect the merged artifacts, or say plainly that it does not and who
+- [x] Confirm or refute "reconcile reads the pre-merge vault" with the same fixture
+- [x] Make the driver write only to `%A` and never to the worktree
+- [x] Make the result reflect the merged artifacts, or say plainly that it does not and who
       rebuilds it (see Technical Notes)
-- [ ] CHANGELOG entry; fix the header comment of `scripts/merge-derived.mjs`
+- [x] CHANGELOG entry; fix the header comment of `scripts/merge-derived.mjs`
 
 ## Implementation Plan
 
@@ -85,16 +91,67 @@ right by the next reconcile.
      codebase. When a spec covers this story, this is a thin route through the
      spec's contracts: which contracts, in what order, which files. -->
 
+Owner's decisions (2026-11-06): the driver keeps our side; the change is a new
+ADR "The merge driver keeps our side of a derived view; regeneration happens
+after the merge" (proposed) amending ADR-0006's derived-views paragraph.
+
+1. `tests/commits.test.mjs` — a diverged branch of three story commits and a
+   story on `main`, driver wired by `doctor --fix`; plain `git cherry-pick
+   main..b`, `rebase main` and `merge b`: exit 0, clean `git status`, every
+   story in the tree, `doctor` reports the stale board, `reconcile` fixes it.
+   With the old driver cherry-pick and rebase fail (checked by swapping it in).
+2. Confirmed: after cherry-picking "story Alpha" the committed board had no
+   Alpha — the driver reads the pre-merge vault.
+3. `scripts/merge-derived.mjs` — writes only `%A`: kanban/graph/code-map keep
+   our side; a layout folder's index README keeps our table and merges its
+   prose three-way (`git merge-file`, markers + exit 1 on a prose conflict);
+   anything else merges as plain text. Scratch files in the OS temp dir.
+   (Critic pass: the first draft kept our side of every README and lost human
+   prose.)
+4. `scripts/doctor-generated.mjs` — the folder index table is compared whole
+   with what reconcile would write (issue), as kanban/graph/code-map are.
+5. `scripts/commit.mjs` — `waypost commit -- <paths>` says when a view
+   reconcile rewrote is not among the paths.
+6. Help, `docs/how-it-works.md`, `AGENTS.md`, README, the `.gitattributes` comment
+   `doctor --fix` writes, CHANGELOG; ADR-0006 "Amended by" note.
+
 ## Acceptance Criteria
 
-- [ ] A multi-commit `git cherry-pick` whose commits touch derived views completes without
-      disabling the driver, and `git status` is clean afterwards
-- [ ] The same holds for `git merge` and `git rebase` of such a branch
-- [ ] The driver never modifies a worktree file; only `%A`
-- [ ] After the operation, the committed derived view equals what `waypost reconcile --write` would
-      produce from the merged artifacts, or `waypost doctor` reports it as stale
+- [x] A multi-commit `git cherry-pick` whose commits touch derived views completes without
+      disabling the driver, and `git status` is clean afterwards — evidence:
+      tests/commits.test.mjs "a cherry-pick of a range whose commits regenerate the board…";
+      fails against the old driver ("Your local changes … would be overwritten by merge");
+      a views-only commit stops as empty by git's design, `--skip` goes on (test "a commit
+      that changed only the views…")
+- [x] The same holds for `git merge` and `git rebase` of such a branch — evidence: the rebase
+      and merge variants of the same test; rebase fails against the old driver
+- [x] The driver never modifies a worktree file; only `%A` — evidence: scripts/merge-derived.mjs
+      writes only `%A` (scratch files in the OS temp dir); tests "keeps our side of a whole
+      generated view and writes nothing else", clean `git status` in the sequence tests
+- [x] After the operation, the committed derived view equals what `waypost reconcile --write` would
+      produce from the merged artifacts, or `waypost doctor` reports it as stale — evidence:
+      kanban/graph/code-map compared whole (issue); folder index tables now compared whole with
+      `rebuildIndexRows` (scripts/doctor-generated.mjs, issue; tests/doctor-generated.test.mjs);
+      the sequence tests assert the doctor issue and that reconcile restores every story
 
 ## Final Summary
+
+Reproduced on 2026-11-06: a 3-commit cherry-pick stopped on a "local change" the
+driver wrote into the worktree, and the picked commit's board missed its own story
+(the driver reads the pre-merge vault; merge-ort writes the worktree after drivers).
+Owner's decisions: the driver keeps our side; a new ADR "The merge driver keeps our
+side of a derived view; regeneration happens after the merge" (proposed) amends
+ADR-0006. After the critic pass the driver distinguishes whole views (ours), a
+layout folder's index README (our table, prose merged three-way with markers on a
+conflict) and anything else (plain text merge) — the first draft lost human prose.
+`doctor` compares index tables whole; `waypost commit -- <paths>` names a view it
+rewrote but did not stage.
+
+Tests: 13 merge-driver/WP-15 tests in tests/commits.test.mjs; full npm test 2580
+pass, 0 fail. Fresh-context waypost-critic (revise → addressed) and waypost-reviewer
+(AC4 gap for indexes → fixed). Left open: the ADR needs the owner's acceptance; a
+merge on a forge runs no driver; a teammate on an older CLI runs the old driver;
+`plainMerge` ignores `-X ours|theirs` and `conflict-marker-size`.
 
 <!-- Written at the done gate (waypost story close): what changed, why,
      tests executed, risks and follow-ups. -->
@@ -122,4 +179,4 @@ right by the next reconcile.
 
 ---
 
-*Last updated: 2026-09-24*
+*Last updated: 2026-11-06*

@@ -233,9 +233,13 @@ when they are missing, as it does roles (not when the vault policy says
 - `waypost log [--story|--task|--harness|--provider|--session|--os <v>]` — reads that back.
 - `waypost merge <ref>` — merge without auto-commit, reconcile, then commit, so the
   board in the merge commit matches the merged vault.
-- `waypost merge-derived` — the git merge driver: a conflict in a generated file is
-  resolved by regeneration rather than line by line. Installed by
-  `waypost doctor --fix`.
+- `waypost merge-derived` — the git merge driver: a generated file is never merged
+  line by line; the driver keeps our side of the board, graph and code map (git has
+  not put the merged artifacts on disk yet, so no current view can be built), keeps
+  our table in a folder index README while merging its prose, and writes nothing
+  but the result git asked for. `waypost merge`, `waypost commit` and
+  `waypost reconcile --write` re-derive it afterwards, and `waypost doctor` reports a
+  view left stale. Installed by `waypost doctor --fix`.
 - `waypost sessions --claim/--release` (and automatically at the story gates) — who
   is working on what.
 

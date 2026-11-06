@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { spawnSync } from "node:child_process";
 import { pluginRoot, projectRoot, indexHeaderRe, unescCell } from "./lib.mjs";
+import { rebuildIndexRows } from "./reconcile.mjs";
 
 function finding(group, level, check, message, file) {
   const f = { group, level, check, message };
@@ -52,8 +53,18 @@ export function checkIndexes(cfg, layout, artifacts) {
   for (const folder of layout.folders) {
     const readme = join(vault, folder.path, "README.md");
     if (!existsSync(readme)) continue;
+    const text = readFileSync(readme, "utf8");
+    // The whole managed table against what reconcile would write — the same
+    // full comparison kanban/graph/code-map get. A merge keeps one side's
+    // table (the merge driver, WP-15), and a row with a stale date or order
+    // is caught by nothing below.
+    const rebuilt = rebuildIndexRows(text, folder, artifacts);
+    if (!rebuilt.unusable && rebuilt.content !== text) {
+      out.push(finding("vault", "issue", "index",
+        `${folder.path}/README.md's index table is out of sync with frontmatter — run waypost reconcile --write.`, `${folder.path}/README.md`));
+    }
     let rows = [];
-    for (const line of readFileSync(readme, "utf8").split("\n")) {
+    for (const line of text.split("\n")) {
       const m = line.match(rowRx);
       if (m) rows.push({ label: m[1], target: m[2].replace(/^\.\//, ""), title: unescCell(m[3]).trim(), status: m[4].trim() });
     }

@@ -112,8 +112,9 @@ WORKING IN SEVERAL HARNESSES AT ONCE
                            current scope and limits: docs/team-coordination.md
   storage                  what the vault is stored on and how far behind
                            another device's presence can be
-  merge-derived <file>     git merge driver: regenerate a derived view instead
-                           of merging two machine-written copies of it
+  merge-derived <file>     git merge driver: keep our side of a derived view
+                           (an index README merges its prose); merge/commit/
+                           reconcile re-derive it afterwards
 
 ROLES (same roles in every harness)
   agents list              roles + per-harness install state

@@ -691,7 +691,7 @@ test("doctor reports the merge driver, and repairs a stale one", () => {
     `the driver must not hard-code this interpreter: ${driver}`);
 });
 
-test("the merge driver refuses rather than guessing when it cannot re-derive", () => {
+test("the merge driver refuses a file it cannot tell for a derived view", () => {
   const proj = repo();
   const r = spawnSync(process.execPath, [join(REPO, "scripts", "merge-derived.mjs"), join(proj, "README.md")], {
     encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO },
@@ -732,24 +732,145 @@ test("a lease another session holds is found over a staged vault file, on either
   });
 });
 
-test("the merge driver re-derives a view rather than merging it, board and folder index alike (WP-18)", () => {
-  const proj = repo();
+function driver(proj, view, files) {
   const tmp = mkdtempSync(join(tmpdir(), "waypost-md-"));
-  // %A %O %B %P, as git calls it: the first is the file git wants the result
-  // in, the last is the path in the worktree.
-  for (const [view, marker] of [["kanban.md", /kanban-plugin: board/], [join("epics", "README.md"), /PS-1/]]) {
-    const a = join(tmp, "A");
-    for (const [f, text] of [["A", "ours"], ["O", "base"], ["B", "theirs"]]) writeFileSync(join(tmp, f), text + "\n", "utf8");
-    const r = spawnSync(process.execPath,
-      [join(REPO, "scripts", "merge-derived.mjs"), a, join(tmp, "O"), join(tmp, "B"), join("vault", view)],
-      { encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO } });
-    // On Windows this exited 1 with "not a derived view" for every one of
-    // them, and git kept the conflict markers in a file ADR-0006 says is
-    // never merged in the first place.
+  for (const [f, text] of Object.entries(files)) writeFileSync(join(tmp, f), text, "utf8");
+  const r = spawnSync(process.execPath,
+    [join(REPO, "scripts", "merge-derived.mjs"), join(tmp, "A"), join(tmp, "O"), join(tmp, "B"), join("vault", view)],
+    { encoding: "utf8", cwd: proj, env: { ...ambientEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO } });
+  return { r, result: readFileSync(join(tmp, "A"), "utf8"), leftovers: readdirSync(tmp).filter((f) => !["A", "O", "B"].includes(f)) };
+}
+
+test("the merge driver keeps our side of a whole generated view and writes nothing else (WP-15)", () => {
+  const proj = repo();
+  for (const view of ["kanban.md", "graph.md", "code-map.md"]) {
+    const before = existsSync(join(proj, "vault", view)) ? readFileSync(join(proj, "vault", view), "utf8") : null;
+    const { r, result } = driver(proj, view, { A: "ours\n", O: "base\n", B: "theirs\n" });
     assert.equal(r.status, 0, `${view}: ${r.stderr}${r.stdout}`);
-    assert.match(r.stderr, /regenerated/);
-    assert.match(readFileSync(a, "utf8"), marker, `${view} was re-derived into the file git asked for`);
+    assert.match(r.stderr, /kept our/);
+    assert.equal(result, "ours\n", `${view}: the result is our side, untouched`);
+    const after = existsSync(join(proj, "vault", view)) ? readFileSync(join(proj, "vault", view), "utf8") : null;
+    assert.equal(after, before, `${view}: the worktree file is never written`);
   }
+});
+
+const INDEX = (prose, rows, tail = "") => `# ADRs\n\n${prose}\n\n## Index\n\n| File | Title | Status | Date |\n|------|-------|--------|------|\n${rows.map((r) => `| [${r}](./${r}.md) | ${r} | proposed | 2026-11-06 |`).join("\n")}${rows.length ? "\n" : ""}\n${tail}footer\n`;
+
+test("a folder index README: the humans' prose is merged three-way, the table is ours (WP-15)", () => {
+  const proj = repo();
+  const { r, result, leftovers } = driver(proj, join("adr", "README.md"), {
+    O: INDEX("Process step one.", ["a"]),
+    A: INDEX("Process step one.", ["a", "ours-adr"]),
+    B: INDEX("Process step one, reworded.", ["a", "theirs-adr"], "A note at the end.\n"),
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(result, /Process step one, reworded\./, "their prose edit survives");
+  assert.match(result, /A note at the end\./, "their prose after the table survives");
+  assert.match(result, /ours-adr/, "the table is ours…");
+  assert.doesNotMatch(result, /theirs-adr/, "…not a merge of two tables (reconcile rebuilds it)");
+  assert.deepEqual(leftovers, [], "no temp files left beside %A");
+});
+
+test("a folder index README that starts with its table round-trips byte for byte (WP-15)", () => {
+  const proj = repo();
+  const t = "| File | Title | Status | Date |\n|------|-------|--------|------|\n| [a](./a.md) | a | proposed | 2026-11-06 |\n";
+  const { r, result } = driver(proj, join("adr", "README.md"), { O: t + "x\n", A: t + "x\n", B: t + "y\n" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(result, t + "y\n");
+});
+
+test("a folder index README whose prose conflicts is left to a human with markers (WP-15)", () => {
+  const proj = repo();
+  const { r, result } = driver(proj, join("adr", "README.md"), {
+    O: INDEX("Step.", ["a"]), A: INDEX("Our step.", ["a"]), B: INDEX("Their step.", ["a"]),
+  });
+  assert.equal(r.status, 1);
+  assert.match(result, /<<<<<<< ours[\s\S]*Our step\.[\s\S]*Their step\.[\s\S]*>>>>>>> theirs/);
+});
+
+test("a README that is not a layout folder's index is merged as plain text, never one side (WP-15)", () => {
+  const proj = repo();
+  const view = join("research", "topic", "README.md");
+  let { r, result } = driver(proj, view, { O: "one\ntwo\nthree\n", A: "ONE\ntwo\nthree\n", B: "one\ntwo\nTHREE\n" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(result, "ONE\ntwo\nTHREE\n", "both edits kept, as git would");
+  ({ r, result } = driver(proj, view, { O: "x\n", A: "ours\n", B: "theirs\n" }));
+  assert.equal(r.status, 1);
+  assert.match(result, /<<<<<<< ours/, "a conflict carries markers, not our side silently");
+});
+
+// WP-15, seen 2026-09-23: the driver regenerated into the worktree in the
+// middle of a sequence, and the third commit of a cherry-pick was refused as a
+// "local change". Every sequencer git has: cherry-pick, rebase, merge.
+function diverged() {
+  const proj = repo();
+  waypost(proj, ["doctor", "--fix"]);
+  // This checkout's driver, not whatever `waypost` is on PATH.
+  git(proj, ["config", "merge.waypost-derived.driver", `"${process.execPath}" "${join(REPO, "scripts", "merge-derived.mjs")}" %A %O %B %P`]);
+  git(proj, ["add", "-A"]);
+  git(proj, ["commit", "-qm", "wire the merge driver"]);
+  const base = git(proj, ["rev-parse", "HEAD"]).stdout.trim();
+  git(proj, ["checkout", "-qb", "b"]);
+  for (const t of ["Alpha", "Beta", "Gamma"]) {
+    waypost(proj, ["draft", "story", "PS-1", t, "--write"]);
+    git(proj, ["add", "-A"]);
+    git(proj, ["commit", "-qm", `story ${t}`]);
+  }
+  git(proj, ["checkout", "-q", "main"]);
+  waypost(proj, ["draft", "story", "PS-1", "Main", "--write"]);
+  git(proj, ["add", "-A"]);
+  git(proj, ["commit", "-qm", "story Main"]);
+  return { proj, base };
+}
+
+// git as a user runs it: no WAYPOST_* from the suite's own environment.
+const userGit = (proj, args) => git(proj, args, { env: ambientEnv() });
+for (const [how, run] of [
+  ["cherry-pick of a range", (proj) => userGit(proj, ["cherry-pick", "main..b"])],
+  ["rebase", (proj) => { userGit(proj, ["checkout", "-q", "b"]); return userGit(proj, ["rebase", "main"]); }],
+  ["merge", (proj) => userGit(proj, ["merge", "--no-edit", "b"])],
+]) {
+  test(`a ${how} whose commits regenerate the board completes with the driver on, and the worktree is clean (WP-15)`, () => {
+    const { proj } = diverged();
+    const r = run(proj);
+    assert.equal(r.status, 0, `${how}: ${r.stderr}${r.stdout}`);
+    assert.match(r.stderr, /merge-derived: kept our kanban\.md/, `${how}: the driver really ran`);
+    assert.equal(git(proj, ["status", "--porcelain"]).stdout, "", `${how}: nothing left behind in the worktree`);
+    const stories = git(proj, ["ls-tree", "-r", "--name-only", "HEAD", "vault/epics/PS-1/stories"]).stdout;
+    for (const t of ["alpha", "beta", "gamma", "main"]) assert.match(stories, new RegExp(`story-${t}\\.md`), `${how}: story ${t} landed`);
+    // The board kept one side, so it is stale — and says so, rather than
+    // passing a view built from the pre-merge vault off as current.
+    const findings = JSON.parse(waypost(proj, ["doctor", "--vault", "--json"], { expectFail: true }).stdout);
+    assert.ok(findings.some((f) => f.check === "kanban" && f.level === "issue"), `${how}: doctor reports the stale board`);
+    waypost(proj, ["reconcile", "--write"]);
+    const board = readFileSync(join(proj, "vault", "kanban.md"), "utf8");
+    for (const t of ["Alpha", "Beta", "Gamma", "Main"]) assert.match(board, new RegExp(t), `${how}: reconcile puts ${t} back`);
+  });
+}
+
+test("after a plain cherry-pick, `waypost commit -- <paths>` says the view it rewrote is not staged (WP-15)", () => {
+  const { proj } = diverged();
+  assert.equal(userGit(proj, ["cherry-pick", "main..b"]).status, 0);
+  writeFileSync(join(proj, "notes.txt"), "n\n");
+  const r = waypost(proj, ["commit", "-m", "notes", "--", "notes.txt"], { session: "s-notes" });
+  assert.match(r.stderr, /reconcile rewrote .*kanban\.md.*not staged/);
+  const all = waypost(proj, ["commit", "-m", "views", "--", "vault"], { session: "s-notes" });
+  assert.doesNotMatch(all.stderr, /not staged/);
+  assert.match(git(proj, ["show", "HEAD:vault/kanban.md"]).stdout, /Gamma/, "the views commit carries the current board");
+});
+
+test("a commit that changed only the views becomes empty in a cherry-pick, and --skip goes on (WP-15)", () => {
+  const { proj } = diverged();
+  git(proj, ["checkout", "-q", "b"]);
+  writeFileSync(join(proj, "vault", "kanban.md"), readFileSync(join(proj, "vault", "kanban.md"), "utf8") + "\n");
+  git(proj, ["commit", "-qam", "regenerate the views"]);
+  git(proj, ["checkout", "-q", "main"]);
+  const r = userGit(proj, ["cherry-pick", "main..b"]);
+  assert.notEqual(r.status, 0, "git stops on the commit the driver emptied");
+  assert.match(`${r.stderr}${r.stdout}`, /empty|nothing to commit/i, r.stderr);
+  assert.equal(userGit(proj, ["cherry-pick", "--skip"]).status, 0);
+  assert.equal(git(proj, ["status", "--porcelain"]).stdout, "");
+  assert.match(git(proj, ["ls-tree", "-r", "--name-only", "HEAD"]).stdout, /story-gamma\.md/);
 });
 
 test("Codex thread preserves claims and leases across distinct command parents", () => {

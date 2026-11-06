@@ -7,7 +7,7 @@
 *.mjs text eol=lf
 
 # waypost: derived views are regenerated from the artifacts, never merged.
-# `waypost merge-derived` re-derives them; see docs/decisions/0006-*.md.
+# `waypost merge-derived` keeps our side; waypost merge/commit/reconcile re-derive it.
 docs/vault/kanban.md merge=waypost-derived
 docs/vault/graph.md merge=waypost-derived
 docs/vault/code-map.md merge=waypost-derived

@@ -95,7 +95,7 @@ One project may be driven by several sessions at the same time (ADR-0006):
 - **Opening a story claims it** (`waypost story plan --write`), closing releases it.
   Check `waypost sessions` first: if a story is already held, that is duplicated work.
 - **Never merge derived views by hand.** `waypost doctor --fix` wires `.gitattributes` and the merge
-  driver; a conflict in `kanban.md`/`graph.md`/`code-map.md`/an index is resolved by regeneration.
+  driver; a conflict in `kanban.md`/`graph.md`/`code-map.md`/an index keeps our side.
   Prefer `waypost merge <ref>`, which puts the correct board in the merge commit itself.
 - **Session identity**: a harness should export `WAYPOST_SESSION_ID` (and
   `WAYPOST_HARNESS` when it cannot be detected from the environment), otherwise the

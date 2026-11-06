@@ -31,8 +31,8 @@
 // commit by hand only has to add the trailer lines.
 //
 // `--merge <ref>` exists for one reason: `git merge` auto-commits, and the
-// derived views it writes mid-merge can be one artifact short (the merge driver
-// re-derives from a worktree git has not finished checking out). Merging with
+// merge driver cannot build a current view mid-merge (the merged artifacts are
+// not on disk yet), so it keeps our side and the view is stale. Merging with
 // --no-commit, reconciling, then committing puts the correct board in the merge
 // commit itself instead of in a follow-up nobody remembers to make.
 //
@@ -241,6 +241,7 @@ function main() {
 
   // Derived views belong in the commit that caused them, not in a later
   // "regenerate" commit nobody can attribute.
+  let rewrote = [];
   if (cfg && cfg.vault_path && !has("--no-reconcile")) {
     const r = spawnSync(process.execPath, [join(pluginDir(), "reconcile.mjs"), "--write"], {
       encoding: "utf8", env: process.env,
@@ -248,6 +249,11 @@ function main() {
     if (r.status !== 0) {
       die(`reconcile failed, so the derived views would land stale:\n${(r.stderr || r.stdout || "").trim()}`);
     }
+    try {
+      const out = JSON.parse(r.stdout || "{}");
+      rewrote = [out.kanban, out.codemap, out.graph, ...(out.indexes || [])]
+        .filter((t) => t && t.written && t.path && pathUnder(t.path, projectRoot())).map((t) => t.path);
+    } catch { /* an older reconcile's output: no hint */ }
   }
 
   // `--all` means everything not ignored, not `git commit -a` semantics: this
@@ -275,6 +281,15 @@ function main() {
   if (has("--tracked")) git(["add", "-u"], io);
   if (pathspec.length) git(["add", "--", ...pathspec], io);
   const staged = stagedFiles(io);
+  // With explicit paths, a view reconcile just rewrote (after a plain git
+  // merge/cherry-pick/rebase left it stale — the merge driver keeps one side)
+  // is not staged unless named: say so, rather than leave it to drift.
+  if (rewrote.length) {
+    const left = (git(["diff", "--name-only", "--", ...rewrote], io).stdout || "").split("\n").filter(Boolean);
+    if (left.length) {
+      process.stderr.write(`waypost commit: reconcile rewrote ${left.join(", ")}, not staged — add them (-- <paths>) to put the current views in this commit\n`);
+    }
+  }
   if (!staged.length) {
     die("nothing staged. Stage the change, or pass --all (everything not ignored, minus .waypost/) or -- <paths>.");
   }

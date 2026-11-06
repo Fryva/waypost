@@ -107,7 +107,7 @@ test("doctor repairs module: merge repair preserves attribute order and actual G
   git(root, "init", "-q");
   put(".gitattributes", "# keep\n");
   assert.deepEqual(applyFixes(cfg, root, findings(["merge-driver"])), [".gitattributes += merge=waypost-derived for the derived views", "git config merge.waypost-derived.driver"]);
-  assert.equal(readFileSync(join(root, ".gitattributes"), "utf8"), "# keep\n\n# waypost: derived views are regenerated from the artifacts, never merged.\n# `waypost merge-derived` re-derives them; see docs/vault/adr/0006-*.md.\nvault/kanban.md merge=waypost-derived\nvault/graph.md merge=waypost-derived\nvault/code-map.md merge=waypost-derived\nvault/**/README.md merge=waypost-derived\n");
+  assert.equal(readFileSync(join(root, ".gitattributes"), "utf8"), "# keep\n\n# waypost: derived views are regenerated from the artifacts, never merged.\n# `waypost merge-derived` keeps our side; waypost merge/commit/reconcile re-derive it.\nvault/kanban.md merge=waypost-derived\nvault/graph.md merge=waypost-derived\nvault/code-map.md merge=waypost-derived\nvault/**/README.md merge=waypost-derived\n");
   assert.equal(git(root, "config", "--get", "merge.waypost-derived.driver"), mergeDriverCommand());
   assert.equal(git(root, "config", "--get", "merge.waypost-derived.name"), "regenerate waypost derived views");
   const before = files(root);
