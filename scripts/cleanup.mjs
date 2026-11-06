@@ -46,7 +46,7 @@
 //                                                        class, reason, route, picked }]
 //   orderOldestFirst(items)                       -> items, oldest newest_ms first
 //   countedBytes(items)                           -> number
-//   qualifiesForLimit(item, now)                  -> boolean (should + kind + 7-day floor)
+//   qualifiesForLimit(item, now)                  -> boolean (should + kind + 1-day floor)
 //   pickUnderLimit(classifiedItems, limit, now, { shortfall, dev }) -> Set<path>
 //   recheck(item, freshFacts, facts)              -> { class, reason, route, changed, item }
 //   consent({ yes, reason, isTTY, harnessDetected }) -> { method, ok, reason? }

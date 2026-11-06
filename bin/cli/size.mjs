@@ -28,7 +28,7 @@ async function handleSize(args) {
     const dir = slotsDir(presence);
     try { ensureMachineStateDir(dir); } catch (e) { fail(`size --global: ${stateWriteHint(dir, e)}`); }
     const where = slotWhere(process.cwd());
-    const claim = await claimSlot(dir, ["waypost", "size", "--global"], capacity, presence, where);
+    const claim = await claimSlot(dir, ["waypost", "size", "--global"], capacity, presence, where, { disk: false });
     if (!claim.ok) {
       process.stderr.write(`waypost size --global: refused — ${claim.reason}\n  retry: waypost size --global\n`);
       process.exitCode = EX_TEMPFAIL;

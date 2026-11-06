@@ -35,7 +35,7 @@ Use `waypost help` for the installed CLI. Required project procedures remain in
 | `waypost lease <path…>` | announce the files you are editing right now; `lease list` groups adjacent identical owners when shorter, retaining every path and mine/live flag; `--json` retains full records |
 | `waypost storage` | what the vault is stored on and how far behind presence can be |
 | `waypost prompt [name]` / `waypost skill [name]` | loop procedures and skills |
-| `waypost capacity [--json] [--release <id>]` | the machine's real free resources right now, and how many more heavy jobs it can take |
+| `waypost capacity [--json] [--release <id>]` | the machine's real free resources right now (cores, memory, free disk under the working directory), and how many more heavy jobs it can take; a job needs a system reserve of min(30 GiB, 15 % of the disk) plus min(20 GiB, 20 %) per job, live holders included |
 | `waypost run --heavy [--wait <Ns\|Nm>] [--beside-agents] -- <cmd…>` | the rule: heavy work (a build, a full test suite, a simulator/emulator boot, a whole-disk scan, a background agent that builds or tests) always runs through this, never directly; refused = exit 75 (`waypost prompt heavy`). The job sees its own slot as `WAYPOST_HEAVY_SLOT`; while another job is live, `brief` and `status` name it and `waypost team` starts no peer (`heavy-job-live`) unless the owner allows it with `WAYPOST_BESIDE_HEAVY=1`; in the other order, a job is refused while `waypost team` peers run (`agents live`; `capacity` lists them) unless the owner passes `--beside-agents` |
 | `waypost status`, `waypost help` | summary and full help |
 

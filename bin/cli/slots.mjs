@@ -104,7 +104,12 @@ function slotWhere(dir) {
 // (heavy-jobs.mjs registerPeer), so a peer start and a claim never both pass.
 // `beside` is the owner's go-ahead (`--beside-agents`): the peers are named
 // and the claim goes on.
-async function claimSlot(dir, argv, capacity, presence, where = null, { agents = false, beside = false } = {}) {
+// `disk: false` — the commands that free space or only measure it (clean,
+// size --global, setup --audit) are never refused for lack of it.
+async function claimSlot(dir, argv, capacity, presence, where = null, { agents = false, beside = false, disk = true } = {}) {
+  // The disk is read before the lock: a statfs on a hung mount must not hold
+  // the machine-wide lock (the disk-space ADR).
+  const reading = disk && typeof capacity.readDisk === "function" ? capacity.readDisk(process.cwd()) : undefined;
   const lockDir = await acquireLock(dir, presence, capacity);
   if (!lockDir) {
     return { ok: false, reason: "the slot lock is busy — another `waypost run --heavy` is claiming, or a `waypost team` peer is registering, right now" };
@@ -122,7 +127,7 @@ async function claimSlot(dir, argv, capacity, presence, where = null, { agents =
         besideNamed = named;
       }
     }
-    const m = await capacity.measure({ holders: holders.live, env: process.env });
+    const m = await capacity.measure({ holders: holders.live, env: process.env, ...(disk ? { reading } : { dir: null }) });
     warnIfProbed(m);
     if (m.can_start <= 0) return { ok: false, reason: m.reason || "no heavy job slot available" };
 

@@ -45,9 +45,12 @@ this is not scoped to the current project.
    whatever your harness offers — rather than blocking the turn on it.
 
 4. **On refusal (exit 75), report it or retry — never run the work outside
-   waypost to "save time".** stderr names which limit is binding (slots, cpu
-   or memory, or `agents live` — `waypost team` peers still running) and
-   gives the exact retry command. `--beside-agents` is the owner's call, not
+   waypost to "save time".** stderr names which limit is binding (slots, cpu,
+   memory or disk, or `agents live` — `waypost team` peers still running) and
+   gives the exact retry command. On a disk refusal `run --heavy` has
+   already run the automatic cleanup once (when the owner set a limit) and
+   waited up to 30 s for its deleter; if it still refuses, report it:
+   freeing more is the owner's call (`waypost clean`). `--beside-agents` is the owner's call, not
    an agent's. Either:
    - report the reason to whoever is waiting on it and stop, or
    - retry later, or

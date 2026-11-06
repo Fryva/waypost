@@ -17,7 +17,7 @@
 // pruning a stale one) lives in bin/waypost (WP-18 Decision 2), so two
 // readers racing here can never delete or clobber each other's record.
 
-import { readFileSync, readdirSync, realpathSync } from "node:fs";
+import { readFileSync, readdirSync, realpathSync, statfsSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { processTable, processGone } from "./presence.mjs";
@@ -287,7 +287,17 @@ export function blockingHolder(holders, { self = null, root, platform = process.
 }
 
 import { canStart } from "./capacity-admission.mjs";
-export { CORES_PER_SLOT, JOB_CORE_DIVISOR, JOB_MEMORY_CAP, JOB_MEMORY_DIVISOR, canStart } from "./capacity-admission.mjs";
+export { CORES_PER_SLOT, JOB_CORE_DIVISOR, JOB_MEMORY_CAP, JOB_MEMORY_DIVISOR, JOB_DISK_CAP, JOB_DISK_DIVISOR, SYSTEM_DISK_CAP, SYSTEM_DISK_FRACTION, diskShare, systemReserve, canStart } from "./capacity-admission.mjs";
+
+// Free space on the filesystem holding `path` (the disk-space ADR): one
+// statfs reading, never cached. An unreadable filesystem reads as NaN — the
+// "cannot start" answer, never a silent pass.
+export function readDisk(path = process.cwd(), statfs = statfsSync) {
+  try {
+    const s = statfs(path);
+    return { free: Number(s.bavail) * Number(s.bsize), total: Number(s.blocks) * Number(s.bsize), path };
+  } catch { return { free: NaN, total: NaN, path }; }
+}
 
 // Malformed or partial JSON is ignored, falling back to the real probes, so a
 // typo in the env never silently mis-measures a real machine.
@@ -307,6 +317,10 @@ function parseCapacityProbe(raw) {
 // read with readHolders() (empty by default, e.g. before any slot table
 // exists) — this function only counts it, per WP-18 Decision 2's division of
 // labour: reading the slot directory and writing to it are bin/waypost's job.
+// `dir` is where the job writes; `dir: null` leaves the disk out entirely.
+// `reading` is a readDisk() result taken by the caller — claimSlot reads it
+// BEFORE the machine lock, so a hung network mount never holds the lock.
+// WAYPOST_DISK_CHECK=off is the owner's switch (a disposable CI runner).
 export async function measure({
   platform = process.platform,
   os = defaultOs(),
@@ -315,14 +329,21 @@ export async function measure({
   wait = defaultWait,
   env = process.env,
   holders = [],
+  dir = process.cwd(),
+  statfs = statfsSync,
+  reading = undefined,
 } = {}) {
   // WAYPOST_CAPACITY_PROBE replaces every machine probe with fixed numbers —
   // for hermetic CLI tests only (WP-18's stress test and its neighbours),
   // never a documented user-facing override.
   const probe = env.WAYPOST_CAPACITY_PROBE ? parseCapacityProbe(env.WAYPOST_CAPACITY_PROBE) : null;
 
-  let coresResult, busyResult, memoryResult;
+  let coresResult, busyResult, memoryResult, diskResult;
   if (probe) {
+    // Disk figures are optional in the probe: absent, the disk binds nothing,
+    // so a hermetic test is never refused by the real disk it runs on.
+    diskResult = dir != null && typeof probe.free === "number" && typeof probe.disk_total === "number"
+      ? { free: probe.free, total: probe.disk_total, path: dir } : null;
     coresResult = { cores: probe.cores, probe: "WAYPOST_CAPACITY_PROBE" };
     busyResult = { busy: probe.busy, probe: "WAYPOST_CAPACITY_PROBE" };
     memoryResult = { available: probe.available, total: probe.total, probe: "WAYPOST_CAPACITY_PROBE" };
@@ -330,8 +351,11 @@ export async function measure({
     coresResult = readCores({ platform, os, readFile });
     busyResult = await readBusy({ platform, os, wait });
     memoryResult = readMemory({ platform, os, readFile, run });
+    diskResult = dir == null ? null : reading !== undefined ? reading : readDisk(dir, statfs);
   }
 
+  const diskOff = env.WAYPOST_DISK_CHECK === "off";
+  if (diskOff) diskResult = null;
   const holderCount = Array.isArray(holders) ? holders.length : 0;
   const started = canStart({
     cores: coresResult.cores,
@@ -340,12 +364,16 @@ export async function measure({
     total: memoryResult.total,
     holders: holderCount,
     max: env.WAYPOST_HEAVY_MAX,
+    disk: diskResult,
+    diskRaise: env.WAYPOST_DISK_SHARE_GB,
   });
 
   return {
     cores: coresResult.cores,
     busy: busyResult.busy,
     memory: { available: memoryResult.available, total: memoryResult.total },
+    disk: diskResult ? { ...diskResult, share: started.job_disk, reserve: started.system_disk } : null,
+    ...(diskOff ? { disk_check: "off" } : {}),
     probes: { cores: coresResult.probe, busy: busyResult.probe, memory: memoryResult.probe },
     holders: holderCount,
     slots: started.slots,

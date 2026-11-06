@@ -23,6 +23,9 @@ jobs:
       - run: npm test
         env:
           WAYPOST_HEAVY_WAIT: '5m'
+          # A hosted runner is disposable and has about 25-30 GB free, near the
+          # disk admission floor; the owner's switch turns that check off here.
+          WAYPOST_DISK_CHECK: 'off'
       # The vault gate: `.waypost/` is per checkout, so a fresh clone binds the
       # vault first; `doctor --vault` exits 1 on any issue (and on no usable vault).
       - run: node bin/waypost bind docs/vault

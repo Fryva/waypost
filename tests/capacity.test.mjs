@@ -23,6 +23,9 @@ import { ambientEnv } from "./env.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const GB = 1024 ** 3;
+// A roomy disk for measure() calls that inject every other probe: the real
+// disk this suite runs on must not decide their answer.
+const ROOMY_DISK = () => ({ bavail: 1000, bsize: GB, blocks: 2000 });
 
 // The two real CLI runs below read the REAL slot table unless pointed
 // elsewhere: a temp HOME/XDG_STATE_HOME/LOCALAPPDATA keeps them off the
@@ -259,7 +262,7 @@ test("readMemory: darwin, an unreadable pressure level takes the smaller formula
 
 test("measure: on the loaded Mac at warning, 2.7 GB fits one 2 GB job, not two", async () => {
   const os = fakeOs({ cores: 8, load: 3.46, totalBytes: 16 * GB });
-  const r = await measure({ platform: "darwin", os, run: darwinAt(2), readFile: () => null, env: {} });
+  const r = await measure({ platform: "darwin", os, run: darwinAt(2), readFile: () => null, env: {}, statfs: ROOMY_DISK });
   assert.equal(r.can_start, 1);
 });
 
@@ -275,7 +278,7 @@ test("readMemory: darwin, memory pressure critical means nothing is available; w
 
 test("measure: a refusal under critical pressure says so in the reason", async () => {
   const run = runFrom({ vm_stat: LOADED_VM_STAT, "sysctl -n kern.memorystatus_vm_pressure_level": "4\n" });
-  const r = await measure({ platform: "darwin", os: fakeOs({ cores: 8, load: 0 }), run, readFile: () => null, env: {} });
+  const r = await measure({ platform: "darwin", os: fakeOs({ cores: 8, load: 0 }), run, readFile: () => null, env: {}, statfs: ROOMY_DISK });
   assert.equal(r.reason, "memory: 0.0 GB available, a heavy job needs 2.0 GB (memory pressure critical)");
 });
 
@@ -448,7 +451,7 @@ test("measure: inside a small container a job is sized to the container, and can
     "/sys/fs/cgroup/memory.max": String(256 * 1024 * 1024) + "\n",
     "/sys/fs/cgroup/memory.current": String(6 * 1024 * 1024) + "\n",
   });
-  const r = await measure({ platform: "linux", os, readFile, run: () => null, env: {} });
+  const r = await measure({ platform: "linux", os, readFile, run: () => null, env: {}, statfs: ROOMY_DISK });
   assert.equal(r.cores, 2);
   assert.equal(r.memory.total, 256 * 1024 * 1024, "the container is the machine");
   assert.equal(r.memory.available, 250 * 1024 * 1024);
@@ -460,7 +463,7 @@ test("measure: the 3.8 GB Linux VM needs half its memory free, not a quarter", a
   // a quarter (a 0.95 GB share), was OOM-killed along with the harness.
   const os = fakeOs({ cores: 4, load: 1, totalBytes: 4006288 * 1024 });
   const run = (availableKb) => measure({
-    platform: "linux", os, run: () => null, env: {},
+    platform: "linux", os, run: () => null, env: {}, statfs: ROOMY_DISK,
     readFile: readFileFrom({ "/proc/meminfo": `MemAvailable:    ${availableKb} kB\n` }),
   });
   const busy = await run(1200000);
@@ -634,6 +637,7 @@ test("measure: assembles cores/busy/memory/probes/holders/slots/can_start/reason
     readFile: () => null, // no cgroup, no /proc/meminfo -> freemem lower bound
     run: () => null,
     env: {},
+    statfs: ROOMY_DISK,
   });
   assert.equal(r.cores, 8);
   assert.equal(r.busy, 0);
@@ -648,7 +652,7 @@ test("measure: assembles cores/busy/memory/probes/holders/slots/can_start/reason
 test("measure: reads WAYPOST_HEAVY_MAX from the injected env", async () => {
   const os = fakeOs({ cores: 8, load: 0, totalBytes: 16 * GB, freeBytes: 8 * GB });
   const r = await measure({
-    platform: "linux", os, readFile: () => null, run: () => null,
+    platform: "linux", os, readFile: () => null, run: () => null, statfs: ROOMY_DISK,
     env: { WAYPOST_HEAVY_MAX: "1" },
   });
   assert.equal(r.slots, 1);

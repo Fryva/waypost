@@ -11,7 +11,7 @@ import * as probes from "../scripts/capacity-probes.mjs";
 test("capacity probe and boot leaves preserve bounded surfaces and public boot aliases",()=>{
   assert.deepEqual(Object.keys(probes),["defaultOs","defaultReadFile","defaultRun","defaultWait"]);
   assert.deepEqual(Object.keys(boot),["AUTHORITY_TIMEOUT_MS","AUTHORITY_WRITE_TIMEOUT_MS","UPTIME_MARGIN_S","authorityOnce","bootAuthority","bootIdentity","confirmBoot","sameBoot","uptimeSaysOtherBoot"]);
-  assert.equal(Object.keys(owner).length,21);
+  assert.equal(Object.keys(owner).length,28);
   for(const name of Object.keys(boot))assert.equal(owner[name],boot[name]);
   for(const [name,n]of Object.entries({defaultOs:0,defaultReadFile:1,defaultRun:2,defaultWait:1}))assert.equal(probes[name].length,n);
   for(const [name,n]of Object.entries({bootIdentity:0,sameBoot:2,bootAuthority:0,authorityOnce:0,uptimeSaysOtherBoot:2,confirmBoot:2}))assert.equal(boot[name].length,n);

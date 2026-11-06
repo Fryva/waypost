@@ -1,5 +1,6 @@
 export const DAY_MS = 24 * 60 * 60 * 1000;
-export const DEFAULT_PROJECT_STALE_DAYS = 7;
+// 1 day since 2026-11-06 (owner's decision, the disk-space ADR); 7 before.
+export const DEFAULT_PROJECT_STALE_DAYS = 1;
 
 // Oldest newest_ms first; a null/unknown age never sorts as "oldest" (it
 // never reaches "should" in the first place, so this mainly matters for
@@ -52,10 +53,10 @@ export function countedBytes(items) {
 // Whether an already-classified item is one a machine-wide limit may
 // actually PICK, not merely count towards its total: the same kind
 // qualification as countedBytes, already classified "should", AND idle past
-// whichever is LARGER of the ADR's own 7-day floor or the item's own
+// whichever is LARGER of the ADR's own 1-day floor or the item's own
 // stale_days — a registry entry's shorter stale_days can still make an item
 // "should" sooner for a human's own `waypost clean`, but must never let an
-// unattended automatic sweep remove it before 7 days.
+// unattended automatic sweep remove it before 1 day.
 export function qualifiesForLimit(item, now = Date.now()) {
   if (item.class !== "should") return false;
   if (!qualifiesForLimitKind(item)) return false;

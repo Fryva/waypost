@@ -168,8 +168,10 @@ PROCEDURES
                            a preview before the [y/N]; off and loosening it
                            work from anywhere [--json]
   capacity [--json]        the machine's real free resources right now: cores,
-                           load, available memory and how many more heavy
-                           jobs it can take (never cached) [--json for detail]
+                           load, available memory, free disk (a 30 GB system
+                           reserve + 20 GB per job, capped at 15 %/20 % of the
+                           disk) and how many more heavy jobs it can take
+                           (never cached) [--json for detail]
   capacity --release <id> [--force]
                            recovery path for a stuck slot: refuses a
                            live-looking holder unless --force is given

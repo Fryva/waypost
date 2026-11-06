@@ -51,6 +51,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot](./budgeted-read-only-role-evaluation-over-a-sealed-source-snapshot.md) | Budgeted read-only role evaluation over a sealed source snapshot | accepted | 2026-10-18 |
 | [portable-handoff-packets-as-explicit-file-snapshots-not-model-memory](./portable-handoff-packets-as-explicit-file-snapshots-not-model-memory.md) | Portable handoff packets as explicit file snapshots, not model memory | proposed | 2026-11-02 |
 | [bounded-handoff-retrieval-and-content-addressed-receiver-snapshots](./bounded-handoff-retrieval-and-content-addressed-receiver-snapshots.md) | Bounded handoff retrieval and content addressed receiver snapshots | proposed | 2026-11-03 |
+| [disk-space-for-heavy-work-a-free-space-floor-at-admission-idle-linked-worktrees-on-the-automatic-path](./disk-space-for-heavy-work-a-free-space-floor-at-admission-idle-linked-worktrees-on-the-automatic-path.md) | Disk space for heavy work: a free-space floor at admission, idle linked worktrees on the automatic path | proposed | 2026-11-06 |
 
 ---
 

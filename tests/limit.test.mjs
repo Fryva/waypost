@@ -589,12 +589,12 @@ test("AC12: a leftover that lost its marker is re-marked and removed; a name of 
 
 // ─── automatic cleanup at the end of `waypost run --heavy` (commit C) ────
 
-test("AC3: idle for only 2 days (under the 7-day floor) — a tiny GB threshold protects the working set; the report and log say to raise it", () => {
+test("AC3: idle for only 12 hours (under the 1-day floor) — a tiny GB threshold protects the working set; the report and log say to raise it", () => {
   const home = tmpRoot("waypost-limit-ac3-home-");
   const proj = gitProject("waypost-limit-ac3-proj-", ["a", "b", "c"]);
   for (const n of ["a", "b", "c"]) touchTree(tagFixture(proj, n, 20000));
   writeCurrentSetting(home, { kind: "gb", gb: 0.00001, bytes: 0.00001 * GB });
-  const env = autoCleanEnv(home, { WAYPOST_CLEAN_NOW: cleanNowPlusDays(2) });
+  const env = autoCleanEnv(home, { WAYPOST_CLEAN_NOW: cleanNowPlusDays(0.5) });
   const r = runHeavyChild(proj, ["node", "-e", "1"], env);
   assert.equal(r.status, 0, r.stderr);
   for (const n of ["a", "b", "c"]) assert.ok(existsSync(join(proj, n)), `${n} survives`);
@@ -1401,3 +1401,56 @@ test("git inside the deadline: gitFacts' timeout bounds check-ignore and ls-file
     assert.ok(took < 2700, `the pair took ${took} ms under a 2000 ms budget`);
     assert.equal(facts.tracked.has("a"), true, "ls-files cut short: conservative");
   });
+
+// ─── a disk refusal runs the automatic cleanup once (the disk-space ADR) ──
+
+function lowDiskEnv(home, extra = {}) {
+  return autoCleanEnv(home, {
+    WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB, free: 45 * GB, disk_total: 460 * GB }),
+    ...extra,
+  });
+}
+
+function autoRecords(home) {
+  return readFileSync(logPathOf(home), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((r) => r.kind === "auto");
+}
+
+test("disk refusal: one automatic cleanup with no job behind it, then the refusal names the numbers; the job never runs", () => {
+  const home = tmpRoot("waypost-limit-disk-home-");
+  const proj = gitProject("waypost-limit-disk-proj-", ["a"]);
+  touchTree(tagFixture(proj, "a", 20000));
+  writeCurrentSetting(home, { kind: "gb", gb: 20, bytes: 20 * GB });
+  const marker = join(proj, "ran.txt");
+  const r = runHeavyChild(proj, ["node", "-e", `require("fs").writeFileSync(${JSON.stringify(marker)}, "x")`], lowDiskEnv(home));
+  assert.equal(r.status, 75, r.stderr);
+  assert.match(r.stderr, /disk: 45\.0 GB free, a heavy job needs 50\.0 GB free \(30\.0 GB system reserve \+ 20\.0 GB for this job\) — running the automatic cleanup first \(up to 60 s\)/);
+  assert.match(r.stderr, /refused — disk: 45\.0 GB free, a heavy job needs 50\.0 GB free \(30\.0 GB system reserve \+ 20\.0 GB for this job\)/);
+  assert.ok(!existsSync(marker), "the job did not run");
+  const autos = autoRecords(home);
+  assert.equal(autos.length, 1, "exactly one cleanup, no loop");
+  assert.equal(autos[0].exit, null);
+  assert.equal(autos[0].result, "ran");
+});
+
+test("disk: WAYPOST_DISK_CHECK=off admits below the floor and capacity says the disk was not checked", () => {
+  const home = tmpRoot("waypost-limit-disk-off-home-");
+  const env = lowDiskEnv(home, { WAYPOST_DISK_CHECK: "off" });
+  const r = spawnSync(process.execPath, [Waypost, "capacity"], { encoding: "utf8", timeout: 30000, env });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /disk not checked \(WAYPOST_DISK_CHECK=off\)/);
+  assert.match(r.stdout, /can start 2 heavy jobs/);
+});
+
+test("disk: capacity --json carries the disk figures; waypost clean is never refused for disk", () => {
+  const home = tmpRoot("waypost-limit-disk-json-home-");
+  const proj = gitProject("waypost-limit-disk-json-proj-", ["a"]);
+  const env = lowDiskEnv(home);
+  const c = spawnSync(process.execPath, [Waypost, "capacity", "--json"], { cwd: proj, encoding: "utf8", timeout: 30000, env });
+  assert.equal(c.status, 0, c.stderr);
+  const j = JSON.parse(c.stdout);
+  assert.equal(j.can_start, 0);
+  assert.deepEqual({ free: j.disk.free, total: j.disk.total, share: j.disk.share, reserve: j.disk.reserve }, { free: 45 * GB, total: 460 * GB, share: 20 * GB, reserve: 30 * GB });
+  const k = spawnSync(process.execPath, [Waypost, "clean", "--json"], { cwd: proj, encoding: "utf8", timeout: 60000, env });
+  assert.equal(k.status, 0, k.stderr);
+  assert.doesNotMatch(k.stderr, /refused/);
+});

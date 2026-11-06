@@ -276,7 +276,7 @@ async function handleClean(args) {
   const dir = slotsDir(presence);
   mkdirSync(dir, { recursive: true });
   const where = slotWhere(projectRoot());
-  const claim = await claimSlot(dir, ["waypost", "clean", ...(applySel ? ["--apply"] : []), ...(json ? ["--json"] : [])], capacity, presence, where);
+  const claim = await claimSlot(dir, ["waypost", "clean", ...(applySel ? ["--apply"] : []), ...(json ? ["--json"] : [])], capacity, presence, where, { disk: false });
   if (!claim.ok) {
     process.stderr.write(`waypost clean: refused — ${claim.reason}\n  retry: waypost clean\n`);
     process.exitCode = EX_TEMPFAIL;

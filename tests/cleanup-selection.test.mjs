@@ -14,7 +14,7 @@ test("cleanup selection keeps seven direct facade bindings within the source bud
     assert.equal(selection[name].length, arity);
   }
   assert.equal(selection.DAY_MS, 86400000);
-  assert.equal(selection.DEFAULT_PROJECT_STALE_DAYS, 7);
+  assert.equal(selection.DEFAULT_PROJECT_STALE_DAYS, 1);
   for (const name of ["DAY_MS", "DEFAULT_PROJECT_STALE_DAYS"]) assert.equal(owner[name], selection[name]);
   const source = readFileSync(new URL("../scripts/cleanup-selection.mjs", import.meta.url), "utf8");
   assert.ok(Buffer.byteLength(source) <= 9000);

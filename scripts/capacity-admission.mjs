@@ -20,7 +20,26 @@ function parseHeavyMax(raw) {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-export function canStart({ cores, busy, available, total, holders = 0, max = null } = {}) {
+// (d) disk (disk-space ADR): a system reserve, min(30 GiB, 15 %), plus one
+// share per job, min(20 GiB, 20 %), one per live holder too. The env only
+// raises the share. `disk` null (not measured) binds nothing; unreadable
+// is "cannot start".
+export const JOB_DISK_CAP = 20 * GB;
+export const JOB_DISK_DIVISOR = 5;
+export const SYSTEM_DISK_CAP = 30 * GB;
+export const SYSTEM_DISK_FRACTION = 0.15;
+
+export function systemReserve(total) {
+  return Math.min(SYSTEM_DISK_CAP, total * SYSTEM_DISK_FRACTION);
+}
+
+export function diskShare(total, raise = null) {
+  const base = Math.min(JOB_DISK_CAP, total / JOB_DISK_DIVISOR);
+  const n = raise == null || raise === "" ? NaN : Number(raise);
+  return Number.isFinite(n) && n * GB > base ? n * GB : base;
+}
+
+export function canStart({ cores, busy, available, total, holders = 0, max = null, disk = null, diskRaise = null } = {}) {
   let slots = Math.max(1, Math.floor(cores / CORES_PER_SLOT));
   const requestedMax = parseHeavyMax(max);
   if (requestedMax != null && requestedMax < slots) slots = requestedMax;
@@ -40,7 +59,13 @@ export function canStart({ cores, busy, available, total, holders = 0, max = nul
   const reserved = holders * jobMemory;
   const byMemory = memoryKnown ? Math.max(0, Math.floor((available - reserved) / jobMemory)) : 0;
 
-  const started = Math.max(0, Math.min(bySlots, byCores, byMemory));
+  const jobDisk = disk ? diskShare(disk.total, diskRaise) : null;
+  const sysDisk = disk ? systemReserve(disk.total) : null;
+  const diskKnown = !disk || (jobDisk > 0 && Number.isFinite(disk.free));
+  const byDisk = !disk ? Infinity
+    : diskKnown ? Math.max(0, Math.floor((disk.free - sysDisk - holders * jobDisk) / jobDisk)) : 0;
+
+  const started = Math.max(0, Math.min(bySlots, byCores, byMemory, byDisk));
 
   // Named in the ADR's own order (a), (b), (c) — the first limit that binds,
   // in plain words, so an agent can report why without another round trip.
@@ -52,12 +77,18 @@ export function canStart({ cores, busy, available, total, holders = 0, max = nul
       reason = `cpu: ${idleCores.toFixed(1)} idle core(s) available, a heavy job needs ${jobCores.toFixed(1)}`;
     } else if (!memoryKnown) {
       reason = "memory: available or total memory unknown";
-    } else {
+    } else if (byMemory <= 0) {
       const held = reserved > 0 ? ` (${(reserved / GB).toFixed(1)} GB reserved for ${holders} running heavy job(s))` : "";
       reason = `memory: ${(available / GB).toFixed(1)} GB available${held}, a heavy job needs ${(jobMemory / GB).toFixed(1)} GB`;
+    } else if (!diskKnown) {
+      reason = "disk: free space unknown";
+    } else {
+      const need = sysDisk + (holders + 1) * jobDisk;
+      const held = holders > 0 ? ` + ${(holders * jobDisk / GB).toFixed(1)} GB for ${holders} running heavy job(s)` : "";
+      reason = `disk: ${(disk.free / GB).toFixed(1)} GB free, a heavy job needs ${(need / GB).toFixed(1)} GB free (${(sysDisk / GB).toFixed(1)} GB system reserve${held} + ${(jobDisk / GB).toFixed(1)} GB for this job) — waypost clean, waypost size --global`;
     }
   }
 
-  return { slots, job_cores: jobCores, job_memory: jobMemory, can_start: started, reason };
+  return { slots, job_cores: jobCores, job_memory: jobMemory, job_disk: jobDisk, system_disk: sysDisk, can_start: started, reason };
 }
 

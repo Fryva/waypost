@@ -45,7 +45,11 @@ async function handleCapacity(args) {
 
   const availGb = (m.memory.available / GB).toFixed(1);
   const totalGb = (m.memory.total / GB).toFixed(1);
-  process.stdout.write(`${m.cores} cores, load ${m.busy.toFixed(2)}; ${availGb} of ${totalGb} GB available (${m.probes.memory})\n`);
+  const disk = m.disk_check === "off" ? "; disk not checked (WAYPOST_DISK_CHECK=off)"
+    : m.disk && Number.isFinite(m.disk.free)
+      ? `; disk ${(m.disk.free / GB).toFixed(1)} of ${(m.disk.total / GB).toFixed(1)} GB free at ${m.disk.path}, ${(m.disk.reserve / GB).toFixed(1)} GB system reserve + ${(m.disk.share / GB).toFixed(1)} GB per job`
+      : "";
+  process.stdout.write(`${m.cores} cores, load ${m.busy.toFixed(2)}; ${availGb} of ${totalGb} GB available (${m.probes.memory})${disk}\n`);
   if (m.can_start > 0) {
     process.stdout.write(`can start ${m.can_start} heavy job${m.can_start === 1 ? "" : "s"}\n`);
   } else {

@@ -464,25 +464,25 @@ test("qualifiesForLimit: a project-origin artifact never qualifies, however conf
   assert.equal(qualifiesForLimit(item, now), false);
 });
 
-test("qualifiesForLimit: idle past a registry's own SHORTER stale_days is still not enough — the ADR's 7-day floor wins", () => {
+test("qualifiesForLimit: idle past a registry's own SHORTER stale_days is still not enough — the ADR's 1-day floor wins", () => {
   const now = Date.now();
-  // 3 days idle: past this item's own (very short) stale_days of 1, so
-  // classifyItem already calls it "should" — but nowhere near the 7-day
+  // 12 hours idle: past this item's own (very short) stale_days of a quarter
+  // day, so classifyItem already calls it "should" — but under the 1-day
   // floor a machine-wide sweep needs before it may pick anything.
   const item = {
     scope: "project", match: "tag", ignored: true,
-    class: "should", newest_ms: now - 3 * DAY_MS, stale_days: 1,
+    class: "should", newest_ms: now - 0.5 * DAY_MS, stale_days: 0.25,
   };
-  assert.equal(qualifiesForLimit(item, now), false, "3 days is should, but under the 7-day floor for an automatic sweep");
-  const older = { ...item, newest_ms: now - 8 * DAY_MS };
+  assert.equal(qualifiesForLimit(item, now), false, "12 hours is should, but under the 1-day floor for an automatic sweep");
+  const older = { ...item, newest_ms: now - 2 * DAY_MS };
   assert.equal(qualifiesForLimit(older, now), true, "past the floor, it qualifies");
 });
 
-test("qualifiesForLimit: a registry's own LONGER stale_days still applies — the floor is a minimum, not a fixed 7 days", () => {
+test("qualifiesForLimit: a registry's own LONGER stale_days still applies — the floor is a minimum, not a fixed 1 day", () => {
   const now = Date.now();
   const base = { scope: "project", match: "tag", ignored: true, class: "should", stale_days: 30 };
-  // 20 days: past a fixed 7-day floor, but not past this item's own longer
-  // 30-day stale_days — max(7, 30) must still refuse it.
+  // 20 days: past a fixed 1-day floor, but not past this item's own longer
+  // 30-day stale_days — max(1, 30) must still refuse it.
   assert.equal(qualifiesForLimit({ ...base, newest_ms: now - 20 * DAY_MS }, now), false);
   // 35 days: past both.
   assert.equal(qualifiesForLimit({ ...base, newest_ms: now - 35 * DAY_MS }, now), true);
@@ -725,8 +725,8 @@ test("logLine: one JSON object per call, tagged as an apply, with every field pa
 
 // ─── constants ───────────────────────────────────────────────────────────
 
-test("the default stale windows are 7 days for project artifacts, 30 for machine caches, per the ADR", () => {
-  assert.equal(DEFAULT_PROJECT_STALE_DAYS, 7);
+test("the default stale windows are 1 day for project artifacts, 30 for machine caches, per the ADRs", () => {
+  assert.equal(DEFAULT_PROJECT_STALE_DAYS, 1);
   assert.equal(DEFAULT_MACHINE_STALE_DAYS, 30);
   assert.equal(TEN_MINUTES_MS, 10 * 60 * 1000);
 });
@@ -1403,8 +1403,8 @@ test("B1: a project artifact reusing a shipped artifact's own name never takes o
   const fakeHome = fakeToolchainsHome([
     { id: "swiftpm", artifacts: [{ name: ".build", match: "sure", regenerable: true, clean: "swift package clean" }] },
   ]);
-  // Past the 7-day project stale_days window — proves the shipped entry's
-  // own (unset -> default 7-day) staleness governs, not the hijack's own
+  // Past the 1-day project stale_days window — proves the shipped entry's
+  // own (unset -> default 1-day) staleness governs, not the hijack's own
   // stale_days: 999, which would keep this "can" forever if it had won.
   const now = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
   const plan = JSON.parse(runClean(root, home, fakeHome, ["--json"], { WAYPOST_CLEAN_NOW: now }).stdout);
@@ -1942,7 +1942,7 @@ test("AC 14: waypost setup, with no TTY, names waypost clean for an idle tag dir
 
   const home = tmpRoot("waypost-cleanup-ac14-notty-home-");
   const fakeHome = fakeToolchainsHome([]);
-  // Past the 7-day project stale_days window, so the tag directory is
+  // Past the 1-day project stale_days window, so the tag directory is
   // should, not can — the case that actually reaches "review and remove".
   const eightDaysAhead = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString();
 

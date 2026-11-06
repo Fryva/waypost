@@ -83,7 +83,7 @@ function autoCleanupReport(rec) {
   const stillShort = (rec.need || 0) - freedBytes;
   if (stillShort > 0) {
     if (rec.limit.kind === "gb") {
-      process.stderr.write(`waypost: ${(stillShort / GB).toFixed(2)} GB over the limit is protected by the 7-day rule — raise it: \`waypost clean --limit <N>\`\n`);
+      process.stderr.write(`waypost: ${(stillShort / GB).toFixed(2)} GB over the limit is protected by the 1-day rule — raise it: \`waypost clean --limit <N>\`\n`);
     } else {
       process.stderr.write(`waypost: ${(stillShort / GB).toFixed(2)} GB short of the free-space floor — \`waypost size --global\` (${APFS_FREE_SPACE_NOTE})\n`);
     }
@@ -107,6 +107,7 @@ function logAndReportAuto(rec, host) {
   try { appendCleanLog(host, line); }
   catch (e) { process.stderr.write(`waypost: automatic cleanup's log line was not written: ${e.message}\n`); }
   autoCleanupReport(rec);
+  return rec;
 }
 
 // The whole automatic path, run under the slot `run --heavy` still holds
@@ -145,13 +146,13 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
   });
 
   try {
-    if (ended.signal || ended.interrupted) return void logAndReportAuto(finish("skipped", `ended by ${ended.signal || ended.interrupted}`), host);
-    if (ended.spawnFailed) return void logAndReportAuto(finish("skipped", "did not start"), host);
-    if (!where || !where.root || !where.common) return void logAndReportAuto(finish("skipped", "not in a git work tree"), host);
+    if (ended.signal || ended.interrupted) return logAndReportAuto(finish("skipped", `ended by ${ended.signal || ended.interrupted}`), host);
+    if (ended.spawnFailed) return logAndReportAuto(finish("skipped", "did not start"), host);
+    if (!where || !where.root || !where.common) return logAndReportAuto(finish("skipped", "not in a git work tree"), host);
 
     let cleanup;
     try { cleanup = await import(SCRIPT_URL("cleanup")); }
-    catch (e) { return void logAndReportAuto(finish("failed", e.message), host); }
+    catch (e) { return logAndReportAuto(finish("failed", e.message), host); }
 
     // Pinned to the executable's own tree, never WAYPOST_HOME: an agent
     // pointing that elsewhere must not be able to steer which registry the
@@ -166,41 +167,41 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
 
     const home = safeRealpath(homedir());
     if (cleanup.refusePath(root, { home, platform: process.platform })) {
-      return void logAndReportAuto(finish("skipped", "a protected path", { adopted }), host);
+      return logAndReportAuto(finish("skipped", "a protected path", { adopted }), host);
     }
 
     const storage = presence.storageOf(root);
     if (storage.kind !== "local") {
-      return void logAndReportAuto(finish("skipped", `on ${storage.provider} (${storage.kind}) — not local storage`, { adopted }), host);
+      return logAndReportAuto(finish("skipped", `on ${storage.provider} (${storage.kind}) — not local storage`, { adopted }), host);
     }
 
     let rootDev, commonDev;
     try { rootDev = statSync(root).dev; commonDev = statSync(where.common).dev; }
-    catch (e) { return void logAndReportAuto(finish("failed", e.message, { adopted }), host); }
+    catch (e) { return logAndReportAuto(finish("failed", e.message, { adopted }), host); }
     if (commonDev !== rootDev) {
-      return void logAndReportAuto(finish("skipped", "the git directory is on another filesystem", { adopted }), host);
+      return logAndReportAuto(finish("skipped", "the git directory is on another filesystem", { adopted }), host);
     }
 
     const holdersNow = capacity.readHolders({ dir: slotsDir(presence), dirs: legacySlotsDirs(presence), authority: bootAuthority(capacity) });
     const blocking = capacity.blockingHolder(holdersNow.live, { self: claim.id, root, platform: process.platform, canon: safeRealpath });
     if (blocking) {
-      return void logAndReportAuto(finish("skipped", `another heavy job overlaps this tree (${blocking.holder.id})`, { adopted }), host);
+      return logAndReportAuto(finish("skipped", `another heavy job overlaps this tree (${blocking.holder.id})`, { adopted }), host);
     }
 
     const { vault, unreadable } = autoCleanVault();
     if (unreadable) {
-      return void logAndReportAuto(finish("skipped", "the project binding is unreadable", { adopted }), host);
+      return logAndReportAuto(finish("skipped", "the project binding is unreadable", { adopted }), host);
     }
     if (vault) {
       const shared = presence.sharedTree(vault, { self: process.env.WAYPOST_SESSION_ID || null, contain: true });
       if (shared.shared) {
         const who = presence.sharedWith ? presence.sharedWith(shared) : shared.with.map((w) => `${w.session} on ${w.host}`).join("; ");
-        return void logAndReportAuto(finish("skipped", `shared with ${who}`, { adopted }), host);
+        return logAndReportAuto(finish("skipped", `shared with ${who}`, { adopted }), host);
       }
     }
 
     if (Date.now() > deadline) {
-      return void logAndReportAuto(finish("skipped", "deadline", { adopted }), host);
+      return logAndReportAuto(finish("skipped", "deadline", { adopted }), host);
     }
 
     let sizes, toolchains, discovery;
@@ -208,7 +209,7 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
       sizes = await import(SCRIPT_URL("sizes"));
       toolchains = await import(SCRIPT_URL("toolchains"));
       discovery = await import(SCRIPT_URL("discovery"));
-    } catch (e) { return void logAndReportAuto(finish("failed", e.message, { adopted }), host); }
+    } catch (e) { return logAndReportAuto(finish("failed", e.message, { adopted }), host); }
     const mods = { cleanup, sizes, toolchains, presence, discovery };
 
     // The registry itself, not only its own resolution above: loadRegistry
@@ -228,7 +229,7 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
     // deadline: their conservative answer counts nothing, which must read as
     // the deadline, not as a quiet "ran, nothing to do".
     if (ctx.scan && (ctx.scan.stopped_by === "deadline" || Date.now() >= deadline)) {
-      return void logAndReportAuto(finish("ran", "deadline", {
+      return logAndReportAuto(finish("ran", "deadline", {
         counted: 0, need: 0, shortfall: 0, renamed: [], skipped_items: [], stayed: [], excluded: [],
         nested_skipped: ctx.scan.nested_skipped, deadline: true, elapsed_ms: Date.now() - t0,
         deleter_pid: null, adopted, ...(lastCleanNowHonored ? { clock: process.env.WAYPOST_CLEAN_NOW } : {}),
@@ -296,7 +297,7 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
     const deleterPid = renamed.length ? spawnDeleter(removingDir, renamed.map((r) => r.name), marker) : null;
 
     const reason = deadlineHit ? "deadline" : (holderBlocked ? `another heavy job overlaps this tree (${holderBlocked.holder.id})` : null);
-    return void logAndReportAuto(finish("ran", reason, {
+    return logAndReportAuto(finish("ran", reason, {
       counted, need, shortfall, renamed, skipped_items: skippedItems.slice(0, 20),
       stayed: stayed.slice(0, 20), excluded: excludedList.slice(0, 20),
       nested_skipped: ctx.scan ? ctx.scan.nested_skipped : 0, deadline: deadlineHit,
@@ -304,7 +305,7 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
       ...(lastCleanNowHonored ? { clock: process.env.WAYPOST_CLEAN_NOW } : {}),
     }), host);
   } catch (e) {
-    return void logAndReportAuto(finish("failed", e.message), host);
+    return logAndReportAuto(finish("failed", e.message), host);
   }
 }
 

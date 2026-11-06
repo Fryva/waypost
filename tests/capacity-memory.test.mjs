@@ -8,7 +8,7 @@ import * as leaf from "../scripts/capacity-memory.mjs";
 const source=readFileSync(new URL("../scripts/capacity-memory.mjs",import.meta.url),"utf8");
 
 test("memory leaf preserves public binding and bounded owner/leaf surfaces",()=>{
-  assert.deepEqual(Object.keys(leaf),["readMemory"]);assert.equal(Object.keys(owner).length,21);
+  assert.deepEqual(Object.keys(leaf),["readMemory"]);assert.equal(Object.keys(owner).length,28);
   assert.equal(owner.readMemory,leaf.readMemory);assert.equal(leaf.readMemory.name,"readMemory");assert.equal(leaf.readMemory.length,0);
   assert.ok(Buffer.byteLength(source)<=12000);assert.ok(readFileSync(new URL("../scripts/capacity.mjs",import.meta.url)).length<=24000);
 });

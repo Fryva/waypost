@@ -154,6 +154,9 @@ async function runHeavy(argv, claim, where, mods) {
 // waypost run --heavy [--wait <Ns|Nm>] [--beside-agents] -- <argv…>. No wait: refuse at once,
 // with the reason and the exact retry command, exit EX_TEMPFAIL. --wait
 // retries every 5 seconds until the deadline, repeating the reason every 30.
+// How long a disk refusal waits for the deleter of what its own cleanup renamed.
+const DELETER_GRACE_MS = 30000;
+
 async function handleRun(args) {
   if (!flag(args, "--heavy")) fail('run: only "run --heavy -- <argv…>" is supported (see `waypost help`)');
   const { tail: argv } = splitAtTerminator(args);
@@ -182,6 +185,8 @@ async function handleRun(args) {
   // never changes while this process waits, and nothing may spawn inside
   // claimSlot's own lock either way.
   const where = slotWhere(process.cwd());
+  let cleanedForDisk = false;
+  let deleterGraceUntil = 0;
 
   for (;;) {
     const claim = await claimSlot(dir, argv, capacity, presence, where, { agents: true, beside: besideAgents });
@@ -189,6 +194,31 @@ async function handleRun(args) {
       recordAuthority(claim.file, capacity);
       await runHeavy(argv, claim, where, { capacity, presence });
       return;
+    }
+    // Refused for disk: run the automatic cleanup once, with no slot held,
+    // then ask again (the disk-space ADR). Otherwise a full disk refuses every
+    // job, and the cleanup that runs only after a job never runs at all. A
+    // measured shortage only: "free space unknown" is not fixed by a sweep.
+    const diskShort = /^disk: \d/.test(String(claim.reason || ""));
+    if (!cleanedForDisk && diskShort) {
+      cleanedForDisk = true;
+      process.stderr.write(`waypost run --heavy: ${claim.reason.replace(/ — .*$/, "")} — running the automatic cleanup first (up to 60 s)\n`);
+      // autoCleanup pins WAYPOST_PROJECT_DIR for its own walk; the job this
+      // process may still start must see the environment it was given.
+      const savedProject = process.env.WAYPOST_PROJECT_DIR;
+      let rec = null;
+      try { rec = await autoCleanup({ claim: { id: null }, where, ended: { status: null }, capacity, presence }); }
+      catch (e) { process.stderr.write(`waypost: automatic cleanup failed — ${e.message}\n`); }
+      finally {
+        if (savedProject === undefined) delete process.env.WAYPOST_PROJECT_DIR; else process.env.WAYPOST_PROJECT_DIR = savedProject;
+      }
+      // A rename frees nothing until the detached deleter has run.
+      if (rec && Array.isArray(rec.renamed) && rec.renamed.length) deleterGraceUntil = Date.now() + DELETER_GRACE_MS;
+      continue;
+    }
+    if (diskShort && Date.now() < deleterGraceUntil) {
+      await delay(Math.min(WAIT_POLL_MS, deleterGraceUntil - Date.now()));
+      continue;
     }
 
     const now = Date.now();

@@ -159,7 +159,7 @@ async function handleSetup(args) {
       const dir = slotsDir(presence);
       mkdirSync(dir, { recursive: true });
       const where = slotWhere(projectRoot());
-      const claim = await claimSlot(dir, ["waypost", "setup", "--audit"], capacity, presence, where);
+      const claim = await claimSlot(dir, ["waypost", "setup", "--audit"], capacity, presence, where, { disk: false });
       if (!claim.ok) {
         say(`  audit skipped: ${claim.reason} — waypost clean`);
         return;
