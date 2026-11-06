@@ -61,9 +61,10 @@ already idle by its own rule.
 
 - The idle floor is 1 day instead of 7 (Decision 3).
 - Disk admission is a system reserve of 30 GB plus 20 GB per job
-  (Decision 1). The percentage caps (15 %, 20 %) for small disks, the
-  cleanup on a disk refusal, the exempted commands, the env switches and
-  Decision 2 are the author's proposal, open to the owner's review.
+  (Decision 1), each capped for small disks at 15 % and 20 % of the
+  filesystem (confirmed by the owner, 2026-11-06). The cleanup on a disk
+  refusal, the exempted commands, the env switches and Decision 2 are the
+  author's proposal, open to the owner's review.
 
 ## What this amends in accepted ADRs
 
@@ -280,8 +281,7 @@ under the same rules, that the owner's limit already authorises.
 
 ## Open questions for the owner
 
-1. Are the 15 %/20 % caps for small disks right?
-2. Should the owner be able to lower the share or the reserve (a machine
+1. Should the owner be able to lower the share or the reserve (a machine
    setting like `clean --limit`), or only raise the share by env as now?
 
 ## References
