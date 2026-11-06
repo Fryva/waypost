@@ -247,10 +247,14 @@ test("readMemory: darwin, warning pressure counts only free + file-backed + purg
   assert.deepEqual(r, { available: LOADED_AVAILABLE, total: 16 * GB, probe: "vm_stat, memory pressure warning" });
 });
 
-test("readMemory: darwin, an unreadable pressure level takes the stricter formula", () => {
+test("readMemory: darwin, an unreadable pressure level takes the smaller formula and says it is unknown", () => {
   const os = fakeOs({ totalBytes: 16 * GB, freeBytes: -999 });
   const r = readMemory({ platform: "darwin", os, run: darwinAt(null), readFile: () => null });
-  assert.deepEqual(r, { available: LOADED_AVAILABLE, total: 16 * GB, probe: "vm_stat" });
+  assert.deepEqual(r, { available: LOADED_AVAILABLE, total: 16 * GB, probe: "vm_stat, memory pressure unknown" });
+  // A large active file cache makes the warning formula the larger one.
+  const cached = LOADED_VM_STAT.replace(/^File-backed pages:.*$/m, "File-backed pages:                            400000.");
+  const c = readMemory({ platform: "darwin", os, run: darwinAt(null, cached), readFile: () => null });
+  assert.equal(c.available, LOADED_UNPRESSURED);
 });
 
 test("measure: on the loaded Mac at warning, 2.7 GB fits one 2 GB job, not two", async () => {
@@ -291,7 +295,7 @@ test("readMemory: darwin, vm_stat refused falls back to kern.memorystatus_level,
   const os = fakeOs({ totalBytes: 16 * GB, freeBytes: -999 });
   const run = runFrom({ "sysctl -n kern.memorystatus_level": "81\n" });
   const r = readMemory({ platform: "darwin", os, run, readFile: () => null });
-  assert.equal(r.probe, "kern.memorystatus_level (upper bound)");
+  assert.equal(r.probe, "kern.memorystatus_level (upper bound), memory pressure unknown");
   assert.equal(r.available, 16 * GB * 0.81);
 });
 
@@ -300,13 +304,13 @@ test("readMemory: darwin, a vm_stat without the file-backed count falls back rat
   const partial = LOADED_VM_STAT.replace(/^File-backed pages:.*\n/m, "");
   const run = runFrom({ vm_stat: partial, "sysctl -n kern.memorystatus_level": "81\n" });
   const r = readMemory({ platform: "darwin", os, run, readFile: () => null });
-  assert.equal(r.probe, "kern.memorystatus_level (upper bound)");
+  assert.equal(r.probe, "kern.memorystatus_level (upper bound), memory pressure unknown");
 });
 
 test("readMemory: darwin, both sysctl and vm_stat fail falls back to freemem (labelled lower bound)", () => {
   const os = fakeOs({ totalBytes: 16 * GB, freeBytes: 1234 });
   const r = readMemory({ platform: "darwin", os, run: () => null, readFile: () => null });
-  assert.deepEqual(r, { available: 1234, total: 16 * GB, probe: "os.freemem() (lower bound)" });
+  assert.deepEqual(r, { available: 1234, total: 16 * GB, probe: "os.freemem() (lower bound), memory pressure unknown" });
 });
 
 test("readMemory: linux, MemAvailable with no cgroup", () => {

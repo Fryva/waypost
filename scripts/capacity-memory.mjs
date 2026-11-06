@@ -58,11 +58,14 @@ function darwinPressure(run) {
   return Number.isFinite(level) ? level : null;
 }
 
-// An unreadable pressure level counts as warning: the stricter formula.
+// An unreadable pressure level takes the smaller of the two formulas: neither
+// is stricter by construction (warning counts active file pages that normal
+// does not), so only the minimum is.
 function darwinMemory(total, os, run, pressure) {
-  const pressured = pressure !== 1;
   const vmStatOut = run("vm_stat", []);
-  const available = vmStatOut != null ? parseVmStat(vmStatOut, pressured) : null;
+  const counted = vmStatOut == null ? []
+    : (pressure == null ? [false, true] : [pressure !== 1]).map((p) => parseVmStat(vmStatOut, p));
+  const available = counted.length && counted.every((v) => v != null) ? Math.min(...counted) : null;
   if (available != null) return { available, total, probe: "vm_stat" };
   // vm_stat failed or was refused (a sandbox). kern.memorystatus_level counts
   // resident anonymous memory as available, so it only bounds from above.
@@ -82,6 +85,7 @@ export function readMemory({ platform = process.platform, os = defaultOs(), read
     const result = darwinMemory(total, os, run, pressure);
     if (pressure != null && pressure >= 4) return { available: 0, total, probe: `${result.probe}, memory pressure critical` };
     if (pressure === 2) return { ...result, probe: `${result.probe}, memory pressure warning` };
+    if (pressure == null) return { ...result, probe: `${result.probe}, memory pressure unknown` };
     return result;
   }
 

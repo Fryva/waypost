@@ -158,6 +158,16 @@ test("slotLive: POSIX, the pid is absent from the process table -> stale", () =>
   assert.equal(slotLive(rec, { table: new Map(), platform: "linux", bootNow: SAME_BOOT }), false);
 });
 
+test("slotLive: POSIX, a killed wrapper's record stays live while its job runs", () => {
+  const job = { pid: 456, ticks: 77, started: null };
+  const rec = { host: MY_HOST, proc: { pid: 999999, started: "S" }, job, boot: SAME_BOOT };
+  const running = new Map([[456, { pid: 456, ppid: 1, started: "T", ticks: 77, comm: "cargo" }]]);
+  assert.equal(slotLive(rec, { table: running, platform: "linux", bootNow: SAME_BOOT }), true);
+  const reused = new Map([[456, { pid: 456, ppid: 1, started: "T", ticks: 78, comm: "bash" }]]);
+  assert.equal(slotLive(rec, { table: reused, platform: "linux", bootNow: SAME_BOOT }), false, "a reused job pid is not the job");
+  assert.equal(slotLive(rec, { table: new Map(), platform: "linux", bootNow: SAME_BOOT }), false, "both gone: stale");
+});
+
 test("slotLive: POSIX, a reused pid with another start time is not the holder -> stale", () => {
   const rec = { host: MY_HOST, proc: { pid: 42, started: "old-time" }, boot: SAME_BOOT };
   const table = new Map([[42, { pid: 42, ppid: 1, started: "new-time", comm: "node" }]]);
@@ -488,13 +498,62 @@ test("run --heavy --wait 2s: retries until the deadline, then gives up", () => {
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-test("run --heavy: on Linux the job is the OOM killer's first choice, not the harness", { skip: process.platform !== "linux" }, () => {
+test("run --heavy: on Linux the job is the OOM killer's first choice, and the wrapper is not", { skip: process.platform !== "linux" }, (t) => {
+  const mine = readFileSync("/proc/self/oom_score_adj", "utf8").trim();
+  if (mine === "1000") return t.skip("this test process already has oom_score_adj 1000");
   const home = tmpHome();
   try {
-    const code = "process.stdout.write(require('fs').readFileSync('/proc/self/oom_score_adj','utf8'))";
+    // The child reads its own value and its parent's — the wrapper, whose pid
+    // stays the parent: --scope execs in place, and without a manager there
+    // is no systemd-run at all.
+    const code = "const fs=require('fs');process.stdout.write(fs.readFileSync('/proc/self/oom_score_adj','utf8').trim()+' '"
+      + "+fs.readFileSync('/proc/'+process.ppid+'/oom_score_adj','utf8').trim())";
     const r = runCli(["run", "--heavy", "--", "node", "-e", code], heavyEnv(home));
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout.trim(), "1000");
+    assert.equal(r.stdout.trim(), `1000 ${mine}`);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+// A stand-in systemd-run on PATH: it answers the probe, records its argv, and
+// runs what follows `--` in place — exec, as --scope does. Any Linux runs it,
+// with or without a user manager (CI has none), so the wrapping is pinned
+// where the real scope test above skips.
+function fakeSystemdRun(home) {
+  const bin = join(home, "fake-bin");
+  mkdirSync(bin, { recursive: true });
+  const log = join(home, "systemd-run.argv");
+  writeFileSync(join(bin, "systemd-run"),
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n`, { mode: 0o755 });
+  return { bin, log };
+}
+
+test("run --heavy: a stand-in systemd-run pins the scope argv, the exit status and a missing command", { skip: process.platform !== "linux" }, () => {
+  const home = tmpHome();
+  try {
+    const { bin, log } = fakeSystemdRun(home);
+    const env = heavyEnv(home, { PATH: `${bin}:${process.env.PATH}` });
+    const r = runCli(["run", "--heavy", "--", "node", "-e", "process.exit(3)"], env);
+    assert.equal(r.status, 3, r.stderr);
+    const calls = readFileSync(log, "utf8").trim().split("\n");
+    assert.deepEqual(calls, ["--user --scope --quiet --collect -- true", "--user --scope --quiet --collect -- node -e process.exit(3)"]);
+    const missing = runCli(["run", "--heavy", "--", "no-such-command-waypost"], env);
+    assert.equal(missing.status, 127, "a missing command is still 127, never systemd-run's 1");
+    assert.equal(readFileSync(log, "utf8").trim().split("\n").length, 2, "a missing command is not wrapped at all");
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("run --heavy: the record names the job's own pid while it runs", { skip: process.platform === "win32" }, () => {
+  const home = tmpHome();
+  try {
+    const dir = slotsDirFor(home);
+    const code = "const fs=require('fs'),p=require('path'),d=process.env.WP_SLOTS;"
+      + "const f=fs.readdirSync(d).filter(n=>n.endsWith('.json'))[0];"
+      + "setTimeout(()=>process.stdout.write(JSON.stringify({pid:process.pid,rec:JSON.parse(fs.readFileSync(p.join(d,f),'utf8'))})),200);";
+    const r = runCli(["run", "--heavy", "--", "node", "-e", code], heavyEnv(home, { WP_SLOTS: dir }));
+    assert.equal(r.status, 0, r.stderr);
+    const { pid, rec } = JSON.parse(r.stdout);
+    assert.equal(rec.job.pid, pid);
+    assert.notEqual(rec.proc.pid, pid, "the wrapper and the job are both named");
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 

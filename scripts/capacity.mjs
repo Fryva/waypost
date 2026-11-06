@@ -150,9 +150,14 @@ function pastCap(rec, now) {
 // the one `tasklist` call the ADR names.
 function processStillThere(rec, { table, platform, tasklist, now, kill }) {
   if (platform !== "win32") {
-    const gone = processGone(rec, table);
-    if (gone !== null) return !gone;
-    return kill(rec.proc.pid); // undecidable via the table: signal-0 decides
+    const alive = (r) => {
+      const gone = processGone(r, table);
+      if (gone !== null) return !gone;
+      return kill(r.proc.pid); // undecidable via the table: signal-0 decides
+    };
+    // The wrapper, or the job it started: a job in a scope of its own outlives
+    // a killed wrapper, and holds the slot for as long as it runs.
+    return alive(rec) || Boolean(rec.job && rec.job.pid && alive({ ...rec, proc: rec.job }));
   }
   if (!kill(rec.proc.pid)) return false;
   if (pastCap(rec, now)) return false;

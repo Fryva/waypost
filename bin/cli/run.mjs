@@ -2,9 +2,9 @@
 import { ensureMachineStateDir, stateWriteHint } from "../../scripts/lib.mjs";
 import { autoCleanup } from "./auto-clean.mjs";
 import { INHERITED_HARNESS, INHERITED_PROC, INHERITED_SESSION_ID, SCRIPT_URL, fail, flag, opt, splitAtTerminator } from "./core.mjs";
-import { EX_TEMPFAIL, REASON_PRINT_MS, WAIT_POLL_MS, claimSlot, delay, parseDuration, recordAuthority, shellQuote, signalNumber, slotWhere, slotsDir } from "./slots.mjs";
+import { EX_TEMPFAIL, REASON_PRINT_MS, WAIT_POLL_MS, claimSlot, delay, parseDuration, recordAuthority, recordJob, shellQuote, signalNumber, slotWhere, slotsDir } from "./slots.mjs";
 import { spawn, spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { accessSync, constants as fsConstants, readFileSync, statSync, writeFileSync } from "node:fs";
 import { constants as osConstants, setPriority } from "node:os";
 import { join } from "node:path";
 
@@ -27,19 +27,39 @@ function ownScopeAvailable(env) {
   return r.status === 0;
 }
 
+// Wrapped in a scope, a command that is not there makes systemd-run exit 1,
+// indistinguishable from a build that failed; left unwrapped, the spawn below
+// fails with ENOENT and the run exits 127 as it always has.
+function onPath(cmd, env) {
+  const isExec = (p) => { try { accessSync(p, fsConstants.X_OK); return statSync(p).isFile(); } catch { return false; } };
+  if (cmd.includes("/")) return isExec(cmd);
+  return (env.PATH || "").split(":").some((dir) => dir && isExec(join(dir, cmd)));
+}
+
 async function runHeavy(argv, claim, where, mods) {
   try { setPriority(osConstants.priority.PRIORITY_BELOW_NORMAL); }
   catch { /* best-effort: a restricted sandbox must not block the run */ }
   // Linux: if memory runs out anyway, the kernel's OOM killer takes this job
   // first, not the harness beside it (ADR "Memory for heavy work: half the
   // memory up to 2 GB, …"; the job's own scope below keeps systemd from
-  // taking the harness down with it). Inherited across fork and exec; raising needs no
-  // privilege, lowering would, so a higher value already set is left alone.
+  // taking the harness down with it). Raised only for the spawn: the child
+  // inherits it at fork, and the wrapper goes straight back to its own value,
+  // because the wrapper stays in the harness's unit — were it the victim,
+  // systemd would stop that unit, the 2026-09-27 incident again. Going back
+  // needs no privilege: an unprivileged write may lower the value down to the
+  // last one a privileged process set, and that is at most what we read.
+  let ownAdj = null;
   if (process.platform === "linux") {
     try {
-      if (Number(readFileSync("/proc/self/oom_score_adj", "utf8")) < 1000) writeFileSync("/proc/self/oom_score_adj", "1000");
+      const before = Number(readFileSync("/proc/self/oom_score_adj", "utf8"));
+      if (before < 1000) { writeFileSync("/proc/self/oom_score_adj", "1000"); ownAdj = before; }
     } catch { /* best-effort, like the priority above */ }
   }
+  const restoreAdj = () => {
+    if (ownAdj == null) return;
+    try { writeFileSync("/proc/self/oom_score_adj", String(ownAdj)); } catch { /* best-effort */ }
+    ownAdj = null;
+  };
 
   // The command is arbitrary and may itself invoke `waypost` (this project's
   // own test suite does, extensively): it must see the environment it was
@@ -66,7 +86,7 @@ async function runHeavy(argv, claim, where, mods) {
   // incident, reproduced 2026-10-13. `--scope` execs the command in place, so
   // its pid, signals, environment and exit status stay this child's. Without
   // a reachable user manager the command runs as before.
-  if (process.platform === "linux" && ownScopeAvailable(childEnv)) {
+  if (process.platform === "linux" && onPath(cmd, childEnv) && ownScopeAvailable(childEnv)) {
     cmdArgs = ["--user", "--scope", "--quiet", "--collect", "--", cmd, ...cmdArgs];
     cmd = "systemd-run";
   }
@@ -88,6 +108,8 @@ async function runHeavy(argv, claim, where, mods) {
   let signal = null;
   try {
     child = spawn(cmd, cmdArgs, { stdio: "inherit", shell: useShell, env: childEnv });
+    restoreAdj();
+    if (child.pid) recordJob(claim.file, child.pid, mods.presence);
     [code, signal] = await new Promise((res) => {
       child.on("exit", (c, s) => res([c, s]));
       child.on("error", (e) => {
@@ -97,6 +119,7 @@ async function runHeavy(argv, claim, where, mods) {
       });
     });
   } catch (e) {
+    restoreAdj();
     spawnFailed = true;
     process.stderr.write(`waypost run --heavy: ${e.message}\n`);
     code = 127;

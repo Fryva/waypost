@@ -1,7 +1,7 @@
 ---
 type: adr
 id: "memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job"
-title: "Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job"
+title: "Memory for heavy work: half the memory up to 2 GB, macOS by pressure level, no agents beside a job"
 status: proposed
 date: 2026-09-28
 authors: ["Ivan Morozov"]
@@ -12,12 +12,12 @@ superseded_by: null
 review_status: pending
 reviewed_at: null
 drafted_by: {"harness":"claude","provider":null,"date":"2026-09-28"}
-code_refs: ["scripts/capacity.mjs", "bin/waypost", "tests/capacity.test.mjs", "tests/slots.test.mjs", "templates/agents-block.md.tmpl", "scripts/agents.mjs", "prompts/heavy.md", "tests/harness.test.mjs", "AGENTS.md"]
+code_refs: ["scripts/capacity.mjs", "scripts/capacity-admission.mjs", "scripts/capacity-memory.mjs", "bin/cli/run.mjs", "bin/cli/slots.mjs", "tests/capacity.test.mjs", "tests/capacity-memory.test.mjs", "tests/capacity-admission.test.mjs", "tests/slots.test.mjs", "templates/agents-block.md.tmpl", "scripts/agents-registry.mjs", "prompts/heavy.md", "tests/harness.test.mjs", "AGENTS.md"]
 related: "heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first, ADR-0001, ADR-0008"
 guards: [{"require": "no agents beside it", "in": "AGENTS.md", "why": "the routing block keeps background agents and a heavy job from running side by side, in either order"}]
 ---
 
-# Memory for heavy work: half the memory up to 2 GB, macOS without claimed pages, no agents beside a job
+# Memory for heavy work: half the memory up to 2 GB, macOS by pressure level, no agents beside a job
 
 | Field | Value |
 |---|---|
@@ -90,8 +90,11 @@ not count a process's own memory as available.
 This replaces two parts of the heavy-work-sized-to-the-machine ADR's Decision
 1 — the memory share in rule (c) and the macOS memory probe — and extends its
 Decision 2 slot and Decision 3 rule. Everything else there stands. On
-acceptance, the replaced passages there get an "Amended by" note, as its
-Decision 3 already carries one.
+acceptance, these passages there get an "Amended by" note, as its Decision 2
+already carries one: Decision 1's macOS probe and rule (c); Decision 2's
+"Running" (the scope, `oom_score_adj`, the job's pid in the record); the
+budget note "about 20 characters"; the trap list's "which is why the
+fallback exists"; the "81 %" figures; Owner's decisions item 1.
 
 1. **A heavy job's memory share is the smaller of 2 GB and half the memory**
    (was a quarter). A 3.8 GB VM needs 1.9 GB available; a 16 GB Mac still
@@ -103,10 +106,13 @@ Decision 3 already carries one.
 3. **macOS memory follows the kernel's pressure level**
    (`kern.memorystatus_vm_pressure_level`: 1 normal, 2 warning, 4 critical):
    - normal: `vm_stat` free + inactive + speculative + purgeable pages;
-   - warning, or the level unreadable: free + file-backed + purgeable — what
-     a job can take without squeezing a running process. This is XNU's own
-     definition of available pages off macOS, and Activity Monitor's Free +
-     Cached Files;
+   - warning: free + file-backed + purgeable — the pages the kernel can
+     reclaim without compressing or swapping any process's own memory
+     (file-backed pages include mapped executables, so reclaiming them costs
+     page-ins). This is XNU's own definition of available pages off macOS,
+     and Activity Monitor's Free + Cached Files;
+   - level unreadable: the smaller of the two formulas — neither is
+     stricter by construction — labelled "memory pressure unknown";
    - critical: 0, and the refusal reason says "memory pressure critical".
    - When `vm_stat` fails or lacks a count: `kern.memorystatus_level` ×
      total, labelled an upper bound; then `os.freemem()`, a lower bound.
@@ -116,16 +122,25 @@ Decision 3 already carries one.
    does not refuse a job forever.
 5. **Linux: the job is the OOM killer's first choice, in a scope of its
    own.** `waypost run --heavy` raises `/proc/self/oom_score_adj` to 1000
-   before it spawns the job; the job and everything it starts inherit it.
-   Raising needs no privilege. Under a reachable systemd user manager it
-   starts the job through `systemd-run --user --scope --collect`, so the unit
-   systemd stops after an OOM kill is the job's, not the harness's; a probe
-   decides, and without a manager the job runs as before. If memory runs out
-   anyway, the build dies, not the harness. (Owner, 2026-10-13, after the
-   Linux VM pass in Verification.)
+   for the spawn only: the job inherits it at fork, and the wrapper writes
+   its own earlier value back at once. The wrapper stays in the harness's
+   unit, so were it the victim, systemd would stop that unit — the
+   incident again. Neither write needs privilege: an unprivileged process
+   may lower the value down to the last one a privileged process set.
+   Under a reachable systemd user manager the job starts through
+   `systemd-run --user --scope --collect`, so the unit systemd stops after
+   an OOM kill is the job's, not the harness's; a probe decides, and
+   without a manager the job runs as before. A command not on `PATH` is not
+   wrapped, so it still exits 127, not systemd-run's 1. The slot record
+   names the job's pid, and stays live while either the wrapper or the job
+   runs: a job that outlives a killed wrapper keeps its slot. If the kernel
+   OOM killer has to act, the build dies, not the harness. (Owner,
+   2026-10-13 after the Linux VM pass, and 2026-11-05 after the second
+   critic pass.)
 6. **No agents beside a heavy job, in either order.** The routing block's
    rule becomes "Heavy work: `waypost run --heavy -- <cmd>`; no agents beside
-   it." (block v3). `prompts/heavy.md` step 6 gives the reason: let the
+   it." (block v3; the line is unchanged in v4). `prompts/heavy.md` step 6
+   gives the reason: let the
    agents finish, then start the job, or the other way round; check
    `waypost capacity` before launching several agents at all.
 
@@ -134,8 +149,11 @@ Decision 3 already carries one.
 1. Half the memory up to 2 GB matches the one figure there is for heavy work
    on a small machine: the VM agent's manual 2 GB after the crash. The 2 GB
    cap leaves large machines as they were.
-2. A reserve is the only way admission can see a job that has not allocated
-   yet; slots already stop two jobs in one minute on cores, not on memory.
+2. A reserve is the one way admission can see a job that has not allocated
+   yet on every OS; slots already stop two jobs in one minute on cores, not
+   on memory. (On Linux the job's scope would let the reserve be measured —
+   share − the scope's `memory.current` — not taken, for one rule
+   everywhere.)
 3. At normal pressure the kernel gives up inactive memory before anything
    else, so the looser formula keeps an unloaded Mac — an 8 GB one with a
    browser and an IDE — from being refused for nothing. Under warning, memory
@@ -145,9 +163,12 @@ Decision 3 already carries one.
    heavy work there — too strict, the owner said.
 4. Waypost cannot see or stop what a harness spawns (ADR-0001: no hooks),
    but it is the job's parent: it can make sure the job, not the harness, is
-   what the OOM killer takes. What remains — agents started beside a job —
+   what the kernel OOM killer takes. Agents a harness starts beside a job
    only the rule each agent reads every turn reaches, which is why it goes
-   into the routing block and not only into `prompts/heavy.md`.
+   into the routing block and not only into `prompts/heavy.md`. Agents
+   Waypost starts itself (`waypost team` peers) it can see: warning there,
+   and showing a live slot in `brief` and `status`, is a separate story
+   (owner, 2026-11-05).
 
 ## Alternatives Considered
 
@@ -220,6 +241,25 @@ shows the kernel OOM killer, and systemd's `DefaultOOMPolicy=stop` stopping
 the scope the victim shared with the harness. "Not everywhere" is handled by
 the probe: no user manager, no scope.
 
+### A memory limit on the job's scope (`-p MemoryHigh=` / `MemoryMax=`)
+
+**Pros**:
+- an out-of-memory condition stays inside the job's scope, whatever the
+  kernel would pick globally and whatever systemd-oomd does
+
+**Cons**:
+- a limit at the share kills or throttles builds that legitimately need more
+  while memory is free; a limit at what was free at admission moves with
+  every reading
+
+**Rejected because**: the owner chose the scope and `oom_score_adj` without a
+limit (2026-11-05).
+
+### "No agents beside it" only when `waypost capacity` says the machine is small
+
+**Rejected because**: the routing block has no budget left for a condition
+(ADR-0008), and an agent would have to run `capacity` before every spawn.
+
 ### Only the rule, no rule, or "no new agents during it"
 
 **Rejected because**: the rule alone leaves the harness as likely a victim as
@@ -236,8 +276,9 @@ order.
   memory
 - a Mac at warning with 2.7 GB available takes one 2 GB job, not two, and
   none under critical pressure
-- on Linux an OOM kill takes the build, and the session survives —
-  verified on the VM under a systemd user manager (Verification)
+- on Linux a kernel OOM kill takes the build, and the session survives —
+  verified on the VM under a systemd user manager by hand before the scope
+  was in code; the code path itself awaits the run in Verification
 
 **Negative / trade-offs**:
 - with two jobs running, the reserve counts the first one's memory twice
@@ -247,23 +288,33 @@ order.
 - mapped executables of running apps are file-backed and count as available
   under warning; reclaiming them costs page-ins
 - a sandbox that refuses `vm_stat` gets the optimistic fallback
-- systemd-oomd ignores `oom_score_adj`
-- the routing block is 1394 of its 1400 characters (ADR-0008); the budget
-  note in the parent ADR ("about 20 characters") is now 6; block v3 makes
-  `waypost doctor` report an issue in every project until `waypost agents
-  register` is re-run
-- the feature-sized definition in the block reads "about to change several
-  files" (was "about to write across several files") to fit the budget
+- systemd-oomd (on by default on desktop Ubuntu 22.04 and later) ignores
+  `oom_score_adj` and kills whole cgroups by memory pressure; it may still
+  pick the harness's scope, and then the job survives it
+- the job leaves the cgroup of whoever started it: stopping the harness's
+  unit, or a `MemoryMax=` set on it on purpose, no longer reaches the job
+- a nested `run --heavy` puts its job in a sibling scope, outside the outer
+  job's; every run creates two transient units in the journal (the probe and
+  the job)
+- when the scope probe fails, nothing says the protection is missing
+- block v3 made `waypost doctor` report an issue in every project until
+  `waypost agents register` was re-run; it is v4 since, within its ADR-0008
+  budget
 
 **What changes in code / process**:
-- `scripts/capacity.mjs`: `JOB_MEMORY_DIVISOR` 2, the holder reserve in
-  `canStart`, the pressure-level formula, the inactive-file subtraction, the
-  critical-pressure reason
-- `bin/waypost` `runHeavy`: `oom_score_adj` and the job's own scope on Linux
-- `templates/agents-block.md.tmpl`, `AGENT_BLOCK_VERSION` 3, `AGENTS.md`;
-  `prompts/heavy.md` step 6
-- tests: `tests/capacity.test.mjs` on the measured Mac and VM figures,
-  `tests/slots.test.mjs` for `oom_score_adj` and the scope (Linux only),
+- `scripts/capacity-admission.mjs`: `JOB_MEMORY_DIVISOR` 2, the holder
+  reserve in `canStart`; `scripts/capacity-memory.mjs`: the pressure-level
+  formula, the inactive-file subtraction; `scripts/capacity.mjs`: the
+  critical-pressure reason, a record live while its job runs
+- `bin/cli/run.mjs` `runHeavy`: `oom_score_adj` for the job only, the job's
+  own scope, a missing command unwrapped; `bin/cli/slots.mjs` `recordJob`
+- `templates/agents-block.md.tmpl`, `scripts/agents-registry.mjs`
+  (`AGENT_BLOCK_VERSION`), `AGENTS.md`; `prompts/heavy.md` step 6
+- tests: `tests/capacity.test.mjs` and `tests/capacity-memory.test.mjs` on
+  the measured Mac and VM figures; `tests/slots.test.mjs` for the job's pid
+  (any POSIX), `oom_score_adj` of job and wrapper, the real scope, and a
+  stand-in `systemd-run` pinning the argv, the exit status and a missing
+  command (Linux only, the stand-in with or without a user manager);
   `tests/harness.test.mjs` for the rule
 
 ## Verification
@@ -283,9 +334,11 @@ swap, so the share is 2 GB, not 1.9):
   heavy job needs 2.0 GB", and `run --heavy` exited 75; `can start 1` again
   once it was freed;
 - `oom_score_adj` test — passes, `tests/slots.test.mjs` 69 of 69 on the VM,
-  `tests/capacity.test.mjs` 62 of 62;
+  `tests/capacity.test.mjs` 62 of 62 (at 9231ade, before the scope was in
+  code);
 - the kill log — the kernel OOM killer; Context has the record;
-- **Decision 5 does not deliver its consequence.** A real global OOM, driven
+- **`oom_score_adj` alone, Decision 5 as first written, did not deliver its
+  consequence.** A real global OOM, driven
   twice from a stand-in harness scope (`systemd-run --user --scope`, holding
   a `sleep`): with the job started by `run --heavy` inside that scope, the
   kernel chose the job (`oom_score_adj:1000`), and systemd then failed the
@@ -297,6 +350,37 @@ swap, so the share is 2 GB, not 1.9):
   job in its own systemd scope" is the one that keeps the session — for this
   reason, not systemd-oomd's.
 
+Owner's Mac, 2026-11-05 (16 GB, 8 cores), 45 readings 20 s apart over 15
+minutes while the Debian VM booted:
+- normal (31 readings): 6.4 GB available falling to 3.5 as the VM came up;
+  `can_start` 2 above 4 GB, 1 below;
+- normal → warning at 19:52:49: available stepped from 3.46 GB (normal
+  formula) to 2.54 GB (warning formula), `can_start` 1 — the switch works as
+  decided;
+- warning (14 readings): 2.80 to 1.98 GB; `can_start` 1 above 2 GB; five
+  refusals, each naming the cores (0.0–1.9 idle while the VM booted), one of
+  them with memory also below the share (1.98 GB) — cores are checked first;
+- critical never occurred; swap 4.2–4.5 of 6 GB.
+
+Still to run before acceptance:
+- on the Linux VM at this ADR's head, from the user's desktop session (not
+  `prlctl exec`, which has no user manager): `node --test
+  tests/slots.test.mjs`, recording that the real-scope test reports `ok`, not
+  `# SKIP`, and that the `oom_score_adj` and stand-in `systemd-run` tests pass.
+
+## Review history
+
+- 2026-09-28, waypost-critic: accept after fixes — eight findings, each
+  addressed in c5ebf4c.
+- 2026-11-05, waypost-critic: accept after fixes — the wrapper itself became
+  the OOM victim inside the harness's unit (fixed: the job alone gets 1000);
+  the scope path unverified in code on Linux (stand-in test added, VM run
+  pending); Waypost's own `team` peers outside the rule (separate story);
+  stale text, `code_refs` and the title (fixed); a missing command exiting 1
+  (fixed); "unreadable is stricter" (fixed: the minimum); systemd-oomd, the
+  orphaned job (fixed: the job's pid in the record) and nested runs recorded
+  in Consequences.
+
 ## References
 
 - heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first,
@@ -307,4 +391,4 @@ swap, so the share is 2 GB, not 1.9):
 
 ---
 
-*Last updated: 2026-09-28*
+*Last updated: 2026-11-05*

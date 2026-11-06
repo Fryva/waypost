@@ -153,6 +153,19 @@ function recordAuthority(file, capacity) {
   try { writeFileAtomic(file, JSON.stringify({ ...rec, authority: asked }, null, 2) + "\n"); } catch {}
 }
 
+// The job's own pid, written into the record we already own once it has
+// started (ADR "Memory for heavy work: half the memory up to 2 GB, …"). On
+// Linux the job runs in a scope of its own and outlives this wrapper if the
+// wrapper is killed; the record then stays live while the job does, so the
+// next claim does not start a second job beside the orphan.
+function recordJob(file, pid, presence) {
+  let rec;
+  try { rec = JSON.parse(readFileSync(file, "utf8")); } catch { return; }
+  if (!rec || !pid) return;
+  const job = { pid, ticks: presence.startTicks(pid), started: null };
+  try { writeFileAtomic(file, JSON.stringify({ ...rec, job }, null, 2) + "\n"); } catch {}
+}
+
 // <N>s or <N>m only, the ADR's own examples (30s, 10m) — anything else fails
 // fast rather than guessing.
 function parseDuration(spec) {
@@ -175,4 +188,4 @@ function shellQuote(arg) {
   return process.platform === "win32" ? `"${s.replace(/"/g, '\\"')}"` : `'${s.replace(/'/g, "'\\''")}'`;
 }
 
-export { slotsDir, legacySlotsDirs, EX_TEMPFAIL, WAIT_POLL_MS, REASON_PRINT_MS, delay, selfMarker, slotWhere, claimSlot, recordAuthority, parseDuration, signalNumber, shellQuote };
+export { slotsDir, legacySlotsDirs, EX_TEMPFAIL, WAIT_POLL_MS, REASON_PRINT_MS, delay, selfMarker, slotWhere, claimSlot, recordAuthority, recordJob, parseDuration, signalNumber, shellQuote };
