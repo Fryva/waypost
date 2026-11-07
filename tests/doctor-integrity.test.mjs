@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkCodeRefs, checkEpicSize, EPIC_SIZE_BUDGET, checkSupersedes, checkAcceptanceGate } from "../scripts/doctor-integrity.mjs";
+import { checkCodeRefs, checkEvidenceAnchors, checkEpicSize, EPIC_SIZE_BUDGET, checkSupersedes, checkAcceptanceGate } from "../scripts/doctor-integrity.mjs";
 import { buildNodeIndex, loadLayout } from "../scripts/lib.mjs";
 
 function fixture(t) {
@@ -180,4 +180,49 @@ test("doctor-integrity warns when an epic outgrows the budget the planner reads 
   assert.deepEqual(found.map(f => [f.check, f.level, f.file]), [["epic-size", "warn", "epics/E2/epic.md"], ["epic-size", "warn", "epics/E3/epic.md"]],
     "bytes, not characters; only epics; the budget itself is allowed");
   assert.match(found[0].message, /research\/.*code_refs as directories/);
+});
+
+test("evidence anchors: a missing file or a missing literal is reported, by status; resolved anchors, file:line, placeholders, fences and comments are not", t => {
+  const root = fixture(t);
+  mkdirSync(join(root, "tests"));
+  writeFileSync(join(root, "tests", "a.test.mjs"), 'test("AC1: the limit holds — nothing renamed", () => {});\n');
+  writeFileSync(join(root, "tests", "тест.test.mjs"), 'test("AC1", () => {});\n');
+  mkdirSync(join(root, "packages", "@scope"), { recursive: true });
+  writeFileSync(join(root, "packages", "@scope", "x.test.mjs"), 'test("AC1", () => {});\n');
+  writeFileSync(join(root, "..", "outside.test.mjs"), 'test("AC1", () => {});\n');
+  t.after(() => rmSync(join(root, "..", "outside.test.mjs"), { force: true }));
+  const body = [
+    '- [x] holds — evidence: tests/a.test.mjs#"AC1: the limit holds" (a prefix of the title)',
+    '- [x] renamed — evidence: tests/a.test.mjs#"AC2: gone"',
+    '- [x] moved — evidence: `tests/b.test.mjs#"AC3"`, tests/a.test.mjs:12',
+    '- [ ] template — evidence: <path>#"<test title>" | <command> | <file>:<line>',
+    "<!-- tests/c.test.mjs#\"hint\" -->",
+    "````",
+    "```js",
+    'tests/d.test.mjs#"example"',
+    "```",
+    "````",
+    "~~~",
+    'tests/e.test.mjs#"example"',
+    "~~~",
+    "<!-- a two-line hint:",
+    '     tests/f.test.mjs#"hint" -->',
+    'after the fences — evidence: tests/a.test.mjs#"AC4: closed fences end"',
+    'twice: tests/a.test.mjs#"AC2: gone"',
+    'any script: tests/тест.test.mjs#"AC1", packages/@scope/x.test.mjs#"AC1"',
+    'outside the project: ../outside.test.mjs#"AC1"',
+  ].join("\n");
+  const story = (status) => Object.freeze({ kind: "story", rel: "epics/E/stories/s.md", fm: { status }, body });
+  for (const [status, level] of [["done", "issue"], ["in-progress", "issue"], ["planned", "warn"]]) {
+    const found = checkEvidenceAnchors([story(status)], root);
+    assert.deepEqual(found.map((f) => f.level), [level, level, level, level], JSON.stringify(found));
+    assert.ok(found.every((f) => f.check === "evidence-anchor" && f.file === "epics/E/stories/s.md"));
+    assert.match(found[0].message, /tests\/a\.test\.mjs#"AC2: gone": the file no longer contains this text/);
+    assert.match(found[1].message, /tests\/b\.test\.mjs#"AC3" names a file that does not resolve/);
+    assert.match(found[2].message, /tests\/a\.test\.mjs#"AC4: closed fences end": the file no longer contains/, "checking resumes after a closed fence");
+    assert.match(found[3].message, /outside\.test\.mjs#"AC1" names a file that does not resolve inside the project/);
+  }
+  const adr = Object.freeze({ kind: "adr", rel: "adr/x.md", fm: { status: "accepted" }, body: 'tests/a.test.mjs#"gone"' });
+  assert.deepEqual(checkEvidenceAnchors([adr], root).map((f) => f.level), ["warn"]);
+  assert.deepEqual(checkEvidenceAnchors([Object.freeze({ kind: "adr", rel: "adr/y.md", fm: {}, body: "no anchors here" })], root), []);
 });

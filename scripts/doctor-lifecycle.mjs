@@ -72,7 +72,7 @@ export function checkLifecycleGates(artifacts, vaultCfg) {
         const m = line.match(/^\s*-\s*\[(x|X)\]\s*(.*)$/);
         if (m && !evidenceRe.test(m[2])) {
           out.push(finding("vault", "warn", "evidence",
-            `Checked acceptance criterion carries no evidence suffix ("— evidence: <test | command | file:line>"): "${m[2].slice(0, 70)}".`, story.rel));
+            `Checked acceptance criterion carries no evidence suffix ("— evidence: <path>#\"<test title>\" | <command> | <file>:<line>"): "${m[2].slice(0, 70)}".`, story.rel));
         }
       }
     }

@@ -199,55 +199,57 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
 - [x] Setting, tightening or switching the limit from under a harness is
       refused — also with `WAYPOST_HARNESS` set to claim none — and nothing
       is written; `off` and loosening are accepted from anywhere.
-      — evidence: tests/limit.test.mjs:365 (an ancestor process named after a
-      harness, matched through a symlink; the message names its pid), :335
+      — evidence: tests/limit.test.mjs#"AC1 (b): an ancestor process named after a harness (matched by" (an ancestor process named after a
+      harness, matched through a symlink; the message names its pid), tests/limit.test.mjs#"AC1 (a): an env marker (CLAUDECODE) refuses a gated change, and the"
       (a lying `WAYPOST_HARNESS`/`WAYPOST_PROC` changes nothing — the gate
-      never reads them), :404 and :416 (tighten and switch refused, the
-      setting file byte for byte unchanged), :430/:446/:462 (`off`, a looser
+      never reads them), tests/limit.test.mjs#"AC1 (c): tighten (20 -> 10) is refused under a harness marker — the" and tests/limit.test.mjs#"AC1 (c): switch (20 -> free:30%) is refused under a harness marker —" (tighten and switch refused, the
+      setting file byte for byte unchanged), tests/limit.test.mjs#"AC1 (d): off works under a harness marker — no gate required, one", tests/limit.test.mjs#"AC1 (d): loosening a GB limit (10 -> 20) works under a harness", tests/limit.test.mjs#"AC1 (d): loosening free: (30% -> 20%) works under a harness" (`off`, a looser
       GB limit and a looser `free:` accepted under a harness marker, one
       `kind: limit` line each); code bin/cli/clean.mjs, scripts/agents-detection.mjs.
 - [x] On a terminal with no answer before the timeout, the limit is not set.
       — evidence, at unit level only, which is what this story's plan chose
-      ("the terminal `[y/N]` is covered as units"): tests/cleanup.test.mjs:1033
-      (silence past the timeout resolves false), :1041 (EOF resolves false),
+      ("the terminal `[y/N]` is covered as units"): tests/cleanup.test.mjs#"askYesNo: silence past the timeout resolves false"
+      (silence past the timeout resolves false), tests/cleanup.test.mjs#"askYesNo: EOF with no answer at all resolves false" (EOF resolves false),
       and bin/cli/clean.mjs:151-159, where a false answer prints "not set" and
       returns before the write at :176-179. No end-to-end test drives a real
       terminal, so neither the 60 s constant nor the preview printed above the
       question is asserted anywhere — see Technical Notes.
 - [x] A working set spread over several tagged items, all written within 7
       days, is left whole over the limit; the report says to raise it.
-      — evidence: tests/limit.test.mjs:592 (three items 2 days idle, a tiny
-      limit: all three survive, stderr says to raise it, nothing renamed);
-      units tests/cleanup.test.mjs:467, :481.
+      — evidence: tests/limit.test.mjs#"AC3: idle for only 12 hours (under the 1-day floor) — a tiny GB" (three items 2 days idle, a tiny
+      limit: all three survive, stderr says to raise it, nothing renamed;
+      amended by the disk-space ADR, 2026-11-06: the floor is 1 day, and the
+      test now keeps three items 12 hours idle);
+      units tests/cleanup.test.mjs#"qualifiesForLimit: idle past a registry's own SHORTER stale_days is", tests/cleanup.test.mjs#"qualifiesForLimit: a registry's own LONGER stale_days still applies —".
 - [x] Over a GB limit, idle qualifying items go oldest first and removal
       stops as soon as the counted total fits.
-      — evidence: tests/limit.test.mjs:609 (of three idle items only the
-      oldest is renamed), :915 (holders re-read between items); unit
-      tests/cleanup.test.mjs:567 (`limitNeed`).
+      — evidence: tests/limit.test.mjs#"AC4: three idle items over a small GB threshold — only the single" (of three idle items only the
+      oldest is renamed), tests/limit.test.mjs#"AC8: holders are re-read before each item — a new one appearing after" (holders re-read between items); unit
+      tests/cleanup.test.mjs#"limitNeed: a GB limit's need is the counted total minus the limit;" (`limitNeed`).
 - [x] Under `free:<P>%`, removal covers the shortfall computed once, even
       when free space does not move after a removal.
-      — evidence: tests/limit.test.mjs:628 (a frozen `statfs` probe: exactly
+      — evidence: tests/limit.test.mjs#"AC5: under free:30%, the probe's own statfs decides the shortfall" (a frozen `statfs` probe: exactly
       the two oldest items cover the shortfall; recomputing it per item would
-      have taken all three); unit tests/cleanup.test.mjs:590.
+      have taken all three); unit tests/cleanup.test.mjs#"pickUnderLimit: free: stops as soon as the precomputed shortfall is".
 - [x] A git-ignored generic `build/` holding release output, a tagged
       directory holding a `.pkg`, and `.terraform` are never removed
       automatically.
-      — evidence: tests/limit.test.mjs:648 (all three survive; `excluded`
+      — evidence: tests/limit.test.mjs#"AC6: a generic name holding a package, a tagged directory holding a" (all three survive; `excluded`
       names each reason: generic name, distributable package, `auto: false`);
-      tests/toolchains.test.mjs:164, :299; toolchains/system.json,
+      tests/toolchains.test.mjs#"toolchains/<id>.json: auto_keep_suffixes is carried only by the", tests/toolchains.test.mjs:299; toolchains/system.json,
       toolchains/terraform.json.
 - [x] A nested worktree inside the root is never entered or removed.
-      — evidence: tests/sizes.test.mjs:560, :577 (the walk of one tree).
+      — evidence: tests/sizes.test.mjs#"scanProject: stopAtGit never even lists a directory holding a nested", tests/sizes.test.mjs#"scanProject: stopAtGit applies inside an already-matched item's own" (the walk of one tree).
       Amended by the disk-space ADR, Decision 2 (2026-11-06): the automatic
       path now walks every work tree of the repository, so idle output in a
       nested worktree is removed by the same item rules; nested repositories
-      stay never entered (tests/limit.test.mjs:685).
+      stay never entered (tests/limit.test.mjs#"AC7: a nested repository is never entered; a linked worktree is").
 - [x] With another live heavy job in the same tree (or an ancestor or
       descendant), or a live record without a root, nothing is removed.
-      — evidence: tests/limit.test.mjs:835 (the same root), :852 (an
-      ancestor), :873 (a descendant), :888 (a record naming neither root nor
-      cwd blocks unconditionally), :901 (an unrelated holder does not block),
-      :915 (holders re-read before each item), :941 (another host on this
+      — evidence: tests/limit.test.mjs#"AC8: a live holder whose root is the fixture itself blocks — nothing" (the same root), tests/limit.test.mjs#"AC8: a live holder whose root is an ancestor of the fixture blocks it" (an
+      ancestor), tests/limit.test.mjs#"AC8: a live holder whose root is a descendant of the fixture blocks" (a descendant), tests/limit.test.mjs#"AC8: a live holder naming neither root nor cwd blocks unconditionally" (a record naming neither root nor
+      cwd blocks unconditionally), tests/limit.test.mjs#"AC8: a live holder whose root is unrelated does not block — the sweep" (an unrelated holder does not block),
+      tests/limit.test.mjs#"AC8: holders are re-read before each item — a new one appearing after" (holders re-read before each item), tests/limit.test.mjs#"AC8: a live presence record from another host in this checkout skips" (another host on this
       checkout). Narrowed as the plan's own answers state: a record with
       `root: null` but a `cwd` is compared by that `cwd`, so only a record
       lacking both blocks unconditionally. The filesystem root was an
@@ -256,34 +258,34 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
       with tests/cleanup.test.mjs:788-790.
 - [x] A wrapped command ended by a signal triggers no cleanup; a signal
       during the cleanup leaves nothing half-removed inside the project.
-      — evidence: tests/limit.test.mjs:972 (the child ends itself by SIGTERM:
-      exit 143, nothing renamed), :986 (a signal to the wrapper mid-sweep:
+      — evidence: tests/limit.test.mjs#"AC9: the wrapped command ending itself by SIGTERM triggers no cleanup" (the child ends itself by SIGTERM:
+      exit 143, nothing renamed), tests/limit.test.mjs#"AC9: a signal to the wrapper itself, mid-cleanup, ends it at once —" (a signal to the wrapper mid-sweep:
       the item already renamed is outside the project, the next is untouched,
       one marked entry in `waypost-removing/`). The `interrupted` branch (a
       tool trapping Ctrl-C and exiting itself) and SIGINT are not covered.
 - [x] Past the deadline nothing more is renamed, and the outcome says so in
       `status`.
-      — evidence: tests/limit.test.mjs:1020 (a 1 s deadline probe with a 1.5 s
+      — evidence: tests/limit.test.mjs#"AC10: a short deadline probe stops the sweep after the first item —" (a 1 s deadline probe with a 1.5 s
       pause: the first item is renamed, the second is not, the record says
       `deadline`, and `waypost status` prints it); the scan-phase deadline as
-      a unit, tests/sizes.test.mjs:621.
+      a unit, tests/sizes.test.mjs#"scanProject: deadline stops the walk where it stands, reporting".
 - [x] On non-local storage, outside git, or at the home directory, nothing
       is removed.
-      — evidence: tests/limit.test.mjs:1041 (a root under a Dropbox path),
-      :1065 ("not in a git work tree"), :1077 (HOME equal to the root — a
-      protected path); unit tests/cleanup.test.mjs:102 (`refusePath`).
+      — evidence: tests/limit.test.mjs#"AC11: root under a Dropbox path reads as non-local storage — nothing" (a root under a Dropbox path),
+      tests/limit.test.mjs#"AC11: a working directory outside any git repository skips — 'not in" ("not in a git work tree"), tests/limit.test.mjs#"AC11: HOME equal to the project root skips it as a protected path" (HOME equal to the root — a
+      protected path); unit tests/cleanup.test.mjs#"refusePath: refuses the filesystem root, home, the project root, the" (`refusePath`).
 - [x] Leftovers in `waypost-removing/` whose deleter is gone are purged by
       the next `waypost clean`; an entry whose deleter is alive is left.
-      — evidence: tests/limit.test.mjs:512 (a dead pid is adopted and gone
-      within 10 s, a live one is left), :561 (an entry that lost its marker is
+      — evidence: tests/limit.test.mjs#"AC12: waypost clean adopts a leftover whose marker names a dead pid," (a dead pid is adopted and gone
+      within 10 s, a live one is left), tests/limit.test.mjs#"AC12: a leftover that lost its marker is re-marked and removed; a" (an entry that lost its marker is
       re-marked and removed; a name of another shape is left and counted).
 - [x] `run --heavy` exits with the wrapped command's status whatever the
       cleanup did; each run appends one log line.
-      — evidence: tests/limit.test.mjs:1090 (exit 3 passes through after a
-      rename), :1101 (a cleanup failure does not change it), :1135 (a deleter
+      — evidence: tests/limit.test.mjs#"AC13: the wrapped command's own exit status passes through unchanged" (exit 3 passes through after a
+      rename), tests/limit.test.mjs#"AC13: a cleanup failure never changes the wrapped command's own exit" (a cleanup failure does not change it), tests/limit.test.mjs#"AC13: a deleter that cannot be spawned at all leaves the exit status" (a deleter
       that cannot be spawned at all: the child keeps its own exit code 7 and
       reports no pid — before this close the missing `'error'` listener made
-      that an uncaught exception and exit 1, see Technical Notes), :1115 (the
+      that an uncaught exception and exit 1, see Technical Notes), tests/limit.test.mjs#"AC13: the log grows by exactly one line per run" (the
       log grows by exactly one line per run). Narrowed as the plan's own
       answers state: one line per heavy run only while a limit is set; with
       no limit or `off` the cleanup exits silently and logs nothing.
@@ -314,7 +316,7 @@ scripts/cleanup-selection.mjs, and the CLI into bin/cli/) by a fresh-context
   now, a spawn with no pid reports none, and the entries stay in
   `waypost-removing/` for the next `waypost clean` to adopt. Reproduced
   before the fix (exit 1 instead of 7) and covered by
-  tests/limit.test.mjs:1135.
+  tests/limit.test.mjs#"AC13: a deleter that cannot be spawned at all leaves the exit status".
 - **scripts/lib.mjs** — `treesOverlap` appended a separator unconditionally,
   so the filesystem root compared as `"//"` and overlapped nothing: a live
   heavy job whose root was `/` blocked no project under it, against AC8.

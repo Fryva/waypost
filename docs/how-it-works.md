@@ -468,7 +468,9 @@ issue for an in-progress or done artifact and a warning at any other status —
 annotate it `(waiting)`, `(planned)` or `(deleted)` to say it is a promise rather
 than a claim. A `supersedes` / `superseded_by` entry naming nothing is an issue;
 a one-directional link, or a replaced artifact whose status is not `superseded`,
-is a warning. `acceptance_gate: on` in the vault config adds the acceptance gate:
+is a warning. An evidence anchor, `<path>#"<literal>"` (a test named by its title
+rather than a line number), is checked the same way: the file must exist inside
+the project and still contain the literal. `acceptance_gate: on` in the vault config adds the acceptance gate:
 `status: accepted` requires `review_status` to hold an answer rather than
 `pending`. Its own key, because `lifecycle_gates` is story-scoped and recommended
 by default — a project that wanted story gates never asked for a policy on how

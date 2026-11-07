@@ -55,8 +55,10 @@ them down, then hunt each specifically.
 
 ## Phase 1 — Story conformance FIRST (the verdict's backbone)
 For EVERY acceptance criterion: `met` / `not met` / `unverifiable`, each with
-concrete evidence — the file:line that implements it, the test that asserts it,
-or the command you ran (read-only) to observe it. Then the same for the
+concrete evidence — the file:line that implements it, the test that asserts it
+(named by its anchor, `<path>#"<test title>"`, which survives insertions and
+`waypost doctor` checks — never by a line number), or the command you ran
+(read-only) to observe it. Then the same for the
 Decomposition items. Unchecked boxes that the diff actually satisfies: say so.
 Code that satisfies no criterion: flag as scope creep, gently. A story is
 **closed** only when every criterion is met or explicitly waived by the caller.
@@ -88,7 +90,7 @@ say so plainly.
 2. **Acceptance matrix** — one line per criterion: status + evidence. Include
    the covering specs' attributed + unattributed acceptance items (additive).
    Format each evidence value so it can be persisted verbatim into the story
-   file at close: `— evidence: <test | command | file:line>` — the close gate
+   file at close: `— evidence: <path>#"<test title>" | <command> | <file>:<line>` — the close gate
    (`waypost story close <story> --write`) copies your matrix into the checkboxes.
 3. **Findings** — severity-rated: `🔴 blocker` / `🟡 should-fix` / `🟢 nit`; each
    with file:line, confidence, why it matters, and a specific fix.

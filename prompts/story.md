@@ -60,7 +60,9 @@ the two cannot collide).
      planner agent's output if one ran. Do not restate the spec.
    - `close` — write the Final Summary (what changed / why / tests executed /
      risks & follow-ups), and update the Acceptance Criteria checkboxes with
-     evidence suffixes: `- [x] <criterion> — evidence: <test | command | file:line>`.
+     evidence suffixes: `- [x] <criterion> — evidence: <path>#"<test title>" | <command> | <file>:<line>`.
+     Name a test by its anchor (`<path>#"<its title or a prefix>"`, no spaces in the path),
+     not by a line number: `waypost doctor` checks that the file still contains it.
      Check a box ONLY with real evidence (reviewer output, test run, command).
 
 4. **Preview** path + notes + the changed sections. **Approval** via
