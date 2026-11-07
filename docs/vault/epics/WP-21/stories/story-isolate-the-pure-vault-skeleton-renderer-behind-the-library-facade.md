@@ -44,7 +44,7 @@ Planner identifies two literal chunks: Vault navigation skeleton section through
 
 ## Acceptance Criteria
 
-- [x] Both chunks preserved literally; nine shared bindings/constants, function names/arities and complete namespace100/caller imports unchanged without cycles/new dependencies. — evidence: literal chunks/inverse proof; tests/lib-skeleton.test.mjs:10.
+- [x] Both chunks preserved literally; nine shared bindings/constants, function names/arities and complete namespace100/caller imports unchanged without cycles/new dependencies. — evidence: literal chunks/inverse proof; tests/lib-skeleton.test.mjs#"vault skeleton leaf preserves facade constants and function bindings".
 - [x] Default/allfour render modes, helpers, truncation/escaping/counts/inflight states and input immutability preserve corpus and real consumer outputs/files, including nonempty cleanup appender. — evidence: api-before.json/api-after.json; consumers-before.json/consumers-after.json.
 - [x] Leaf <=10000UTF8B and no own I/O/probes/clock/env/cache; collection/deadline remain unchanged, exact inverse whole-facade and source sizes recorded without native-token/runtime savings claims. — evidence: comparison.json; byte-budget/import/clock guards.
 - [x] API/purity/frozenfacts/budget and existing render/collection/CLI checks pass through heavy admission; package includes leaf,doctor0/0 and independent reviewer approves. — evidence: validation.json; tests-attempt-1.log; independent reviewer ship.

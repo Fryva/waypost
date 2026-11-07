@@ -35,7 +35,7 @@ A graph query prints the full query path in its header and repeats it in the exa
 ## Decomposition
 
 - [x] Compact only exact four-cell rows from the canonical Nodes section, preserving all other query output and documenting the header context. — evidence: bin/cli/views.mjs:28; bin/cli/views.mjs:35; docs/cli-reference.md:15
-- [x] Verify reconstruction of node fields, exact edge/fallback/error output and caps for LF/CRLF, Unicode/long/partial/malformed/extra-column cases. — evidence: tests/scripts.test.mjs:678; tests/scripts.test.mjs:740; .waypost/experiments/wp21-graph-node-output-20261029/comparison.json
+- [x] Verify reconstruction of node fields, exact edge/fallback/error output and caps for LF/CRLF, Unicode/long/partial/malformed/extra-column cases. — evidence: tests/scripts.test.mjs#"bin/waypost graph query: generated modern relations remain typed edges"; tests/scripts.test.mjs#"bin/waypost graph query: exact node metadata inherits the header"; .waypost/experiments/wp21-graph-node-output-20261029/comparison.json
 - [x] Record source-bound actual frozen graph before/current text and offline token counts with semantic controls, focused tests/guards, Doctor, independent review and owned cleanup. — evidence: .waypost/experiments/wp21-graph-node-output-20261029/{tokens.json,tokenizer-proof.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Implementation Plan
@@ -44,8 +44,8 @@ Keep the original graph matching, line order, section detection, header normaliz
 
 ## Acceptance Criteria
 
-- [x] Exact canonical node rows omit only the duplicate header path, preserving title/type/status order and full node identity via the unchanged normalized header; selection, edges/cap/remainder, graph schema/JSON and errors unchanged. — evidence: bin/cli/views.mjs:28; bin/cli/views.mjs:35; tests/scripts.test.mjs:678
-- [x] Partial/substring, unknown-section, noncanonical/embedded-pipe/extra-column/metadata-delimiter-character rows remain full; source-bound semantic reconstruction and LF/CRLF/Unicode/long-path cases prove unchanged shown facts and fallback/edge bytes. — evidence: tests/scripts.test.mjs:740; .waypost/experiments/wp21-graph-node-output-20261029/comparison.json
+- [x] Exact canonical node rows omit only the duplicate header path, preserving title/type/status order and full node identity via the unchanged normalized header; selection, edges/cap/remainder, graph schema/JSON and errors unchanged. — evidence: bin/cli/views.mjs:28; bin/cli/views.mjs:35; tests/scripts.test.mjs#"bin/waypost graph query: generated modern relations remain typed edges"
+- [x] Partial/substring, unknown-section, noncanonical/embedded-pipe/extra-column/metadata-delimiter-character rows remain full; source-bound semantic reconstruction and LF/CRLF/Unicode/long-path cases prove unchanged shown facts and fallback/edge bytes. — evidence: tests/scripts.test.mjs#"bin/waypost graph query: exact node metadata inherits the header"; .waypost/experiments/wp21-graph-node-output-20261029/comparison.json
 - [x] Actual frozen graph before/current outputs have measured lower raw-text token counts in named offline encodings with roundtrip/repeat controls; relevant tests/guards pass, independent reviewer accepts, Doctor clean, owned scratch removed. Do not infer whole-task/native-token/quota savings. — evidence: .waypost/experiments/wp21-graph-node-output-20261029/{tokens.json,tokenizer-proof.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Final Summary

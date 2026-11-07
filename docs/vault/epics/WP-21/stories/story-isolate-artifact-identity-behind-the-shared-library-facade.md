@@ -44,7 +44,7 @@ Planner identifies the contiguous Artifact identity section before Story discove
 
 ## Acceptance Criteria
 
-- [x] Original chunk and private escapeRe copy are literal; seven bindings/names/arities and namespace100/caller imports preserved without cycles or new dependencies. — evidence: literal block/helper and inverse proof; tests/lib-identity.test.mjs:10.
+- [x] Original chunk and private escapeRe copy are literal; seven bindings/names/arities and namespace100/caller imports preserved without cycles or new dependencies. — evidence: literal block/helper and inverse proof; tests/lib-identity.test.mjs#"artifact identity leaf preserves facade bindings and function".
 - [x] Legacy candidates, digit-leading ambiguity, matcher tiers, conflict blacklist, display numbering, ordering and first collision/input order preserve corpus and consumer results/files. — evidence: api-before.json/api-after.json; consumers-before.json/consumers-after.json.
 - [x] Leaf <=9000UTF8B and no own I/O/probes/process.env/clock/cache; inverse entire facade and measured source sizes recorded without native-token/runtime savings claims. — evidence: comparison.json; import-purity and byte-budget tests.
 - [x] Focused API/purity/order tests and relevant existing consumers pass through heavy admission; package includes leaf,doctor0/0 and independent reviewer approves. — evidence: validation.json; tests-attempt-1.log; independent reviewer ship.

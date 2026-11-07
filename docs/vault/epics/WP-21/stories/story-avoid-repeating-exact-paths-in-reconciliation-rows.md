@@ -35,7 +35,7 @@ Reconcile index rows repeat the same full path as both the row label and state s
 ## Decomposition
 
 - [x] Add a strict-string duplicate-label guard only to the ordinary row suffix and document the single-path presentation. — evidence: bin/cli/views.mjs:228; docs/cli-reference.md:17
-- [x] Verify actual CLI dirty-index preview/write/settled/JSON and source-bound state/type/path/exit/error matrices without input mutation. — evidence: tests/scripts.test.mjs:1387; .waypost/experiments/wp21-reconcile-path-output-20261029/comparison.json
+- [x] Verify actual CLI dirty-index preview/write/settled/JSON and source-bound state/type/path/exit/error matrices without input mutation. — evidence: tests/scripts.test.mjs#"reconcile prose shows a changed index path once while preserving"; .waypost/experiments/wp21-reconcile-path-output-20261029/comparison.json
 - [x] Measure full before/current outputs from actual frozen generator reports with offline encodings, including zero-saving control; run suites/guards, Doctor, independent acceptance and owned cleanup. — evidence: .waypost/experiments/wp21-reconcile-path-output-20261029/{tokens.json,tokenizer-proof.json,validation.json,core-validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Implementation Plan
@@ -45,7 +45,7 @@ In handleReconcile private line, after error/skipped/confirmed-unchanged returns
 ## Acceptance Criteria
 
 - [x] Ordinary rows omit only exact duplicate string path suffixes, leaving the entire path visible once; all state/error/skip/unchanged/count/order/JSON/argv/stdout/stderr/exit behavior unchanged. — evidence: bin/cli/views.mjs:228; .waypost/experiments/wp21-reconcile-path-output-20261029/comparison.json
-- [x] Real CLI preview/write/settled/JSON regression and source-bound matrix retain full target facts and inputs, including typed paths and near matches; unaffected output is byte-identical and changed rows differ only by duplicate suffix. — evidence: tests/scripts.test.mjs:1387; .waypost/experiments/wp21-reconcile-path-output-20261029/comparison.json
+- [x] Real CLI preview/write/settled/JSON regression and source-bound matrix retain full target facts and inputs, including typed paths and near matches; unaffected output is byte-identical and changed rows differ only by duplicate suffix. — evidence: tests/scripts.test.mjs#"reconcile prose shows a changed index path once while preserving"; .waypost/experiments/wp21-reconcile-path-output-20261029/comparison.json
 - [x] Actual frozen reports have lower full raw-text token counts in named offline encodings plus unchanged zero-saving control; relevant suites/guards pass, independent reviewer accepts, Doctor clean and owned scratch removed. No native-token/subscription-quota/whole-workflow savings inferred. — evidence: .waypost/experiments/wp21-reconcile-path-output-20261029/{tokens.json,tokenizer-proof.json,validation.json,core-validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Final Summary

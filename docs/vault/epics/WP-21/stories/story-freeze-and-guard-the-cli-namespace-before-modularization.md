@@ -36,7 +36,7 @@ Implement the accepted split ADR frozen-U safety net before moving functions. Pr
 
 <!-- Granular checklist of concrete tasks. Each item should be small enough to complete in a session. -->
 
-- [x] Freeze source/blob identities, compressed baseline and import/declaration inventory; engine-audit completeness. — evidence: tests/harness.test.mjs:1501, runtime-matrix.json.
+- [x] Freeze source/blob identities, compressed baseline and import/declaration inventory; engine-audit completeness. — evidence: tests/harness.test.mjs#"CLI namespace inventory is complete against the frozen pre-split", runtime-matrix.json.
 - [x] Add parse-only namespace oracle and automatic entry/future-module discovery. — evidence: tests/helpers/cli-namespace.mjs:48, tests/helpers/cli-namespace.mjs:75.
 - [x] Cover scope/template/escape/report regressions and verify affected checks plus independent review. — evidence: tests-resumed.log, runtime-matrix.json, final independent reviewer accepted all3AC.
 
@@ -49,8 +49,8 @@ Fresh planner verified8 import statements/63 locals plus115 function/19 const/4 
 <!-- How do we know we're done? Each criterion testable. Checked only with
      evidence at close: - [x] <criterion> — evidence: <test | command | file:line> -->
 
-- [x] Committed baseline bytes/source/blob hashes and sorted201-name U (63 import locals/138 declarations) are pinned; engine audit of raw identifier candidates equals U. Future modules use unchanged U; cold/shallow clones need no historical Git or external parser. — evidence: tests/harness.test.mjs:1501; runtime-matrix.json, all4versions passed.
-- [x] Entry and recursively discovered bin/cli/**/*.mjs are checked without link/evaluate. Missing frozen-U bindings fail even inside template expressions, suppressed catch, parameters or local shadowing; valid imports/top-level declarations pass. Alias collisions, unsupported raw Unicode escapes, malformed/failed reports and skipped files fail closed. — evidence: tests/harness.test.mjs:1523,1538,1556,1581; tests-resumed.log and runtime-matrix.json.
+- [x] Committed baseline bytes/source/blob hashes and sorted201-name U (63 import locals/138 declarations) are pinned; engine audit of raw identifier candidates equals U. Future modules use unchanged U; cold/shallow clones need no historical Git or external parser. — evidence: tests/harness.test.mjs#"CLI namespace inventory is complete against the frozen pre-split"; runtime-matrix.json, all4versions passed.
+- [x] Entry and recursively discovered bin/cli/**/*.mjs are checked without link/evaluate. Missing frozen-U bindings fail even inside template expressions, suppressed catch, parameters or local shadowing; valid imports/top-level declarations pass. Alias collisions, unsupported raw Unicode escapes, malformed/failed reports and skipped files fail closed. — evidence: tests/harness.test.mjs#"CLI namespace checks the entry and all future nested command modules", tests/harness.test.mjs#"CLI namespace discovery refuses parent and dangling command-directory", tests/harness.test.mjs#"CLI namespace detects forgotten imports despite local scope or", tests/harness.test.mjs#"CLI namespace rejects Unicode escapes and malformed or incomplete"; tests-resumed.log and runtime-matrix.json.
 - [x] Meaningful mutation and bounded-scope tests pass with source-bound logs and fresh independent acceptance. Only test infrastructure changes; no production move/pilot/budget mutation. Local selected results remain distinct from the full Node20/22/24 migration gate. — evidence: verification.json/source-final.json,13pass/0fail per4versions; independent cli_namespace_reviewer accepted3AC/no open findings2026-10-20.
 
 ## Final Summary

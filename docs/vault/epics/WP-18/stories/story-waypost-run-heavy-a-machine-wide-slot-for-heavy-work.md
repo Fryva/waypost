@@ -162,7 +162,7 @@ Technical notes for this plan:
 - [x] Several claims start at once against a cap of one, each with a trivial
       command, in a temporary state directory. Exactly one holds the slot;
       the rest are refused with the reason.
-      — evidence: `tests/slots.test.mjs:532`
+      — evidence: `tests/slots.test.mjs#"the stress test: 5 parallel claims against a cap of one — exactly one"`
 - [x] Records that are not holders:
       - one from an earlier boot;
       - one whose pid now belongs to a process with another start time;
@@ -170,27 +170,27 @@ Technical notes for this plan:
         name.
 
       A Windows record older than 24 hours is released.
-      — evidence: `tests/slots.test.mjs:141`, `:147`, `:152`, `:177`,
-      `:182`, `:188`
+      — evidence: `tests/slots.test.mjs#"slotLive: a record from another boot is stale, even with a live"`, `tests/slots.test.mjs#"slotLive: POSIX, the pid is absent from the process table -> stale"`, `tests/slots.test.mjs#"slotLive: POSIX, a reused pid with another start time is not the"`, `tests/slots.test.mjs#"slotLive: win32, tasklist reports a different image name -> stale"`,
+      `tests/slots.test.mjs#"slotLive: win32, a failing tasklist falls back to signal-0 and the"`, `tests/slots.test.mjs#"slotLive: win32, a record older than 24 hours is stale even when"`
 - [x] A lock whose owner is dead is broken at once. A live owner's lock is
       kept for up to five minutes.
-      — evidence: `tests/slots.test.mjs:346`, `:359`, `:383`, and `:406`
+      — evidence: `tests/slots.test.mjs#"the lock: a dead owner is broken at once"`, `tests/slots.test.mjs#"the lock: a live owner is kept — a refused claim never starts the"`, `tests/slots.test.mjs#"the lock: older than five minutes is broken even with a live owner"`, and `tests/slots.test.mjs#"the lock: an owner from another boot is broken at once, even when its"`
       (an owner from another boot)
 - [x] A refused `run --heavy` exits with its distinct code within a second
       and prints why and the retry command. `--wait 2s` retries, then gives
       up at the deadline. Nothing starts without a slot.
-      — evidence: `tests/slots.test.mjs:242`, `:256`, `:267`, `:359`
+      — evidence: `tests/slots.test.mjs#"run --heavy: refused at once when the only slot is already held"`, `tests/slots.test.mjs#"run --heavy: the retry line quotes an argument that is not plain, so"`, `tests/slots.test.mjs#"run --heavy --wait 2s: retries until the deadline, then gives up"`, `tests/slots.test.mjs#"the lock: a live owner is kept — a refused claim never starts the"`
       (nothing starts)
 - [x] The command:
       - runs at lowered priority, with its niceness read back on POSIX;
       - inherits stdio and receives interrupts;
       - releases the slot and passes on its exit code, including when it
         crashes.
-      — evidence: `tests/slots.test.mjs:300` (priority 10), `:309`
-      (interrupt), `:282`, `:292` (exit codes), `:333` (release)
+      — evidence: `tests/slots.test.mjs#"run --heavy: runs at lowered priority — the child reads back 10 on"` (priority 10), `tests/slots.test.mjs#"run --heavy: an interrupt reaches the command, which exits on its own"`
+      (interrupt), `tests/slots.test.mjs#"run --heavy: the exit code passes through, including a crash"`, `tests/slots.test.mjs#"run --heavy: a signal exits 128 + the signal number"` (exit codes), `tests/slots.test.mjs#"run --heavy: releases its own record on exit, leaving the slot table"` (release)
 - [x] `--release` refuses a live-looking record without `--force`, and prints
       what it released.
-      — evidence: `tests/slots.test.mjs:438`, `:457`, `:469`, `:485`
+      — evidence: `tests/slots.test.mjs#"capacity --release: refuses a live-looking record without --force"`, `tests/slots.test.mjs#"capacity --release: a stale record (another boot) releases without"`, `tests/slots.test.mjs#"capacity --release: an id with a path in it is refused, and nothing"`, `tests/slots.test.mjs#"capacity --release: a file whose own id does not match is not a slot"`
 - [x] `npm test` is green at capped concurrency, and `waypost doctor` reports
       0 issues.
       — evidence: `node --test --test-concurrency=2 tests/*.test.mjs` passed

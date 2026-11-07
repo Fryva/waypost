@@ -35,7 +35,7 @@ Index checking repeats a linear artifact search for every README row. Prepare a 
 ## Decomposition
 
 - [x] Replace repeated find with lazy first-wins path lookup. — evidence: scripts/doctor-generated.mjs:64
-- [x] Verify duplicate paths, freshness, cold input and complete findings. — evidence: tests/doctor-generated.test.mjs:66; .waypost/experiments/wp21-index-lookup-20261030/comparison.json
+- [x] Verify duplicate paths, freshness, cold input and complete findings. — evidence: tests/doctor-generated.test.mjs#"doctor generated module: index lookup keeps the first duplicate and"; .waypost/experiments/wp21-index-lookup-20261030/comparison.json
 - [x] Run focused suites, logical-work comparison, Doctor and independent review. — evidence: .waypost/experiments/wp21-index-lookup-20261030/{validation,admission,doctor,reviewer}.json
 
 ## Implementation Plan
@@ -44,7 +44,7 @@ In scripts/doctor-generated.mjs checkIndexes only, initialize a Map on the first
 
 ## Acceptance Criteria
 
-- [x] One lazy path lookup per invocation preserves first matching artifact, full ordered findings and input immutability; no rows require no lookup; later calls observe changed same-array objects. — evidence: tests/doctor-generated.test.mjs:66; tests/doctor-generated.test.mjs:96; .waypost/experiments/wp21-index-lookup-20261030/comparison.json
+- [x] One lazy path lookup per invocation preserves first matching artifact, full ordered findings and input immutability; no rows require no lookup; later calls observe changed same-array objects. — evidence: tests/doctor-generated.test.mjs#"doctor generated module: index lookup keeps the first duplicate and"; tests/doctor-generated.test.mjs#"doctor generated module: no parsed index rows require no artifact"; .waypost/experiments/wp21-index-lookup-20261030/comparison.json
 - [x] Source-bound baseline/current comparison preserves full diagnostics and shows fewer row-search operations; focused suites/guards pass, Doctor is clean and independent reviewer accepts. No text-token/native-token savings claimed. — evidence: .waypost/experiments/wp21-index-lookup-20261030/{comparison,validation,doctor,reviewer}.json
 
 ## Final Summary

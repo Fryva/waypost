@@ -127,8 +127,13 @@ before them: 2581 pass, 10 skipped, 1 failure — a byte ceiling of
 
 Not done, by choice: paths with spaces (documented), a `(deleted)` escape for
 a test removed on purpose, a warning for a literal that occurs more than once
-or an anchor wrapped onto the next line, and the 37 other stories' 135
-`tests/…:<line>` references, which stay as they are.
+or an anchor wrapped onto the next line.
+
+Follow-up (2026-11-07): the other stories and one ADR moved to anchors too —
+228 references in 36 files. Each reference was resolved against the commit
+that wrote its line (`git blame HEAD`), to the test enclosing that line there,
+and became an anchor only when the current file still has that title. 18 stay
+`file:line`: helpers and lines outside any test (13), tests renamed since (5).
 
 ## Technical Notes
 

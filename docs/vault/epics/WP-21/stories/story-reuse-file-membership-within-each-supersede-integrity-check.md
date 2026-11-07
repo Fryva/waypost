@@ -35,7 +35,7 @@ Supersede integrity checking rebuilds the same files membership for each primary
 ## Decomposition
 
 - [x] Adopt the first successful resolver membership in the private per-check context and seed fresh resolution contexts; route the existing unscoped fallback through the helper. — evidence: scripts/doctor-integrity.mjs:49; scripts/doctor-integrity.mjs:76
-- [x] Verify exact findings/dedup/order/scopes and cold/empty/error/same-array freshness. — evidence: tests/doctor-integrity.test.mjs:81; tests/doctor-integrity.test.mjs:112; tests/doctor-integrity.test.mjs:133
+- [x] Verify exact findings/dedup/order/scopes and cold/empty/error/same-array freshness. — evidence: tests/doctor-integrity.test.mjs#"doctor integrity module: shared membership preserves scoped, mirror"; tests/doctor-integrity.test.mjs#"doctor integrity module: no-reference checks stay lazy and empty"; tests/doctor-integrity.test.mjs#"doctor integrity module: qualified supersedes stay fresh after"
 - [x] Record source-bound before/current checker and actual CLI parity, preparation counts, focused tests/guards, independent review and owned cleanup. — evidence: .waypost/experiments/wp21-supersedes-inputs-20261029/{comparison.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Implementation Plan
@@ -44,8 +44,8 @@ Extend only the existing private resolve helper in checkSupersedes. Build a fres
 
 ## Acceptance Criteria
 
-- [x] At most one lazy membership preparation per checkSupersedes, zero without refs; empty Set reused across primary/mirror/fallback/replaced passes with fresh source/kind contexts and unchanged full files/index. — evidence: scripts/doctor-integrity.mjs:49; tests/doctor-integrity.test.mjs:112
-- [x] Complete findings/dedup/severity/order and resolver/probe/error behavior match; repeated calls see updated same-array membership without input mutation. — evidence: tests/doctor-integrity.test.mjs:81; tests/doctor-integrity.test.mjs:133; .waypost/experiments/wp21-supersedes-inputs-20261029/comparison.json
+- [x] At most one lazy membership preparation per checkSupersedes, zero without refs; empty Set reused across primary/mirror/fallback/replaced passes with fresh source/kind contexts and unchanged full files/index. — evidence: scripts/doctor-integrity.mjs:49; tests/doctor-integrity.test.mjs#"doctor integrity module: no-reference checks stay lazy and empty"
+- [x] Complete findings/dedup/severity/order and resolver/probe/error behavior match; repeated calls see updated same-array membership without input mutation. — evidence: tests/doctor-integrity.test.mjs#"doctor integrity module: shared membership preserves scoped, mirror"; tests/doctor-integrity.test.mjs#"doctor integrity module: qualified supersedes stay fresh after"; .waypost/experiments/wp21-supersedes-inputs-20261029/comparison.json
 - [x] Source-bound before/current and CLI parity plus lower preparation counts, targeted suites and guards pass; independent review accepts, Doctor clean and owned scratch removed. No physical heap/latency/I/O/native-token/quota/net savings inferred. — evidence: .waypost/experiments/wp21-supersedes-inputs-20261029/{comparison.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Final Summary

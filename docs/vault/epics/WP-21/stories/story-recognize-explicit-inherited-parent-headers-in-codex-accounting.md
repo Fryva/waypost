@@ -37,7 +37,7 @@ The collector quarantines contexts containing an explicit inherited parent sessi
 <!-- Granular checklist of concrete tasks. Each item should be small enough to complete in a session. -->
 
 - [x] Validate explicit parent identity and narrowly recognize a single initial inherited parent header. — evidence: scripts/token-codex.mjs:29,143; independent reviewer AC1 met
-- [x] Cover inherited counters/attribution, strict rejection/replay identity and plain/compressed parity. — evidence: 96/96 affected fixtures; tests/token-codex.test.mjs:455,525,537
+- [x] Cover inherited counters/attribution, strict rejection/replay identity and plain/compressed parity. — evidence: 96/96 affected fixtures; tests/token-codex.test.mjs#"Codex explicit inherited parent header never charges a parent's", tests/token-codex.test.mjs#"Codex accepted parent metadata stays consistent across child replay", tests/token-codex.test.mjs#"Codex accepted parent metadata is checked against first headers"
 - [x] Bind affected fixtures and refreshed offline evidence; obtain independent acceptance before closing. — evidence: verified source/log/baseline hashes; fresh fork_accounting_reviewer acceptance
 
 ## Implementation Plan

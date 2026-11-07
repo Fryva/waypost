@@ -35,7 +35,7 @@ Ordinary Doctor summaries repeat parenthetical plural suffixes and a healthy con
 ## Decomposition
 
 - [x] Use natural singular/plural totals and omit redundant healthy conclusion only in compact footer. — evidence: scripts/doctor-report.mjs:44
-- [x] Preserve all body/full/fix/JSON/startup/exit/repair behavior; add count matrix and owned CLI regressions/docs. — evidence: tests/doctor-report.test.mjs:225; tests/doctor-report.test.mjs:251; tests/scripts.test.mjs:1176; docs/how-it-works.md:153
+- [x] Preserve all body/full/fix/JSON/startup/exit/repair behavior; add count matrix and owned CLI regressions/docs. — evidence: tests/doctor-report.test.mjs#"doctor compact summary: numeric grammar uses global counts once and"; tests/doctor-report.test.mjs:251; tests/scripts.test.mjs#"doctor: empty vault group is compact only in ordinary text"; docs/how-it-works.md:153
 - [x] Source-bound full stdout comparisons, offline named token counts/controls, suites/guards, Doctor and independent review. — evidence: .waypost/experiments/wp21-doctor-summary-output-20261101/{formatter-parity,cli-parity,tokens,validation,doctor-receipt,reviewer}.json
 
 ## Implementation Plan
@@ -44,7 +44,7 @@ Only renderDoctorReport footer changes. Keep issues/warns from all findings. For
 
 ## Acceptance Criteria
 
-- [x] Only explicit compact summary wording changes; exact global totals, numeric grammar, repair guidance, all body/full/default API/fix/JSON/startup/exit behavior and input immutability remain intact. — evidence: tests/doctor-report.test.mjs:225; tests/doctor-report.test.mjs:251; .waypost/experiments/wp21-doctor-summary-output-20261101/formatter-parity.json
+- [x] Only explicit compact summary wording changes; exact global totals, numeric grammar, repair guidance, all body/full/default API/fix/JSON/startup/exit behavior and input immutability remain intact. — evidence: tests/doctor-report.test.mjs#"doctor compact summary: numeric grammar uses global counts once and"; tests/doctor-report.test.mjs:251; .waypost/experiments/wp21-doctor-summary-output-20261101/formatter-parity.json
 - [x] Actual baseline/current full-output comparisons preserve intended scope and controls, named offline token counts decrease, suites/guards pass, Doctor clean and independent reviewer accepts. — evidence: .waypost/experiments/wp21-doctor-summary-output-20261101/{tokens,validation,doctor-receipt,reviewer}.json
 
 ## Final Summary

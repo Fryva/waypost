@@ -35,7 +35,7 @@ A genuinely empty Doctor group repeats zero counts and a separate clean marker i
 ## Decomposition
 
 - [x] Compact eligible empty group headers only under compactChecks. — evidence: scripts/doctor-report.mjs:21
-- [x] Update formatter/CLI regressions and docs; retain complete nonempty/full/fix/JSON/startup behavior. — evidence: tests/doctor-report.test.mjs:176; tests/scripts.test.mjs:1175; docs/cli-reference.md:18; docs/how-it-works.md:152
+- [x] Update formatter/CLI regressions and docs; retain complete nonempty/full/fix/JSON/startup behavior. — evidence: tests/doctor-report.test.mjs:176; tests/scripts.test.mjs#"doctor: empty vault group is compact only in ordinary text"; docs/cli-reference.md:18; docs/how-it-works.md:152
 - [x] Source-bound old/current full stdout checks, named offline token counts/controls, suites/guards, Doctor and independent review. — evidence: .waypost/experiments/wp21-doctor-clean-output-20261101/{formatter-parity,cli-parity,tokens,validation,doctor-receipt,reviewer}.json
 
 ## Implementation Plan
@@ -44,7 +44,7 @@ In renderDoctorReport only, after filtering fs for a group, if compactChecks && 
 
 ## Acceptance Criteria
 
-- [x] Only eligible truly empty groups in explicit compact mode use named clean lines; ordering/repeats/summary/findings remain complete, full/default API/fix/JSON/startup and safe fallback retain prior behavior. — evidence: tests/doctor-report.test.mjs:176; tests/scripts.test.mjs:1175; .waypost/experiments/wp21-doctor-clean-output-20261101/formatter-parity.json
+- [x] Only eligible truly empty groups in explicit compact mode use named clean lines; ordering/repeats/summary/findings remain complete, full/default API/fix/JSON/startup and safe fallback retain prior behavior. — evidence: tests/doctor-report.test.mjs:176; tests/scripts.test.mjs#"doctor: empty vault group is compact only in ordinary text"; .waypost/experiments/wp21-doctor-clean-output-20261101/formatter-parity.json
 - [x] Actual old/current formatter and CLI controls agree outside intended clean text changes; named offline full-output token counts show reduction with unchanged controls; relevant checks pass, Doctor clean and independent reviewer accepts. — evidence: .waypost/experiments/wp21-doctor-clean-output-20261101/{tokens,validation,doctor-receipt,reviewer}.json
 
 ## Final Summary

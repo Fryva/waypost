@@ -156,7 +156,7 @@ Landed (`bin/waypost`, `tests/harness.test.mjs`, docs, CHANGELOG):
   extra `agents install` in a project that happens to keep a shared file.
 - `markerCounts()` is untouched. The file is legitimately the user's; the
   question was never whether waypost may read it.
-- `tests/harness.test.mjs:233` and `:249` (E-1) stand, unchanged. The live run
+- `tests/harness.test.mjs#"a bare AGENTS.md that is only waypost's own routing block does not"` and `tests/harness.test.mjs#"a real user-written AGENTS.md still detects codex (E-1 does not"` (E-1) stand, unchanged. The live run
   confirmed what they protect.
 
 ## Acceptance Criteria

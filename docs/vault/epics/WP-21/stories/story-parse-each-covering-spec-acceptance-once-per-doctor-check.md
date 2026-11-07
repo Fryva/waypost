@@ -35,7 +35,7 @@ A covering spec acceptance section is reparsed for each eligible done story and 
 ## Decomposition
 
 - [x] Add a private lazy per-call Map keyed by resolved artifact object, including null and empty-list parsing results. — evidence: scripts/doctor-specs.mjs:222; scripts/doctor-specs.mjs:233
-- [x] Verify exact findings/order/duplicates/attribution, alias and same-path identities, lazy gates/errors and refreshed bodies on later calls. — evidence: tests/doctor-specs.test.mjs:100; tests/doctor-specs.test.mjs:117; tests/doctor-specs.test.mjs:128; tests/doctor-specs.test.mjs:146
+- [x] Verify exact findings/order/duplicates/attribution, alias and same-path identities, lazy gates/errors and refreshed bodies on later calls. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: aliases reuse rich, absent and empty acceptance"; tests/doctor-specs.test.mjs#"doctor specs module: cache keys distinguish artifact objects sharing"; tests/doctor-specs.test.mjs#"doctor specs module: ineligible checks do not parse and first body"; tests/doctor-specs.test.mjs#"doctor specs module: later checks see changed bodies on the same"
 - [x] Record source-bound actual parser/checker and CLI parity, preparation counts, suites/guards, Doctor, independent acceptance and owned cleanup. — evidence: .waypost/experiments/wp21-spec-acceptance-inputs-20261029/{comparison.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Implementation Plan
@@ -44,8 +44,8 @@ In checkSpecAcceptance after existing policy/layout/resolver setup, allocate a p
 
 ## Acceptance Criteria
 
-- [x] Each resolved spec artifact is parsed at most once per checkSpecAcceptance call, lazily only when its original parse site is reached; null/empty results reused and object identities/alias resolution preserved. — evidence: scripts/doctor-specs.mjs:222; tests/doctor-specs.test.mjs:100; tests/doctor-specs.test.mjs:117
-- [x] Complete findings/severity/order/duplicates/ambiguity and matcher/error behavior remain equivalent without input mutation; future calls see changed bodies in the same artifact/array, and ineligible paths do not parse. — evidence: tests/doctor-specs.test.mjs:77; tests/doctor-specs.test.mjs:128; tests/doctor-specs.test.mjs:146; .waypost/experiments/wp21-spec-acceptance-inputs-20261029/comparison.json
+- [x] Each resolved spec artifact is parsed at most once per checkSpecAcceptance call, lazily only when its original parse site is reached; null/empty results reused and object identities/alias resolution preserved. — evidence: scripts/doctor-specs.mjs:222; tests/doctor-specs.test.mjs#"doctor specs module: aliases reuse rich, absent and empty acceptance"; tests/doctor-specs.test.mjs#"doctor specs module: cache keys distinguish artifact objects sharing"
+- [x] Complete findings/severity/order/duplicates/ambiguity and matcher/error behavior remain equivalent without input mutation; future calls see changed bodies in the same artifact/array, and ineligible paths do not parse. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: ambiguous attribution warns once per spec while"; tests/doctor-specs.test.mjs#"doctor specs module: ineligible checks do not parse and first body"; tests/doctor-specs.test.mjs#"doctor specs module: later checks see changed bodies on the same"; .waypost/experiments/wp21-spec-acceptance-inputs-20261029/comparison.json
 - [x] Source-bound actual parser/checker and CLI parity plus reduced parser calls pass relevant suites/guards, Doctor clean, independent reviewer accepts and owned scratch removed. No physical heap/latency/I/O/native-token/quota/net savings inferred. — evidence: .waypost/experiments/wp21-spec-acceptance-inputs-20261029/{comparison.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Final Summary

@@ -34,8 +34,8 @@ Sessions repeats each foreign live lease owner in editing lines. Share the full 
 
 ## Decomposition
 
-- [x] Group eligible adjacent editing rows by raw session/host/harness, keeping complete paths/owner/count and exact singleton/nonshorter fallback. — evidence: scripts/sessions.mjs:217; tests/presence.test.mjs:489
-- [x] Verify filtered adjacency, duplicates/A-B-A/nullish/malformed/multiline and source-bound complete prefix/suffix/JSON/call parity plus actual CLI warnings/filters. — evidence: tests/presence.test.mjs:489; tests/presence.test.mjs:534; .waypost/experiments/wp21-sessions-editing-output-20261030/comparison.json
+- [x] Group eligible adjacent editing rows by raw session/host/harness, keeping complete paths/owner/count and exact singleton/nonshorter fallback. — evidence: scripts/sessions.mjs:217; tests/presence.test.mjs#"sessions groups adjacent editing owners while preserving own/stale"
+- [x] Verify filtered adjacency, duplicates/A-B-A/nullish/malformed/multiline and source-bound complete prefix/suffix/JSON/call parity plus actual CLI warnings/filters. — evidence: tests/presence.test.mjs#"sessions groups adjacent editing owners while preserving own/stale"; tests/presence.test.mjs#"sessions editing retains numeric path interpolation without"; .waypost/experiments/wp21-sessions-editing-output-20261030/comparison.json
 - [x] Measure full outputs with named offline encodings and unchanged controls, run presence/CLI suites, Doctor, independent acceptance and owned cleanup. — evidence: .waypost/experiments/wp21-sessions-editing-output-20261030/{tokens.json,tokenizer-proof.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Implementation Plan
@@ -45,7 +45,7 @@ Replace only the existing human out.leases.filter(x=>!x.mine) editing loop. Save
 ## Acceptance Criteria
 
 - [x] Only eligible adjacent raw-equal visible owners group when shorter in text; full unshortened session/host, lease-row count, paths/order/duplicates retained; singleton/ineligible/nonshorter output exact and !mine/live filtering unchanged. — evidence: scripts/sessions.mjs:217; .waypost/experiments/wp21-sessions-editing-output-20261030/comparison.json
-- [x] Source-bound reconstruction plus actual CLI proves complete unmodified session table/actions/stale/storage/shared-checkout/sibling/sync-conflict warning bytes and relative order/boundaries, exact JSON/calls and legacy typed/multiline/error behavior; no storage/liveness/write/refusal/release/API change. — evidence: tests/presence.test.mjs:534; .waypost/experiments/wp21-sessions-editing-output-20261030/comparison.json
+- [x] Source-bound reconstruction plus actual CLI proves complete unmodified session table/actions/stale/storage/shared-checkout/sibling/sync-conflict warning bytes and relative order/boundaries, exact JSON/calls and legacy typed/multiline/error behavior; no storage/liveness/write/refusal/release/API change. — evidence: tests/presence.test.mjs#"sessions editing retains numeric path interpolation without"; .waypost/experiments/wp21-sessions-editing-output-20261030/comparison.json
 - [x] Named offline full-output token counts show reduction for repeated realistic owners with unchanged controls; relevant suites/guards pass, independent reviewer accepts, Doctor clean and own scratch removed. No native-token/quota/whole-workflow savings inferred. — evidence: .waypost/experiments/wp21-sessions-editing-output-20261030/{tokens.json,tokenizer-proof.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Final Summary

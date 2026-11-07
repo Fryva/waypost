@@ -35,7 +35,7 @@ Repeated exact spec.stories entries cause repeated full-artifact scans in resolv
 ## Decomposition
 
 - [x] Cache exact-entry story resolution results privately per call. — evidence: scripts/doctor-specs.mjs:123; scripts/doctor-specs.mjs:134
-- [x] Verify successful/missing/ambiguous/malformed duplicates, raw key distinctions, first errors and freshness. — evidence: tests/doctor-specs.test.mjs:153; tests/doctor-specs.test.mjs:165; .waypost/experiments/wp21-story-resolutions-20261030/comparison.json
+- [x] Verify successful/missing/ambiguous/malformed duplicates, raw key distinctions, first errors and freshness. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: repeated invalid story entries retain exact raw"; tests/doctor-specs.test.mjs#"doctor specs module: repeated story resolution sees missing, added"; .waypost/experiments/wp21-story-resolutions-20261030/comparison.json
 - [x] Compare complete findings and resolver work; run focused suites, Doctor and fresh acceptance. — evidence: .waypost/experiments/wp21-story-resolutions-20261030/{comparison,validation,doctor,reviewer}.json
 
 ## Implementation Plan
@@ -44,7 +44,7 @@ Only checkSpecLinks changes: local storyResolutions Map. At the original resolve
 
 ## Acceptance Criteria
 
-- [x] Exact raw entries reuse successful/error resolution results within a call; all ordered per-reference findings, tier semantics, first thrown errors and same-array freshness remain intact. — evidence: tests/doctor-specs.test.mjs:153; tests/doctor-specs.test.mjs:165; .waypost/experiments/wp21-story-resolutions-20261030/comparison.json
+- [x] Exact raw entries reuse successful/error resolution results within a call; all ordered per-reference findings, tier semantics, first thrown errors and same-array freshness remain intact. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: repeated invalid story entries retain exact raw"; tests/doctor-specs.test.mjs#"doctor specs module: repeated story resolution sees missing, added"; .waypost/experiments/wp21-story-resolutions-20261030/comparison.json
 - [x] Source-bound old/current complete diagnostics match and logical resolver/matcher work decreases; suites/guards pass, Doctor clean and fresh reviewer accepts. No latency or token savings inferred. — evidence: .waypost/experiments/wp21-story-resolutions-20261030/{comparison,validation,doctor,reviewer}.json
 
 ## Final Summary

@@ -211,7 +211,7 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
       ("the terminal `[y/N]` is covered as units"): tests/cleanup.test.mjs#"askYesNo: silence past the timeout resolves false"
       (silence past the timeout resolves false), tests/cleanup.test.mjs#"askYesNo: EOF with no answer at all resolves false" (EOF resolves false),
       and bin/cli/clean.mjs:151-159, where a false answer prints "not set" and
-      returns before the write at :176-179. No end-to-end test drives a real
+      returns before the write at tests/cleanup.test.mjs#"routeFor: the route table — clean_argv, then ignored, then". No end-to-end test drives a real
       terminal, so neither the 60 s constant nor the preview printed above the
       question is asserted anywhere — see Technical Notes.
 - [x] A working set spread over several tagged items, all written within 7
@@ -236,7 +236,7 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
       automatically.
       — evidence: tests/limit.test.mjs#"AC6: a generic name holding a package, a tagged directory holding a" (all three survive; `excluded`
       names each reason: generic name, distributable package, `auto: false`);
-      tests/toolchains.test.mjs#"toolchains/<id>.json: auto_keep_suffixes is carried only by the", tests/toolchains.test.mjs:299; toolchains/system.json,
+      tests/toolchains.test.mjs#"toolchains/<id>.json: auto_keep_suffixes is carried only by the", tests/toolchains.test.mjs#"a project toolchain entry: disallowed fields are dropped and"; toolchains/system.json,
       toolchains/terraform.json.
 - [x] A nested worktree inside the root is never entered or removed.
       — evidence: tests/sizes.test.mjs#"scanProject: stopAtGit never even lists a directory holding a nested", tests/sizes.test.mjs#"scanProject: stopAtGit applies inside an already-matched item's own" (the walk of one tree).
@@ -255,7 +255,7 @@ deleter from both paths; `size` reports `waypost-removing/`; the terminal
       lacking both blocks unconditionally. The filesystem root was an
       exception until this close — `treesOverlap("/", …)` was false, so a
       heavy job started at `/` blocked nothing; fixed in scripts/lib.mjs:76
-      with tests/cleanup.test.mjs:788-790.
+      with tests/cleanup.test.mjs#"treesOverlap: equal, ancestor/descendant in either direction".
 - [x] A wrapped command ended by a signal triggers no cleanup; a signal
       during the cleanup leaves nothing half-removed inside the project.
       — evidence: tests/limit.test.mjs#"AC9: the wrapped command ending itself by SIGTERM triggers no cleanup" (the child ends itself by SIGTERM:
@@ -320,7 +320,7 @@ scripts/cleanup-selection.mjs, and the CLI into bin/cli/) by a fresh-context
 - **scripts/lib.mjs** — `treesOverlap` appended a separator unconditionally,
   so the filesystem root compared as `"//"` and overlapped nothing: a live
   heavy job whose root was `/` blocked no project under it, against AC8.
-  Covered by tests/cleanup.test.mjs:788-790.
+  Covered by tests/cleanup.test.mjs#"treesOverlap: equal, ancestor/descendant in either direction".
 
 Everything else was already closed by code and tests; the evidence is on each
 criterion above. Verification run: `npm test` 2525 passed, 0 failed, 10
