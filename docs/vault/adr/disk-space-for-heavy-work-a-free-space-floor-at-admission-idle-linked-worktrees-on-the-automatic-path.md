@@ -67,7 +67,15 @@ already idle by its own rule.
   included, with `waypost capacity --disk <reserve>,<share>` (the owner,
   2026-11-06).
 - The author's proposal, open to the owner's review: the cleanup on a disk
-  refusal, the exempted commands, the env switches and Decision 2.
+  refusal, the exempted commands, the env switches and Decision 2. These
+  are **already implemented and running** on main and on this machine
+  (Decision 2 since 2026-11-06, 61 automatic runs walking 11–12 worktrees
+  each; 23 cleanups on a disk refusal), ahead of this review and without a
+  story. Decision 2 cannot be switched off alone, only with the whole
+  automatic cleanup (`clean --limit off`). If the owner declines it, the
+  way back is a code revert (`b25c306`), not a text change; the owner's
+  explicit decision on Decision 2 is therefore a separate item of the
+  acceptance.
 
 ## What this amends in accepted ADRs
 
@@ -80,8 +88,9 @@ stands. On acceptance each gets an "Amended by" note pointing here.
   3-day window, is now the owner's choice. Decision 4 "it runs under the
   slot the run still holds", "nothing else removes automatically" and
   Rationale 5 "no new trigger is needed" gain one exception: the cleanup
-  on a disk refusal (Decision 1), which runs with no slot held because no
-  job is about to run in that tree. Decision 2 below replaces Decision 1's
+  on a disk refusal (Decision 1), which runs with no slot held (the refused
+  job has none yet; it starts in this same tree right after the cleanup).
+  Decision 2 below replaces Decision 1's
   "per project, N projects may hold N × the limit" with one limit per
   repository, and reverses the answer to the first critic pass's blocker
   "automatic removal could reach nested worktrees" (a nested worktree was
@@ -98,7 +107,29 @@ stands. On acceptance each gets an "Amended by" note pointing here.
 - **heavy-work ADR**: Decision 1's conditions (a)–(c) gain the disk
   dimension, and Decision 2's "exits at once" gains the one cleanup (up to
   its 60 s deadline, announced on stderr before it starts) and a wait of up
-  to 30 s for that cleanup's deleter.
+  to 30 s for that cleanup's deleter. Also affected: its promise to say why
+  at once and never block an agent past its harness's timeout, "a small CI
+  container is not refused forever" (CI now needs `WAYPOST_DISK_CHECK=off`)
+  and "refuses new heavy work at once" in the consequences.
+- **Every other mention of the 7-day rule** in the cleanup-limit ADR (its
+  Rationale 2 "protecting everything used within 7 days", the "built in the
+  last week keeps its incremental cache" passage and the working-set
+  discussion of Alternatives J and L), and in the disk-hygiene ADR the
+  Decision 4 default "7 for project artifacts" (not only its Owner's
+  decision 1), read as 1 day.
+- **cleanup-limit ADR, the walk and the session checks**: "the walk never
+  enters a directory that holds `.git`" holds for the tree being walked;
+  the other work trees are walked as separate trees. Alternative J's
+  rejection of blocking on live sessions of the same host is reversed for
+  the other trees (a live session over a tree skips it). The `free:<P>%`
+  exception "except the one being built" now also counts the other work
+  trees, and the shared-checkout check (`sharedTree`) still covers the
+  job's own tree only.
+- **WP-17 story "The machine-wide limit…"**: besides the nested-worktree
+  criterion, its criterion that output used within 7 days "is left whole"
+  (proof: three items 2 days idle) no longer holds; `tests/limit.test.mjs`
+  (idle 12 hours) is the current proof. On acceptance the story gets an
+  "Amended by" note, not a rewrite.
 
 ## Decision
 
@@ -153,7 +184,14 @@ stands. On acceptance each gets an "Amended by" note pointing here.
      (`WAYPOST_PROJECT_DIR`).
    - `WAYPOST_DISK_CHECK=off` is the owner's switch, like
      `WAYPOST_BESIDE_HEAVY=1`: CI sets it, because a hosted runner is
-     disposable and has about 25–30 GB free, near the floor.
+     disposable and has about 25–30 GB free, near the floor. Unlike
+     `WAYPOST_BESIDE_HEAVY=1` it is **not** announced by `run --heavy`, is
+     not in the slot record and is not named in `prompts/heavy.md` (reviewed
+     2026-11-07), and any environment can set it, so "an agent can make the
+     floor stricter, never weaker" holds for `--disk` only. Closing that
+     gap — a stderr line, a slot-record field, a line in `prompts/heavy.md`
+     — is required before acceptance or accepted as a known limit by the
+     owner.
    - `waypost clean`, `size --global` and `setup --audit` take the slot
      without the disk dimension: they free or measure space, and a refusal
      that says "run `waypost clean`" must not refuse `waypost clean`.
@@ -331,6 +369,49 @@ under the same rules, that the owner's limit already authorises.
 - Verification on Linux and Windows is still to be done, as for the memory
   ADR.
 
+Found by the critic pass of 2026-11-07 (not yet fixed in code):
+
+- **Sessions on the owner's VMs are not recognised.** "A live session on any
+  host" compares `project_root` as a local real path; a VM reports
+  `/media/psf/…` or `Y:\…`, which never matches `/Users/…`, and a VM's heavy
+  jobs are not in this machine's slot table. Build output in any worktree
+  idle for over a day is removed with no skip while a VM session works
+  there. Without a bound vault there is no session check at all (the log
+  carries a note). Fix options: match sessions of other hosts by the common
+  dir and the offset inside the repository (as `vault_rel`), or skip a tree
+  while any other host's session is live in the repository.
+- **The refusal's advice points the wrong way**: the log text "raise it:
+  `waypost clean --limit <N>`" on a disk refusal would free less. An item
+  can also stay `keep` for other reasons (10 minutes old, a running tool, a
+  lease, a partial read) and the log does not say which.
+- **Holders of commands exempt from the disk check still reserve a share**:
+  while `waypost size --global` runs, every `run --heavy` needs 20 GiB more.
+- **`--disk` is labelled "owner's setting" even when an agent raised it**,
+  the file records no gate kind, and a raise up to 1 000 000 GB can shut
+  heavy work until the owner returns; `brief`, `status` and `doctor` do not
+  show it. Checking reserve + share ≤ total is open.
+- **The 60 s deadline is soft**: the re-check before a rename measures an
+  item without the deadline, and the 30 s deleter wait comes on top.
+- **Refusal cleanups are not rate-limited**: of 23, only the first renamed
+  anything (46.55 GiB); the other 22 spent 0.3–8 s each. Taking the job's own
+  tree last on that path would keep the refused job's warm cache.
+- **Units**: "GB" in this text and in messages means GiB; a "460 GB" disk
+  is 460 GiB (about 494 GB in Finder).
+- **Tool-running rule is machine-wide**: a running ecosystem tool keeps all
+  of that ecosystem's output, and the ecosystem is detected from manifests at
+  the root, so in a repository with a root `Cargo.toml` any cargo process on
+  the machine can make the refusal cleanup empty. Not measured here.
+- **No way to exempt one worktree** (`locked` ones are walked on purpose); a
+  release or benchmark worktree has no protection other than a lease.
+- **Not covered by tests**: the 30 s deleter wait, restoring
+  `WAYPOST_PROJECT_DIR` when the job starts after the cleanup, skipping a
+  tree on another filesystem / protected / non-local / past the deadline, a
+  session of another host in a foreign tree.
+
+Not considered, open to the owner: removing merged worktrees whole, and a
+build cache shared between worktrees (the cause on this machine is twelve
+agent worktrees, each with its own full build output).
+
 ## References
 
 - The cleanup log `~/.local/state/waypost/cleanup.MacBook-Pro-FroST.jsonl`
@@ -339,6 +420,18 @@ under the same rules, that the owner's limit already authorises.
 - memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job
 - cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first
 
+## Review history
+
+- 2026-11-07, fresh-context `waypost-critic`: verdict **accept with fixes**,
+  no blockers. Focused tests 19/19 and 9/9, `waypost doctor` 0 issues.
+  Four important findings (the incomplete amends list, sessions of other
+  hosts, the silent `WAYPOST_DISK_CHECK=off`, Decision 2 running before its
+  review) are recorded in the amends list, Decision 1 and Known limits
+  above; the text was corrected, **code is unchanged**. Still open before
+  acceptance: the owner's explicit decision on Decision 2, a story with
+  acceptance criteria and a `waypost-reviewer` pass over the code, and the
+  `review_status` change (`acceptance_gate` is on).
+
 ---
 
-*Last updated: 2026-11-06*
+*Last updated: 2026-11-07*
