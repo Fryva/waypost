@@ -44,6 +44,7 @@ full typed neighborhood, both directions, in one call.
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | Owner-assigned team roles by default with calibration as an optional check | adr | accepted |
 | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md | Owner's global rules: one harness-neutral source, reaching every installed harness on every machine | adr | accepted |
 | adr/portable-handoff-packets-as-explicit-file-snapshots-not-model-memory.md | Portable handoff packets as explicit file snapshots, not model memory | adr | proposed |
+| adr/project-memory-one-directory-for-every-harness-measured-on-request.md | Project Memory: one directory for every harness, measured on request | adr | proposed |
 | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | Record the operating system of a commit in a Waypost-OS trailer | adr | accepted |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
 | adr/solo-entry-without-a-profile-an-external-task-trailer-doctor-on-a-vault-path-a-vault-level-opt-out-from-self-install.md | Solo entry without a profile: an external task trailer, doctor on a vault path, a vault-level opt-out from self-install | adr | accepted |
@@ -344,6 +345,10 @@ full typed neighborhood, both directions, in one call.
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | wikilink | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md |
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | wikilink | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
+| adr/project-memory-one-directory-for-every-harness-measured-on-request.md | mdlink | adr/0001-harness-agnostic-core.md |
+| adr/project-memory-one-directory-for-every-harness-measured-on-request.md | mdlink | adr/0008-token-budget.md |
+| adr/project-memory-one-directory-for-every-harness-measured-on-request.md | mdlink | adr/0011-decisions-that-check-themselves.md |
+| adr/project-memory-one-directory-for-every-harness-measured-on-request.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
 | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | wikilink | adr/0001-harness-agnostic-core.md |
 | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | wikilink | adr/0006-commit-protocol.md |
 | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | wikilink | adr/0010-coordination-follows-the-repository.md |
