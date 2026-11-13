@@ -13,7 +13,7 @@ review_status: pending
 reviewed_at: null
 drafted_by: {"harness":"claude","provider":null,"date":"2026-11-13"}
 guards: [{"check": "node --test tests/memory.test.mjs", "why": "Decision 1: brief and doctor --memory run with every node:fs write method replaced by a throw"}]
-code_refs: ["scripts/brief.mjs", "scripts/doctor.mjs", "tests/harness.test.mjs", "tests/env.mjs", "scripts/memory.mjs (planned)", "tests/memory.test.mjs (planned)"]
+code_refs: ["scripts/brief.mjs", "scripts/doctor.mjs", "scripts/agents-registry.mjs", "harnesses/claude.json", "tests/harness.test.mjs", "tests/env.mjs", "scripts/memory.mjs (planned)", "tests/memory.test.mjs (planned)"]
 ---
 
 # Project Memory: one directory for every harness, measured on request
@@ -62,6 +62,19 @@ Two problems remain that Claude Code does not report:
    index is 10 414 characters; the topics are 616 730 bytes, the largest
    205 720 — twenty times the whole index. P2PMessenger's topics are 4.3 MB.
 
+The five Memories on this machine (characters, trimmed, 2026-11-13):
+
+| Project | Index | Pointers | Line p50 / p90 / max | Lines > 200 | Topics | Topic p90 / max | > 20k / > 50k |
+|---|---|---|---|---|---|---|---|
+| Waypost | 10 414 | 32 | 205 / 630 / 1 214 | 17 | 32 | 21 933 / 205 469 | 5 / 2 |
+| MArb | 12 223 | 45 | 244 / 353 / 615 | 38 | 46 | 11 017 / 19 341 | 0 / 0 |
+| P2PMessenger | 23 236 | 102 | 216 / 373 / 520 | 57 | 307 | 13 818 / 299 995 | 19 / 8 |
+| two small projects | ~165 | 1 | — | 0 | 1 each | 7 128, 30 114 | 0–1 / 0 |
+
+A threshold has to flag outliers, not the norm: an 8 000-character index
+budget would flag all three working projects for good, and 200 characters per
+pointer line more than half of their lines.
+
 Memory exists in five projects on this machine; three are not bound to
 Waypost. `waypost brief` exits 1 without a bound vault, and only this
 repository's own `AGENTS.md` tells a harness to run it first; the routing
@@ -97,20 +110,26 @@ block Waypost installs elsewhere does not. So `brief` cannot be the channel.
 3. **`waypost doctor --memory` runs in any directory, bound or not**, only
    its own section. Its first line is always the directory and its state:
    `exists` (a `MEMORY.md` is there), `absent` (create it here), or
-   `overridden` (with what is set). Then, at most one finding per kind with
-   counts and the three worst items:
+   `overridden` (with what is set), or `off` (auto memory disabled, with the
+   source). Then, at most one finding per kind with counts and the three
+   worst items:
    - `issue`: the index over Claude Code's limit, measured as its loader
      does (trimmed; lines = newlines + 1); a pointer to a missing topic;
-   - `warn`: the index over the owner's budget; a topic over the topic
-     budget;
-   - `info`: topics with no pointer; a `MEMORY.md` under the key the old rule
-     produces (`/` → `-` from the toplevel), when that key differs — notes
-     left there are orphans; an installed Claude Code other than the version
-     the constants come from.
+   - `warn`: the index over 80 % of that limit — 20 000 characters or 160
+     lines — before anything is lost; a topic over 50 000 characters, which
+     is due to be split;
+   - `info`: the three longest pointer lines; topics with no pointer; a
+     `MEMORY.md` under the key the old rule produces (`/` → `-` from the
+     toplevel), when that key differs — notes left there are orphans; an
+     installed Claude Code other than the version the limits come from;
+     "limits unknown" when the harness record carries no `memory` field.
+
+   There is no per-line budget: the three longest lines show where the
+   index has turned into a work log.
 
    Exit 1 on an `issue`, so "exit 0 — clean" in the owner's rules holds.
    Default `doctor` and `next` do not change.
-4. **`brief` adds a line only when the index is over a budget or the limit.**
+4. **`brief` adds a line only when the index is over 80 % of the limit.**
    `brief --json` always carries `memory: {dir, state, index_chars,
    index_lines}`. Claude Code already gets the path from its loader; nothing
    is added to an ordinary session.
@@ -124,14 +143,26 @@ block Waypost installs elsewhere does not. So `brief` cannot be the channel.
      worktree's path; a path over 200 characters cannot be keyed by hand —
      say so instead of guessing;
    - after writing `MEMORY.md`, run `waypost doctor --memory`;
-   - read a topic over the topic budget by its matching section (`rg -n`,
-     then a line range), not whole.
+   - read a topic over 20 000 characters by its matching section (`rg -n`,
+     then a line range), not whole;
+   - when the first line says `off`, Claude Code's auto memory is disabled:
+     do not read or write the shared Memory either.
 
-   This is the owner's change to the owner's files.
-6. **Constants live in `scripts/memory.mjs`**, with the Claude Code version
-   and documentation they come from: 200 lines, 25 000 characters. Owner's
-   budgets, proposed: index 8 000 characters and 200 per pointer line; topic
-   20 000 characters.
+   This is the owner's change to the owner's files. Waypost reports `off`;
+   the rule decides what it means.
+6. **Claude Code's limit is registry data; the thresholds are code.**
+   - `harnesses/claude.json` gains `memory: {index_lines: 200, index_chars:
+     25000, confidence: "documented", docs, notes}`, read by the ordinary
+     registry loader. `notes` say the documentation reads "25KB" while
+     2.1.316 counts characters, and which version and OS were checked. A
+     project override can only change that project's own findings, so no
+     shipped-only loader is needed; when WP-22 builds `global_rules`, whose
+     size limits are already registry data, the field moves there.
+   - The index threshold is a share of that limit (80 %); the topic
+     thresholds are constants in `scripts/memory.mjs`: 20 000 characters to
+     read by section, 50 000 to warn. No configuration until someone needs
+     to change them.
+   - The key algorithm stays code: a `.git` walk and a hash are not data.
 
 ## Rationale
 
@@ -144,8 +175,19 @@ block Waypost installs elsewhere does not. So `brief` cannot be the channel.
    the owners-global-rules rule that a differently resolved home is reported,
    never followed.
 4. The cost lives in the topics; a reading rule bounds it for free, and a
-   topic budget makes it visible.
+   topic threshold makes the outliers visible.
 5. Claude Code already warns Claude; default `doctor` and `next` stay quiet.
+6. Thresholds are set where they flag outliers on the measured Memories: 80 %
+   of the limit flags only P2PMessenger (93 %, 1 764 characters from losing
+   its tail); 50 000 characters flags the 205 000- and 300 000-character
+   topics, not the ordinary ones.
+7. Off means off for everyone: shared Memory exists so that a note from one
+   harness reaches the others; if Claude Code does not load it, notes from
+   Codex and OpenCode reach no one, and the owner disabled it on purpose.
+   Codex keeps its own automatic memories for private use.
+8. Limits are tool knowledge and so data (the owner's rule, ADR-0005, and the
+   owners-global-rules ADR, which lists size limits as registry data);
+   thresholds are policy and stay small enough to be constants.
 
 ## Alternatives Considered
 
@@ -185,14 +227,21 @@ would not go.
 project. The exact old-rule key in Decision 3 covers the one known source of
 splits.
 
-### G. Limits as registry data
+### G. Limits as constants in code
 
-**Pros**: the owner's rule is that knowledge about tools is data.
+**Pros**: one file, no registry change.
 
-**Cons**: the shipped-only loader of the owners-global-rules ADR is planned,
-not built.
+**Cons**: knowledge about a tool in the core, against the owner's rule and
+ADR-0005.
 
-**Deferred**: open for the owner (below).
+**Rejected because**: the registry already holds what a harness is; its
+Memory limit belongs beside it.
+
+### H. Owner's budgets: 8 000 characters per index, 200 per pointer line
+
+**Rejected because**: measured, they flag the norm — all three working
+indexes and more than half of their lines — and a warning that never goes
+away stops being read.
 
 ## Consequences
 
@@ -216,8 +265,16 @@ not built.
 - Windows and Linux are not exercised yet; other VCS roots (Claude Code has
   a `working_copy` root) are not handled.
 
+- Shared Memory itself keeps two weaknesses this ADR does not address: it
+  has no history, so a bad consolidation cannot be undone, and two sessions
+  in different harnesses can overwrite each other's edit of `MEMORY.md`.
+  The cheapest remedy for both is the owner's: a local `git init` in the
+  Memory directory. Waypost does not do it.
+
 **What changes in code / process**:
-- `scripts/memory.mjs`: the walk, the key, the measurements, the constants.
+- `scripts/memory.mjs`: the walk, the key, the measurements, the thresholds.
+- `harnesses/claude.json`: the `memory` field; `docs/harnesses.md`
+  describes it.
 - `scripts/doctor.mjs`: `--memory` runs only that section, with no binding.
 - `scripts/brief.mjs`: the over-budget line and the `memory` JSON field.
 - `tests/harness.test.mjs`: the `brief` budget test (1 500 characters) gets a
@@ -236,11 +293,9 @@ not built.
 The `transcriptDir` in `scripts/tokens.mjs` keeps its own key and root:
 transcripts are keyed by the working directory, not the repository.
 
-**Open for the owner**:
-- the budget numbers;
-- constants in code or a registry field now (alternative G);
-- whether Codex and OpenCode keep using shared Memory when Claude Code has
-  auto memory off.
+The three questions this draft left open — the budgets, constants or registry
+data, and shared Memory with auto memory off — are settled in Decisions 3, 5
+and 6.
 
 ## References
 
@@ -273,7 +328,13 @@ transcripts are keyed by the working directory, not the repository.
   rules change; the forbid guard (red CI on acceptance before the file
   exists, blind to async and atomic writes) replaced by a check guard;
   corrected the brief-test and key-count claims; the file renamed to match
-  the decision. Not taken: none. This version has not been reviewed.
+  the decision. Not taken: none.
+- 2026-11-13, owner: the open questions settled on measurements of the five
+  Memories on this machine — thresholds at 80 % of the limit and 20 000 /
+  50 000 characters per topic instead of 8 000 / 200 per index and line;
+  Claude Code's limit in the harness registry, thresholds in code; disabled
+  auto memory means no shared Memory for any harness. This version has not
+  been reviewed by a critic.
 
 ---
 
