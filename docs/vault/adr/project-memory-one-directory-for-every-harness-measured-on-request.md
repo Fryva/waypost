@@ -12,7 +12,7 @@ superseded_by: null
 review_status: pending
 reviewed_at: null
 drafted_by: {"harness":"claude","provider":null,"date":"2026-11-13"}
-guards: [{"check": "node --test tests/memory.test.mjs", "why": "Decision 1: the .claude/projects tree of a temporary home is byte-identical before and after doctor --memory"}]
+guards: [{"check": "node --test tests/memory.test.mjs", "why": "Decision 1: the .claude/projects tree of a temporary home, files and directories, is byte-identical before and after doctor --memory, also when Memory is absent"}]
 code_refs: ["scripts/doctor.mjs", "scripts/tokens.mjs", "scripts/agents-registry.mjs", "harnesses/claude.json", "tests/harness.test.mjs", "tests/env.mjs", "scripts/memory.mjs (planned)", "tests/memory.test.mjs (planned)"]
 ---
 
@@ -35,7 +35,7 @@ and write the same directory. The harnesses meet it very differently:
 
 | Harness | How it reads Memory | Load limit | Told when over it |
 |---|---|---|---|
-| Claude Code | its loader at session start | 200 lines or 25 000 characters of the trimmed index | yes: a `WARNING` in its context when over; after its own write, a reminder at 80 % to compact below 70 % |
+| Claude Code | its loader at session start | 200 lines or 25 000 characters of the trimmed index | yes: a `WARNING` in its context when over; an after-write reminder near the limit is reported but not yet traced to a function |
 | Codex, OpenCode | their own tools, as the owner's rules say: the whole index, then relevant topics whole | none of Claude's (their tools' own limits not measured) | no |
 | Every other harness | not at all | — | — |
 
@@ -97,42 +97,52 @@ block Waypost installs elsewhere does not. So `brief` cannot be the channel.
      followed, as the owners-global-rules ADR rules for a home the current
      environment resolves differently.
 
-   Known sources (Claude Code 2.1.316) are sorted in two kinds:
-   - **moves Memory → `overridden`, reported, not followed:**
-     `CLAUDE_CONFIG_DIR`; `CLAUDE_CODE_PROJECT_DIR_NAME` when Claude Code
-     would honour it (with `CLAUDE_CONFIG_DIR`, matching
-     `^[A-Za-z0-9_-]{1,64}$`, not a reserved device name);
-     `CLAUDE_COWORK_MEMORY_PATH_OVERRIDE`; `CLAUDE_CODE_REMOTE_MEMORY_DIR`;
-     `autoMemoryDirectory` in user, local or project settings. Following
-     `autoMemoryDirectory` needs Claude Code's workspace trust model, which
-     v1 does not guess.
-   - **the owner's standing switch → `off`:** `autoMemoryEnabled: false` in
-     the merged user, project and local settings, or a true value
-     (`1/true/yes/on`) of `CLAUDE_CODE_DISABLE_AUTO_MEMORY` in a settings
-     `env` block or in this process's environment. A false value
-     (`0/false/no/off`) forces Memory on, as in Claude Code. Trust does not
-     gate this switch in Claude Code, so honouring it is safe.
+   The state is decided in this order (Claude Code 2.1.316). Settings are
+   the owner's: `~/.claude/settings.json`, then the project root's
+   `.claude/settings.json` and `.claude/settings.local.json`, later winning,
+   the root being the one the key is computed from:
+   1. `CLAUDE_CODE_DISABLE_AUTO_MEMORY` from the merged settings `env`
+      blocks: a true value (`1/true/yes/on`) → `off`; a false value
+      (`0/false/no/off`) → on, skip step 3.
+   2. The same variable in this process's environment counts only towards
+      `off`: a true value → `off`; a false value is info. The caller's
+      environment is not the environment the owner's Claude Code runs in
+      (a Claude desktop child inherits `CLAUDE_CODE_*`), so it may stop a
+      harness but never send one to write.
+   3. `autoMemoryEnabled: false` in the merged settings → `off`.
+   4. A source that moves Memory, with a value Claude Code would accept →
+      `overridden`, reported, not followed: `CLAUDE_CONFIG_DIR` whose
+      realpath is not `~/.claude`; `CLAUDE_CODE_PROJECT_DIR_NAME` with
+      `CLAUDE_CONFIG_DIR`, matching `^[A-Za-z0-9_-]{1,64}$`, not a reserved
+      device name; `CLAUDE_COWORK_MEMORY_PATH_OVERRIDE`;
+      `CLAUDE_CODE_REMOTE_MEMORY_DIR`; `autoMemoryDirectory` in any of the
+      three settings files, absolute or `~/`-rooted, at least 3 characters,
+      no `..` and no NUL.
+   5. Otherwise `exists` or `absent`.
 
    `CLAUDE_CODE_SIMPLE`, `CLAUDE_CODE_SAFE_MODE` and `CLAUDE_CODE_REMOTE`
-   describe one Claude Code process, not the owner's choice: shown as info,
+   describe one Claude Code process, not the owner's choice: info when set,
    never `off`. Sources Waypost cannot see — `--settings`,
-   `--setting-sources`, session toggles, managed and server-side settings —
-   are named.
+   `--setting-sources`, session toggles, managed, flag and server-side
+   settings — are listed in `docs/cli-reference.md`, not in every output.
 3. **`waypost doctor --memory` runs in any directory, bound or not**, only
-   its own section, from the project root. Its first line is always the
-   directory and its state, printed before the harness registry is loaded:
-   `exists` (a `MEMORY.md` is there), `absent` (create it here),
-   `overridden` (with what is set) or `off` (with the source). `off` wins
-   over `overridden`; with either, the first line is the whole output and
-   the exit code is 0. Otherwise, at most one finding per kind:
+   its own section, from the project root. Its first line is always one of
+   `memory: exists <dir>` (a `MEMORY.md` is there), `memory: absent <dir>`
+   (create it here), `memory: overridden — <source>` or
+   `memory: off — <source>`; the last two give no usable path. That line
+   does not depend on the harness registry. With `off` or `overridden` the
+   output is that line plus the process-flag info, and the exit code is 0;
+   `--json` carries the same as `{state, dir, source, findings}`.
+   `--memory --fix` is refused: `--fix` exits 0 on an issue. Otherwise, at
+   most one finding per kind:
    - `issue`: the index over Claude Code's limit, measured as its loader
      does (trimmed; lines = newlines + 1); a pointer to a missing topic;
    - `warn`: the index over 80 % of that limit — 20 000 characters or 160
      lines; a topic over 50 000 characters, which is due to be split;
    - `info`: the three longest pointer lines as line number and length;
      topics with no pointer; a `MEMORY.md` under the key the old rule
-     produces (`/` → `-` from the toplevel), when that key differs — notes
-     left there are orphans; "limits unknown" when the harness record has no
+     produces (`/` → `-` from the toplevel), when its realpath differs —
+     notes left there are orphans; "limits unknown" when the harness record has no
      `memory` field or the registry fails to load.
 
    There is no per-line budget. Exit 1 on an `issue`, so "exit 0 — clean" in
@@ -143,16 +153,22 @@ block Waypost installs elsewhere does not. So `brief` cannot be the channel.
    `brief` do not change.
 4. **The owner's global rules change in all three files**
    (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.config/opencode/AGENTS.md`).
-   For Codex and OpenCode — Claude Code gets the path from its own loader:
+   For every harness; Claude Code takes the path from its own loader, so
+   only the stop rule applies to it:
    - from the project root, take the Memory directory from the first line of
      `waypost doctor --memory`, also in a project Waypost is not bound to and
      before the first note exists;
-   - if `waypost` is missing or does not know `--memory`: every character
-     other than A–Z, a–z, 0–9 becomes `-`; in a linked worktree use the main
-     worktree's path; a path over 200 characters cannot be keyed by hand —
-     say so instead of guessing;
+   - if `waypost` is missing or the first line does not start with
+     `memory:` (a release before this one ignores the flag): stop if
+     `~/.claude/settings.json` sets `autoMemoryEnabled: false` or
+     `autoMemoryDirectory`, or `CLAUDE_CONFIG_DIR` is set; otherwise every
+     character other than A–Z, a–z, 0–9 becomes `-`; in a linked worktree
+     use the main worktree's path; a path over 200 characters cannot be
+     keyed by hand — say so instead of guessing;
    - when the first line says `off` or `overridden`, read and write no
-     Memory directory, and tell the owner what it names;
+     Memory directory; tell the owner once per session, naming the source;
+     what would have been a note goes into the final report, or an ADR or
+     docs when it is durable;
    - after writing `MEMORY.md`, run `waypost doctor --memory`; report a size
      finding to the owner;
    - read a topic over 20 000 characters by its matching section (`rg -n`,
@@ -164,9 +180,11 @@ block Waypost installs elsewhere does not. So `brief` cannot be the channel.
    - `harnesses/claude.json` gains `memory: {index_lines: 200, index_chars:
      25000, confidence: "inferred", docs, notes}`, read by the ordinary
      registry loader. `inferred`, because the documentation says "25KB" and
-     the character count comes from the 2.1.316 bundle; `notes` name it.
-     It becomes `verified` after a live run: a Cyrillic index under 25 000
-     characters and over 25 000 bytes loads with no `WARNING`. A project
+     the character count comes from the 2.1.316 bundle; `notes` cite both.
+     A live run (a Cyrillic index under 25 000 characters and over 25 000
+     bytes loads with no `WARNING`) is recorded in `notes` with the date and
+     version; it does not make the record `verified` while the
+     documentation says otherwise (ADR-0005: documented and exercised). A project
      override can only change that project's own findings, so no
      shipped-only loader is needed.
    - The index threshold is a share of that limit (80 %); the topic
@@ -188,8 +206,8 @@ block Waypost installs elsewhere does not. So `brief` cannot be the channel.
 4. The cost lives in the topics; a reading rule bounds it for free, and a
    topic threshold makes the outliers visible.
 5. Claude Code already warns Claude; default `doctor` and `next` stay quiet.
-6. 80 % is Claude Code's own threshold for reminding Claude after its write;
-   the same threshold catches what Codex and OpenCode write unmeasured. On
+6. 80 % leaves 5 000 characters — several pointers — before Claude Code
+   drops the tail, and catches what Codex and OpenCode write unmeasured. On
    the measured Memories it flags only P2PMessenger (93 %, 1 764 characters
    from losing its tail). 50 000 characters flags ten topics — two here, eight
    in P2PMessenger, up to 300 000 characters — not the ordinary ones.
@@ -226,9 +244,10 @@ history to undo a wrong rewrite.
 ### E. Follow every override that moves Memory
 
 **Rejected for v1 because**: `autoMemoryDirectory` in local and project
-settings counts only in a trusted workspace; without Claude Code's trust
-model Waypost would follow a cloned repository's settings and send Codex and
-OpenCode where Claude Code would not go.
+settings counts only in a trusted workspace, and flag, policy and managed
+settings Waypost cannot see rank above the user file. Following the user
+file alone could send Codex and OpenCode where Claude Code does not go;
+stopping and telling the owner cannot.
 
 ### F. Detect split Memory by key prefix
 
@@ -300,12 +319,20 @@ away stops being read.
   worktree; `--separate-git-dir` and a worktree of it; a symlinked path; a
   path over 200 characters; an NFD path and an emoji; a Cyrillic index
   between 25 000 characters and 25 000 bytes; a trailing newline;
-  `DISABLE_AUTO_MEMORY=0` forcing on and `=1` in a settings `env` block
-  giving `off`; `CLAUDE_CODE_SIMPLE=0` not giving `off`; an invalid
-  `PROJECT_DIR_NAME` ignored; an unbound project; a broken registry still
-  printing the first line; a dead pointer exiting 1; the `.claude/projects`
-  tree byte-identical after a run.
-- `docs/cli-reference.md`: `doctor --memory`.
+  `DISABLE_AUTO_MEMORY=0` in a settings `env` block beating
+  `autoMemoryEnabled: false` and `=1` in the process; `=1` in settings giving
+  `off`; `=0` in the process alone not turning Memory on;
+  user and local settings merged; `off` and `overridden` together giving
+  `off`; `overridden` alone; `CLAUDE_CONFIG_DIR` pointing at `~/.claude`
+  not overriding; an invalid `autoMemoryDirectory` or `PROJECT_DIR_NAME`
+  ignored; `CLAUDE_CODE_SIMPLE=0` not giving `off`; an unbound project; a
+  broken registry still printing the first line; `--memory --fix` refused;
+  a dead pointer exiting 1; the `.claude/projects` tree — files and
+  directories — byte-identical after a run, in the `absent` state too.
+- `tests/tokens.test.mjs` (or the existing tokens test): a project path over
+  200 characters keys the same as `scripts/memory.mjs`.
+- `docs/cli-reference.md`: `doctor --memory`, its JSON shape, and the
+  sources Waypost cannot see.
 - The owner's three global rule files (Decision 4).
 
 `scripts/tokens.mjs` uses the same key function (gaining the 200-character
@@ -365,7 +392,24 @@ data, and shared Memory with auto memory off — are settled in Decisions 2–5.
   `--json` exit semantics; the recalibration cost of editing Codex's home
   instructions; P2PMessenger's `check-memory.mjs` as a follow-up; the guard
   rewritten as a byte-identical home tree; `tokens.mjs` shares the key
-  function. Not taken: none. This version has not been reviewed.
+  function. Not taken: none.
+- 2026-11-13, fifth pass: revise (narrow; the `off`-over-`overridden` order
+  and "a false value forces on" checked against the 2.1.316 binary). Taken:
+  the state is a numbered order with named settings files; the calling
+  process's `DISABLE_AUTO_MEMORY` counts only towards `off`, never forcing
+  Memory on; `overridden` only for values Claude Code would accept
+  (`CLAUDE_CONFIG_DIR` by realpath, `autoMemoryDirectory` validated); a fixed
+  `memory: <state>` first line, and a fallback when a release ignores the
+  flag, which also stops on the owner's switch; the stop rule covers Claude
+  Code and says how often to tell the owner and where notes go instead;
+  process flags shown as info when set, invisible sources documented once;
+  `verified` left to ADR-0005's definition; Alternative E's real reason;
+  `--memory --fix` refused; the guard covers directories and `absent`;
+  the old-key check by realpath; JSON shape and a long-path `tokens.mjs`
+  test; the "reminder at 80 % to compact below 70 %" claim could not be
+  traced in the binary and is withdrawn from the table and Rationale 6.
+  Not taken: restricted and diskless modes (per-process, like
+  `SIMPLE`). This version has not been reviewed.
 
 ---
 
