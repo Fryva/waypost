@@ -2777,3 +2777,10 @@ test("version and help answer before harness detection, process probes and state
   }
   assert.deepEqual(readdirSync(proj), [], "no project files were created");
 });
+
+test("a reader that closes early (`| head`) ends an in-process command quietly, with no EPIPE stack", { skip: process.platform === "win32" }, () => {
+  const entry = fileURLToPath(new URL("../bin/waypost.mjs", import.meta.url));
+  const probe = JSON.stringify({ cores: 8, busy: 0, available: 8 * 1024 ** 3, total: 16 * 1024 ** 3 });
+  const r = spawnSync("sh", ["-c", `"${process.execPath}" "${entry}" capacity | true`], { encoding: "utf8", timeout: 30000, env: { ...process.env, WAYPOST_NO_BEAT: "1", WAYPOST_CAPACITY_PROBE: probe, WAYPOST_DISK_CHECK: "off" } });
+  assert.doesNotMatch(r.stderr, /EPIPE|Unhandled 'error'/, r.stderr);
+});
