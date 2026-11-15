@@ -77,7 +77,7 @@
     "index_chars": 25000,
     "confidence": "inferred",
     "docs": "https://code.claude.com/docs/en/memory",
-    "notes": "Claude Code loads the start of MEMORY.md up to 200 lines or 25000 characters. The documentation says \"25KB\"; the Claude Code 2.1.316 bundle counts String.length after trim(), so characters, not bytes (a Cyrillic index under 25000 characters and over 25000 bytes is assumed to load whole, not yet run live). Re-check both on a new release."
+    "notes": "Claude Code loads the start of MEMORY.md up to 200 lines or 25000 characters. The documentation says \"25KB\"; the Claude Code 2.1.316 bundle counts String.length after trim(), so characters, not bytes (live, 2026-11-15, 2.1.316: a Cyrillic index of 24499 characters and 44514 bytes loaded whole with no WARNING; at 26499 characters Claude Code warned \"25.9KB (limit: 24.4KB)\", i.e. characters/1024, and cut whole lines from line 107). Re-check both on a new release."
   },
   "coordination": {
     "protocol": 1,

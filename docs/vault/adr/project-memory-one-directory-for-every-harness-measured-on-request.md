@@ -446,6 +446,11 @@ data, and shared Memory with auto memory off — are settled in Decisions 2–5.
   normalized, not refused for `..` (Claude Code's `ic()`), and any
   `CLAUDE_CODE_REMOTE_MEMORY_DIR` overrides. The owner added `~/.claude.json`
   to Decision 4's fallback and wrote the three global rule files on 2026-11-15.
+- **Live run (2026-11-15, Claude Code 2.1.316, Haiku):** a Cyrillic index of
+  24 499 characters and 44 514 bytes loaded whole with no `WARNING`; the control
+  at 26 499 characters warned "25.9KB (limit: 24.4KB)" (characters / 1024) and
+  cut whole lines from line 107. Recorded in `harnesses/claude.json` `notes`;
+  `confidence` stays `inferred` while the documentation says "25KB" (Decision 5).
 
 ---
 
