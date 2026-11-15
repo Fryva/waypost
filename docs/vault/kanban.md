@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-15T08:51:05.837Z
+generated_at: 2026-11-15T19:49:25.981Z
 
 ---
 
@@ -76,6 +76,7 @@ generated_at: 2026-11-15T08:51:05.837Z
 - [x] [[epics/WP-18/stories/story-a-live-holder-started-through-a-differently-cased-path-still-reads-as-live-on-windows|WP-18: A live holder started through a differently cased path still reads as live on Windows]] #p2 #done
 - [x] [[epics/WP-18/stories/story-agents-waypost-starts-itself-see-a-live-heavy-job-and-brief-and-status-name-it|WP-18: Agents waypost starts itself see a live heavy job, and brief and status name it]] #p2 #done
 - [x] [[epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them|WP-18: A heavy job started while waypost team peers run sees them and does not start beside them]] #p2 #done
+- [x] [[epics/WP-18/stories/story-disk-admission-reads-every-filesystem-a-job-writes-to-not-only-the-working-directorys|WP-18: Disk admission reads every filesystem a job writes to, not only the working directory's]] #p2 #done
 - [x] [[epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host|WP-19: ps in the C locale, so the process table exists on any host]] #p1 #done
 - [x] [[epics/WP-19/stories/story-an-empty-team-authority-on-a-network-share-does-not-block-commits-from-another-machine|WP-19: An empty team authority on a network share does not block commits from another machine]] #p2 #done
 - [x] [[epics/WP-19/stories/story-same-named-machines-keep-each-others-live-records|WP-19: Same-named machines keep each other's live records]] #p2 #done

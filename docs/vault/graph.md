@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-15T08:51:06.104Z
+generated_at: 2026-11-15T19:49:26.249Z
 
 ---
 
@@ -89,6 +89,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-18/stories/story-agents-waypost-starts-itself-see-a-live-heavy-job-and-brief-and-status-name-it.md | Agents waypost starts itself see a live heavy job, and brief and status name it | story | done |
 | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md | Capacity verified on Linux and Windows virtual machines | story | in-progress |
 | epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable.md | Cleanup tests prove a live holder on Windows: fixtures record the comm tasklist reports, and the fake clean tool is a real executable | story | done |
+| epics/WP-18/stories/story-disk-admission-reads-every-filesystem-a-job-writes-to-not-only-the-working-directorys.md | Disk admission reads every filesystem a job writes to, not only the working directory's | story | done |
 | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md | The heavy-work rule in every project, and Waypost's own heavy work | story | done |
 | epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app.md | The heavy-work slot is machine-wide on Windows, not one per packaged app | story | done |
 | epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os.md | waypost capacity: the machine's real free resources, measured by each OS | story | done |
@@ -446,6 +447,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-agents-waypost-starts-itself-see-a-live-heavy-job-and-brief-and-status-name-it.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable.md |
+| epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-disk-admission-reads-every-filesystem-a-job-writes-to-not-only-the-working-directorys.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app.md |
 | epics/WP-18/epic.md | epic-contains | epics/WP-18/stories/story-waypost-capacity-the-machines-real-free-resources-measured-by-each-os.md |
@@ -457,6 +459,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | epics/WP-18/stories/story-capacity-verified-on-linux-and-windows-virtual-machines.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-18/stories/story-cleanup-tests-prove-a-live-holder-on-windows-fixtures-record-the-comm-tasklist-reports-and-the-fake-clean-tool-is-a-real-executable.md | mdlink | epics/WP-18/epic.md |
+| epics/WP-18/stories/story-disk-admission-reads-every-filesystem-a-job-writes-to-not-only-the-working-directorys.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md | mdlink | adr/heavy-work-sized-to-the-machine-waypost-capacity-a-machine-wide-slot-and-a-rule-to-check-first.md |
 | epics/WP-18/stories/story-the-heavy-work-rule-in-every-project-and-wayposts-own-heavy-work.md | mdlink | epics/WP-18/epic.md |
 | epics/WP-18/stories/story-the-heavy-work-slot-is-machine-wide-on-windows-not-one-per-packaged-app.md | mdlink | epics/WP-18/epic.md |
