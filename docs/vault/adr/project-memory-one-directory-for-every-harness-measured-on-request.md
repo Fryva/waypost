@@ -2,15 +2,15 @@
 type: adr
 id: "project-memory-one-directory-for-every-harness-measured-on-request"
 title: "Project Memory: one directory for every harness, measured on request"
-status: proposed
+status: accepted
 date: 2026-11-13
 authors: ["Ivan Morozov"]
 tags: ["memory", "doctor", "context-spend"]
 external_refs: {"claude-code-memory": "https://code.claude.com/docs/en/memory", "claude-code-sessions": "https://code.claude.com/docs/en/sessions#where-transcripts-are-stored"}
 supersedes: null
 superseded_by: null
-review_status: pending
-reviewed_at: null
+review_status: reviewed
+reviewed_at: 2026-11-15
 drafted_by: {"harness":"claude","provider":null,"date":"2026-11-13"}
 guards: [{"check": "node --test tests/memory.test.mjs", "why": "Decision 1: the .claude/projects tree of a temporary home, files and directories, is byte-identical before and after doctor --memory, also when Memory is absent"}]
 code_refs: ["scripts/doctor.mjs", "scripts/tokens.mjs", "scripts/agents-registry.mjs", "harnesses/claude.json", "tests/harness.test.mjs", "tests/env.mjs", "scripts/memory.mjs (planned)", "tests/memory.test.mjs (planned)"]
@@ -20,7 +20,7 @@ code_refs: ["scripts/doctor.mjs", "scripts/tokens.mjs", "scripts/agents-registry
 
 | Field | Value |
 |---|---|
-| **Status** | proposed — revised on 2026-11-15 after six fresh-context critic passes |
+| **Status** | accepted — by the owner on 2026-11-15, after six fresh-context critic passes |
 | **Date** | 2026-11-13 |
 | **Authors** | Ivan Morozov |
 | **Related** | [ADR-0001](./0001-harness-agnostic-core.md), [ADR-0008](./0008-token-budget.md), [ADR-0011](./0011-decisions-that-check-themselves.md), [owners-global-rules](./owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md) |
@@ -434,7 +434,8 @@ data, and shared Memory with auto memory off — are settled in Decisions 2–5.
   state; tests for each step and the first-line format. Open, not taken:
   the legacy `env` in `~/.claude.json`, whether Claude Code accepts JSONC
   settings, and the desktop's 2.1.325 against the 2.1.316 checked here.
-  This version has not been reviewed.
+- 2026-11-15, owner: accepted as of the sixth pass. The three open
+  questions are checked when `scripts/memory.mjs` is implemented.
 
 ---
 
