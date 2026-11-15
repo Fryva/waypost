@@ -170,9 +170,11 @@ PROCEDURES
                            a preview before the [y/N]; off and loosening it
                            work from anywhere [--json]
   capacity [--json]        the machine's real free resources right now: cores,
-                           load, available memory, free disk (a 30 GB system
-                           reserve + 20 GB per job, capped at 15 %/20 % of the
-                           disk) and how many more heavy jobs it can take
+                           load, available memory, free disk on every
+                           filesystem a job writes to (working dir, /, home,
+                           temp, cargo/gradle dirs; a 30 GB system reserve +
+                           20 GB per job, capped at 15 %/20 % of each; the
+                           tightest binds) and how many more heavy jobs it can take
                            (never cached) [--json for detail]
   capacity --disk [<reserve>,<share>|default]
                            the owner's disk floor in GB; no value shows it;

@@ -6,7 +6,7 @@ import * as leaf from "../scripts/capacity-admission.mjs";
 
 test("admission leaf preserves public bindings, arity and bounded probe-free source",()=>{
   const names=["CORES_PER_SLOT","JOB_CORE_DIVISOR","JOB_DISK_CAP","JOB_DISK_DIVISOR","JOB_MEMORY_CAP","JOB_MEMORY_DIVISOR","SYSTEM_DISK_CAP","SYSTEM_DISK_FRACTION","canStart","diskShare","systemReserve"];
-  assert.deepEqual(Object.keys(leaf),names);assert.equal(Object.keys(owner).length,28);
+  assert.deepEqual(Object.keys(leaf),names);assert.equal(Object.keys(owner).length,29);
   for(const name of names)assert.equal(owner[name],leaf[name]);
   assert.equal(leaf.canStart.name,"canStart");assert.equal(leaf.canStart.length,0);
   const source=readFileSync(new URL("../scripts/capacity-admission.mjs",import.meta.url),"utf8");
@@ -72,4 +72,32 @@ test("measure: WAYPOST_CAPACITY_PROBE disk figures are optional; given, they bin
   assert.equal((await owner.measure({env:probe({})})).disk,null);
   const r=await owner.measure({env:probe({free:45*GiB,disk_total:460*GiB})});
   assert.equal(r.can_start,0);assert.match(r.reason,/^disk: 45\.0 GB free/);
+});
+
+// ─── several filesystems (disk-space ADR, amended 2026-11-15) ────────────
+const G=1024**3,idle={cores:8,busy:0,available:8*G,total:16*G};
+const mac={free:100*G,total:460*G,path:"/w"},vmRoot={role:"system root",free:15*G,total:59*G,path:"/"};
+test("one filesystem keeps the old answer; disks has one entry",()=>{
+  const one=leaf.canStart({...idle,disks:[mac]}),old=leaf.canStart({...idle,disk:mac});
+  assert.equal(one.can_start,old.can_start);assert.equal(one.disks.length,1);assert.equal(one.disk_tight.role,"working directory");
+});
+test("the tightest filesystem binds and the reason names it; no repository cleanup advice off the working directory",()=>{
+  const r=leaf.canStart({...idle,disks:[mac,vmRoot]});
+  assert.equal(r.can_start,0);assert.equal(r.disk_primary_short,false);
+  assert.match(r.reason,/^disk: 15\.0 GB free at \/ \(system root\), a heavy job needs 20\.6 GB free \(8\.8 GB system reserve \+ 11\.8 GB for this job\) — waypost size --global$/);
+  const ok=leaf.canStart({...idle,disks:[mac,{...vmRoot,free:24*G}]});assert.equal(ok.can_start,1);assert.equal(ok.disk_tight.role,"system root");
+});
+test("a shortage on the working directory's filesystem is primary even when another is tighter",()=>{
+  const r=leaf.canStart({...idle,disks:[{...mac,free:40*G},{...vmRoot,free:10*G}]});
+  assert.equal(r.disk_primary_short,true);assert.match(r.reason,/at \/ \(system root\)/);
+});
+test("the owner's floor applies as written on the working directory's filesystem and is capped elsewhere",()=>{
+  const floor={reserve:30*G,share:20*G},small={role:"CARGO_TARGET_DIR",free:40*G,total:64*G,path:"/ssd"};
+  const r=leaf.canStart({...idle,disks:[mac,small],floor,diskRaise:"25"});
+  assert.equal(r.disks[0].reserve,30*G);assert.equal(r.disks[0].share,25*G);
+  assert.equal(r.disks[1].reserve,64*G*0.15);assert.equal(r.disks[1].share,64*G/5);assert.equal(r.can_start,2);
+});
+test("an unknown working directory is cannot start; an unknown additional entry never reaches canStart",()=>{
+  const r=leaf.canStart({...idle,disks:[{free:NaN,total:NaN,path:"/w"},vmRoot]});
+  assert.equal(r.can_start,0);assert.equal(r.reason,"disk: free space unknown");assert.equal(r.disk_primary_short,false);
 });

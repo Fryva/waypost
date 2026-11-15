@@ -263,8 +263,12 @@ Not decided here, and unchanged: generic names staying off the automatic
 path, `free:<P>%` semantics.
 
 **Implementation state (2026-11-06):** Decisions 1, 2 and 3 are
-implemented (the several-filesystems amendment of 2026-11-15 to Decision 1
-is not yet). Two readings fixed while implementing Decision 2: "the
+implemented; the several-filesystems amendment of 2026-11-15 to Decision 1
+is implemented too (story "Disk admission reads every filesystem a job
+writes to, not only the working directory's", WP-18). On macOS an external
+`/Volumes` disk counts as local storage for admission when its mount type is
+local (apfs, hfs, exfat), although coordination treats `/Volumes` as a
+network mount. Two readings fixed while implementing Decision 2: "the
 repository's linked worktrees" means every work tree but the job's own, so
 a job in a linked worktree walks the main one too; and a live session
 "overlaps" a worktree when its project root is that tree or lies inside it
@@ -489,7 +493,14 @@ agent worktrees, each with its own full build output).
   system root added; the reason names the filesystem, the tightest is the
   smallest margin; stale text marked; the working directory is never
   skipped as `tmpfs`. `CARGO_HOME`/`RUSTUP_HOME` added; quota and virtual
-  disks recorded in Known limits. Code not yet changed.
+  disks recorded in Known limits.
+- 2026-11-15, fresh-context `waypost-reviewer` on the implementation: no
+  correctness defects; the `/Volumes` external disk, `prompts/heavy.md`, a
+  `measure()` test over a list, the skipped-count wording, labels for
+  additional entries and `platform` passing were fixed before commit. The
+  tightest filesystem (smallest margin) and the one that binds the count
+  coincide whenever admission refuses; they may differ only in the count
+  of further jobs, which is accepted.
 
 ---
 

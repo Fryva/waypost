@@ -199,7 +199,9 @@ async function handleRun(args) {
     // then ask again (the disk-space ADR). Otherwise a full disk refuses every
     // job, and the cleanup that runs only after a job never runs at all. A
     // measured shortage only: "free space unknown" is not fixed by a sweep.
-    const diskShort = /^disk: \d/.test(String(claim.reason || ""));
+    // Only a shortage on the repository's own filesystem: its cleanup frees
+    // nothing on another one (the disk-space ADR, amended 2026-11-15).
+    const diskShort = /^disk: \d/.test(String(claim.reason || "")) && claim.disk_primary_short !== false;
     if (!cleanedForDisk && diskShort) {
       cleanedForDisk = true;
       process.stderr.write(`waypost run --heavy: ${claim.reason.replace(/ — .*$/, "")} — running the automatic cleanup first (up to 60 s)\n`);

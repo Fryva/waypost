@@ -37,7 +37,7 @@ const url = new URL("../scripts/presence-storage.mjs", import.meta.url).href;
 test("presence storage module: five shared bindings and namespace27 exclude internal path helpers", () => {
   const publicNames = ["storageOf", "coordinationDirs", "presenceDir", "leaseDir", "hostSlug"];
   for (const n of publicNames) assert.equal(focused[n], facade[n], n);
-  assert.deepEqual(Object.keys(focused).sort(), [...publicNames, "legacyPresenceDir", "legacyLeaseDir", "observationsPath"].sort());
+  assert.deepEqual(Object.keys(focused).sort(), [...publicNames, "legacyPresenceDir", "legacyLeaseDir", "observationsPath", "mountTypeOf"].sort());
   assert.deepEqual(Object.keys(facade).sort(), ["BEAT_INTERVAL_MS", "LIVE_WINDOW_MS", "SHARED_TREE_ADVICE", "acquire", "argv0Of", "beat", "clearPresence", "coordinationDirs", "harnessProcess", "hostSlug", "leaseDir", "osTag", "peers", "presenceDir", "processGone", "processTable", "prunePresence", "readLeases", "release", "selfDescriptor", "sharedTree", "sharedWith", "startTicks", "storageOf", "vaultOffset", "vaultRel", "winnerOf"]);
 });
 
