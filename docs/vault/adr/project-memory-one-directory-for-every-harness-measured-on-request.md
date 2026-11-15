@@ -307,8 +307,12 @@ away stops being read.
 - P2PMessenger's `scripts/check-memory.mjs` already checks Memory there with
   the old key and a prefix fallback (alternative F); it moves to
   `waypost doctor --memory` or goes, as a follow-up in that repository.
-- Windows and Linux are not exercised yet; other VCS roots (Claude Code has
-  a `working_copy` root) are not handled.
+- Windows is not exercised yet; other VCS roots (Claude Code has a
+  `working_copy` root) are not handled. Linux (Debian 13 arm64, Node 20.19.2,
+  2026-11-15): `tests/memory.test.mjs` and `tests/tokens.test.mjs` pass 64/64;
+  for a fresh repository at `/tmp/…/проект ü` Claude Code 2.1.325 wrote its
+  transcripts into exactly the directory `doctor --memory` named. The index
+  load itself was not run there: Claude Code on that VM is not logged in.
 
 - Shared Memory itself keeps two weaknesses this ADR does not address: it
   has no history, so a bad consolidation cannot be undone, and two sessions
