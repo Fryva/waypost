@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-06T14:35:32.632Z
+generated_at: 2026-11-15T07:05:14.492Z
 
 ---
 
@@ -50,6 +50,7 @@ full typed neighborhood, both directions, in one call.
 | adr/solo-entry-without-a-profile-an-external-task-trailer-doctor-on-a-vault-path-a-vault-level-opt-out-from-self-install.md | Solo entry without a profile: an external task trailer, doctor on a vault path, a vault-level opt-out from self-install | adr | accepted |
 | adr/subscription-cli-token-accounting-with-separate-strict-billing-enforcement.md | Subscription CLI token accounting with separate strict billing enforcement | adr | accepted |
 | adr/the-cli-as-a-thin-entry-with-per-command-modules-each-readable-in-one-pass.md | The CLI as a thin entry with per-command modules, each readable in one pass | adr | accepted |
+| adr/the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge.md | The merge driver keeps our side of a derived view; regeneration happens after the merge | adr | accepted |
 | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md | Waypost 1.0: the project's memory every tool shares, checked without a model | concept | accepted |
 | epics/WP-14/epic.md | Skills as the portable layer, and the first verified harnesses | epic | planned |
 | epics/WP-14/stories/story-bundled-skills-and-loop-procedures-rendered-as-agent-skills.md | Bundled skills and loop procedures rendered as Agent Skills | story | done |
@@ -66,11 +67,12 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-15/stories/story-runtime-coordination-moves-to-the-git-common-dir-old-records-read-for-one-version.md | Runtime coordination moves to the git common dir; old records read for one version | story | done |
 | epics/WP-15/stories/story-shared-checkout-detection-covers-sibling-worktrees-of-one-repository.md | Shared-checkout detection covers sibling worktrees of one repository | story | done |
 | epics/WP-15/stories/story-the-command-on-path-survives-a-checkout-that-loses-its-executable-bit.md | The command on PATH survives a checkout that loses its executable bit | story | done |
-| epics/WP-15/stories/story-the-merge-driver-regenerates-a-derived-view-without-writing-into-the-worktree.md | The merge driver regenerates a derived view without writing into the worktree | story | planned |
+| epics/WP-15/stories/story-the-merge-driver-regenerates-a-derived-view-without-writing-into-the-worktree.md | The merge driver regenerates a derived view without writing into the worktree | story | done |
 | epics/WP-16/epic.md | Decisions that check themselves | epic | planned |
 | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md | ADR-0011 accepted: guards and drafted_by in ADR frontmatter | story | done |
 | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md | check guards name the project's own fitness command; doctor prints it and never runs it | story | done |
 | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md | doctor evaluates regex guards of accepted ADRs | story | done |
+| epics/WP-16/stories/story-evidence-names-a-test-by-an-anchor-that-doctor-can-check-not-by-a-line-number.md | Evidence names a test by an anchor that doctor can check, not by a line number | story | done |
 | epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot.md | Live verification: Cursor, Gemini CLI and Copilot | story | planned |
 | epics/WP-17/epic.md | Disk hygiene by discovery | epic | planned |
 | epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains.md | Detectors: superseded device support, unavailable simulators, duplicate toolchains | story | planned |
@@ -261,6 +263,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci.md | Wait for bounded resource admission in CI | story | done |
 | epics/WP-22/epic.md | The owner's global rules on every machine and harness | epic | planned |
 | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md | A source on another machine reaches each VM through a local cache | story | planned |
+| epics/WP-22/stories/story-doctor-memory-the-memory-directory-claude-code-loads-its-state-and-size.md | doctor --memory: the Memory directory Claude Code loads, its state and size | story | planned |
 | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | Each machine replies in its own user's language | story | planned |
 | epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md | Global rules reach every installed harness, and doctor refuses a machine where they do not | story | planned |
 | epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md | The owner's global files on every machine migrate into the one source | story | planned |
@@ -309,6 +312,7 @@ full typed neighborhood, both directions, in one call.
 | From | Kind | To |
 |------|------|----|
 | adr/0006-commit-protocol.md | wikilink | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md |
+| adr/0006-commit-protocol.md | wikilink | adr/the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge.md |
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | wikilink | adr/model-aware-teams-across-harness-sessions-with-one-authority-and-independent-review.md |
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | wikilink | adr/native-configuration-profiles-ranked-by-fresh-role-specific-calibration.md |
 | adr/automatic-model-strength-discovery-with-expiring-evidence-and-periodic-revalidation.md | wikilink | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md |
@@ -400,12 +404,14 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md |
+| epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-evidence-names-a-test-by-an-anchor-that-doctor-can-check-not-by-a-line-number.md |
 | epics/WP-16/epic.md | epic-contains | epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot.md |
 | epics/WP-16/epic.md | mdlink | adr/0011-decisions-that-check-themselves.md |
 | epics/WP-16/epic.md | mdlink | concepts/waypost-10-the-projects-memory-every-tool-shares-checked-without-a-model.md |
 | epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter.md | mdlink | epics/WP-16/epic.md |
 | epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix.md | mdlink | epics/WP-16/epic.md |
 | epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs.md | mdlink | epics/WP-16/epic.md |
+| epics/WP-16/stories/story-evidence-names-a-test-by-an-anchor-that-doctor-can-check-not-by-a-line-number.md | mdlink | epics/WP-16/epic.md |
 | epics/WP-16/stories/story-live-verification-cursor-gemini-cli-and-copilot.md | mdlink | epics/WP-16/epic.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-detectors-superseded-device-support-unavailable-simulators-duplicate-toolchains.md |
 | epics/WP-17/epic.md | epic-contains | epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with.md |
@@ -820,12 +826,15 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-validate-sealed-source-collisions-before-filesystem-reads.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci.md | mdlink | epics/WP-21/epic.md |
 | epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md |
+| epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-doctor-memory-the-memory-directory-claude-code-loads-its-state-and-size.md |
 | epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md |
 | epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md |
 | epics/WP-22/epic.md | epic-contains | epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md |
 | epics/WP-22/epic.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
 | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
 | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md | mdlink | epics/WP-22/epic.md |
+| epics/WP-22/stories/story-doctor-memory-the-memory-directory-claude-code-loads-its-state-and-size.md | mdlink | adr/project-memory-one-directory-for-every-harness-measured-on-request.md |
+| epics/WP-22/stories/story-doctor-memory-the-memory-directory-claude-code-loads-its-state-and-size.md | mdlink | epics/WP-22/epic.md |
 | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
 | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | mdlink | epics/WP-22/epic.md |
 | epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md | mdlink | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md |
