@@ -44,7 +44,7 @@ full typed neighborhood, both directions, in one call.
 | adr/owner-assigned-team-roles-by-default-with-calibration-as-an-optional-check.md | Owner-assigned team roles by default with calibration as an optional check | adr | accepted |
 | adr/owners-global-rules-one-harness-neutral-source-reaching-every-installed-harness-on-every-machine.md | Owner's global rules: one harness-neutral source, reaching every installed harness on every machine | adr | accepted |
 | adr/portable-handoff-packets-as-explicit-file-snapshots-not-model-memory.md | Portable handoff packets as explicit file snapshots, not model memory | adr | proposed |
-| adr/project-memory-one-directory-for-every-harness-measured-on-request.md | Project Memory: one directory for every harness, measured on request | adr | proposed |
+| adr/project-memory-one-directory-for-every-harness-measured-on-request.md | Project Memory: one directory for every harness, measured on request | adr | accepted |
 | adr/record-the-operating-system-of-a-commit-in-a-waypost-os-trailer.md | Record the operating system of a commit in a Waypost-OS trailer | adr | accepted |
 | adr/setup-asks-the-running-harness-not-only-the-projects-files.md | setup asks the running harness, not only the project's files | adr | proposed |
 | adr/solo-entry-without-a-profile-an-external-task-trailer-doctor-on-a-vault-path-a-vault-level-opt-out-from-self-install.md | Solo entry without a profile: an external task trailer, doctor on a vault path, a vault-level opt-out from self-install | adr | accepted |
