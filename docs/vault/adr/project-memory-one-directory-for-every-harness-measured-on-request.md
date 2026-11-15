@@ -312,7 +312,12 @@ away stops being read.
   2026-11-15): `tests/memory.test.mjs` and `tests/tokens.test.mjs` pass 64/64;
   for a fresh repository at `/tmp/…/проект ü` Claude Code 2.1.325 wrote its
   transcripts into exactly the directory `doctor --memory` named. The index
-  load itself was not run there: Claude Code on that VM is not logged in.
+  load was run there too (2026-11-15, 2.1.325, Haiku, same `/tmp/…/проект ü`
+  repository): a Cyrillic index of 24421 characters, 42988 bytes and 190
+  lines loaded whole with no warning; at 26424 characters, 46640 bytes and 195
+  lines Claude Code warned "25.8KB (limit: 24.4KB)" (characters/1024) and cut
+  12 lines, from line 184. So the limit counts characters on Linux 2.1.325
+  as on macOS 2.1.316.
 
 - Shared Memory itself keeps two weaknesses this ADR does not address: it
   has no history, so a bad consolidation cannot be undone, and two sessions
