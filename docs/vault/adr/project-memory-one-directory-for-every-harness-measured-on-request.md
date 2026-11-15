@@ -167,8 +167,8 @@ block Waypost installs elsewhere does not. So `brief` cannot be the channel.
      before the first note exists;
    - if `waypost` is missing or the first line of stdout does not start
      with `memory:` (a release before this one ignores the flag): stop if
-     `~/.claude/settings.json`, `.claude/settings.json` or
-     `.claude/settings.local.json` mentions `autoMemory` or
+     `~/.claude/settings.json`, `.claude/settings.json`,
+     `.claude/settings.local.json` or `~/.claude.json` mentions `autoMemory` or
      `DISABLE_AUTO_MEMORY`, or the environment sets `CLAUDE_CONFIG_DIR` or a
      true `CLAUDE_CODE_DISABLE_AUTO_MEMORY`; otherwise every
      character other than A–Z, a–z, 0–9 becomes `-`; in a linked worktree
@@ -444,8 +444,8 @@ data, and shared Memory with auto memory off — are settled in Decisions 2–5.
   the owner's own files (`~/.claude/settings.json`, `~/.claude.json`), never
   a project's, which Claude Code filters; `autoMemoryDirectory` is
   normalized, not refused for `..` (Claude Code's `ic()`), and any
-  `CLAUDE_CODE_REMOTE_MEMORY_DIR` overrides. Decision 4's fallback does not
-  yet look at `~/.claude.json`; that wording is the owner's to change.
+  `CLAUDE_CODE_REMOTE_MEMORY_DIR` overrides. The owner added `~/.claude.json`
+  to Decision 4's fallback and wrote the three global rule files on 2026-11-15.
 
 ---
 
