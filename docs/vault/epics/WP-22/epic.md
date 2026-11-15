@@ -8,7 +8,7 @@ created: 2026-10-13
 updated: 2026-10-13
 external_refs: {}
 tags: []
-code_refs: []
+code_refs: ["scripts/memory.mjs", "scripts/doctor.mjs", "scripts/tokens.mjs", "harnesses/claude.json", "bin/cli/help.mjs", "tests/memory.test.mjs", "tests/tokens.test.mjs", "tests/harness.test.mjs", "tests/env.mjs", "docs/cli-reference.md", "docs/harnesses.md"]
 review_status: pending
 reviewed_at: null
 ---

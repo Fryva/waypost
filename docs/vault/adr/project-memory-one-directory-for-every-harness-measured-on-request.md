@@ -13,7 +13,7 @@ review_status: reviewed
 reviewed_at: 2026-11-15
 drafted_by: {"harness":"claude","provider":null,"date":"2026-11-13"}
 guards: [{"check": "node --test tests/memory.test.mjs", "why": "Decision 1: the .claude/projects tree of a temporary home, files and directories, is byte-identical before and after doctor --memory, also when Memory is absent"}]
-code_refs: ["scripts/doctor.mjs", "scripts/tokens.mjs", "scripts/agents-registry.mjs", "harnesses/claude.json", "tests/harness.test.mjs", "tests/env.mjs", "scripts/memory.mjs (planned)", "tests/memory.test.mjs (planned)"]
+code_refs: ["scripts/doctor.mjs", "scripts/tokens.mjs", "scripts/agents-registry.mjs", "harnesses/claude.json", "tests/harness.test.mjs", "tests/env.mjs", "scripts/memory.mjs", "tests/memory.test.mjs"]
 ---
 
 # Project Memory: one directory for every harness, measured on request
@@ -436,6 +436,16 @@ data, and shared Memory with auto memory off — are settled in Decisions 2–5.
   settings, and the desktop's 2.1.325 against the 2.1.316 checked here.
 - 2026-11-15, owner: accepted as of the sixth pass. The three open
   questions are checked when `scripts/memory.mjs` is implemented.
+- 2026-11-15, implementation (story "doctor --memory" in WP-22), answers
+  against 2.1.316 and 2.1.325: settings are strict JSON, not JSONC, so
+  "unreadable → `off`" fires exactly where Claude Code ignores the file;
+  the legacy `env` in `~/.claude.json` is applied, read as the lowest `env`
+  layer; step 4's variables come from the process and from the `env` of
+  the owner's own files (`~/.claude/settings.json`, `~/.claude.json`), never
+  a project's, which Claude Code filters; `autoMemoryDirectory` is
+  normalized, not refused for `..` (Claude Code's `ic()`), and any
+  `CLAUDE_CODE_REMOTE_MEMORY_DIR` overrides. Decision 4's fallback does not
+  yet look at `~/.claude.json`; that wording is the owner's to change.
 
 ---
 

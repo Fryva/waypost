@@ -585,3 +585,18 @@ test("tokens: filtered agent runs count only selected contexts in bucket and ses
   assert.equal(selected.by_session[0].runs, 1, "session totals must not retain the excluded spawn");
   assert.deepEqual(selected.provenance.contexts, ["s/subagents/current"]);
 });
+
+test("tokens: a project path over 200 characters is keyed like Claude Code and the Memory key", () => {
+  const home = mkdtempSync(join(tmpdir(), "waypost-tok-long-"));
+  const project = "/" + "a".repeat(250);
+  // 200 characters of the dashed path, "-", then the base-36 hash of the path.
+  const key = "-" + "a".repeat(199) + "-feo44x";
+  const dir = join(home, ".claude", "projects", key);
+  mkdirSync(dir, { recursive: true });
+  const rec = { type: "assistant", requestId: "r1", timestamp: "2026-08-20T10:00:00Z",
+    message: { model: "claude-sonnet-5-20250101", usage: { input_tokens: 10, output_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, content: [{ type: "text", text: "x" }] } };
+  writeFileSync(join(dir, "s.jsonl"), JSON.stringify(rec) + "\n", "utf8");
+  const r = run(home, ["--project", project, "--json"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).transcript_dir, dir);
+});

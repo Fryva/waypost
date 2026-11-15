@@ -72,6 +72,13 @@
     "notes": "Nested `.claude/skills/` below the working directory are read too (a monorepo package's own skills); `/skill-name` invokes one directly."
   },
   "notes": "Frontmatter verified against the current docs: name, description, tools, disallowedTools, model (sonnet/opus/haiku/fable/full id/inherit), effort (low\u2026max), and more. Project agents live in .claude/agents/ and are meant to be committed. `instructions` lists .claude/CLAUDE.md first: a project that keeps its rules there (a common layout) would otherwise never receive the routing block, since the block only goes into instruction files that exist.",
+  "memory": {
+    "index_lines": 200,
+    "index_chars": 25000,
+    "confidence": "inferred",
+    "docs": "https://code.claude.com/docs/en/memory",
+    "notes": "Claude Code loads the start of MEMORY.md up to 200 lines or 25000 characters. The documentation says \"25KB\"; the Claude Code 2.1.316 bundle counts String.length after trim(), so characters, not bytes (a Cyrillic index under 25000 characters and over 25000 bytes is assumed to load whole, not yet run live). Re-check both on a new release."
+  },
   "coordination": {
     "protocol": 1,
     "adapter": "claude-stream-json",

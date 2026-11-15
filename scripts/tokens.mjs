@@ -64,6 +64,7 @@ import { homedir } from "node:os";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { projectRoot } from "./lib.mjs";
+import { projectKey } from "./memory.mjs";
 
 function die(msg) {
   process.stderr.write(`waypost/tokens: ${msg}\n`);
@@ -131,10 +132,10 @@ export function rowCost(row) {
   );
 }
 
-// Claude Code stores transcripts under ~/.claude/projects/<slug>, where the
-// slug is the project path with every non-alphanumeric char replaced by "-".
+// Claude Code stores transcripts under ~/.claude/projects/<key>, the key being
+// the working directory run through the same function as the Memory key.
 function transcriptDir(dir) {
-  return join(homedir(), ".claude", "projects", dir.replace(/[^a-zA-Z0-9]/g, "-"));
+  return join(homedir(), ".claude", "projects", projectKey(dir));
 }
 
 function parseArgs(argv) {

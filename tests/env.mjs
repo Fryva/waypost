@@ -14,3 +14,9 @@ export const ambientEnv = () => ({
 // none of them moves a developer's real machine state (bin/waypost
 // migrateStateIfNeeded). A test of the move itself sets it back to "".
 process.env.WAYPOST_NO_STATE_MIGRATION = "1";
+
+// ambientEnv() minus every CLAUDE_* variable, for tests of what Claude Code
+// would do: a Claude desktop child inherits CLAUDE_CODE_* and CLAUDE_CONFIG_DIR,
+// and a test must set the ones it means.
+export const withoutClaudeEnv = () => Object.fromEntries(
+  Object.entries(ambientEnv()).filter(([k]) => !k.startsWith("CLAUDE_") && k !== "CLAUDECODE"));

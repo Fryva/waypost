@@ -62,7 +62,8 @@ VAULT
   brief                    session-start orientation packet (run it when you
                            start work: where things live, what is in flight)
   doctor [flags]           deterministic diagnostics (--install|--vault [<path>]|--fix|--full);
-                           --vault <path> needs no binding (CI on a fresh clone)
+                           --vault <path> needs no binding (CI on a fresh clone);
+                           --memory: where Claude Code keeps Memory, its state and size
   diff-refs [flags]        changed-file evidence for code_refs
   handoff continue        opt-in bounded data-request rounds; delivery flags and --resume
   handoff transfer        export/import/report/gc for an explicit receiver content store

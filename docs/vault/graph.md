@@ -1,7 +1,7 @@
 ---
 
 projectstore: derived
-generated_at: 2026-11-15T07:05:14.492Z
+generated_at: 2026-11-15T08:51:06.104Z
 
 ---
 
@@ -263,7 +263,7 @@ full typed neighborhood, both directions, in one call.
 | epics/WP-21/stories/story-wait-for-bounded-resource-admission-in-ci.md | Wait for bounded resource admission in CI | story | done |
 | epics/WP-22/epic.md | The owner's global rules on every machine and harness | epic | planned |
 | epics/WP-22/stories/story-a-source-on-another-machine-reaches-each-vm-through-a-local-cache.md | A source on another machine reaches each VM through a local cache | story | planned |
-| epics/WP-22/stories/story-doctor-memory-the-memory-directory-claude-code-loads-its-state-and-size.md | doctor --memory: the Memory directory Claude Code loads, its state and size | story | planned |
+| epics/WP-22/stories/story-doctor-memory-the-memory-directory-claude-code-loads-its-state-and-size.md | doctor --memory: the Memory directory Claude Code loads, its state and size | story | done |
 | epics/WP-22/stories/story-each-machine-replies-in-its-own-users-language.md | Each machine replies in its own user's language | story | planned |
 | epics/WP-22/stories/story-global-rules-reach-every-installed-harness-and-doctor-refuses-a-machine-where-they-do-not.md | Global rules reach every installed harness, and doctor refuses a machine where they do not | story | planned |
 | epics/WP-22/stories/story-the-owners-global-files-on-every-machine-migrate-into-the-one-source.md | The owner's global files on every machine migrate into the one source | story | planned |

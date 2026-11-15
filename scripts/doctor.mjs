@@ -44,6 +44,7 @@ export { checkGuards, projectFiles, GUARD_FILE_MAX, GUARD_FILES_MAX } from "./do
 //      finding exists, so `waypost doctor && ...` sees failures.
 
 import { renderDoctorReport } from "./doctor-report.mjs";
+import { runMemory } from "./memory.mjs";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir } from "node:os";
@@ -204,6 +205,15 @@ function main() {
   const wantFix = args.includes("--fix");
   const wantFull = args.includes("--full");
   const startup = args.includes("--startup");
+  // `--memory` answers for any directory, bound or not, and only for Memory.
+  if (args.includes("--memory")) {
+    if (wantFix) {
+      process.stderr.write("waypost doctor: --memory is read-only; --fix does not apply to it\n");
+      process.exit(2);
+    }
+    runMemory({ start: projectRoot(), json: wantJson }).then((code) => { process.exitCode = code; });
+    return;
+  }
   let install = args.includes("--install");
   let vault = args.includes("--vault");
   if (!install && !vault && !startup) { install = true; vault = true; }

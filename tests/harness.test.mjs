@@ -17,7 +17,8 @@ import { listRoles, roleNames, readRole, renderFor, renderHashOf, installedRoleO
   harnessIds, providerIds, detectProvider, hasRoleFiles, harness as harnessOf, PREFIX, HARNESSES,
   instructionTargets, importTargets, importsSharedFile, skillsOf, CONFIDENCE } from "../scripts/agents.mjs";
 import { skillNames, readSkill, validateSkill, DESCRIPTION_MAX, DESCRIPTIONS_TOTAL_MAX } from "../scripts/skills.mjs";
-import { ambientEnv } from "./env.mjs";
+import { ambientEnv, withoutClaudeEnv } from "./env.mjs";
+import { memoryLocation } from "../scripts/memory.mjs";
 import { inspectStaticClosure, decodeClosureResult } from "./helpers/cli-static-closure.mjs";
 import { auditNamespace, inspectNamespace, collectNamespaceFiles, decodeNamespaceResult, decodeSelectionResult } from "./helpers/cli-namespace.mjs";
 import { checkCliSyntax, importCliModule, inspectCliModules, decodeModuleImport } from "./helpers/cli-modules.mjs";
@@ -2138,6 +2139,25 @@ test("routine commands answer without pasting the vault into the context", () =>
     const out = waypost(proj, args, { env: { HOME: state, USERPROFILE: state, XDG_STATE_HOME: state, LOCALAPPDATA: state } }).stdout;
     assert.ok(out.length < max, `\`waypost ${args.join(" ")}\` is ${out.length} chars (budget ${max}) — ${why}`);
   }
+});
+
+const BUDGET_MEMORY = 1000;
+test("doctor --memory stays small with a Memory over every threshold", () => {
+  const { proj } = bound();
+  const home = mkdtempSync(join(tmpdir(), "waypost-memory-budget-"));
+  const dir = memoryLocation(proj, home).dir;
+  mkdirSync(dir, { recursive: true });
+  const rows = Array.from({ length: 230 }, (_, i) => `- [t${i}](t${i}.md) ${"x".repeat(120)}`);
+  writeFileSync(join(dir, "MEMORY.md"), rows.join("\n") + "\n");   // over lines and characters, 230 dead pointers
+  for (let i = 0; i < 40; i++) writeFileSync(join(dir, `stray${i}.md`), "s");
+  for (let i = 0; i < 6; i++) writeFileSync(join(dir, `big${i}.md`), "y".repeat(60000));
+  const r = spawnSync(process.execPath, [Waypost, "doctor", "--memory"], {
+    encoding: "utf8", cwd: proj, timeout: 30000,
+    env: { ...withoutClaudeEnv(), WAYPOST_PROJECT_DIR: proj, WAYPOST_HOME: REPO, HOME: home, USERPROFILE: home, WAYPOST_NO_BEAT: "1" },
+  });
+  assert.equal(r.status, 1, r.stderr + r.stdout);
+  assert.match(r.stdout, /^memory: exists /);
+  assert.ok(r.stdout.length < BUDGET_MEMORY, `\`waypost doctor --memory\` is ${r.stdout.length} chars (budget ${BUDGET_MEMORY})`);
 });
 
 test("a query beats reading a derived view whole, and the gap widens with the vault", () => {
