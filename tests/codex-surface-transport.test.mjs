@@ -110,6 +110,9 @@ for (const [name, frame, blocker] of [
   ['a server request', { id: 900, method: 'item/tool/call', params: { threadId: 'owned' } }, 'native-surface-server-request'],
   ['another thread started', { method: 'thread/started', params: { thread: { id: 'sub-agent', ephemeral: true, forkedFromId: null, parentThreadId: null } } }, 'native-surface-foreign-thread'],
   ['a sub-agent thread of its own', { method: 'thread/started', params: { thread: { id: 'owned', ephemeral: true, forkedFromId: null, parentThreadId: 'parent' } } }, 'native-surface-foreign-thread'],
+  ['moderation data of a foreign thread', { method: 'turn/moderationMetadata', params: { threadId: 'sub-agent', turnId: 'turn', metadata: null } }, 'native-surface-foreign-thread'],
+  ['moderation data with extra params', { method: 'turn/moderationMetadata', params: { threadId: 'owned', turnId: 'turn', metadata: null, tool: 'exec' } }, 'native-surface-moderation'],
+  ['an oversized moderation frame', { method: 'turn/moderationMetadata', params: { threadId: 'owned', turnId: 'turn', metadata: 'x'.repeat(70000) } }, 'native-surface-moderation'],
   ['a persistent thread', { method: 'thread/started', params: { thread: { id: 'owned', ephemeral: false, forkedFromId: null, parentThreadId: null } } }, 'native-surface-foreign-thread'],
 ]) test('the frame guard withdraws isolation for ' + name, async t => {
   const f = fixture(t), s = server(f, { turn: emit => emitAnswer(emit, [frame]) }), endpoint = await createNativeEndpoint(f.descriptor, { spawnProcess: s.spawnProcess });
@@ -121,6 +124,20 @@ test('the announcement of its own ephemeral thread (0.162.0-alpha.17.2) keeps th
   const f = fixture(t), s = server(f, { turn: emit => emitAnswer(emit, [{ method: 'thread/started', params: { thread: { id: 'owned', ephemeral: true, forkedFromId: null, parentThreadId: null } } }]) }), endpoint = await createNativeEndpoint(f.descriptor, { spawnProcess: s.spawnProcess });
   const m = (await send(endpoint)).context_manifest;
   assert.equal(m.provenance, 'adapter-isolated'); assert.deepEqual(m.tools, []); endpoint.close();
+});
+test('owned moderation metadata (0.167.0-alpha.4.1) is opaque and keeps the turn isolated', async t => {
+  const frames = Array.from({ length: 16 }, () => ({ method: 'turn/moderationMetadata', params: { threadId: 'owned', turnId: 'turn', metadata: { omnimod: { REFUSED: false }, method: 'item/tool/call' } } }));
+  const f = fixture(t), s = server(f, { turn: emit => emitAnswer(emit, frames) }), endpoint = await createNativeEndpoint(f.descriptor, { spawnProcess: s.spawnProcess });
+  const m = (await send(endpoint)).context_manifest;
+  assert.equal(m.provenance, 'adapter-isolated'); assert.deepEqual(m.tools, []); endpoint.close();
+});
+test('a seventeenth moderation frame withdraws isolation', async t => {
+  const frames = Array.from({ length: 17 }, () => ({ method: 'turn/moderationMetadata', params: { threadId: 'owned', turnId: 'turn', metadata: null } }));
+  const f = fixture(t), s = server(f, { turn: emit => emitAnswer(emit, frames) }), endpoint = await createNativeEndpoint(f.descriptor, { spawnProcess: s.spawnProcess });
+  assert.equal((await send(endpoint)).context_manifest.surface_evidence.guard.blocker, 'native-surface-moderation'); endpoint.close();
+});
+test('the features 0.167.0-alpha.4.1 enables by default are switched off by session flag', () => {
+  for (const name of ['incremental_tools', 'deferred_tool_world_state', 'retain_client_tool_outputs', 'code_mode_interrupt']) { assert.ok(CODEX_SURFACE_R1.features_off.includes(name)); assert.ok(CODEX_SURFACE_R1.overrides.includes(`features.${name}=false`)); }
 });
 test('a tool surface needs Codex with an absolute executable and a model; the home defaults to the user\'s', () => {
   const cwd = realpathSync(tmpdir()), base = { harness: 'codex', managed: true, cwd, executable: '/opt/codex/bin/codex', model_id: 'gpt-6.1-sol', tool_surface: CODEX_SURFACE_R1.id };

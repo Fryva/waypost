@@ -3,15 +3,17 @@
 // instead-of-an-empty-tool-list): the version-specific lists the ADR leaves to a
 // definition. It runs the user's own Codex installation and home (owner decision
 // 2026-10-08); everything it changes is a session flag or a Waypost-written file. Read from codex-cli 0.162.0-alpha.2 and its negative-control probe
-// (2026-10-08), revised for 0.162.0-alpha.17.2 by a new probe (2026-10-11); any other version
-// stays unverified.
+// (2026-10-08), revised for 0.162.0-alpha.17.2 (2026-10-11) and for 0.167.0-alpha.4.1
+// (2026-11-15) by new probes; any other version stays unverified.
 import { createHash } from 'node:crypto';
 
-const FEATURES_OFF = ['shell_tool', 'ultrafast_mode', 'unified_exec', 'unified_exec_tty', 'sleep_tool', 'view_image', 'image_generation', 'multi_agent', 'multi_agent_v2', 'apps', 'plugins', 'remote_plugin', 'hooks', 'goals', 'memories', 'browser_use', 'browser_use_external', 'browser_use_full_cdp_access', 'computer_use', 'code_mode_host', 'tool_suggest', 'skill_mcp_dependency_install', 'skill_search', 'tool_call_mcp_elicitation', 'in_app_browser', 'in_app_local_automation', 'in_app_updates', 'daemon_auto_start', 'worktrees', 'realtime_conversation', 'guardian_approval'];
+const FEATURES_OFF = ['shell_tool', 'ultrafast_mode', 'unified_exec', 'unified_exec_tty', 'sleep_tool', 'view_image', 'image_generation', 'multi_agent', 'multi_agent_v2', 'apps', 'plugins', 'remote_plugin', 'hooks', 'goals', 'memories', 'browser_use', 'browser_use_external', 'browser_use_full_cdp_access', 'computer_use', 'code_mode_host', 'tool_suggest', 'skill_mcp_dependency_install', 'skill_search', 'tool_call_mcp_elicitation', 'in_app_browser', 'in_app_local_automation', 'in_app_updates', 'daemon_auto_start', 'worktrees', 'realtime_conversation', 'guardian_approval',
+  // Enabled by default in 0.167.0-alpha.4.1; off rather than allowed (probe 2026-11-15).
+  'code_mode_interrupt', 'instant_interrupt', 'cli_daybreak', 'api_key_cyber_access_programs', 'mcp_oauth_refresh_coordination', 'deferred_tool_world_state', 'incremental_tools', 'prediction_preserve_parent_tools', 'plugin_discovery_prefetch', 'reasoning_effort_override', 'bedrock_setup_wizard', 'retain_client_tool_outputs'];
 
 export const CODEX_SURFACE_R1 = Object.freeze({
   id: 'codex-no-exec-r1',
-  version: '0.162.0-alpha.17.2',
+  version: '0.167.0-alpha.4.1',
   // The catalog Waypost pins is the model's entry from the user's own
   // models_cache.json with the tool-bearing keys removed, written content-addressed.
   catalog_cache: 'models_cache.json',
@@ -37,13 +39,16 @@ export const CODEX_SURFACE_R1 = Object.freeze({
   // launch instead (skills/list, mcpServerStatus/list, app/installed).
   config_keys: ['model', 'model_provider', 'model_providers', 'openai_base_url', 'chatgpt_base_url', 'approval_policy', 'sandbox_mode', 'web_search', 'tools', 'features', 'apps', 'hooks', 'memories', 'agents', 'model_catalog_json', 'project_doc_max_bytes', 'instructions', 'developer_instructions', 'model_instructions_file', 'browser_use', 'computer_use', 'goals', 'experimental_use_unified_exec_tool'],
   // Default deny during a turn: anything else withdraws isolation for the receipt.
-  turn_methods: ['turn/started', 'turn/completed', 'item/started', 'item/completed', 'item/agentMessage/delta', 'item/reasoning/summaryTextDelta', 'item/reasoning/summaryPartAdded', 'item/reasoning/textDelta', 'thread/tokenUsage/updated', 'account/rateLimits/updated', 'account/updated', 'thread/status/changed', 'rawResponseItem/completed', 'rawResponse/completed', 'model/rerouted', 'warning', 'deprecationNotice', 'remoteControl/status/changed'],
+  turn_methods: ['turn/started', 'turn/completed', 'item/started', 'item/completed', 'item/agentMessage/delta', 'item/reasoning/summaryTextDelta', 'item/reasoning/summaryPartAdded', 'item/reasoning/textDelta', 'thread/tokenUsage/updated', 'account/rateLimits/updated', 'account/updated', 'thread/status/changed', 'rawResponseItem/completed', 'rawResponse/completed', 'model/rerouted', 'warning', 'deprecationNotice', 'remoteControl/status/changed', 'turn/moderationMetadata'],
+  // Opaque moderation notifications (0.167.0-alpha.4.1): owned and bounded, never read.
+  moderation_limits: Object.freeze({byteMetric:'wire-json-line-bytes-excluding-lf-v1',maxFrameBytes:65536,maxTotalBytes:262144,maxFrames:16}),
   turn_items: ['userMessage', 'agentMessage', 'reasoning'],
   raw_items: ['message', 'reasoning'],
   residual_tools: [],
 });
 // Pinned catalogs the negative-control probe ran against through this transport on
-// the user's installation (2026-10-08; fefbe074… on 0.162.0-alpha.17.2, 2026-10-11); a refreshed catalog stays unverified until
+// the user's installation (2026-10-08; fefbe074… on 0.162.0-alpha.17.2, 2026-10-11; 62f3a739… on
+// 0.167.0-alpha.4.1, 2026-11-15); a refreshed catalog stays unverified until
 // probed again and added here.
-export const PROBED_CATALOGS = new Set(['3085306bb82e2a1541b425f4239aaa73939860c755b871651a4a22e1e424490b', 'fefbe074a61b4bf2487f603e37bd06339bdb635785f596f53fc77d26dfc416ce']);
+export const PROBED_CATALOGS = new Set(['3085306bb82e2a1541b425f4239aaa73939860c755b871651a4a22e1e424490b', 'fefbe074a61b4bf2487f603e37bd06339bdb635785f596f53fc77d26dfc416ce', '62f3a739f1a32ee375751b8cfca8e284686ef2b4f942af463224140ca1028401']);
 export const CODEX_SURFACE_R1_DIGEST = createHash('sha256').update(JSON.stringify(CODEX_SURFACE_R1)).digest('hex');

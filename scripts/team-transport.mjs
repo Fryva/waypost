@@ -322,7 +322,7 @@ async function inspectCodexSurface(request, d, init, thread) {
 // Default-deny frame guard of a surface turn: the first frame outside the
 // definition withdraws isolation for the receipt.
 function codexSurfaceGuard(nativeId) {
-  const S = CODEX_SURFACE_R1; let violation = null, rawMessage = false;
+  const S = CODEX_SURFACE_R1; let violation = null, rawMessage = false, moderationFrames = 0, moderationBytes = 0;
   const check = m => {
     if (violation || !m || typeof m !== 'object') return;
     const p = m.params || {};
@@ -333,6 +333,10 @@ function codexSurfaceGuard(nativeId) {
     else if (m.method === 'thread/started') { if (p.thread?.id !== nativeId || p.thread.ephemeral !== true || p.thread.forkedFromId != null || p.thread.parentThreadId != null) violation = 'native-surface-foreign-thread'; }
     else if (!S.turn_methods.includes(m.method)) violation = 'native-surface-frame-' + m.method.replace(/[^a-z/]/gi, '').slice(0, 60);
     else if (p.threadId !== undefined && p.threadId !== nativeId) violation = 'native-surface-foreign-thread';
+    else if (m.method === 'turn/moderationMetadata') {
+      const bytes = Buffer.byteLength(JSON.stringify(m)), L = S.moderation_limits; moderationFrames++; moderationBytes += bytes;
+      if (p.threadId !== nativeId || Object.keys(p).some(k => !['threadId', 'turnId', 'metadata'].includes(k)) || bytes > L.maxFrameBytes || moderationBytes > L.maxTotalBytes || moderationFrames > L.maxFrames) violation = 'native-surface-moderation';
+    }
     else if ((m.method === 'item/started' || m.method === 'item/completed') && (!S.turn_items.includes(p.item?.type) || p.item.type === 'agentMessage' && (p.item.delivery != null || p.item.questions != null || p.item.memoryCitation != null))) violation = 'native-surface-tool-item';
     else if (m.method === 'rawResponseItem/completed' && !S.raw_items.includes(p.item?.type)) violation = 'native-surface-raw-tool-call';
   };
