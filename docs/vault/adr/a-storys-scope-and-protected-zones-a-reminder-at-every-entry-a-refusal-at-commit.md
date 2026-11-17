@@ -12,8 +12,9 @@ superseded_by: null
 review_status: pending
 reviewed_at: null
 drafted_by: {"harness":"claude","provider":null,"date":"2026-11-07"}
-code_refs: ["scripts/commit.mjs", "scripts/doctor.mjs", "scripts/lib-frontmatter.mjs", "scripts/lib.mjs", "scripts/story-section.mjs", "scripts/sessions.mjs", "scripts/reconcile.mjs", "scripts/team-integration.mjs", "scripts/team-host.mjs", "bin/cli/artifacts.mjs", "bin/cli/core.mjs", "agents/reviewer.md", "docs/cli-reference.md", ".github/workflows/ci.yml", ".github/workflows/release.yml", "scripts/scope.mjs (planned)", "scripts/lib-glob.mjs (planned)", "scripts/lib-controls.mjs (planned)", "scripts/hooks.mjs (planned)", "tests/scope.test.mjs (planned)", ".github/workflows/scope-audit.yml (planned)"]
-related: "ADR-0001 (harness-agnostic core), ADR-0006 (commit protocol; amended here), ADR-0007 (presence and leases), ADR-0008 (token budget), ADR-0009 (artifact integrity), ADR-0010 (coordination follows the repository), ADR-0011 (guards), solo-entry ADR (task trailer), rule-compliance ADR (proposed; shares the hook host)"
+code_refs: ["scripts/commit.mjs", "scripts/doctor.mjs", "scripts/lib-frontmatter.mjs", "scripts/lib.mjs", "scripts/story-section.mjs", "scripts/sessions.mjs", "scripts/reconcile.mjs", "scripts/cleanup-limit.mjs", "scripts/agents-detection.mjs", "bin/cli/artifacts.mjs", "bin/cli/core.mjs", "agents/reviewer.md", "docs/cli-reference.md", ".github/workflows/ci.yml", ".github/workflows/release.yml", "scripts/scope.mjs (planned)", "scripts/lib-glob.mjs (planned)", "scripts/lib-controls.mjs (planned)", "scripts/hooks.mjs (planned)", "tests/scope.test.mjs (planned)", ".github/workflows/scope-audit.yml (planned)"]
+related: "ADR-0001 (harness-agnostic core), ADR-0006 (commit protocol; amended here), ADR-0007 (presence and leases), ADR-0008 (token budget), ADR-0009 (artifact integrity), ADR-0010 (coordination follows the repository), ADR-0011 (guards), solo-entry ADR (task trailer), rule-compliance ADR (proposed; owner gate, shared hook host)"
+protect: [{"paths": [".github"], "allow": [], "why": "the audit definition and CI change only with the owner's approval"}]
 guards: []
 ---
 
@@ -21,7 +22,7 @@ guards: []
 
 | Field | Value |
 |---|---|
-| **Status** | proposed — revised eight times (2026-11-07 … 2026-11-17) after fresh-context critic passes |
+| **Status** | proposed — revised ten times (2026-11-07 … 2026-11-17) after fresh-context critic passes |
 | **Date** | 2026-11-07 |
 | **Authors** | Ivan Morozov |
 | **Related** | ADR-0001, ADR-0006 (amended), ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, solo-entry ADR, rule-compliance ADR |
@@ -50,18 +51,20 @@ What exists today:
   hand. Everything in the working copy, the git config and the git common dir
   is the agent's to change.
 
-Eight critic passes found ways for the agent to grant itself permission —
+Ten critic passes found ways for the agent to grant itself permission —
 tags, a `grants` key, the story it names, the binding, a `type:` change, an
 owners file, a reconfigurable verifier, a launderable history walk, the
 owner's forge credentials, "update branch" merges, recombining automatic
-merges — and, in the previous revision, a basis tied to a path rather than to
-a change. The premise: **nothing evaluated in the agent's environment, and
-nothing the agent's credentials can reconfigure, stops a determined agent;**
-**per-commit attribution through merges cannot be made sound;** so the rule
-judges the net result, requires every ordinary commit touching a zone path to
-carry an allowed story, and pins every signature to exact before-and-after
-content. Drift is closed wherever a commit is made. Intent is closed only by
-a required check on the protected default branch, run from a definition the
+merges, a basis tied to a path, a replayable signature, a tag named like the
+default branch, Unicode variants that a filesystem merges, and trailers typed
+into a commit message. The premise: **nothing evaluated in the agent's
+environment, and nothing the agent's credentials can reconfigure, stops a
+determined agent;** **per-commit attribution through merges cannot be made
+sound;** so the rule judges the net result, requires every ordinary commit
+touching a zone path to carry an allowed story, and pins every signature to
+a base on which the path has not moved since. Locally the rule catches drift
+— an agent that is not trying to get around it. Intent is closed only by a
+required check on the protected default branch, run from a definition the
 agent cannot change, under preconditions the owner keeps.
 
 Constraints: ADR-0001 — no harness hook may be required (an optional git hook
@@ -75,9 +78,9 @@ older release's `doctor` red. `parseFrontmatter` is line-based.
 
 | Threat | Local (agent's machine) | Required check on the protected branch (§3) |
 |---|---|---|
-| Drift through `waypost commit` | Refused before anything is written | Refused |
+| Drift through `waypost commit` | Refused before the commit is made | Refused |
 | Drift through plain git | Refused where the optional hook (§5) is installed; otherwise not stopped | Refused |
-| Intent: an override, or a fence loosened | Possible; recorded | Refused unless an owner-signed commit pins the exact change (§3) |
+| Intent: an override, a fence loosened, typed trailers | Possible through plain git with hand-typed trailers; recorded; `waypost commit` refuses `Waypost-*` trailers in a message | Refused unless an owner-signed commit pins the exact change (§3) |
 | Intent: naming a story that `allow` lists | Accepted, recorded | Accepted, recorded — residual |
 | The agent runs in the owner's environment (owner's `gh` token, credential helper, `ssh-agent` with the signing key) | — | **The right-hand column does not apply** |
 
@@ -87,15 +90,18 @@ proves them):
 1. The agent runs as a separate OS user or in a sandbox, without the owner's
    forge credentials or signing key, and pushes with a fine-grained token
    without admin, secrets, workflows, checks, statuses, actions or bypass
-   rights; it cannot create tags that publish releases.
-2. The owner key is protected: a hardware key with touch, or a passphrase
-   not cached where the agent runs.
+   rights. A ruleset forbids the agent creating tags.
+2. The owner key is protected (a hardware key with touch, or a passphrase not
+   cached where the agent runs), and the owner signs from a clone of their
+   own, with their own git configuration and Waypost install.
 3. The protected branch is the default branch, requires the audit check
    (source: GitHub Actions) with no bypass, requires branches to be up to
    date, and allows merge commits or squash only. No merge queue.
-4. The Actions event policy allows `pull_request_target` for the audit
+4. Every workflow that runs on refs the agent can push has read-only
+   `permissions:`, and the repository's default token permission is read.
+5. The Actions event policy allows `pull_request_target` for the audit
    workflow file (blocked by default in public repositories from 2026-12-02).
-5. Open question 2 is answered on a throwaway repository before this column
+6. Open question 2 is answered on a throwaway repository before this column
    is claimed for a project.
 
 ### 2. A protected zone
@@ -106,18 +112,26 @@ protect: [{"paths": ["src/auth"], "allow": ["WP-12", "WP-30/story-rotate-tokens"
 
 - A top-level frontmatter key of an ADR (an unknown guard kind is an `issue`
   in today's `doctor`; an unknown key is ignored). `paths` — globs relative to
-  the repository root (§6), matched case-insensitively and after Unicode NFC
-  normalisation, so a case or normalisation variant of a zone path is in the
-  zone. `allow` — epics or stories (`<epic>/<stem>`) of the ADR's vault; may
-  be empty. `why` — mandatory, ≤ 160 characters, single-line text (§4).
+  the repository root (§6). `allow` — epics or stories (`<epic>/<stem>`) of
+  the ADR's vault; may be empty. `why` — mandatory, ≤ 160 characters,
+  single-line text (§4); printed only as quoted data. This ADR itself carries
+  `protect` over `.github` with an empty `allow`.
+- **Folding.** A path is in a zone when the glob matches the raw path, **or**
+  the folded glob matches the folded path. The fold is: NFC; removal of the
+  code points HFS+ ignores (U+200C–200F, U+202A–202E, U+206A–206F, U+FEFF);
+  then `toLowerCase()`, `toUpperCase()`, `toLowerCase()`. It is idempotent and
+  joins every class APFS, NTFS and HFS+ treat as one name: `src/acceẞ/a`
+  (U+1E9E) and `src/access/a`; `ſrc/a` (U+017F) and `src/a`; `src/Kit`
+  (Kelvin sign) and `src/kit`. `doctor`'s collision check uses the same fold.
 - **Candidates**: files `**/adr/*.md` whose frontmatter holds a `protect`
-  key. The ADR's vault is the directory above `adr/`; `allow` stories resolve
-  there, never through the binding or `WAYPOST_VAULT`. Unborn `HEAD`: no
-  zones.
+  key. The ADR's vault is the directory above `adr/`; `allow` stories, exempt
+  paths and the rest resolve against the vaults of the **base**, never
+  through the binding or `WAYPOST_VAULT`. Unborn `HEAD`: no zones. A zone path
+  inside a submodule matches nothing; `doctor` says so.
 - **The strict reader**: BOM and CRLF read the same; the opening and closing
-  `---` must be whole lines; a duplicate key, a block-form or empty
-  `protect:`, or a `type` other than `adr` (case-insensitive, quoted or not)
-  fails.
+  `---` must be whole lines; a duplicate frontmatter key, a duplicate key
+  inside the `protect` JSON, a block-form or empty `protect:`, or a `type`
+  missing or other than `adr` (case-insensitive, quoted or not) fails.
 - **Active** while the normalised `status` is `accepted`; any other value is
   inactive; `proposed` reports "would refuse" as `info`.
 - **Tightening vs loosening**, syntactic and conservative. A change to a
@@ -129,141 +143,164 @@ protect: [{"paths": ["src/auth"], "allow": ["WP-12", "WP-30/story-rotate-tokens"
   of `adr/`, a reader failure — is *loosening*, a **fence crossing**.
 - **Overlapping zones**: a path inside several active zones needs the `allow`
   of each.
-- **Exempt paths**: the vault's kanban, graph and code map, wholly generated,
-  by the names the vault's layout gives them (`scripts/reconcile.mjs`). Index
-  READMEs carry human prose and are not exempt.
+- **Exempt paths**: the kanban, graph and code map of the base's vaults, by
+  the names their layout gives them (`scripts/reconcile.mjs`). Index READMEs
+  carry human prose and are not exempt.
 - **Fail-closed**: a candidate the reader cannot read is an `accepted` zone
   over every path; adding one is refused; repairing one is a loosening.
 - **Which story counts for `allow`**: exactly one `Waypost-Story` on the
   commit (none or several: no story). `waypost commit` writes it from
   `--story`, else from the session's live claim, also beside `--task` (amends
-  ADR-0006). It must exist under the ADR's vault in the evaluation base and
-  not be `done` there; a story created in the same range is not in the base,
-  so the story or its epic lands first.
-- **Loosening lands first**: everything is judged against the base's zones; a
-  range that loosens a fence and crosses it is refused.
+  ADR-0006). It must exist under the ADR's vault in the base and not be
+  `done` there. A story created in the same range is not in the base, so it
+  lands first; a story closed on the base before its branch lands no longer
+  counts, so the branch lands before the close, or the owner approves it.
+- **Loosening lands first**: zones and `allow` come from the base. A loosened
+  `allow` in the same range grants nothing; a crossing in that range needs
+  the base's `allow` or an owner approval of its own.
 - **A vault in another repository, or outside git**, has no candidates in the
   code repository's tree; its zones do not apply there. `doctor` says so.
 
 ### 3. The rule, and the required check
 
-**The rule** (one function in `scripts/scope.mjs`). Given a base `b` and a
-head `h`, zones and stories come from `b`. Git runs with
-`GIT_NO_REPLACE_OBJECTS=1`. Paths are compared as `(mode, object id)` from
-`git ls-tree`; an absent path equals only an absent path. For each path `p`
-in `diff(b, h)` with `--no-renames` (deletions and both sides of a rename
-count) that lies in an active zone of `b`, one of these holds:
+**The rule** (one function in `scripts/scope.mjs`). Git runs with
+`GIT_NO_REPLACE_OBJECTS=1` and `GIT_LITERAL_PATHSPECS=1` (only candidate
+discovery uses `:(glob)`), full ref names and full object ids. Given a base
+`b`, a head `h` and the zones of `b`, paths are compared as `(mode, object
+id)` from `git ls-tree`; an absent path equals only an absent path. For each
+path `p` in `diff(b, h)` with `--no-renames` (deletions and both sides of a
+rename count) that lies in an active zone, one holds:
 
-- (i) **every** non-merge commit in `rev-list b..h` that changed `p` relative
-  to its first parent (a root commit: relative to the empty tree) carries a
-  story in the `allow` of every zone of `b` over `p`, **and** at least one such
-  commit exists; or
-- (ii) an owner-signed commit `S` in `b..h` carries
-  `Waypost-Scope-Override`, `Waypost-Signed` and `Waypost-Scope-Base: <X>`,
-  with `X:p == b:p` and `h:p == S:p`.
+- (i) every non-merge commit in `rev-list --full-history b..h -- p` that
+  changed `p` relative to its first parent (a root commit: relative to the
+  empty tree) carries a story in the `allow` of every zone over `p`, and at
+  least one such commit exists. A commit discarded by a merge (`-s ours`)
+  still counts — conservative; or
+- (ii) a commit `S` in `b..h` carries `Waypost-Scope-Override` and
+  `Waypost-Scope-Base: <X>`, where `X` is a full object id and an ancestor of
+  `b`, `p` lies in an active zone of `X`, `git log --full-history
+  --format=%H X..b -- p` is empty (so `X:p == b:p`), and `h:p == S:p`; in the
+  required check `S` is also owner-signed and carries `Waypost-Signed`.
 
 For each candidate `F` whose change `b:F → h:F` is a loosening, an
-owner-signed **fence commit** `L` in `b..h` — changing only
-`<vault>/adr/*.md` and exempt paths, carrying `Waypost-Signed` and
-`Waypost-Scope-Base: <X>` — has `X:F == b:F` and `h:F` equal to `L:F` or
-tightening it. An override never covers a fence. Tightening needs nothing.
+owner-signed **fence commit** `L` in `b..h` — changing only `<vault>/adr/*.md`
+and exempt paths, carrying `Waypost-Signed` and `Waypost-Scope-Base: <X>` with
+the same conditions on `X` for `F` — has `h:F` equal to `L:F` or tightening
+it. An override never covers a fence. Tightening needs nothing.
 
 Merge commits are not judged one by one; recombinations and `-s ours`
 reverts leave `p` in the net change and need (i) or (ii). A merge resolution
-written under an allowed branch is a residual.
+on a branch whose commits on `p` are allowed is not attributed (bounded: at
+least one allowed commit on `p` must exist, so an empty `allow` admits none).
 
-**Owner approval of an agent's change** is one signed commit — empty if
-nothing else is needed — on top of the pull request:
-`waypost commit --sign --approve --base <b>`, which writes the trailers of
-(ii) or of a fence commit for every zone path the range changes. After a
-rebase update of the pull request, the owner approves again.
+Cost: one `rev-list --full-history --name-only b..h` and one `log
+--full-history --name-only X..b` per distinct `X`, not one per path.
 
-**The required check** runs the rule with `b = merge-base(B, head)` (with
-strict checks, the tip `B` of the protected branch) and `h` = the pull
-request's head.
+**Owner approval of an agent's change** is one signed commit on top of the
+pull request, made from the owner's own clone without touching its working
+tree: `waypost commit --approve --base <b> <h>` runs `git -c safe.directory=
+-c gpg.format=ssh -c gpg.ssh.program=ssh-keygen commit-tree <h>^{tree} -p <h>
+-S` with the trailers of (ii) or of a fence commit, prints `X:p → S:p` per
+zone path, and pushes the new commit to the pull request's branch.
+`safe.directory=` refuses a repository owned by another user on every
+platform. Any later edit of `p` voids (ii) — `h:p` no longer equals `S:p` — so
+an approval lands before further work on the path, or is repeated. Closing
+a pull request does not revoke an approval; it lapses when `p` changes on
+the base, or by rotating the key.
+
+**The required check.** `B` is the tip of the protected branch. If `B` is not
+an ancestor of the pull request's head, the audit exits 2 ("update the
+branch"); otherwise it runs the rule with `b = B`, `h` = the head.
 
 - **Trust by induction.** `B` is trusted because everything that reached it
   passed the check.
 - **The trusted definition**, `.github/workflows/scope-audit.yml`:
   - `pull_request_target` only; no `if:`, `paths:`, `continue-on-error`; one
     job with a unique name; `permissions: contents: read`;
-  - no `actions/checkout`: in an empty directory, `git init`, then fetch
-    `pull_request.head.sha` and the protected branch **by name** (never
-    `pull_request.base.*`), full history, authenticating with the read-only
-    `GITHUB_TOKEN` through `http.extraheader` in private repositories;
+  - no `actions/checkout`: in an empty directory, `git init`, then `git fetch
+    --no-tags origin +refs/heads/<default>:refs/remotes/origin/<default>
+    <pull_request.head.sha>` (never `pull_request.base.*`, never a short ref
+    name, which git resolves to a tag of the same name first), full history,
+    authenticating with the read-only `GITHUB_TOKEN` through `http.extraheader`
+    in private repositories;
   - Waypost from `https://registry.npmjs.org/waypost/-/waypost-<version>.tgz`,
-    checked against its `dist.integrity` written in the file, unpacked into
-    `$RUNNER_TEMP`, run with the runner's `node` after a `node ≥ 20` check —
-    no npm, no project `.npmrc`; the pull request's tree is read as git
-    objects, never executed;
+    checked against its `dist.integrity` (`sha512-…`) written in the file,
+    unpacked into `$RUNNER_TEMP`, run with the runner's `node` after a
+    `node ≥ 20` check — no npm, no project `.npmrc`; the pull request's tree
+    is read as git objects, never executed;
   - the owner keys are SSH public keys written in the file as an
     `allowed_signers` text; a missing, empty or unreadable list exits 2, as
     does `GITHUB_ACTIONS=true` without `--keys`;
   - signatures verify with `git -c gpg.format=ssh -c
     gpg.ssh.allowedSignersFile=<keys> -c gpg.ssh.program=ssh-keygen
     verify-commit`; only `G` counts; GPG and X.509 never do.
-- **The definition protects itself**: `.github/` lies in a zone with an empty
-  `allow`. Workflows that run pull-request code (`ci.yml` here) declare
-  read-only `permissions:`. Release tags are protected (`release.yml`
+- **The definition protects itself**: `.github` lies in this ADR's zone with
+  an empty `allow`; changing the audit, including its pinned version, needs
+  an owner approval (ii). Release tags are protected (`release.yml`
   publishes on tags).
-- **Upgrading the pinned version**: the owner runs old and new versions'
-  `scope audit --tree B`; each prints a canonical digest (each zone, its
-  matched tracked files, its `allow`) and exits 4 on an unreadable candidate.
-  The pin changes only when the digests are equal, or the difference is
-  approved as a fence commit.
-- **Break-glass.** When the audit cannot run (the tarball is gone, the
-  runner's `node` changed, GitHub changed the event), the owner suspends the
-  requirement and records why. Before re-enabling it, the owner runs `scope
-  audit --range <last trusted B>..<B>`; induction resumes from a green result
-  or from the owner's signed approval of the reported paths.
+- **Break-glass.** When the audit cannot run, the owner suspends the
+  requirement, records `B` and the reason in an ops note, runs `scope audit
+  --range <recorded B>..<B>` for information, and re-enables it; induction
+  restarts from `B` by the owner's decision, and the note says so.
 
 ### 4. Override, signing, text
 
-- `--override-scope "<reason>"` writes `Waypost-Scope-Override`: trimmed,
-  non-empty, one line, ≤ 200 characters.
-- `waypost commit --sign` (owner): writes the tree, prints **every** changed
-  path, and signs exactly that tree (`git commit-tree -S`, a compare-and-swap
-  of the branch ref, no 20-second timeout) with `Waypost-Signed` and
-  `Waypost-Scope-Base`. If any change is a fence crossing, every path must be
-  a fence-commit path. Refused during a merge, cherry-pick or rebase.
+- `waypost commit` refuses a message whose trailer block already holds a key
+  starting with `Waypost-` (any case): Waypost writes those trailers, the
+  author does not.
+- `--override-scope "<reason>"` writes `Waypost-Scope-Override` and
+  `Waypost-Scope-Base` (the local base): trimmed, non-empty, one line, ≤ 200
+  characters. It passes the owner gate (`limitDecision` in
+  `scripts/cleanup-limit.mjs`, harness detection in
+  `scripts/agents-detection.mjs`): a `[y/N]` question in an interactive
+  terminal with no harness detected; refused inside a harness's terminal and
+  when the profile exports a harness's variables (`CODEX_HOME`,
+  `OPENCODE_CONFIG`, …) — the owner uses a plain terminal. A refusal never
+  mentions it.
+- `waypost commit --sign` (owner, fence commits): stages nothing; signs the
+  current index's tree with the same `git -c safe.directory= -c
+  gpg.format=ssh -c gpg.ssh.program=ssh-keygen commit-tree -S`, prints
+  **every** changed path, and requires every path to be a fence-commit path
+  when any change is a fence crossing. Refused during a merge, cherry-pick or
+  rebase. Other configuration (`include.path`,
+  `gpg.ssh.defaultKeyCommand`) is the owner's own clone's, under
+  precondition 2.
 - **Superseding a fenced ADR** is one fence commit: the old ADR's `status`
   changes, the successor is added, with `adr/README.md`.
-- **Locally**, `Waypost-Signed` and an override are recorded bases; signatures
-  are verified only by the required check.
-- `scripts/lib-controls.mjs` holds two sets. Single-line text — `why`,
-  override reasons, and every ADR id or path printed in a refusal — is an
-  allowlist of Unicode letters, marks except variation selectors, numbers,
-  punctuation, symbols and the space; anything else is rejected. File content
-  for `team-integration.mjs` is today's `HIDDEN_CONTROLS` plus tag characters
-  U+E0000–E007F, without C0, so patches with `\n` and `\t` still pass.
+- **Locally**, (ii) is checked on content like in CI but signatures are not
+  verified.
+- `scripts/lib-controls.mjs` holds the single-line text set: an allowlist of
+  Unicode letters, marks except variation selectors, numbers, punctuation,
+  symbols and the space. `why` and override reasons outside it are rejected
+  on write; ADR ids, paths and `why` are escaped when printed.
 
 ### 5. Entry points
 
 | Point | What happens |
 |---|---|
-| Local base | For each evaluated commit `c`: `merge-base(c, R)` for each `refs/remotes/*/<default>` `R`; the rule passes if it passes for any of them (each is a trusted ancestor locally, and locally nothing is trusted anyway). Without such a ref, or without a merge base (a shallow clone), the base is `c`'s first parent and the range is that one commit |
+| Local base | For an evaluated commit `c`: for every remote, each existing `refs/remotes/<r>/<n>` with `<n>` the target of `refs/remotes/<r>/HEAD`, `main` or `master`. Bases are `merge-base --all c R` for each such `R`; zones are those of the base plus the candidates, as they are at `c`, changed by commits in `rev-list c --not <every R>`. The rule passes if it passes for any base. Without such a ref or base (no remote, a shallow clone), `b = c^1` with the zones of `c^1`, and the range is `c^1..c`. A refusal names the base it used |
+| Local verdict | `waypost commit` refuses only the paths whose verdict the new commit worsens relative to `c^1` (newly without a basis); paths already without a basis earlier in the unpushed history are printed as warnings, and CI judges the whole range |
 | `waypost scope check [--story <s>] <path…>` | Per path `ok`, `allowed`, `outside (story scope)`, `protected (ADR id, why)`, `protected (fence, ADR id)`. Exit 0 all ok/allowed, 3 some outside and none protected, 4 some protected, 2 usage error |
-| `waypost commit` | Evaluates the tree it would commit — staged changes plus the derived views `runReconcile({write: false})` computes — with the pending commit's trailers and `MERGE_HEAD` (through `git rev-parse --git-path`) as parents. Exit 4 on a path without a basis, before anything is written. The refusal names the ADR, its `why` and its `allow`. `--dry-run` evaluates and prints. `waypost merge` forwards `--story`, `--task` and `--override-scope` |
-| `waypost scope audit --range <b>..<h> [--keys <file>]` / `--tree <rev>` | The rule as the required check runs it; `--tree` prints the canonical digest. Exit 4 on a missing basis or an unreadable candidate; 2 on an unknown range, a missing merge base, or missing keys in CI |
-| `doctor` | Validates fences and scopes, `allow` entries resolving to nothing (named: a dangling entry admits whoever creates it), a zone selecting no tracked file (`warn`, unlike a guard's `issue`: a zone may guard a path before it exists), a case collision under a zone path, a bound vault whose zones cannot apply. No history walk, no graph edge |
+| `waypost commit` | Holds `$(git rev-parse --git-path index.lock)` from copying the index to replacing it, so a neighbour's `git add` waits instead of being lost. Builds the candidate in a temporary index (as `--dry-run` does) with only the derived views this mode stages, from `runReconcile({write: false})`; runs `git hook run pre-commit` on it and `commit-msg` on the message; evaluates the rule with the pending trailers and `MERGE_HEAD` (through `git rev-parse --git-path`). On success: `GIT_INDEX_FILE=<tmp> git -c core.hooksPath=<empty dir> commit -F <msg> --cleanup=verbatim`, so git moves `HEAD`, signs per `commit.gpgSign`, clears merge state and writes the reflog; then `git hook run post-commit`; then the views are written and the temporary index replaces the real one. On refusal, exit 4: the commit, the index and the views are as before. Needs git ≥ 2.36 (`git hook run`). The refusal names the ADR, its quoted `why`, its `allow`, the commits without a basis, the base, and the ways out: restore `p` to the base's content, rebase the commits away, or ask the owner to approve |
+| `waypost merge` | `git merge --no-commit` brings the merged artifacts onto disk before views can be computed, so a refusal leaves the merge in progress and says to run `git merge --abort`; otherwise as `waypost commit`. Forwards `--story`, `--task` and `--override-scope` |
+| `waypost scope audit --range <b>..<h> [--keys <file>]` | The rule as the required check runs it. Exit 4 on a missing basis or an unreadable candidate; 2 on an unknown range, a base that is not an ancestor of the head, or missing keys in CI |
+| `doctor` | Validates fences and scopes, `allow` entries resolving to nothing (a dangling entry admits whoever creates it), a zone selecting no tracked file (`warn`; a zone may guard a path before it exists), a zone inside a submodule, a bound vault whose zones cannot apply. No history walk, no graph edge |
 | `waypost-reviewer` | Receives the story's scope and the zones its diff touched |
-| CI | Enforces zones only. Trailers of the rule-compliance ADR are not checked by `scope-audit.yml` |
+| CI | Enforces zones only; trailers of the rule-compliance ADR are not checked by `scope-audit.yml` |
 
 **The optional hook** is its own story, after the rule, `commit` and the
 required check. `waypost hooks install` writes one `reference-transaction`
 host at `git rev-parse --git-path hooks`, refusing when that path is inside
-the working tree. Host contract: checks are registered in `scripts/hooks.mjs`
-in a fixed order; each runs independently and fails open with one line if it
+the working tree. Host contract: checks registered in `scripts/hooks.mjs` in
+a fixed order; each runs independently and fails open with one line if it
 cannot start; the first refusal aborts the transaction. This ADR registers
 `scope`: in the `prepared` state, for each line updating `refs/heads/*` or
 `HEAD` (skipping `ref:` lines and deletions), a `sh` prefilter skips the line
-when `git rev-list <new> --not --all` is empty — no new commits, which covers
-`pack-refs`, `gc`, checkouts, bisect steps, `worktree add` and pulls of
-already-fetched history; otherwise it runs the rule on each new commit with
-the local base. Never installed by `setup` or `brief`. Not covered: a push
-from a ref outside `refs/heads`, `branch -m`, a removed hook, fast-forwards
-to fetched commits (caught by `waypost commit` and CI). Latency: one `node`
-start per non-skipped transaction; a rebase of N commits pays N.
+when `git rev-list <new> --not --all` is empty; otherwise it runs the rule on
+each new commit with the local base and the local verdict. Never installed by
+`setup` or `brief`. Not covered: a push from a ref outside `refs/heads`,
+`branch -m`, a removed hook, fast-forwards to fetched commits. Latency: one
+`node` start per non-skipped transaction.
 
 ### 6. A story's scope, matching, parsing
 
@@ -278,8 +315,8 @@ scope: {"touches": ["src/billing", "tests/billing"], "why": "invoice export only
 - Outside scope prints the paths and the `story scope add` command; it never
   refuses (Follow-up). No story: scope does not apply; zones always do.
 - `scripts/lib-glob.mjs`, a pure leaf: a dynamic-programming matcher bounded
-  by O(|glob|·|path|), options `subtree` and `fold` (case and NFC), `[` and
-  `{` literal. ADR-0011 guards keep their matcher; moving them is a separate
+  by O(|glob|·|path|), options `subtree` and `fold` (§2), `[` and `{`
+  literal. ADR-0011 guards keep their matcher; moving them is a separate
   story.
 - `paths`/`touches`: non-empty lists of strings relative to the repository
   root; `./`, a leading `/` and a trailing `/` normalised away; `..`, empty,
@@ -294,50 +331,53 @@ scope: {"touches": ["src/billing", "tests/billing"], "why": "invoice export only
 1. **Judge what lands, and every ordinary commit that touched it.** The net
    change finds what merges hide; requiring every touching commit to carry an
    allowed story stops one allowed commit from licensing another's drift;
-   signatures are pinned to exact content and to a named base, so an owner
-   can approve a pull request with one commit and nothing can be replayed.
-2. **One rule, one base per evaluated commit**, so honest pulls, merges and
-   checkouts of others' branches pass locally, and local and CI agree on
-   what a commit means.
-3. **Intent is stopped only where it can be**, under written preconditions,
-   with a break-glass that restores the induction instead of silently
-   breaking it.
-4. **Tightening is free, loosening is signed and lands first.**
-5. **Less machinery**: no per-commit merge inheritance, no history walk, no
-   undo, no local signature checks, nothing in the standing context; the hook
-   is a later, separate story.
+   an approval is pinned to a base on which the path has not moved and to the
+   exact content it approved.
+2. **One rule; bases from every remote default and every merge base; a local
+   verdict on what the new commit changes**, so honest pulls, merges and
+   checkouts pass, unpushed decisions apply, and one old commit does not
+   block every later one.
+3. **`waypost commit` stays a `git commit`**: hooks, signing, merge state and
+   reflog behave as before; only the rule is added, on the exact tree that
+   is committed.
+4. **Intent is stopped only where it can be**, under written preconditions.
+5. **Tightening is free, loosening is signed and lands first.**
+6. **Less machinery**: no per-commit merge inheritance, no walk beyond `b..h`
+   and `X..b`, no local signature checks, nothing in the standing context; the
+   hook is a later story.
 
 ## Alternatives Considered
 
-### A basis tied to the path (one allowed commit anywhere in the range)
-Revision 7. An allowed one-line edit licensed a later drift commit on the
-same path. Replaced by "every touching commit, at least one".
+### `commit-tree` plus a compare-and-swap for every commit
+Revision 9. Skipped `pre-commit`, `commit-msg` and `post-commit`, ignored
+`commit.gpgSign`, left merge state behind. Replaced by `git commit` on a
+temporary index with hooks run explicitly.
 
-### A signed basis pinned to its own parent
-Revision 7. The owner could not approve a pull request without first
-reverting it. Replaced by `Waypost-Scope-Base`.
+### Fold by NFC → upper → lower
+Revision 9. Not idempotent: `ẞ` lowers to `ß`, which does not join `ss`, so
+`src/acceẞ` replaced `src/access` on APFS while CI saw a path outside the
+zone. Replaced by lower → upper → lower and raw-or-folded matching.
 
-### A local base from the pre-update `HEAD`
-Revision 7. Refused honest pulls and checkouts after a loosening landed.
-Replaced by a base per evaluated commit.
+### Rejecting a whole branch for one old commit without a basis
+Revision 9. Every later `waypost commit` was refused whatever it touched.
+Replaced by the local verdict; CI still judges the range.
 
-### Per-commit judgement with `merge-tree` inheritance
-Revision 6. Recombining automatic merges and `-s ours` reverted zone paths
-with no commit to judge. Replaced by the net-change rule.
+### `merge-base(B, head)` in CI
+Revision 9. With strict checks `B` is an ancestor of the head; anything else
+is "update the branch". Replaced by `b = B`.
 
-### First-parent fence state, in-tree owners file, keys in a CI secret
-Revisions 3–4. Replaced by induction and keys in the definition.
-
-### `prepare-commit-msg`, pre-commit, post-check undo, push post-audit, `scope preflight`, a `brief` line
-Earlier revisions. Blind spots, fragile undo, false alarms, proof of nothing;
-the `brief` line did not fit the budgets with real ADR ids. Dropped or moved
-to follow-ups.
-
-### Narrowing the ADR; permission in the story; tags; the claim alone
-Rejected by the owner.
-
-### Team publication checks and override fields; `forbid` guards; a `protect` guard kind; `code_refs` as zone; auto-leases; a required harness hook; a model per commit
-Rejected in earlier revisions.
+### Earlier revisions
+Signed bases checked only against `b:p` and `h:p`, short-name fetches,
+`toLowerCase` folding, a single merge base, a free local override, a
+break-glass that resumed from a green range (rev 8); per-commit `merge-tree`
+inheritance (rev 6); "total change" with a base-side basis (rev 5);
+first-parent fence state, an in-tree owners file, keys in a CI secret (revs
+3–4); `prepare-commit-msg`, pre-commit, post-check undo, push post-audit,
+`scope preflight`, a `brief` line; narrowing the ADR, permission in the
+story, tags, the claim alone, team publication checks, `forbid` guards, a
+`protect` guard kind, `code_refs` as zone, auto-leases, a required harness
+hook, a model per commit — rejected for the reasons recorded in their
+revisions.
 
 ## Consequences
 
@@ -346,116 +386,156 @@ Rejected in earlier revisions.
   where the hook is installed, at any local commit.
 - Under the preconditions, a zone cannot be opened, lifted or overridden
   without an owner signature over the exact change, and the owner approves
-  an agent's pull request with one signed commit.
+  an agent's pull request with one signed commit from their own clone.
 
 **Negative / residual**:
 - **Named story.** An agent may name or claim a story that `allow` lists; a
   `done` story can be reopened; an epic in `allow` admits later stories; a
   dangling `allow` entry admits whoever creates it.
-- **Merge resolutions** written on an allowed branch are not attributed.
-- **Story lands first**: a story created in a pull request cannot be its own
-  basis.
-- **Preconditions**: if the agent runs in the owner's environment or with
-  broader forge rights, protection against intent is gone.
-- **Paths, not behaviour**: code outside a zone, a symlink inside a zone
-  pointing out of it, a zone path that is itself a symlink, and a root
-  `.gitattributes` (eol, encoding, filters) over zone paths can change what
-  the zone's code does.
+- **Merge resolutions** on an allowed branch are not attributed.
+- **Approvals persist** until the path changes on the base or the key
+  rotates; closing a pull request does not revoke them; any later edit of the
+  path voids them.
+- **Discarded commits count**: a commit dropped by `-s ours` still needs a
+  basis in CI.
+- **Story lands first; a closed story stops counting**.
+- **Fork pull requests** without "allow edits by maintainers" cannot take the
+  owner's approval commit; the owner pushes the branch to the base repository
+  or asks the contributor to.
+- **Preconditions**: if the agent runs in the owner's environment, with
+  broader forge rights, or can push tags, protection against intent is gone.
+- **Paths, not behaviour**: code outside a zone, symlinks into or out of a
+  zone, a root `.gitattributes` over zone paths, and Windows 8.3 aliases can
+  change what the zone's code does.
+- **Folding over-refuses on any filesystem**: it joins the equivalences of
+  APFS, NTFS and HFS+, so names one filesystem keeps apart are treated as
+  one.
 - **Free tightening**: a broad new `accepted` zone blocks others until the
-  owner loosens it.
-- **Signed bases persist** for their exact before/after content.
+  owner loosens it; a `why` change is free and reaches every refusal, printed
+  as quoted data.
+- **The owner gate refuses inside a harness's terminal**: the owner overrides
+  from a plain terminal.
 - **Version skew**: the local reader and the pinned CI version may disagree;
-  CI decides.
-- **Adoption**: history before adoption and the adoption pull request are not
-  checked; a required check can be selected only after it ran once.
-- **Break-glass** suspends protection against intent until re-enabled.
+  CI decides. Upgrading the pin is an owner approval; a reader-equivalence
+  digest is a follow-up.
+- **Adoption** and **break-glass** leave unchecked spans by the owner's
+  decision.
 - **Locally**, without the hook, plain git is caught only by the required
   check; without branch protection, not at all.
-- **GitHub behaviour is unverified** (open question 2).
-- **Text injection** through `why` and ADR ids is reduced by §4, not removed.
+- **GitHub behaviour is partly unverified** (open question 2).
 - A committed fixture under `adr/` with `protect` is a live zone.
 
 **What changes in code / process**:
 - New `lib-glob.mjs`, `lib-controls.mjs`, `scope.mjs` (rule, `scope check`,
   `scope audit`); later `hooks.mjs`.
-- `commit.mjs`: the rule on the would-be tree before writing, `--git-path`
-  merge state, `--override-scope`, `--sign [--approve --base]`,
-  `Waypost-Story` from the claim; `merge` forwards flags.
-- `team-integration.mjs`: the content set.
+- `commit.mjs`: the temporary-index candidate under `index.lock`, explicit
+  hooks, `git commit` on that index, `--git-path` merge state, refusal of
+  typed `Waypost-*` trailers, `--override-scope` behind the owner gate,
+  `--sign` and `--approve` through `commit-tree -S`, `Waypost-Story` from the
+  claim; `merge` forwards flags and names `git merge --abort` on refusal.
 - `story-section.mjs`, `bin/cli/artifacts.mjs`, `bin/cli/core.mjs`: `story
   scope add`.
 - `lib-frontmatter.mjs`: bracket-aware comment cut; the strict reader.
 - `agents/reviewer.md`, `docs/cli-reference.md` (preconditions checklist,
-  GitHub recipe, break-glass, pin upgrade).
+  GitHub recipe, break-glass, approval, git ≥ 2.36).
 - This repository: `scope-audit.yml`; read-only `permissions:` and
-  `fetch-depth: 0` in `ci.yml`; protected release tags.
-- ADR-0006 gains "Amended by" on acceptance. The rule-compliance ADR should
-  drop "and CI" from its reliance on this ADR (its call).
+  `fetch-depth: 0` in `ci.yml`; protected release tags; a tag ruleset; this
+  ADR's `protect` over `.github` takes effect on acceptance.
+- ADR-0006 gains "Amended by" on acceptance.
 
 ## Open questions for the owner
 
 1. Release order: the rule, `commit` and `scope check`; then the required
-   check after open question 2; then the hook?
-2. Verify on a throwaway repository: whether the Actions event policy exists
-   for a personal-account repository; whether a `pull_request_target` check
-   run attaches to the pull request's head SHA (since 2025-12-08 `GITHUB_SHA`
-   is the default branch's tip); how a skipped and a failed run of one check
-   name resolve; whether a same-named job in a fork's own approved workflow
-   can satisfy the requirement. GitHub documents `pull_request_target` as
-   usable for required checks; the rest is unverified.
+   check after question 2; then the hook?
+2. Verify on a throwaway repository: the Actions event policy for a
+   personal-account repository; that a `pull_request_target` check run
+   attaches to the pull request's head SHA; that a same-named job in a fork's
+   own approved workflow, or a check run created through the API by any
+   workflow, cannot satisfy the requirement under precondition 4; whether a
+   fine-grained token can push a tag named like the default branch. GitHub
+   documents that a skipped run counts as success (hence no `if:`) and that
+   `pull_request_target` is usable for required checks.
+3. The rule-compliance ADR relies on "the optional hook and CI of the scope
+   ADR" to refuse untrailered commits; this ADR's CI checks zones only.
+   Agree the wording before either is accepted.
 
 ## Acceptance
 
 Automated, in `tests/scope.test.mjs`, each with its expected outcome:
 
 - **Zones**: inside, outside, protected, allowed (epic, story); overlapping
-  zones need both; exempt paths by layout names; index README prose under a
-  zone — refused; a case or NFD variant of a zone path — refused; a
-  `protect:` example in a body — not a candidate.
+  zones need both; exempt paths from the base's vaults by layout names, and
+  a new candidate in the range exempts nothing; index README prose under a
+  zone — refused; `src/acceẞ/a` under `src/access`, `ſrc/a` under `src`,
+  `src/Kit/a` under `src/kit`, an NFD variant and a zero-width-joined
+  variant — refused; a glob `stra?e` still matches `straße`; a path `[id].ts`
+  inside a zone — matched literally; a `protect:` example in a body — not a
+  candidate; a zone inside a submodule — `doctor` warns.
+- **Reader**: missing `type`, duplicate key in the `protect` JSON — fail.
 - **Story**: exactly one trailer; none or two — no story; absent or `done` in
   the base — ignored; created in the same range — refused; landed first —
-  accepted.
+  accepted; closed on the base before the branch lands — refused.
 - **Classification**: tightening — `proposed` → `accepted`, a path added, an
   `allow` entry removed, `why` changed, zones reordered; loosening — a path
   string changed, a zone split, a path moved to another ADR, an `allow` entry
   added, `accepted` → `superseded`, deletion, a move out of `adr/`, a `type`
   change, a duplicate key, a block-form or empty `protect:`.
-- **Rule (i)**: an allowed comment commit then an unallowed rewrite of the
-  same path — refused; an allowed change, its revert, then an unallowed
-  rewrite — refused; a merge commit carrying an allowed story over an
-  unallowed branch — refused; a root commit touching a zone — judged against
-  the empty tree.
-- **Rule against merges**: `merge -s ours` reverting a zone path — refused;
-  the recombination case — refused; "update branch" twice — no spurious
-  refusal; loosening and crossing in one range — refused.
-- **Signed bases**: an owner approval on top of an agent's pull request —
-  accepted; after a rebase update without re-approval — refused; `X:p ≠ b:p`
-  or `h:p ≠ S:p` — refused; replayed from an abandoned branch — refused; a
-  mode-only change — compared by mode; an absent path — equals only absent;
-  a fence commit with a non-fence path — refused; a supersede — accepted;
-  GPG signatures, a repository-local `gpg.ssh.program`, `refs/replace` —
-  ignored; an override covering a fence — refused.
+- **Rule (i)**: an allowed commit then an unallowed rewrite — refused; an
+  allowed change, its revert, an unallowed rewrite — refused; a merge with an
+  allowed story over an unallowed branch — refused; a root commit — against
+  the empty tree; a commit discarded by `-s ours` — counted.
+- **Rule against merges**: `-s ours` revert — refused; recombination —
+  refused; "update branch" twice — no spurious refusal; a loosened `allow`
+  and a crossing relying on it in one range — refused.
+- **Approvals**: an owner approval on top of an agent's pull request —
+  accepted; a further allowed edit of the approved path — refused until
+  approved again; after a rebase update without re-approval — refused;
+  squash, owner revert on the base, then the old branch with its approval —
+  refused; an abandoned pull request's approval with `p` unchanged on the
+  base — accepted (residual); `X` not an ancestor of `b`, unresolvable, or
+  with `p` outside a zone at `X` — refused; a mode-only change compared by
+  mode; an absent path equals only absent; a fence commit with a non-fence
+  path — refused; a supersede — accepted; GPG, a repository-local
+  `gpg.ssh.program`, `refs/replace` — ignored; an override covering a fence —
+  refused; `--approve` in a repository owned by another user — refused (via
+  `GIT_TEST_ASSUME_DIFFERENT_OWNER=1`).
+- **Fetch**: a remote with a tag `main` beside the branch `main` — the audit
+  uses the branch. A head without `B` as ancestor — exit 2.
 - **Local base**: after a loosening and a crossing land on the remote, `git
-  pull`, `waypost merge origin/main` and `git switch -c x origin/x` — pass;
-  two remotes — passes if either passes; a shallow clone — one-commit range.
-- **`commit`**: a refusal leaves derived views untouched; a reconcile change
-  to an index README under a zone is part of the evaluated tree.
-- **Audit**: range required; missing merge base — exit 2; `GITHUB_ACTIONS=true`
-  without `--keys` — exit 2; empty keys — exit 2; `--tree` digests equal for
-  the same version; an unreadable candidate — exit 4.
-- **Text**: `why`, override reasons and printed ADR ids with C0/C1, bidi, tag
-  characters or variation selectors — rejected; `team-integration` patches
-  with `\n` and with `\t` — accepted.
-- **Matcher**: 10 `**a` segments on a 200-character path — completes, with
-  the number of matcher steps bounded by |glob|·|path|.
+  pull`, `waypost merge origin/main`, `git switch -c x origin/x` — pass; a
+  criss-cross with two merge bases — the same verdict whatever the commit
+  dates; a stale `origin/HEAD` after a `master` → `main` rename — `main` is
+  tried too; an unpushed `protect` commit — applies; no remote — `c^1..c`
+  with the zones of `c^1`.
+- **Local verdict**: an earlier unpushed commit without a basis — a later
+  commit touching other paths passes with a warning; a later commit worsening
+  a path — refused.
+- **`commit`**: a `-m` with a `Waypost-Scope-Override` trailer — refused; a
+  pre-commit hook that rejects — honoured; a pre-commit hook that edits the
+  index — its result is evaluated; `commit-msg` and `post-commit` run;
+  `commit.gpgSign=true` — the commit is signed; a merge commit — merge state
+  cleared; a neighbour's `git add` during the commit — not lost; a refusal —
+  commit, index and views unchanged; with explicit paths only the views that
+  mode stages are evaluated; the committed tree equals the evaluated tree.
+- **`merge`**: a refusal leaves the merge in progress and names `git merge
+  --abort`.
+- **Override**: `[y/N]` in a plain terminal; refused inside a harness and with
+  `CODEX_HOME` exported; writes `Waypost-Scope-Base`.
+- **Audit**: range required; `GITHUB_ACTIONS=true` without `--keys` — exit 2;
+  empty keys — exit 2; an unreadable candidate — exit 4.
+- **Text**: `why` and override reasons with C0/C1, bidi, tag characters or
+  variation selectors — rejected on write; printed ids and paths with them —
+  escaped.
+- **Matcher**: 10 `**a` segments on a 200-character path — matcher steps
+  bounded by |glob|·|path|.
 - **Parser**: `#` inside `why`; `tags: [a, b] # note`; `title: [WIP] x`.
 - **CLI**: `scope check` exit codes 0/2/3/4; `--touches a b` reports `b` as an
   error.
-- **Discovery**: candidate discovery runs a constant number of git processes
-  regardless of repository size.
+- **Scale**: discovery and the rule run a number of git processes that does
+  not grow with the number of zone paths.
 - **Compatibility**: the previous release, checked out with `git worktree add`
-  at its tag (`fetch-depth: 0` in CI), runs its `doctor` on a fixture vault
-  with `protect` and `scope` built in a temporary directory — no issue,
+  at its tag (`fetch-depth: 0`), runs its `doctor` on a fixture vault with
+  `protect` and `scope` built in a temporary directory — no issue,
   `graph.md` unchanged.
 - **Hook** (its own story): on both `files` and `reftable` ref formats —
   commit, `--no-verify`, amend, merge, cherry-pick, revert, `am`, rebase with
@@ -469,50 +549,50 @@ Live, as a runbook in `docs/vault/ops/`: in two harnesses, an agent on a
 billing story edits `src/auth` — refused by `waypost commit`; under an
 allowed story — accepted. On a throwaway GitHub repository with the recipe:
 open question 2 answered; a fork pull request widening `allow` — red; an
-owner-signed fence commit — green and mergeable with the button; a pull
-request crossing the opened zone — green; an agent's pull request approved by
-one signed owner commit — green; a pull request editing the audit workflow —
-red; a retargeted pull request — its next run judged against the default
-branch; break-glass and re-enable with a range audit.
+owner-signed fence commit — green, mergeable with the button; a pull request
+crossing the opened zone — green; an agent's pull request approved by one
+signed owner commit — green; a pull request editing the audit workflow —
+red; the agent pushing a tag `main` — refused by the ruleset, and the audit
+still uses the branch; break-glass with its ops note.
 
 ## Follow-ups
 
-- **Whether "outside scope" should refuse.** At least 20 closed stories; the
-  story text as of its first `Waypost-Story` commit; a fresh-context role
-  derives `touches` before seeing any diff; the owner labels each warning.
-  Refuse only if ≥ 80 % of warnings are drift and warnings occur in ≤ 20 % of
-  stories.
+- **Whether "outside scope" should refuse** — at least 20 closed stories,
+  `touches` derived blind from the story text, owner-labelled warnings;
+  refuse only if ≥ 80 % are drift and warnings occur in ≤ 20 % of stories.
 - **A `brief`/`status` line** for the claimed story's scope and zones, within
-  the existing budgets with real ADR ids.
+  the existing budgets.
+- **A reader-equivalence digest** (`scope audit --tree`) for pin upgrades.
+- **Folded collisions under zones in `doctor`** across the whole tree.
+- **`team-integration.mjs`'s content set** gains tag characters.
 
 ## Verification
 
-- Critic passes 1–6 (2026-11-07): *revise* each; the owner chose `allow` in
-  the ADR and to close every gap.
-- Critic pass 7 (2026-11-17): *revise* — `merge-tree` inheritance unsound;
-  hook coverage; bases; replayable overrides; budgets.
-- Critic pass 8 (2026-11-17): *revise* — the local base from the pre-update
-  `HEAD` refused honest pulls, merges and checkouts (reproduced); basis (i)
-  tied to the path let one allowed commit launder another's drift
-  (reproduced); the hook's `old == new` skip broke `pack-refs` and `gc` and
-  judged checkouts and bisect steps; a signature pinned to `S^1` made owner
-  approval impossible; case variants shadowing zone paths on macOS; the rule
-  ran before reconcile wrote index READMEs; no break-glass; local signature
-  checks contradicting "override never covers a fence"; the hook host
-  contract and CI scope against the rule-compliance ADR; acceptance numbers
-  and missing residuals. Folded in: a base per evaluated commit from any
-  remote default ref; "every touching commit carries an allowed story, at
-  least one"; the hook skipping lines with no new commits; `Waypost-Scope-Base`
-  and `--sign --approve`; `(mode, oid)` comparison; case and NFC folding;
-  evaluation of the would-be tree including reconcile; break-glass and a
-  digest for pin upgrades; the npm registry tarball with `dist.integrity`;
-  recorded-only local signatures; the host contract and "CI enforces zones
-  only"; an allowlist for single-line text; structural acceptance criteria;
-  residuals for symlinks, `.gitattributes`, dangling `allow`, merge
-  resolutions and version skew. Cut: local signature verification, the
-  `brief`/`status` line (follow-up), wall-clock thresholds; the hook moved to
-  its own story.
-- A ninth critic pass is due before acceptance.
+- Critic passes 1–8 (2026-11-07 … 2026-11-17): *revise* each; the owner chose
+  `allow` in the ADR and to close every gap.
+- Critic pass 9 (2026-11-17, on 14ef4c6): *revise* — replayable approvals, a
+  tag named `main`, `ſ` on APFS, local bases, the committed tree, a free
+  override, break-glass.
+- Critic pass 10 (2026-11-17): *revise* — the fold missed `ẞ ~ ß ~ ss` and let
+  `src/acceẞ` replace `src/access` on APFS (reproduced), and the Kelvin
+  example was wrong; `commit-tree` skipped hooks and `commit.gpgSign` and
+  left merge state; typed `Waypost-*` trailers in `-m` bypassed the owner gate
+  and `--sign` locally; `waypost merge` cannot evaluate before writing;
+  paths passed to git as pathspecs (`[id]`, `:(exclude)`); a stale
+  `origin/HEAD` and undefined unpushed candidates; `--sign`'s owner check not
+  portable; references to revision 8 text. Folded in: the lower-upper-lower
+  fold with raw-or-folded matching and corrected examples; `git commit` on a
+  temporary index under `index.lock` with explicit hooks; refusal of typed
+  `Waypost-*` trailers; `git merge --abort` named for merges; literal
+  pathspecs; every remote's `HEAD` target, `main` and `master`, candidates as
+  at `c`; `safe.directory=` and `commit-tree` for `--sign` and `--approve`;
+  the restored classification and hook lists; `X` with `p` in a zone at `X`;
+  a local verdict on what the new commit worsens; exempt paths from the
+  base; stories closed on the base; approvals voided by later edits; batched
+  git calls; this ADR's `protect` over `.github`; `b = B` in CI. Cut: the
+  `X:p == b:p` condition (implied), evaluation under the team gate's lock,
+  the `--tree` digest and the whole-tree collision walk (follow-ups).
+- An eleventh critic pass is due before acceptance.
 
 ---
 
