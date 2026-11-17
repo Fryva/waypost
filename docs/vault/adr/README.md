@@ -53,6 +53,7 @@ Waypost's own decisions, as vault artifacts checked by `waypost doctor`
 | [bounded-handoff-retrieval-and-content-addressed-receiver-snapshots](./bounded-handoff-retrieval-and-content-addressed-receiver-snapshots.md) | Bounded handoff retrieval and content addressed receiver snapshots | proposed | 2026-11-03 |
 | [disk-space-for-heavy-work-a-free-space-floor-at-admission-idle-linked-worktrees-on-the-automatic-path](./disk-space-for-heavy-work-a-free-space-floor-at-admission-idle-linked-worktrees-on-the-automatic-path.md) | Disk space for heavy work: a free-space floor at admission, idle linked worktrees on the automatic path | proposed | 2026-11-06 |
 | [the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge](./the-merge-driver-keeps-our-side-of-a-derived-view-regeneration-happens-after-the-merge.md) | The merge driver keeps our side of a derived view; regeneration happens after the merge | accepted | 2026-11-06 |
+| [a-storys-scope-and-protected-zones-a-reminder-at-every-entry-a-refusal-at-commit](./a-storys-scope-and-protected-zones-a-reminder-at-every-entry-a-refusal-at-commit.md) | A story's scope and protected zones: a reminder at every entry, a refusal at commit | proposed | 2026-11-07 |
 | [project-memory-one-directory-for-every-harness-measured-on-request](./project-memory-one-directory-for-every-harness-measured-on-request.md) | Project Memory: one directory for every harness, measured on request | accepted | 2026-11-13 |
 
 ---
