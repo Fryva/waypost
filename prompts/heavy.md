@@ -47,10 +47,13 @@ this is not scoped to the current project.
 4. **On refusal (exit 75), report it or retry — never run the work outside
    waypost to "save time".** stderr names which limit is binding (slots, cpu,
    memory or disk, or `agents live` — `waypost team` peers still running) and
-   gives the exact retry command. On a disk refusal `run --heavy` has
-   already run the automatic cleanup once (when the owner set a limit) and
-   waited up to 30 s for its deleter; if it still refuses, report it:
-   freeing more is the owner's call (`waypost clean`). `--beside-agents` is the owner's call, not
+   gives the exact retry command. A disk refusal names the filesystem. On
+   the working directory's own, `run --heavy` has already run the automatic
+   cleanup once (when the owner set a limit) and waited up to 30 s for its
+   deleter; on another filesystem (`/`, home, a cache directory) it refuses at
+   once. Either way, if it still refuses, report it: freeing more is the
+   owner's call (`waypost clean`, or `waypost size --global` off the
+   repository's disk). `--beside-agents` is the owner's call, not
    an agent's. Either:
    - report the reason to whoever is waiting on it and stop, or
    - retry later, or

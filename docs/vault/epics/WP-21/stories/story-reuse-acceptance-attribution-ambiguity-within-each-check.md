@@ -35,7 +35,7 @@ checkSpecAcceptance recomputes the same attributed-item ambiguity across done st
 ## Decomposition
 
 - [x] Cache true/false ambiguity per parsed item at the existing evaluation point. — evidence: scripts/doctor-specs.mjs:236; scripts/doctor-specs.mjs:268
-- [x] Verify item identity collisions, false results, checked/nonapplicable items, duplicates, ordering and freshness. — evidence: tests/doctor-specs.test.mjs:294; tests/doctor-specs.test.mjs:310; .waypost/experiments/wp21-acceptance-ambiguity-20261101/comparison.json
+- [x] Verify item identity collisions, false results, checked/nonapplicable items, duplicates, ordering and freshness. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: ambiguity distinguishes same-path same-text"; tests/doctor-specs.test.mjs#"doctor specs module: checked nonapplicable ambiguity and duplicate"; .waypost/experiments/wp21-acceptance-ambiguity-20261101/comparison.json
 - [x] Compare full findings/matcher traces and actual ambiguity filter work, hot CLI, focused suites/guards, Doctor and independent review. — evidence: .waypost/experiments/wp21-acceptance-ambiguity-20261101/{comparison,cli-parity,validation,doctor,reviewer}.json
 
 ## Implementation Plan
@@ -44,7 +44,7 @@ Only checkSpecAcceptance changes. Add a local itemAmbiguity Map. At old const am
 
 ## Acceptance Criteria
 
-- [x] True and false ambiguity results are reused by parsed item identity, while applicability/matcher and all ordered findings/suppression/gates/first errors/freshness retain their prior behavior. — evidence: tests/doctor-specs.test.mjs:294; tests/doctor-specs.test.mjs:310; .waypost/experiments/wp21-acceptance-ambiguity-20261101/comparison.json
+- [x] True and false ambiguity results are reused by parsed item identity, while applicability/matcher and all ordered findings/suppression/gates/first errors/freshness retain their prior behavior. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: ambiguity distinguishes same-path same-text"; tests/doctor-specs.test.mjs#"doctor specs module: checked nonapplicable ambiguity and duplicate"; .waypost/experiments/wp21-acceptance-ambiguity-20261101/comparison.json
 - [x] Source-bound baseline/current findings and matcher traces agree, measured ambiguity filter work decreases, hot CLI outputs agree, suites/guards pass, Doctor clean and fresh reviewer accepts. — evidence: .waypost/experiments/wp21-acceptance-ambiguity-20261101/{comparison,cli-parity,validation,doctor,reviewer}.json
 
 ## Final Summary

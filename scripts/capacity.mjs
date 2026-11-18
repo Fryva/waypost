@@ -17,8 +17,10 @@
 // pruning a stale one) lives in bin/waypost (WP-18 Decision 2), so two
 // readers racing here can never delete or clobber each other's record.
 
-import { readFileSync, readdirSync, realpathSync, statfsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync, statfsSync } from "node:fs";
+import { dirname, join, parse, resolve } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { mountTypeOf, storageOf } from "./presence-storage.mjs";
 import { spawnSync } from "node:child_process";
 import { processTable, processGone } from "./presence.mjs";
 import { treesOverlap } from "./lib.mjs";
@@ -299,6 +301,51 @@ export function readDisk(path = process.cwd(), statfs = statfsSync) {
   } catch { return { free: NaN, total: NaN, path }; }
 }
 
+// Every filesystem a heavy job usually writes to (the disk-space ADR,
+// amended 2026-11-15): the working directory first — always read, an
+// unreadable one is "cannot start" — then the system root, home, the temp
+// directory and the build-cache variables. An additional path is read at its
+// nearest existing ancestor, once per filesystem (st_dev), and skipped with
+// an `error` when it cannot be read, is not local storage, or is RAM-backed
+// (tmpfs/ramfs, Linux only): it never refuses a job by being unreadable.
+const RAM_FS = new Set([0x01021994, 0x858458f6]);
+export function readDisks(dir = process.cwd(), {
+  env = process.env, statfs = statfsSync, stat = statSync, exists = existsSync,
+  home = homedir, temp = tmpdir, storage = storageOf, mountType = mountTypeOf, platform = process.platform,
+} = {}) {
+  const primary = { role: "working directory", ...readDisk(dir, statfs) };
+  const seen = new Set();
+  try { seen.add(stat(dir).dev); } catch {}
+  const out = [primary];
+  const root = platform === "win32" ? (env.SystemDrive || "C:") + "\\" : "/";
+  const extra = [["system root", root], ["home", () => home()], ["temporary directory", () => temp()],
+    ...["CARGO_TARGET_DIR", "CARGO_HOME", "RUSTUP_HOME", "GRADLE_USER_HOME"].map((k) => [k, env[k] || null])];
+  for (const [role, raw] of extra) {
+    let path = null;
+    try {
+      path = typeof raw === "function" ? raw() : raw;
+      if (!path) continue;
+      path = resolve(dir, path);
+      while (!exists(path) && path !== parse(path).root) path = dirname(path);
+      // Storage before stat, so a network mount is skipped unread. On macOS
+      // /Volumes is "network" for coordination; for the disk, an external
+      // apfs/hfs/exfat volume is local, so the mount type decides there.
+      const st = storage(path);
+      const kind = st.provider === "mounted volume" && !/^(nfs|smbfs|cifs|afpfs|webdav|fuse|sshfs|9p|virtiofs)/i.test(mountType(path) || "nfs") ? "local" : st.kind;
+      if (kind !== "local") { out.push({ role, path, error: `not local storage (${kind})` }); continue; }
+      const dev = stat(path).dev;
+      if (seen.has(dev)) continue;
+      seen.add(dev);
+      const s = statfs(path);
+      if (platform === "linux" && RAM_FS.has(Number(s.type))) { out.push({ role, path, error: "RAM-backed (tmpfs)" }); continue; }
+      const d = { role, path, free: Number(s.bavail) * Number(s.bsize), total: Number(s.blocks) * Number(s.bsize) };
+      if (!(Number.isFinite(d.free) && d.total > 0)) { out.push({ role, path, error: "unreadable" }); continue; }
+      out.push(d);
+    } catch (e) { out.push({ role, path, error: `unreadable (${e.code || e.message})` }); }
+  }
+  return out;
+}
+
 // Malformed or partial JSON is ignored, falling back to the real probes, so a
 // typo in the env never silently mis-measures a real machine.
 function parseCapacityProbe(raw) {
@@ -318,8 +365,9 @@ function parseCapacityProbe(raw) {
 // exists) — this function only counts it, per WP-18 Decision 2's division of
 // labour: reading the slot directory and writing to it are bin/waypost's job.
 // `dir` is where the job writes; `dir: null` leaves the disk out entirely.
-// `reading` is a readDisk() result taken by the caller — claimSlot reads it
-// BEFORE the machine lock, so a hung network mount never holds the lock.
+// `reading` is a readDisk() result, or a readDisks() list, taken by the
+// caller — claimSlot reads it BEFORE the machine lock, so a hung network mount
+// never holds the lock.
 // WAYPOST_DISK_CHECK=off is the owner's switch (a disposable CI runner).
 export async function measure({
   platform = process.platform,
@@ -343,8 +391,10 @@ export async function measure({
   if (probe) {
     // Disk figures are optional in the probe: absent, the disk binds nothing,
     // so a hermetic test is never refused by the real disk it runs on.
-    diskResult = dir != null && typeof probe.free === "number" && typeof probe.disk_total === "number"
-      ? { free: probe.free, total: probe.disk_total, path: dir } : null;
+    diskResult = dir == null ? null
+      : Array.isArray(probe.disks) ? probe.disks.map((d, i) => ({ role: i === 0 ? "working directory" : "probe", path: dir, ...d }))
+      : typeof probe.free === "number" && typeof probe.disk_total === "number"
+        ? { free: probe.free, total: probe.disk_total, path: dir } : null;
     coresResult = { cores: probe.cores, probe: "WAYPOST_CAPACITY_PROBE" };
     busyResult = { busy: probe.busy, probe: "WAYPOST_CAPACITY_PROBE" };
     memoryResult = { available: probe.available, total: probe.total, probe: "WAYPOST_CAPACITY_PROBE" };
@@ -352,7 +402,7 @@ export async function measure({
     coresResult = readCores({ platform, os, readFile });
     busyResult = await readBusy({ platform, os, wait });
     memoryResult = readMemory({ platform, os, readFile, run });
-    diskResult = dir == null ? null : reading !== undefined ? reading : readDisk(dir, statfs);
+    diskResult = dir == null ? null : reading !== undefined ? reading : readDisks(dir, { env, statfs, platform });
   }
 
   const diskOff = env.WAYPOST_DISK_CHECK === "off";
@@ -365,7 +415,8 @@ export async function measure({
     total: memoryResult.total,
     holders: holderCount,
     max: env.WAYPOST_HEAVY_MAX,
-    disk: diskResult,
+    disks: Array.isArray(diskResult) ? diskResult.filter((d) => !d.error) : null,
+    disk: Array.isArray(diskResult) ? null : diskResult,
     diskRaise: env.WAYPOST_DISK_SHARE_GB,
     floor: floor ? { reserve: floor.reserve_gb * 1024 ** 3, share: floor.share_gb * 1024 ** 3 } : null,
   });
@@ -374,7 +425,9 @@ export async function measure({
     cores: coresResult.cores,
     busy: busyResult.busy,
     memory: { available: memoryResult.available, total: memoryResult.total },
-    disk: diskResult ? { ...diskResult, share: started.job_disk, reserve: started.system_disk, owner_floor: Boolean(floor) } : null,
+    disk: started.disk_tight ? { free: started.disk_tight.free, total: started.disk_tight.total, path: started.disk_tight.path, role: started.disk_tight.role, share: started.job_disk, reserve: started.system_disk, owner_floor: Boolean(floor) } : null,
+    ...(Array.isArray(diskResult) ? { disks: [...started.disks.map(({ primary, ...d }) => d), ...diskResult.filter((d) => d.error)] } : {}),
+    disk_primary_short: started.disk_primary_short,
     ...(diskOff ? { disk_check: "off" } : {}),
     probes: { cores: coresResult.probe, busy: busyResult.probe, memory: memoryResult.probe },
     holders: holderCount,

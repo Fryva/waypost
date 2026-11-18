@@ -1,6 +1,6 @@
 // Artifact integrity checks (ADR-0009), using the shared field readers and resolver.
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { join, relative, resolve, isAbsolute } from "node:path";
 import { listOf, refsOf, resolveLinkTarget } from "./lib.mjs";
 
 function finding(group, level, check, message, file) {
@@ -212,3 +212,61 @@ export function checkCodeRefs(artifacts, proj, epicFolderPath = "epics") {
   return out;
 }
 
+
+// Evidence anchors: `<path>#"<literal>"` names a test (or any spot) by a
+// literal that occurs in the file — normally the test's title — instead of a
+// line number that the next insertion above it silently moves. Checked
+// without a model: the file exists and contains the literal. Level by status,
+// as code_refs. `file:line` stays legal and unchecked; a fenced block or an
+// HTML comment holds examples, not claims, and `<path>#"<text>"` is a
+// placeholder the pattern never matches.
+// The path is any letters or digits (any script) and `_ . / @ + -`, no spaces.
+const EVIDENCE_ANCHOR = /(?<![\p{L}\p{N}_./@+-])([\p{L}\p{N}_.@][\p{L}\p{N}_./@+-]*)#"([^"\n]+)"/gu;
+const ANCHOR_FILE_MAX = 4 * 1024 * 1024;
+export function checkEvidenceAnchors(artifacts, proj) {
+  const out = [];
+  const texts = new Map();
+  const textOf = (path) => {
+    if (!texts.has(path)) {
+      // Only a regular file inside the project, and not a huge one.
+      let t = null;
+      const abs = resolve(proj, path);
+      const rel = relative(proj, abs);
+      if (rel && !rel.startsWith("..") && !isAbsolute(rel)) {
+        try { const st = statSync(abs); if (st.isFile() && st.size <= ANCHOR_FILE_MAX) t = readFileSync(abs, "utf8"); }
+        catch { /* missing or unreadable */ }
+      }
+      texts.set(path, t);
+    }
+    return texts.get(path);
+  };
+  for (const a of artifacts) {
+    if (!a.body || !a.body.includes('#"')) continue;
+    const status = (a.fm.status || "").toLowerCase();
+    const level = ["in-progress", "in_progress", "done"].includes(status) ? "issue" : "warn";
+    let fence = null;
+    const seen = new Set();
+    // HTML comments (the templates' hints) blanked first, line count kept.
+    const body = a.body.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ""));
+    for (const line of body.split(/\r?\n/)) {
+      // A fence closes on the same character, at least as long, with no info.
+      const f = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+      if (f && !fence) { fence = f[1]; continue; }
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && !f[2].trim()) { fence = null; continue; }
+      if (fence) continue;
+      for (const [anchor, path, literal] of line.matchAll(EVIDENCE_ANCHOR)) {
+        if (seen.has(anchor)) continue;
+        seen.add(anchor);
+        const text = textOf(path);
+        if (text === null) {
+          out.push(finding("vault", level, "evidence-anchor",
+            `Evidence anchor ${path}#"${literal}" names a file that does not resolve inside the project (status: ${status || "—"}).`, a.rel));
+        } else if (!text.includes(literal)) {
+          out.push(finding("vault", level, "evidence-anchor",
+            `Evidence anchor ${path}#"${literal}": the file no longer contains this text — the test was renamed or removed (status: ${status || "—"}).`, a.rel));
+        }
+      }
+    }
+  }
+  return out;
+}

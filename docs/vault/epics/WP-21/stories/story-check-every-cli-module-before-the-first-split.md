@@ -37,8 +37,8 @@ Before accepted CLI modularization moves production functions, add executable sy
 <!-- Granular checklist of concrete tasks. Each item should be small enough to complete in a session. -->
 
 - [x] Add complete entry/module syntax checking and command-module import checking with deterministic diagnostics. — evidence: tests/helpers/cli-modules.mjs:26,43,62.
-- [x] Cover nested dependency syntax/link failures, incomplete child execution and the absent-module pre-split state. — evidence: tests/harness.test.mjs:1511,1526,1548.
-- [x] Copy the real recursive CLI module tree into race fixtures; verify selected checks and independent acceptance. — evidence: tests/scripts.test.mjs:803,831; runtime-matrix.json; final independent reviewer accepted3AC/no findings.
+- [x] Cover nested dependency syntax/link failures, incomplete child execution and the absent-module pre-split state. — evidence: tests/harness.test.mjs#"CLI module checks handle absent and nested modules without evaluating", tests/harness.test.mjs#"CLI module checks locate dependency syntax errors and report", tests/harness.test.mjs#"CLI module checks reject failed, malformed or mismatched import".
+- [x] Copy the real recursive CLI module tree into race fixtures; verify selected checks and independent acceptance. — evidence: tests/scripts.test.mjs#"CLI module race fixture copies real nested modules and isolates", tests/scripts.test.mjs#"bin/waypost story --write refuses a stale sha256 — a concurrent edit"; runtime-matrix.json; final independent reviewer accepted3AC/no findings.
 
 ## Implementation Plan
 
@@ -53,8 +53,8 @@ Fresh cli_module_checks_planner checked base9776d83, accepted ADR Decisions3–6
 <!-- How do we know we're done? Each criterion testable. Checked only with
      evidence at close: - [x] <criterion> — evidence: <test | command | file:line> -->
 
-- [x] The real entry and all recursively discovered bin/cli/**/*.mjs receive named syntax checks; all command modules receive actual import/link checks in isolated child contexts. The entry itself is never imported/evaluated by the new guard. The absent-module pre-split tree is supported without inventing modules. — evidence: tests/helpers/cli-modules.mjs:26,43,62; tests/harness.test.mjs:1511; all4runtime logs.
-- [x] Meaningful fixtures prove every-file coverage and fail closed for broken nested syntax/static export links or incomplete child execution; diagnostics distinguish requested module from failing dependency without guessing the error origin. — evidence: tests/harness.test.mjs:1526,1548;19selected checks pass per4versions.
+- [x] The real entry and all recursively discovered bin/cli/**/*.mjs receive named syntax checks; all command modules receive actual import/link checks in isolated child contexts. The entry itself is never imported/evaluated by the new guard. The absent-module pre-split tree is supported without inventing modules. — evidence: tests/helpers/cli-modules.mjs:26,43,62; tests/harness.test.mjs#"CLI module checks handle absent and nested modules without evaluating"; all4runtime logs.
+- [x] Meaningful fixtures prove every-file coverage and fail closed for broken nested syntax/static export links or incomplete child execution; diagnostics distinguish requested module from failing dependency without guessing the error origin. — evidence: tests/harness.test.mjs#"CLI module checks locate dependency syntax errors and report", tests/harness.test.mjs#"CLI module checks reject failed, malformed or mismatched import";19selected checks pass per4versions.
 - [x] Race fixtures recursively copy the real bin/cli tree when present, preserve existing pre-split tests and keep fault injection meaningful. Source-bound affected checks pass, fresh independent reviewer accepts criteria, and no production CLI/pilot/budget changes are made. Local selected checks remain distinct from the full migration CI gate. — evidence: tests/scripts.test.mjs:773,803,831; runtime-matrix.json/verification.json; final independent reviewer accepted3AC,160source hashes/6review identities/7evidence identities/4log hashes verified.
 
 ## Final Summary

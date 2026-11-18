@@ -35,7 +35,7 @@ checkSpecLinks parses the same spec stories list in its forward pass and again f
 ## Decomposition
 
 - [x] Retain parsed forward lists by spec object and reuse in reverse checks. — evidence: scripts/doctor-specs.mjs:122
-- [x] Verify aliases, duplicates, distinct objects, empty/invalid lists, cold paths and freshness. — evidence: tests/doctor-specs.test.mjs:77; .waypost/experiments/wp21-spec-link-lists-20261030/comparison.json
+- [x] Verify aliases, duplicates, distinct objects, empty/invalid lists, cold paths and freshness. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: link lists preserve aliases, repeated refs and"; .waypost/experiments/wp21-spec-link-lists-20261030/comparison.json
 - [x] Compare complete baseline/current findings and logical parse counts; run relevant suites, Doctor and fresh review. — evidence: .waypost/experiments/wp21-spec-link-lists-20261030/{validation,comparison,doctor,reviewer}.json
 
 ## Implementation Plan
@@ -44,7 +44,7 @@ Only checkSpecLinks in scripts/doctor-specs.mjs changes. Create a local Map afte
 
 ## Acceptance Criteria
 
-- [x] Reverse checks reuse exact forward lists by spec identity; ordered complete findings, duplicates, first parse behavior, cold branches and same-object freshness between calls remain intact. — evidence: tests/doctor-specs.test.mjs:77; tests/doctor-specs.test.mjs:89; .waypost/experiments/wp21-spec-link-lists-20261030/comparison.json
+- [x] Reverse checks reuse exact forward lists by spec identity; ordered complete findings, duplicates, first parse behavior, cold branches and same-object freshness between calls remain intact. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: link lists preserve aliases, repeated refs and"; tests/doctor-specs.test.mjs#"doctor specs module: link checks see coverage and identity edits on"; .waypost/experiments/wp21-spec-link-lists-20261030/comparison.json
 - [x] Baseline/current full findings match and source-bound logical counters show fewer repeated parses; relevant checks pass, Doctor clean and independent review accepts. No token or latency savings inferred. — evidence: .waypost/experiments/wp21-spec-link-lists-20261030/{comparison,validation,doctor,reviewer}.json
 
 ## Final Summary

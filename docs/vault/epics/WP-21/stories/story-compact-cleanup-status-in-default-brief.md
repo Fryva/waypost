@@ -44,9 +44,9 @@ Pass opts.full to private cleanupLine. In ordinary mode only, render a free-kind
 
 ## Acceptance Criteria
 
-- [x] Default cleanup line removes redundant free-space prose and shortens only the fixed outcome label; all values, dates, reasons, counts and deadline remain. — evidence: scripts/brief.mjs:39; tests/limit.test.mjs:108.
+- [x] Default cleanup line removes redundant free-space prose and shortens only the fixed outcome label; all values, dates, reasons, counts and deadline remain. — evidence: scripts/brief.mjs:39; tests/limit.test.mjs#"brief cleanup: compact text preserves facts and full text keeps the".
 - [x] --full and full API text retain legacy bytes; facts/JSON, missing/corrupt state, shared formatters, other commands and policy unchanged. — evidence: fixture-before.json/fixture-after.json; unchanged scripts/cleanup.mjs hash.
-- [x] Frozen cases and inverse-source proof identify only the intended text differences; fixed free/ran fixture has a tested compact budget; no native-token saving inferred. — evidence: comparison.json; tests/limit.test.mjs:149; inverse whole-source proof.
+- [x] Frozen cases and inverse-source proof identify only the intended text differences; fixed free/ran fixture has a tested compact budget; no native-token saving inferred. — evidence: comparison.json; tests/limit.test.mjs#"brief cleanup: compact text preserves facts and full text keeps the"; inverse whole-source proof.
 - [x] Addressed regressions and existing context budgets pass through heavy admission; doctor has zero issues/warnings; independent review approves. — evidence: validation.json; tests.log; independent reviewer ship.
 
 ## Final Summary

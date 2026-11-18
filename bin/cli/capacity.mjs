@@ -56,7 +56,7 @@ async function handleCapacity(args) {
   const totalGb = (m.memory.total / GB).toFixed(1);
   const disk = m.disk_check === "off" ? "; disk not checked (WAYPOST_DISK_CHECK=off)"
     : m.disk && Number.isFinite(m.disk.free)
-      ? `; disk ${(m.disk.free / GB).toFixed(1)} of ${(m.disk.total / GB).toFixed(1)} GB free at ${m.disk.path}, ${(m.disk.reserve / GB).toFixed(1)} GB system reserve + ${(m.disk.share / GB).toFixed(1)} GB per job${m.disk.owner_floor ? " (owner's setting)" : ""}`
+      ? `; disk ${(m.disk.free / GB).toFixed(1)} of ${(m.disk.total / GB).toFixed(1)} GB free at ${m.disk.path}${(() => { const read = (m.disks || []).filter((d) => !d.error).length, skipped = (m.disks || []).length - read; return read > 1 || skipped ? ` (${read > 1 ? `${m.disk.role}, tightest of ${read} filesystems` : m.disk.role}${skipped ? `, ${skipped} skipped` : ""})` : ""; })()}, ${(m.disk.reserve / GB).toFixed(1)} GB system reserve + ${(m.disk.share / GB).toFixed(1)} GB per job${m.disk.owner_floor ? " (owner's setting)" : ""}`
       : "";
   process.stdout.write(`${m.cores} cores, load ${m.busy.toFixed(2)}; ${availGb} of ${totalGb} GB available (${m.probes.memory})${disk}\n`);
   if (m.can_start > 0) {

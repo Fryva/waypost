@@ -35,7 +35,7 @@ checkSpecLinks repeatedly parses story.specs for every spec covering the same st
 ## Decomposition
 
 - [x] Lazily reuse story specs at the existing parse sites. — evidence: scripts/doctor-specs.mjs:123
-- [x] Verify duplicate identities/references, empty/malformed lists, first-error order and freshness. — evidence: tests/doctor-specs.test.mjs:111; tests/doctor-specs.test.mjs:123; tests/doctor-specs.test.mjs:142; .waypost/experiments/wp21-story-spec-lists-20261030/comparison.json
+- [x] Verify duplicate identities/references, empty/malformed lists, first-error order and freshness. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: story spec lists distinguish objects sharing a"; tests/doctor-specs.test.mjs#"doctor specs module: shared story links retain duplicates and fresh"; tests/doctor-specs.test.mjs#"doctor specs module: idless forward links preserve first-error order"; .waypost/experiments/wp21-story-spec-lists-20261030/comparison.json
 - [x] Compare complete diagnostics and parser counts; run focused suites, Doctor and independent acceptance. — evidence: .waypost/experiments/wp21-story-spec-lists-20261030/{comparison,validation,doctor,reviewer}.json
 
 ## Implementation Plan
@@ -44,7 +44,7 @@ Only checkSpecLinks changes. Add local specsByStory Map and helper: has(story), 
 
 ## Acceptance Criteria
 
-- [x] Story specs are parsed at first existing demand and reused by object within one invocation; complete ordered diagnostics, duplicates, gates/first errors, raw block-sequence checks and freshness remain intact. — evidence: scripts/doctor-specs.mjs:123; tests/doctor-specs.test.mjs:111; tests/doctor-specs.test.mjs:142; .waypost/experiments/wp21-story-spec-lists-20261030/comparison.json
+- [x] Story specs are parsed at first existing demand and reused by object within one invocation; complete ordered diagnostics, duplicates, gates/first errors, raw block-sequence checks and freshness remain intact. — evidence: scripts/doctor-specs.mjs:123; tests/doctor-specs.test.mjs#"doctor specs module: story spec lists distinguish objects sharing a"; tests/doctor-specs.test.mjs#"doctor specs module: idless forward links preserve first-error order"; .waypost/experiments/wp21-story-spec-lists-20261030/comparison.json
 - [x] Baseline/current full findings match, logical parse counters decrease, focused tests and guards pass, Doctor is clean and fresh reviewer accepts. No text/native-token or latency savings inferred. — evidence: .waypost/experiments/wp21-story-spec-lists-20261030/{comparison,validation,doctor,reviewer}.json
 
 ## Final Summary

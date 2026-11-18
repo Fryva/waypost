@@ -95,35 +95,35 @@ the ADR.
 - [x] Every shipped `toolchains/*.json` passes the schema test: `os` and a
       `confidence` for each OS listed, `docs` for `documented`, `notes` for
       `inferred`, `regenerable` stated on every cache and artifact.
-      — evidence: `tests/toolchains.test.mjs:53`, `:66`, `:79`, `:92`,
-      `:106`, `:119`
+      — evidence: `tests/toolchains.test.mjs#"toolchains/<id>.json: id equals the filename"`, `tests/toolchains.test.mjs#"toolchains/<id>.json: os is a non-empty subset of darwin/linux/win32"`, `tests/toolchains.test.mjs#"toolchains/<id>.json: every cache item's confidence has exactly one"`, `tests/toolchains.test.mjs#"toolchains/<id>.json: a cache with a 'documented' OS carries docs (a"`,
+      `tests/toolchains.test.mjs#"toolchains/<id>.json: regenerable is a boolean on every artifact and"`, `tests/toolchains.test.mjs#"toolchains/<id>.json: no docs URL is invented — every docs value is a"`
 - [x] The existing project-scan fixtures pass with names from the registry:
       nested tags counted once, an ignored `build/` counted and a tracked
       `src/build/` not, symlink loops not followed, hard links once, the
       stopped-scan JSON shape, `$HOME` and `/` refused.
-      — evidence: `tests/sizes.test.mjs:101`, `:133`, `:252`, `:264`,
-      `:279`, `:292`, `:300`
+      — evidence: `tests/sizes.test.mjs#"scanProject: outermost tag only, git-ignored vs. tracked generic"`, `tests/sizes.test.mjs#"scanProject: a generic-named directory that git ignores but that"`, `tests/sizes.test.mjs#"scanProject: a directory symlink loop does not hang the scan and is"`, `tests/sizes.test.mjs#"scanProject: two hard links to one file are counted once, like du"`,
+      `tests/sizes.test.mjs#"scanProject: --budget below the tree's entry count stops"`, `tests/sizes.test.mjs#"scanProject: an unbounded scan always reports complete:true and no"`, `tests/sizes.test.mjs#"scanProject: refuses $HOME and / as a project root"`
 - [x] On macOS the Xcode DerivedData match still finds a project's folder,
       now through the Xcode entry; on other platforms the locator does not run.
-      — evidence: `tests/sizes.test.mjs:320`, `tests/toolchains.test.mjs:243`
+      — evidence: `tests/sizes.test.mjs#"scanProject: Xcode DerivedData outside the project is matched by its"`, `tests/toolchains.test.mjs#"applicableLocators: the shipped darwin-only locator is offered on"`
 - [x] A `.waypost/toolchains/` entry adds a name the scan then counts, and
       with a shipped entry's `id` extends that entry's project artifacts.
-      — evidence: `tests/toolchains.test.mjs:282`, `:296`, `:249`
+      — evidence: `tests/toolchains.test.mjs#"scanProject: a project's own toolchain artifact is found and counted"`, `tests/toolchains.test.mjs#"scanProject: a project's own toolchain artifact with match:generic"`, `tests/toolchains.test.mjs#"a project toolchain entry with a shipped id EXTENDS that entry's"`
 - [x] A project entry's `ask`, `clean_argv`, project clean command, processes,
       detectors or machine cache fields are dropped and reported, and an
       artifact that resolves outside the project is refused.
-      — evidence: `tests/toolchains.test.mjs:129`, `:155`, `:175`, `:191`,
-      `:228`
+      — evidence: `tests/toolchains.test.mjs#"a project toolchain entry: disallowed fields are dropped and"`, `tests/toolchains.test.mjs#"a project toolchain entry: an artifact name with a slash, or '..', is"`, `tests/toolchains.test.mjs#"a project toolchain entry: a pattern is always dropped, even one that"`, `tests/toolchains.test.mjs#"a project toolchain entry: an artifact's clean_argv and path are"`,
+      `tests/toolchains.test.mjs#"a project toolchain entry: a manifest outside the project is refused"`
 - [x] `waypost size --global` on a temporary home lists only paths that exist
       on this OS, each with its source and clean text.
-      — evidence: `tests/sizes.test.mjs:371`, `:382`, `:391`, `:450`
+      — evidence: `tests/sizes.test.mjs#"scanGlobal: with a temp HOME, only fixtures under it are found, and"`, `tests/sizes.test.mjs#"scanGlobal: an unset Windows env var skips that entry instead of"`, `tests/sizes.test.mjs#"scanGlobal: a trailing * is expanded by prefix-matching the parent"`, `tests/sizes.test.mjs#"bin/waypost size --global: human output shows only entries at or"`
 - [x] `scripts/sizes-global.json` is gone and nothing refers to it.
       — evidence: absent from b3a6f9a; `rg -n loadGlobalList scripts bin
       tests` finds nothing
 - [x] The ADR's guards on `scripts/sizes.mjs` select it and pass; `npm test`
       and `node --check` are green; `waypost doctor` reports 0 issues.
-      — evidence: `tests/sizes.test.mjs:501`, `:494`,
-      `tests/toolchains.test.mjs:311`; `npm test` 409/409; `waypost doctor`
+      — evidence: `tests/sizes.test.mjs#"the disk-hygiene ADR's three guards select scripts/sizes.mjs and all"`, `:494`,
+      `tests/toolchains.test.mjs#"node --check passes on scripts/toolchains.mjs"`; `npm test` 409/409; `waypost doctor`
       0 issues, 0 warnings with the ADR accepted
 
 ## Final Summary

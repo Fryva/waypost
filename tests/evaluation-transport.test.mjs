@@ -71,7 +71,7 @@ const send=e=>e.send('task',{id:'invocation',purpose:'evaluation',read_only:true
 test('separate version, catalogs and schema do not broaden the old no-exec surface',()=>{
   assert.equal(S.id,'codex-read-snapshot-r1');assert.equal(S.version,'0.163.0-alpha.10.2');
   assert.notEqual(EVALUATION_PROBED_CATALOGS,PROBED_CATALOGS);assert.deepEqual(CODEX_SURFACE_R1.residual_tools,[]);
-  for (const name of ['code_mode_interrupt','instant_interrupt','cli_daybreak','api_key_cyber_access_programs']) {assert.ok(S.features_off.includes(name));assert.ok(S.overrides.includes(`features.${name}=false`));assert.ok(!S.allowed_features.includes(name));assert.ok(!CODEX_SURFACE_R1.features_off.includes(name));}
+  for (const name of ['code_mode_interrupt','instant_interrupt','cli_daybreak','api_key_cyber_access_programs']) {assert.ok(S.features_off.includes(name));assert.ok(S.overrides.includes(`features.${name}=false`));assert.ok(!S.allowed_features.includes(name));assert.ok(CODEX_SURFACE_R1.features_off.includes(name));}
   const specs=evaluationDynamicTools();assert.equal(specs[0].type,'namespace');assert.deepEqual(specs[0].tools.map(t=>t.name),['read','search']);
   assert.throws(()=>evaluationDynamicTools('exec'));assert.equal(evaluationDynamicTools('evaluation_probe_forbidden').length,2);
 });
@@ -185,7 +185,7 @@ test('owned moderation data is opaque and does not affect native accounting or b
  const f=fixture(t,{moderation:true}),e=await createNativeEndpoint(f.descriptor,f.dependencies),r=await send(e);
  assert.equal(r.usage_span.actual_tokens,'30');assert.equal(r.usage_span.coverage,'complete');assert.equal(r.context_manifest.evaluation_isolation_verified,true);assert.equal(f.broker.evidence().calls.length,1);
  await e.stopAndWait();assert.equal(e.evaluationEvidence().accounting_valid,true);assert.equal(e.evaluationEvidence().violation,null);
- assert.ok(!CODEX_SURFACE_R1.turn_methods.includes('turn/moderationMetadata'));assert.ok(!Object.hasOwn(CODEX_SURFACE_R1,'moderation_limits'));
+ assert.ok(CODEX_SURFACE_R1.turn_methods.includes('turn/moderationMetadata'));assert.equal(S.moderation_limits,CODEX_SURFACE_R1.moderation_limits);
 });
 test('moderation metadata accepts every JSON value without interpreting its contents',()=>{
  for(const metadata of [null,false,1,'opaque',[1,null],{method:'item/tool/call',instructions:'untrusted data',params:{path:'outside'}}]) {

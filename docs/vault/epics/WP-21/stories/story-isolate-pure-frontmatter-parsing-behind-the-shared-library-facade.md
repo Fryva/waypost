@@ -44,7 +44,7 @@ Planner found two independent literal chunks: Frontmatter list fields section (l
 
 ## Acceptance Criteria
 
-- [x] Literal chunk/function text preserved; facade exports/bindings/names/arities and all existing caller imports unchanged, no cycle or new external dependencies. — evidence: literal chunks/inverse proof; tests/lib-frontmatter.test.mjs:10.
+- [x] Literal chunk/function text preserved; facade exports/bindings/names/arities and all existing caller imports unchanged, no cycle or new external dependencies. — evidence: literal chunks/inverse proof; tests/lib-frontmatter.test.mjs#"frontmatter leaf preserves facade namespace, bindings and function".
 - [x] Frontmatter/list/bare-ref corpus and real consumer outputs/files are identical, including established malformed-input behavior and exceptions. — evidence: api-before.json/api-after.json; consumers-before.json/consumers-after.json.
 - [x] Leaf is pure and <=6000UTF8B; measured facade/leaf/combined sizes and exact inverse whole-source proof recorded without native-token/runtime savings claims. — evidence: comparison.json; tests/lib-frontmatter.test.mjs size/purity checks.
 - [x] API/import/size regressions and relevant consumer tests pass through heavy admission; packaging includes leaf,doctor0/0 and independent reviewer approves. — evidence: validation.json; tests-attempt-1.log; independent reviewer ship.

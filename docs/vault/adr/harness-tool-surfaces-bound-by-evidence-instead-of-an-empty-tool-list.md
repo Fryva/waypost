@@ -157,7 +157,9 @@ verified surface on every path.
     `3085306bb82e2a1541b425f4239aaa73939860c755b871651a4a22e1e424490b`
     (`gpt-6.1-sol`, 2026-10-08) and
     `fefbe074a61b4bf2487f603e37bd06339bdb635785f596f53fc77d26dfc416ce`
-    (`gpt-6.1-sol` on 0.162.0-alpha.17.2, 2026-10-11).
+    (`gpt-6.1-sol` on 0.162.0-alpha.17.2, 2026-10-11) and
+    `62f3a739f1a32ee375751b8cfca8e284686ef2b4f942af463224140ca1028401`
+    (`gpt-6.1-sol` on 0.167.0-alpha.4.1, 2026-11-15).
 11. **The claim.** Revision 1 claims: the user's installation, version- and
     package-pinned, with only its home instruction files (digest-bound), no
     enabled skills, hooks, plugins or MCP, a probed catalog without tool types,
@@ -228,6 +230,43 @@ Revision: `version` 0.162.0-alpha.17.2; catalog `fefbe074…` added to the probe
 ephemeral, unforked thread without a parent (any other is
 `native-surface-foreign-thread`). The definition digest changes, so native
 profiles of Codex change identity.
+
+## Probe evidence (2026-11-15, 0.167.0-alpha.4.1, owner-approved cap 100K, ≈38K used)
+
+The ChatGPT.app update brought Codex `0.167.0-alpha.4.1`; the `gpt-6.1-sol` entry
+keeps the same keys (only `context_window` 272000 → 500000 and the
+`model_messages` text changed). The owner's `~/.codex/AGENTS.md` changed the same
+day (Project Memory ADR, Decision 4). A raw probe launched the app-server with the
+definition's flags and the pinned catalog:
+
+1. **Readback, no turn:** layers, sandbox, `config_expect`, skills, hooks and the
+   pinned catalog as before; twelve features newly enabled by default
+   (`code_mode_interrupt`, `instant_interrupt`, `cli_daybreak`,
+   `api_key_cyber_access_programs`, `mcp_oauth_refresh_coordination`,
+   `deferred_tool_world_state`, `incremental_tools`,
+   `prediction_preserve_parent_tools`, `plugin_discovery_prefetch`,
+   `reasoning_effort_override`, `bedrock_setup_wizard`,
+   `retain_client_tool_outputs`). All are switched off by session flag rather
+   than allowed; the thread still reports `reasoningEffort: low` and
+   `multiAgentMode: explicitRequestOnly`.
+2. **Negative control** (≈7.6K): answer `OK` and `[]` for its tools, items
+   `userMessage`/`reasoning`/`agentMessage` only, raw `message`/`reasoning` only,
+   no server request, no `thread/started`. One new frame, `turn/moderationMetadata`
+   (opaque classifier flags bound to the thread and turn).
+3. **Positive control, catalog as fetched** (≈22.5K): the model called the code-mode
+   exec tool (raw `custom_tool_call` and `custom_tool_call_output`), which the
+   guard rejects as `native-surface-raw-tool-call`.
+4. **Through the transport, revised** (≈7.5K): `nativeVersionStatus` verified,
+   readback verified, answer `OK`, `tools: []`, `adapter-isolated`, guard window
+   `turn-plus-drain`.
+
+Revision: `version` 0.167.0-alpha.4.1; catalog `62f3a739…` added to the probed
+set; the twelve features off; `turn/moderationMetadata` allowed for the
+context's own thread with only `threadId`/`turnId`/`metadata` and the
+evaluation surface's limits (16 frames, 64 KiB each, 256 KiB in all), now
+defined once on revision 1 and inherited by `codex-read-snapshot-r1`; anything
+else is `native-surface-moderation`. The definition digest and the home
+instructions digest change, so native profiles of Codex change identity.
 
 ## Implementation (2026-10-08/09, Claude Code)
 
@@ -358,4 +397,4 @@ not need (no tool use), only a stronger one it cannot prove.
 
 ---
 
-*Last updated: 2026-10-08*
+*Last updated: 2026-11-15*

@@ -14,7 +14,8 @@ A story has two gates, and both are commands:
   section *after* studying the code, not before.
 - **Finish**: `waypost story close <path> --write` — marks it done and stamps
   `closed_at`. Before that, tick each acceptance criterion with evidence
-  (`— evidence: <test | command | file:line>`) and write the Final Summary.
+  (`— evidence: <path>#"<test title>" | <command> | <file>:<line>`; a test by its
+  anchor — no spaces in the path — which `waypost doctor` checks, not by a line number) and write the Final Summary.
 
 Between the gates: commit through `waypost commit --story <epic>/<stem> -m "…"`,
 one story per commit, so the history says which story each change served.

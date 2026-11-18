@@ -78,8 +78,8 @@ is not atomic publication; an interrupted write can leave invalid JSON.
 
 ## Acceptance Criteria
 
-- [x] Create/show roundtrip works without a vault and across independent processes and relocated project roots; output is exclusive and default text is compact. — evidence: tests/handoff.test.mjs:35; /private/tmp/waypost-handoff-example-pjxlhabk/summary.json
-- [x] Byte changes, missing/appeared files and replaced ancestors invalidate the selected snapshot independently of HEAD; every reference has an explicit status. — evidence: tests/handoff.test.mjs:65; tests/handoff.test.mjs:77
+- [x] Create/show roundtrip works without a vault and across independent processes and relocated project roots; output is exclusive and default text is compact. — evidence: tests/handoff.test.mjs#"two independent CLI processes and harness identities continue from a"; /private/tmp/waypost-handoff-example-pjxlhabk/summary.json
+- [x] Byte changes, missing/appeared files and replaced ancestors invalidate the selected snapshot independently of HEAD; every reference has an explicit status. — evidence: tests/handoff.test.mjs#"content changes, deletion, appearance and changed evidence are"; tests/handoff.test.mjs#"byte freshness detects uncommitted changes independently of a"
 - [x] Malformed/oversized packets, unsafe/duplicate paths, symlinks, special files, unsupported schema and output/input collisions fail without overwriting files or running packet content. — evidence: tests/handoff.test.mjs; corrected output-ancestor regression and /private/tmp/waypost-handoff-final-tests-v2.log
 - [x] Human/JSON output separates selected-file freshness from caller claims and runtime verification, documents the schema, limits, exit codes and omitted dependencies. — evidence: docs/handoffs.md; scripts/handoff.mjs:170; tests/handoff.test.mjs
 - [x] Focused CLI/module regression checks and a retained two-process smoke pass; independent reviewer checks the final diff. Runtime on other OSes and actual agent token/quality gains remain unverified. — evidence: /private/tmp/waypost-handoff-final-tests-v2.log (24 pass, exit 0); independent reviewer ship

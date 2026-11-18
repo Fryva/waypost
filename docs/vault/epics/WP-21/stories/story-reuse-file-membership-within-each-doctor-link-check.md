@@ -35,7 +35,7 @@ Doctor link checking rebuilds the same vault-file membership Set for the first l
 ## Decomposition
 
 - [x] Adopt the first resolver file Set and seed later artifact contexts within one checkWikilinks invocation. — evidence: scripts/doctor-vault.mjs:130
-- [x] Verify per-source/unscoped-kind/non-node/duplicate findings and membership changes, empty/cold and error paths. — evidence: tests/doctor-vault.test.mjs:125; tests/doctor-vault.test.mjs:152; tests/doctor-vault.test.mjs:169
+- [x] Verify per-source/unscoped-kind/non-node/duplicate findings and membership changes, empty/cold and error paths. — evidence: tests/doctor-vault.test.mjs#"doctor vault module: one membership preparation preserves duplicate"; tests/doctor-vault.test.mjs#"doctor vault module: membership stays lazy, reuses an empty Set and"; tests/doctor-vault.test.mjs#"doctor vault module: the same files array stays fresh across create"
 - [x] Record source-bound findings/trace/probe/CLI parity and preparation counts, independent acceptance and owned cleanup. — evidence: .waypost/experiments/wp21-doctor-link-inputs-20261029/{comparison.json,validation.json,reviewer.json,cleanup.json}
 
 ## Implementation Plan
@@ -44,8 +44,8 @@ After existing walk and index/error handling, declare a local fileSet. Keep a fr
 
 ## Acceptance Criteria
 
-- [x] Membership is prepared at most once per checkWikilinks invocation, remains lazy with no extracted links and reuses an empty Set; full ordered files/index/fresh sourceRel/exists and unscoped body-link kinds are preserved. — evidence: scripts/doctor-vault.mjs:130; tests/doctor-vault.test.mjs:152
-- [x] Complete findings, severity/order/duplicates and resolver/probe/error behavior stay equivalent; default walk/index failures remain visible, and later calls see changes to the same files array without stale cache or input mutation. — evidence: tests/doctor-vault.test.mjs:89; tests/doctor-vault.test.mjs:125; tests/doctor-vault.test.mjs:169; .waypost/experiments/wp21-doctor-link-inputs-20261029/comparison.json
+- [x] Membership is prepared at most once per checkWikilinks invocation, remains lazy with no extracted links and reuses an empty Set; full ordered files/index/fresh sourceRel/exists and unscoped body-link kinds are preserved. — evidence: scripts/doctor-vault.mjs:130; tests/doctor-vault.test.mjs#"doctor vault module: membership stays lazy, reuses an empty Set and"
+- [x] Complete findings, severity/order/duplicates and resolver/probe/error behavior stay equivalent; default walk/index failures remain visible, and later calls see changes to the same files array without stale cache or input mutation. — evidence: tests/doctor-vault.test.mjs:89; tests/doctor-vault.test.mjs#"doctor vault module: one membership preparation preserves duplicate"; tests/doctor-vault.test.mjs#"doctor vault module: the same files array stays fresh across create"; .waypost/experiments/wp21-doctor-link-inputs-20261029/comparison.json
 - [x] Source-bound before/current checker/CLI parity and fewer preparation Sets pass relevant suites and safety checks; independent reviewer accepts, Doctor is clean and owned scratch removed. No physical heap/latency/I/O/native-token/quota/net savings inferred. — evidence: .waypost/experiments/wp21-doctor-link-inputs-20261029/{comparison.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Final Summary

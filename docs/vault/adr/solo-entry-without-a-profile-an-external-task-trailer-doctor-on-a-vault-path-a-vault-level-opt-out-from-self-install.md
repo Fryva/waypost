@@ -35,7 +35,7 @@ What stands in the way today, checked against the code:
 1. `waypost commit --story PROJ-123` exits 1 with `no story matches` with or
    without a vault (`scripts/commit.mjs:204-207`, `scripts/lib.mjs:1050-1052`).
    That rejection is deliberate: ADR-0006 turns a typo in a vault story id into
-   an error (`tests/commits.test.mjs:154-166`).
+   an error (`tests/commits.test.mjs#"a story reference is resolved against the vault, so a typo cannot"`).
 2. `waypost doctor --vault` on a fresh clone or in CI exits 1 with "No usable
    vault" until `waypost bind` writes the machine-local binding
    (`scripts/doctor.mjs:2139-2147`).

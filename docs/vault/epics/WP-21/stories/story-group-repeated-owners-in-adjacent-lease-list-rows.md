@@ -34,8 +34,8 @@ Human lease list repeats the same session/host/harness for each adjacent path. S
 
 ## Decomposition
 
-- [x] Group adjacent eligible rows by raw session/host/harness identity, retaining singleton and non-shorter legacy output. — evidence: scripts/presence.mjs:341; tests/presence.test.mjs:438
-- [x] Verify per-row mine/live/path, boundaries/A-B-A/duplicates/nullish/invalid/multiline fields and exact JSON/legacy/error behavior with frozen reconstruction plus actual CLI. — evidence: tests/presence.test.mjs:438; tests/presence.test.mjs:469; .waypost/experiments/wp21-lease-list-output-20261030/comparison.json
+- [x] Group adjacent eligible rows by raw session/host/harness identity, retaining singleton and non-shorter legacy output. — evidence: scripts/presence.mjs:341; tests/presence.test.mjs#"lease list groups adjacent owners without losing flags, duplicates or"
+- [x] Verify per-row mine/live/path, boundaries/A-B-A/duplicates/nullish/invalid/multiline fields and exact JSON/legacy/error behavior with frozen reconstruction plus actual CLI. — evidence: tests/presence.test.mjs#"lease list groups adjacent owners without losing flags, duplicates or"; tests/presence.test.mjs#"lease list keeps the legacy prefix before a malformed path and JSON"; .waypost/experiments/wp21-lease-list-output-20261030/comparison.json
 - [x] Measure before/current full texts in offline encodings, run presence/liveness/storage/CLI guards, Doctor, fresh acceptance and owned cleanup. — evidence: .waypost/experiments/wp21-lease-list-output-20261030/{tokens.json,tokenizer-proof.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Implementation Plan
@@ -45,7 +45,7 @@ Change only presence.mjs main case list after early JSON and empty returns. For 
 ## Acceptance Criteria
 
 - [x] Only adjacent eligible raw-equal owners group when resulting text is shorter; complete unshortened identity and row count remain in header, every original mine/live/path row and order/duplicates retained, singleton/nonshorter output exact. — evidence: scripts/presence.mjs:341; .waypost/experiments/wp21-lease-list-output-20261030/comparison.json
-- [x] Raw nullish/empty and owner boundaries/A-B-A remain separate; malformed/multiline fields preserve legacy behavior, JSON exact, no storage/liveness/write/refusal/release/API/warning changes; source-bound reconstruction and actual CLI controls pass. — evidence: tests/presence.test.mjs:469; .waypost/experiments/wp21-lease-list-output-20261030/comparison.json
+- [x] Raw nullish/empty and owner boundaries/A-B-A remain separate; malformed/multiline fields preserve legacy behavior, JSON exact, no storage/liveness/write/refusal/release/API/warning changes; source-bound reconstruction and actual CLI controls pass. — evidence: tests/presence.test.mjs#"lease list keeps the legacy prefix before a malformed path and JSON"; .waypost/experiments/wp21-lease-list-output-20261030/comparison.json
 - [x] Named offline full-output token counts demonstrate reduction on repeated realistic owners and unchanged controls; relevant suites/guards and independent acceptance pass, Doctor clean and owned scratch removed. No native-token/quota/whole-workflow benefit inferred. — evidence: .waypost/experiments/wp21-lease-list-output-20261030/{tokens.json,tokenizer-proof.json,validation.json,diagnostics.json,reviewer.json,cleanup.json}
 
 ## Final Summary

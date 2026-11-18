@@ -107,9 +107,9 @@ Written by the lead on 2026-09-15, from the code:
        with the reason.
 5. **Tests that must not see the real slot table.** When `npm test` holds a
    real slot, any test that reads the real table sees a holder. So:
-   - `tests/capacity.test.mjs:465` asserts `holders === 0` and must run with
+   - `tests/capacity.test.mjs#"measure: reads WAYPOST_HEAVY_MAX from the injected env"` asserts `holders === 0` and must run with
      a temporary `HOME`, `XDG_STATE_HOME` and `LOCALAPPDATA`, as must its
-     sibling at `:489`;
+     sibling at `tests/capacity.test.mjs#"waypost capacity --json: real run, shape and speed"`;
    - every test that runs `waypost size --global` (`tests/sizes.test.mjs`)
      gets the same, plus an idle `WAYPOST_CAPACITY_PROBE`.
 
@@ -140,10 +140,10 @@ Written by the lead on 2026-09-15, from the code:
 - [x] `waypost agents register` in a fixture project writes the block with
       the line, and the standing-context budget test passes without its
       limit raised.
-      — evidence: `tests/harness.test.mjs:1178` (the limit is still 1400),
-      `:1181` (the line is present). The block measures 1379 characters.
+      — evidence: `tests/harness.test.mjs#"the standing context stays small — it is re-read on every turn"` (the limit is still 1400),
+      `tests/harness.test.mjs#"the standing context stays small — it is re-read on every turn"` (the line is present). The block measures 1379 characters.
 - [x] `waypost prompt heavy` prints the procedure.
-      — evidence: `tests/harness.test.mjs:1120`
+      — evidence: `tests/harness.test.mjs#"waypost prompt heavy prints the procedure"`
 - [x] `AGENTS.md` carries the rule and the ADR's guard selects it and passes.
       The ADR is `accepted`, and `waypost doctor` reports 0 issues.
       — evidence: the `AGENTS.md` table row and its v2 block. With the ADR
@@ -161,10 +161,10 @@ Written by the lead on 2026-09-15, from the code:
       - An earlier attempt was refused at its 45-minute deadline with exit
         75 while the load stood at up to 72.
 
-      The injected busy machine is tested at `tests/test-runner.test.mjs:44`,
-      and `testConcurrency` at `:24`.
+      The injected busy machine is tested at `tests/test-runner.test.mjs#"scripts/test.mjs: a busy machine refuses at once (exit 75) and never"`,
+      and `testConcurrency` at `tests/test-runner.test.mjs#"testConcurrency: one heavy job's share of the cores — a quarter, at"`.
 - [x] `waypost size --global` holds a slot while it scans.
-      — evidence: `tests/sizes.test.mjs:536`
+      — evidence: `tests/sizes.test.mjs#"bin/waypost size --global: exits 75 when a slot is already held and"`
 - [x] README and CHANGELOG name the commands.
       — evidence: the rows in the `README.md` command table, and the
       `CHANGELOG.md` entry

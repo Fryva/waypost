@@ -67,7 +67,15 @@ already idle by its own rule.
   included, with `waypost capacity --disk <reserve>,<share>` (the owner,
   2026-11-06).
 - The author's proposal, open to the owner's review: the cleanup on a disk
-  refusal, the exempted commands, the env switches and Decision 2.
+  refusal, the exempted commands, the env switches and Decision 2. These
+  are **already implemented and running** on main and on this machine
+  (Decision 2 since 2026-11-06, 61 automatic runs walking 11–12 worktrees
+  each; 23 cleanups on a disk refusal), ahead of this review and without a
+  story. Decision 2 cannot be switched off alone, only with the whole
+  automatic cleanup (`clean --limit off`). If the owner declines it, the
+  way back is a code revert (`b25c306`), not a text change; the owner's
+  explicit decision on Decision 2 is therefore a separate item of the
+  acceptance.
 
 ## What this amends in accepted ADRs
 
@@ -80,8 +88,9 @@ stands. On acceptance each gets an "Amended by" note pointing here.
   3-day window, is now the owner's choice. Decision 4 "it runs under the
   slot the run still holds", "nothing else removes automatically" and
   Rationale 5 "no new trigger is needed" gain one exception: the cleanup
-  on a disk refusal (Decision 1), which runs with no slot held because no
-  job is about to run in that tree. Decision 2 below replaces Decision 1's
+  on a disk refusal (Decision 1), which runs with no slot held (the refused
+  job has none yet; it starts in this same tree right after the cleanup).
+  Decision 2 below replaces Decision 1's
   "per project, N projects may hold N × the limit" with one limit per
   repository, and reverses the answer to the first critic pass's blocker
   "automatic removal could reach nested worktrees" (a nested worktree was
@@ -98,17 +107,62 @@ stands. On acceptance each gets an "Amended by" note pointing here.
 - **heavy-work ADR**: Decision 1's conditions (a)–(c) gain the disk
   dimension, and Decision 2's "exits at once" gains the one cleanup (up to
   its 60 s deadline, announced on stderr before it starts) and a wait of up
-  to 30 s for that cleanup's deleter.
+  to 30 s for that cleanup's deleter. Also affected: its promise to say why
+  at once and never block an agent past its harness's timeout, "a small CI
+  container is not refused forever" (CI now needs `WAYPOST_DISK_CHECK=off`)
+  and "refuses new heavy work at once" in the consequences.
+- **Every other mention of the 7-day rule** in the cleanup-limit ADR (its
+  Rationale 2 "protecting everything used within 7 days", the "built in the
+  last week keeps its incremental cache" passage and the working-set
+  discussion of Alternatives J and L), and in the disk-hygiene ADR the
+  Decision 4 default "7 for project artifacts" (not only its Owner's
+  decision 1), read as 1 day.
+- **cleanup-limit ADR, the walk and the session checks**: "the walk never
+  enters a directory that holds `.git`" holds for the tree being walked;
+  the other work trees are walked as separate trees. Alternative J's
+  rejection of blocking on live sessions of the same host is reversed for
+  the other trees (a live session over a tree skips it). The `free:<P>%`
+  exception "except the one being built" now also counts the other work
+  trees, and the shared-checkout check (`sharedTree`) still covers the
+  job's own tree only.
+- **WP-17 story "The machine-wide limit…"**: besides the nested-worktree
+  criterion, its criterion that output used within 7 days "is left whole"
+  (proof: three items 2 days idle) no longer holds; `tests/limit.test.mjs`
+  (idle 12 hours) is the current proof. On acceptance the story gets an
+  "Amended by" note, not a rewrite.
 
 ## Decision
 
 1. **Free disk is an admission dimension.** `canStart`
    gains (d) disk, after (a) slots, (b) cores and (c) memory, named in
    that order in `reason`:
-   - Free space is one `fs.statfsSync` reading of the job's working
-     directory: `bavail × bsize` free of `blocks × bsize` total, read
-     before the machine-wide slot lock, so a hung network mount cannot
-     hold the lock.
+   - Free space is read with `fs.statfsSync` (`bavail × bsize` free of
+     `blocks × bsize` total) on **every filesystem a job usually writes
+     to** (amended 2026-11-15, the owner: the working directory alone
+     missed the disk a VM's build fills when its checkout lies on the
+     host's disk, and a `CARGO_TARGET_DIR` on another volume):
+     - the **working directory** — always read, even on `tmpfs`; an
+       unreadable reading counts as "cannot start", as memory does;
+     - the **system root** (`/`; `%SystemDrive%\` on Windows), the **home
+       directory**, the **temporary directory**, and `CARGO_TARGET_DIR`,
+       `CARGO_HOME`, `RUSTUP_HOME` and `GRADLE_USER_HOME` when set — a path
+       that does not exist yet is read at its nearest existing ancestor.
+       Such an additional path is **skipped**, with its error recorded,
+       when it cannot be resolved or read, when it is not local storage
+       (`storageOf`: a network or cloud mount), or when it is RAM-backed
+       (`tmpfs`, `ramfs`; detected on Linux only). It never refuses a job
+       by being unreadable.
+     - Paths on one filesystem (the same `st_dev`) are read once, under the
+       first path's role. On the owner's Mac every path is one volume, so
+       admission reads one filesystem, as before.
+     - All readings happen before the machine-wide slot lock.
+   - The reserve, the share and the holders' shares below are checked on
+     each filesystem read, with its own size; `byDisk` is the smallest
+     result. The **tightest** filesystem is the one with the smallest
+     margin in bytes (`free − reserve − (holders + 1) × share`); it is the
+     one the reason, `disk` in JSON and the refusal cleanup speak about.
+     Each holder reserves a share on every filesystem, including those it
+     does not write to — strict on purpose, as memory is.
    - The system keeps an untouchable **reserve**, the smaller of **30 GiB**
      and **15 %** of the filesystem: swap, OS updates and caches need it
      whatever Waypost runs (the owner, 2026-11-06).
@@ -119,10 +173,13 @@ stands. On acceptance each gets an "Amended by" note pointing here.
      `byDisk = floor((free − reserve − holders × share) / share)`.
      On this 460 GB disk the first job starts at 50 GB free, a second
      beside it at 70 GB.
-   - An unreadable figure counts as "cannot start", as memory does.
-   - The reason names the free figure, the share and the next step:
-     `disk: 48.0 GB free, a heavy job needs 50.0 GB free (30.0 GB system
-     reserve + 20.0 GB for this job) — waypost clean, waypost size --global`.
+   - The reason names the free figure, the filesystem by its first path and
+     role, the share and the next step:
+     `disk: 48.0 GB free at /Users/frost/… (working directory), a heavy job
+     needs 50.0 GB free (30.0 GB system reserve + 20.0 GB for this job) —
+     waypost clean, waypost size --global`. The `disk: <digit>` prefix is
+     kept. When the tightest filesystem is not the working directory's, the
+     next step is `waypost size --global` alone.
    - `WAYPOST_DISK_SHARE_GB` may only **raise** the share, the same
      posture as `WAYPOST_HEAVY_MAX` only lowering the slot count; a smaller
      or invalid value changes nothing.
@@ -141,19 +198,34 @@ stands. On acceptance each gets an "Amended by" note pointing here.
      `cleanup.<host>.jsonl` (`kind: "disk-floor"`, with what the harness
      check found).
    - `waypost capacity` prints the disk figure next to memory, and its
-     JSON carries `disk: { free, total, share, reserve, path }`.
-   - A `run --heavy` refused for a measured shortage (not for "free space
-     unknown") says so on stderr, runs the automatic cleanup of its
-     repository (Decision 2) once, with no slot held, and asks again; when that cleanup renamed
+     JSON carries `disk: { free, total, share, reserve, path }` for the
+     tightest filesystem and `disks: [...]` with the same fields plus
+     `role` (and `error` for a skipped path) for each one read.
+   - The owner's setting and `WAYPOST_DISK_SHARE_GB` apply to the working
+     directory's filesystem as written. On every other filesystem they are
+     capped at 15 % and 20 % of its size, as the defaults are, so a small
+     volume under `CARGO_TARGET_DIR` never refuses every job.
+   - A `run --heavy` refused for a measured shortage on the **working
+     directory's filesystem** (not for "free space unknown"; a shortage
+     there triggers it even when another filesystem is tighter) says so on
+     stderr, runs the automatic cleanup of its repository (Decision 2) once, with no slot held, and asks again; when that cleanup renamed
      anything, it waits up to 30 s for the deleter before the final
      refusal. Without this a full disk refuses every job, and the cleanup
      that runs only after a job never runs at all. The cleanup frees what
      the owner's limit allows, not what the floor needs: with no limit set
      it frees nothing. The job's environment is restored after it
-     (`WAYPOST_PROJECT_DIR`).
+     (`WAYPOST_PROJECT_DIR`). A shortage only on another filesystem is
+     refused at once: the repository's cleanup frees nothing there.
    - `WAYPOST_DISK_CHECK=off` is the owner's switch, like
      `WAYPOST_BESIDE_HEAVY=1`: CI sets it, because a hosted runner is
-     disposable and has about 25–30 GB free, near the floor.
+     disposable and has about 25–30 GB free, near the floor. Unlike
+     `WAYPOST_BESIDE_HEAVY=1` it is **not** announced by `run --heavy`, is
+     not in the slot record and is not named in `prompts/heavy.md` (reviewed
+     2026-11-07), and any environment can set it, so "an agent can make the
+     floor stricter, never weaker" holds for `--disk` only. Closing that
+     gap — a stderr line, a slot-record field, a line in `prompts/heavy.md`
+     — is required before acceptance or accepted as a known limit by the
+     owner.
    - `waypost clean`, `size --global` and `setup --audit` take the slot
      without the disk dimension: they free or measure space, and a refusal
      that says "run `waypost clean`" must not refuse `waypost clean`.
@@ -191,7 +263,12 @@ Not decided here, and unchanged: generic names staying off the automatic
 path, `free:<P>%` semantics.
 
 **Implementation state (2026-11-06):** Decisions 1, 2 and 3 are
-implemented. Two readings fixed while implementing Decision 2: "the
+implemented; the several-filesystems amendment of 2026-11-15 to Decision 1
+is implemented too (story "Disk admission reads every filesystem a job
+writes to, not only the working directory's", WP-18). On macOS an external
+`/Volumes` disk counts as local storage for admission when its mount type is
+local (apfs, hfs, exfat), although coordination treats `/Volumes` as a
+network mount. Two readings fixed while implementing Decision 2: "the
 repository's linked worktrees" means every work tree but the job's own, so
 a job in a linked worktree walks the main one too; and a live session
 "overlaps" a worktree when its project root is that tree or lies inside it
@@ -288,7 +365,9 @@ under the same rules, that the owner's limit already authorises.
 **What changes in code / process**:
 - `scripts/capacity-admission.mjs`: the disk dimension in `canStart`.
 - `scripts/capacity.mjs`: `measure()` reads `statfsSync` of the working
-  directory (`WAYPOST_CAPACITY_PROBE` gains optional `free`/`disk_total`).
+  directory (`WAYPOST_CAPACITY_PROBE` gains optional `free`/`disk_total`);
+  from the 2026-11-15 amendment, of every filesystem in Decision 1, and the
+  probe gains an optional `disks` list.
 - `bin/cli/capacity.mjs`: the disk figure in text and JSON.
 - `bin/cli/run.mjs`: the cleanup on a disk refusal; `bin/cli/slots.mjs`:
   `claimSlot(..., { disk: false })` for clean, size and setup.
@@ -318,18 +397,71 @@ under the same rules, that the owner's limit already authorises.
   session unrelated to the tree is still not matched there (the same limit
   as before Decision 2).
 
-- The disk is the working directory's: a job writing elsewhere
-  (`CARGO_TARGET_DIR`, DerivedData, `~/.gradle`, Docker) is admitted by a
-  disk it does not fill, and the reserve is checked on that disk, not on
-  the system volume when they differ.
+- Only the usual places are read (Decision 1): a job writing to another
+  path (a Docker data root, a build directory set in its own config, an
+  external drive) is still admitted by disks it does not fill. DerivedData
+  and `~/.gradle` live under the home directory and are covered.
+- `statfsSync` is synchronous: a hung network mount as the **working
+  directory** still hangs admission, as before; additional paths on network
+  mounts are skipped by `storageOf`, not timed out.
+- A network home reads the export's free space, not the user's quota; a VM
+  or WSL2 virtual disk reads its virtual size, not the host's free space.
+- A shortage on a filesystem other than the working directory's has no
+  automatic cleanup: the refusal points at `waypost size --global`.
 - A share raised by `WAYPOST_DISK_SHARE_GB` is not written into the slot
   record, so the next admission reserves the default share for that job.
-- On a checkout shared with a VM over a network mount, `statfs` reads the
-  host's disk while the VM counts only its own holders.
+- On a checkout shared with a VM over a network mount, the working
+  directory's reading is the host's disk while the VM counts only its own
+  holders; the VM's own disk is now read through `/` and its home
+  (2026-11-15: Debian VM, checkout on the Mac's disk with 102 GB free, VM
+  root 24 GB free of 59; Debian 13 `/tmp` is `tmpfs` and is skipped).
 - One day is seven times sooner for content inside a tagged directory that
   is not regenerable (`target/package`, benchmark baselines).
 - Verification on Linux and Windows is still to be done, as for the memory
   ADR.
+
+Found by the critic pass of 2026-11-07 (not yet fixed in code):
+
+- **Sessions on the owner's VMs are not recognised.** "A live session on any
+  host" compares `project_root` as a local real path; a VM reports
+  `/media/psf/…` or `Y:\…`, which never matches `/Users/…`, and a VM's heavy
+  jobs are not in this machine's slot table. Build output in any worktree
+  idle for over a day is removed with no skip while a VM session works
+  there. Without a bound vault there is no session check at all (the log
+  carries a note). Fix options: match sessions of other hosts by the common
+  dir and the offset inside the repository (as `vault_rel`), or skip a tree
+  while any other host's session is live in the repository.
+- **The refusal's advice points the wrong way**: the log text "raise it:
+  `waypost clean --limit <N>`" on a disk refusal would free less. An item
+  can also stay `keep` for other reasons (10 minutes old, a running tool, a
+  lease, a partial read) and the log does not say which.
+- **Holders of commands exempt from the disk check still reserve a share**:
+  while `waypost size --global` runs, every `run --heavy` needs 20 GiB more.
+- **`--disk` is labelled "owner's setting" even when an agent raised it**,
+  the file records no gate kind, and a raise up to 1 000 000 GB can shut
+  heavy work until the owner returns; `brief`, `status` and `doctor` do not
+  show it. Checking reserve + share ≤ total is open.
+- **The 60 s deadline is soft**: the re-check before a rename measures an
+  item without the deadline, and the 30 s deleter wait comes on top.
+- **Refusal cleanups are not rate-limited**: of 23, only the first renamed
+  anything (46.55 GiB); the other 22 spent 0.3–8 s each. Taking the job's own
+  tree last on that path would keep the refused job's warm cache.
+- **Units**: "GB" in this text and in messages means GiB; a "460 GB" disk
+  is 460 GiB (about 494 GB in Finder).
+- **Tool-running rule is machine-wide**: a running ecosystem tool keeps all
+  of that ecosystem's output, and the ecosystem is detected from manifests at
+  the root, so in a repository with a root `Cargo.toml` any cargo process on
+  the machine can make the refusal cleanup empty. Not measured here.
+- **No way to exempt one worktree** (`locked` ones are walked on purpose); a
+  release or benchmark worktree has no protection other than a lease.
+- **Not covered by tests**: the 30 s deleter wait, restoring
+  `WAYPOST_PROJECT_DIR` when the job starts after the cleanup, skipping a
+  tree on another filesystem / protected / non-local / past the deadline, a
+  session of another host in a foreign tree.
+
+Not considered, open to the owner: removing merged worktrees whole, and a
+build cache shared between worktrees (the cause on this machine is twelve
+agent worktrees, each with its own full build output).
 
 ## References
 
@@ -339,6 +471,37 @@ under the same rules, that the owner's limit already authorises.
 - memory-for-heavy-work-half-the-memory-up-to-2-gb-macos-without-claimed-pages-no-new-agents-beside-a-job
 - cleanup-to-a-machine-wide-limit-set-by-the-owner-idle-artifacts-oldest-first
 
+## Review history
+
+- 2026-11-07, fresh-context `waypost-critic`: verdict **accept with fixes**,
+  no blockers. Focused tests 19/19 and 9/9, `waypost doctor` 0 issues.
+  Four important findings (the incomplete amends list, sessions of other
+  hosts, the silent `WAYPOST_DISK_CHECK=off`, Decision 2 running before its
+  review) are recorded in the amends list, Decision 1 and Known limits
+  above; the text was corrected, **code is unchanged**. Still open before
+  acceptance: the owner's explicit decision on Decision 2, a story with
+  acceptance criteria and a `waypost-reviewer` pass over the code, and the
+  `review_status` change (`acceptance_gate` is on).
+- 2026-11-15, the owner: Decision 1 amended — free space is read on every
+  filesystem a job usually writes to, not only the working directory's
+  (found on the Debian VM, where the checkout is the Mac's disk).
+- 2026-11-15, fresh-context `waypost-critic` on the amendment: **revise**,
+  no blockers. Seven findings, all taken: the refusal cleanup only for a
+  shortage on the working directory's filesystem; an unreadable or
+  non-local additional path is skipped, not refusing; the owner's absolute
+  values capped by percentage off the working directory's filesystem; the
+  system root added; the reason names the filesystem, the tightest is the
+  smallest margin; stale text marked; the working directory is never
+  skipped as `tmpfs`. `CARGO_HOME`/`RUSTUP_HOME` added; quota and virtual
+  disks recorded in Known limits.
+- 2026-11-15, fresh-context `waypost-reviewer` on the implementation: no
+  correctness defects; the `/Volumes` external disk, `prompts/heavy.md`, a
+  `measure()` test over a list, the skipped-count wording, labels for
+  additional entries and `platform` passing were fixed before commit. The
+  tightest filesystem (smallest margin) and the one that binds the count
+  coincide whenever admission refuses; they may differ only in the count
+  of further jobs, which is accepted.
+
 ---
 
-*Last updated: 2026-11-06*
+*Last updated: 2026-11-15*

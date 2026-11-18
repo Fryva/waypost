@@ -707,3 +707,53 @@ test("waypost capacity: real run, human output", () => {
     assert.match(r.stdout, /can start (\d+ heavy jobs?|0 — .+)/);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+
+// ─── readDisks (disk-space ADR, amended 2026-11-15) ─────────────────────
+import { readDisks } from "../scripts/capacity.mjs";
+test("readDisks: one filesystem is read once; another is added; a missing path reads its nearest ancestor", () => {
+  const GiB = 1024 ** 3, devs = { "/w": 1, "/": 2, "/home/u": 2, "/tmp": 3, "/ssd": 4 };
+  const fs = { "/w": [100, 460], "/": [24, 59], "/tmp": [3, 4], "/ssd": [50, 64] };
+  const deps = {
+    env: { CARGO_TARGET_DIR: "/ssd/new/target" }, platform: "linux",
+    exists: (p) => p in devs, stat: (p) => { if (!(p in devs)) throw Object.assign(new Error("x"), { code: "ENOENT" }); return { dev: devs[p] }; },
+    statfs: (p) => ({ bavail: fs[p][0], bsize: GiB, blocks: fs[p][1], type: p === "/tmp" ? 0x01021994 : 0xef53 }),
+    home: () => "/home/u", temp: () => "/tmp", storage: () => ({ kind: "local" }),
+  };
+  const r = readDisks("/w", deps);
+  assert.deepEqual(r.map((d) => [d.role, d.path, d.error || null]), [
+    ["working directory", "/w", null], ["system root", "/", null], ["temporary directory", "/tmp", "RAM-backed (tmpfs)"], ["CARGO_TARGET_DIR", "/ssd", null]]);
+  assert.equal(r[1].free, 24 * GiB);
+});
+test("readDisks: an unreadable or non-local additional path is skipped with an error; the working directory is never skipped", () => {
+  const deps = {
+    env: { GRADLE_USER_HOME: "/net/gradle" }, platform: "linux",
+    exists: () => true, stat: (p) => { if (p === "/home/u") throw Object.assign(new Error("x"), { code: "EACCES" }); return { dev: { "/w": 1, "/": 1, "/tmp": 1, "/net/gradle": 9 }[p] }; },
+    statfs: (p) => ({ bavail: 1, bsize: 1024 ** 3, blocks: 10, type: 0x01021994 }),
+    home: () => "/home/u", temp: () => "/tmp", storage: (p) => ({ kind: p.startsWith("/net") ? "network" : "local" }),
+  };
+  const r = readDisks("/w", deps);
+  assert.equal(r[0].role, "working directory"); assert.equal(r[0].free, 1024 ** 3);
+  assert.deepEqual(r.slice(1).map((d) => [d.role, d.error]), [["home", "unreadable (EACCES)"], ["GRADLE_USER_HOME", "not local storage (network)"]]);
+});
+test("readDisks: an external macOS volume is read by its mount type; a network one is skipped before stat", () => {
+  const stats = [];
+  const deps = {
+    env: { CARGO_TARGET_DIR: "/Volumes/SSD/target", GRADLE_USER_HOME: "/Volumes/share/gradle" }, platform: "darwin",
+    exists: () => true, stat: (p) => { stats.push(p); return { dev: { "/w": 1, "/": 1, "/h": 1, "/t": 1, "/Volumes/SSD/target": 2 }[p] }; },
+    statfs: () => ({ bavail: 5, bsize: 1024 ** 3, blocks: 64 }),
+    home: () => "/h", temp: () => "/t",
+    storage: (p) => p.startsWith("/Volumes/") ? { kind: "network", provider: "mounted volume" } : { kind: "local" },
+    mountType: (p) => p.startsWith("/Volumes/SSD") ? "apfs" : "smbfs",
+  };
+  const r = readDisks("/w", deps);
+  assert.deepEqual(r.map((d) => [d.role, d.error || null]), [["working directory", null], ["CARGO_TARGET_DIR", null], ["GRADLE_USER_HOME", "not local storage (network)"]]);
+  assert.ok(!stats.includes("/Volumes/share/gradle"), "the network mount is never stat'ed");
+});
+test("measure: a list of disks keeps skipped entries, binds on the tightest read one, and names it", async () => {
+  const GiB = 1024 ** 3;
+  const disks = [{ free: 100 * GiB, total: 460 * GiB }, { role: "home", path: "/h", error: "unreadable (EACCES)" }, { role: "system root", path: "/", free: 10 * GiB, total: 59 * GiB }];
+  const m = await measure({ dir: "/w", env: { WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GiB, total: 16 * GiB, disks }) } });
+  assert.equal(m.can_start, 0); assert.equal(m.disk.role, "system root"); assert.equal(m.disk_primary_short, false);
+  assert.deepEqual(m.disks.map((d) => [d.role, d.error || null]), [["working directory", null], ["system root", null], ["home", "unreadable (EACCES)"]]);
+  assert.match(m.reason, /^disk: 10\.0 GB free at \/ \(system root\), .* — waypost size --global$/);
+});

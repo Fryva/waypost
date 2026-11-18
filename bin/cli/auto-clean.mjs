@@ -101,12 +101,9 @@ function safeRealpath(p) {
   try { return realpathSync(p); } catch { return p; }
 }
 
-// The repository's other work trees (the disk-space ADR, Decision 2): every
-// entry of `git worktree list --porcelain` against the common dir except the
-// job's own tree and a bare entry — the main worktree included when the job
-// runs in a linked one, since the repository is one project for the limit.
-// `prunable` is carried so the caller can name it as a skip reason. A git
-// that fails or runs past the deadline yields no trees and an `error`.
+// The repository's other work trees (disk-space ADR, Decision 2): every
+// `git worktree list` entry but the job's own tree and a bare one, the main
+// worktree included. A failed or timed-out git yields `error`.
 function otherWorkTrees(common, root, deadline) {
   const timeout = Math.max(1, Math.min(5000, deadline - Date.now()));
   let r;
@@ -123,8 +120,7 @@ function otherWorkTrees(common, root, deadline) {
     const head = lines.find((l) => l.startsWith("worktree "));
     if (!head || lines.includes("bare")) continue;
     const path = head.slice("worktree ".length);
-    // A submodule or a --separate-git-dir repository names its git dir as
-    // the main worktree, unmarked as bare: there is no work tree to walk.
+    // A submodule or --separate-git-dir lists its git dir as the main tree.
     const at = key(path);
     if (at === ours || at === gitDir || at.startsWith(gitDir.endsWith("/") ? gitDir : gitDir + "/")) continue;
     trees.push({ path, prunable: lines.some((l) => l === "prunable" || l.startsWith("prunable ")) });
@@ -132,14 +128,10 @@ function otherWorkTrees(common, root, deadline) {
   return { trees, error: null };
 }
 
-// Why one other work tree stays off this sweep, or null when it may be
-// walked — the ADR's skip list, in its order. A live session counts when its
-// project root is the tree or lies inside it: a session rooted in an
-// ancestor (the main checkout, for a worktree nested under it) works on its
-// own tree, which the walk of that tree already stops short of this one —
-// unless it holds a live lease: a lease is keyed relative to its holder's
-// root, which this walk cannot match against the tree's items, so such a
-// session is treated as overlapping the tree too.
+// Why another work tree stays off this sweep (the ADR's skip list), or null.
+// A live session counts when its root is the tree or inside it; one rooted
+// above it counts only while it holds a lease, which cannot be matched to
+// this tree's items (keys are relative to the holder's root).
 function workTreeSkipReason(tree, { cleanup, presence, capacity, claim, commonDev, home, sessions, leaseHolders }) {
   if (tree.prunable) return "prunable";
   if (!existsSync(tree.path)) return "missing";
@@ -302,11 +294,9 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
     }
 
     const now = cleanNow();
-    // Decision 2 of the disk-space ADR: the repository is one project for
-    // the limit. After this tree, every other work tree is walked under the
-    // same rules and the same deadline; their items are counted and picked
-    // together, oldest first. `ctxOf` keeps each item's own context for the
-    // re-check right before its rename; `trees` goes into the log.
+    // Decision 2: the repository is one project for the limit — every other
+    // work tree is walked by the same rules, items counted and picked
+    // together; `ctxOf` keeps each item's context for its re-check.
     const ctxOf = new Map();
     const classified = [];
     const addTree = (c) => { for (const it of planFromContext(c, cleanup, now)) { ctxOf.set(it, c); classified.push(it); } };
@@ -324,9 +314,7 @@ async function autoCleanup({ claim, where, ended, capacity, presence }) {
     } else if (listed.trees.length) {
       trees.push({ path: null, note: "no bound vault — no live sessions to check" });
     }
-    // The other trees' walks get two thirds of the time left, so a slow one
-    // cannot spend the whole deadline and leave nothing for the re-checks
-    // and renames (the job's own oldest items included).
+    // Other trees' walks get 2/3 of the time left; the rest is for renames.
     const walkDeadline = Math.min(deadline, Date.now() + Math.floor((deadline - Date.now()) * 2 / 3));
     for (const tree of listed.trees) {
       if (Date.now() >= walkDeadline) { trees.push({ path: safeRealpath(tree.path), skipped: "deadline" }); continue; }

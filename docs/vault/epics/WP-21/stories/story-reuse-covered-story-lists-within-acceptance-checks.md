@@ -35,7 +35,7 @@ checkSpecAcceptance repeatedly parses spec.stories after its cached Acceptance s
 ## Decomposition
 
 - [x] Reuse covered story lists at the existing post-null parse point. — evidence: scripts/doctor-specs.mjs:235; scripts/doctor-specs.mjs:253
-- [x] Verify object identity/aliases, null versus empty, error gates, attribution/ambiguity and freshness. — evidence: tests/doctor-specs.test.mjs:257; tests/doctor-specs.test.mjs:276; .waypost/experiments/wp21-acceptance-covered-lists-20261030/comparison.json
+- [x] Verify object identity/aliases, null versus empty, error gates, attribution/ambiguity and freshness. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: acceptance coverage distinguishes same-path"; tests/doctor-specs.test.mjs#"doctor specs module: missing acceptance skips coverage parsing but"; .waypost/experiments/wp21-acceptance-covered-lists-20261030/comparison.json
 - [x] Compare full findings and matcher traces, count delegated parser calls, exercise required-policy CLI and suites/guards, Doctor and independent review. — evidence: .waypost/experiments/wp21-acceptance-covered-lists-20261030/{comparison,cli-parity,validation,doctor,reviewer}.json
 
 ## Implementation Plan
@@ -44,7 +44,7 @@ Only checkSpecAcceptance changes. Add local coveredStories Map beside acceptance
 
 ## Acceptance Criteria
 
-- [x] Covered lists are reused by spec object after existing null gate, including empty lists; full ordered findings/matcher behavior, first errors/gates and same-object freshness are preserved. — evidence: tests/doctor-specs.test.mjs:257; tests/doctor-specs.test.mjs:276; .waypost/experiments/wp21-acceptance-covered-lists-20261030/comparison.json
+- [x] Covered lists are reused by spec object after existing null gate, including empty lists; full ordered findings/matcher behavior, first errors/gates and same-object freshness are preserved. — evidence: tests/doctor-specs.test.mjs#"doctor specs module: acceptance coverage distinguishes same-path"; tests/doctor-specs.test.mjs#"doctor specs module: missing acceptance skips coverage parsing but"; .waypost/experiments/wp21-acceptance-covered-lists-20261030/comparison.json
 - [x] Source-bound baseline/current replay and hot required-policy CLI outputs agree, logical parse counts decrease, suites/guards pass, Doctor clean and fresh reviewer accepts. — evidence: .waypost/experiments/wp21-acceptance-covered-lists-20261030/{comparison,cli-parity,validation,doctor,reviewer}.json
 
 ## Final Summary

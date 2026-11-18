@@ -8,7 +8,7 @@ created: 2026-09-04
 updated: 2026-09-04
 external_refs: {}
 tags: []
-code_refs: []
+code_refs: ["scripts/doctor-integrity.mjs", "scripts/doctor.mjs", "scripts/doctor-lifecycle.mjs", "templates/", "prompts/story.md", "skills/waypost-story/SKILL.md", "agents/reviewer.md", "tests/doctor-integrity.test.mjs", "tests/doctor-lifecycle.test.mjs"]
 review_status: pending
 reviewed_at: null
 ---

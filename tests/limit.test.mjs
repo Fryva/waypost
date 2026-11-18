@@ -1550,13 +1550,27 @@ test("disk refusal: one automatic cleanup with no job behind it, then the refusa
   const marker = join(proj, "ran.txt");
   const r = runHeavyChild(proj, ["node", "-e", `require("fs").writeFileSync(${JSON.stringify(marker)}, "x")`], lowDiskEnv(home));
   assert.equal(r.status, 75, r.stderr);
-  assert.match(r.stderr, /disk: 45\.0 GB free, a heavy job needs 50\.0 GB free \(30\.0 GB system reserve \+ 20\.0 GB for this job\) — running the automatic cleanup first \(up to 60 s\)/);
-  assert.match(r.stderr, /refused — disk: 45\.0 GB free, a heavy job needs 50\.0 GB free \(30\.0 GB system reserve \+ 20\.0 GB for this job\)/);
+  assert.match(r.stderr, /disk: 45\.0 GB free at [^,]+ \(working directory\), a heavy job needs 50\.0 GB free \(30\.0 GB system reserve \+ 20\.0 GB for this job\) — running the automatic cleanup first \(up to 60 s\)/);
+  assert.match(r.stderr, /refused — disk: 45\.0 GB free at [^,]+ \(working directory\), a heavy job needs 50\.0 GB free \(30\.0 GB system reserve \+ 20\.0 GB for this job\)/);
   assert.ok(!existsSync(marker), "the job did not run");
   const autos = autoRecords(home);
   assert.equal(autos.length, 1, "exactly one cleanup, no loop");
   assert.equal(autos[0].exit, null);
   assert.equal(autos[0].result, "ran");
+});
+
+test("disk refusal on another filesystem only: refused at once, no repository cleanup, advice is size --global", () => {
+  const home = tmpRoot("waypost-limit-disk-other-home-");
+  const proj = gitProject("waypost-limit-disk-other-proj-", ["a"]);
+  writeCurrentSetting(home, { kind: "gb", gb: 20, bytes: 20 * GB });
+  const marker = join(proj, "ran.txt");
+  const env = lowDiskEnv(home, { WAYPOST_CAPACITY_PROBE: JSON.stringify({ cores: 8, busy: 0, available: 8 * GB, total: 16 * GB, disks: [{ free: 100 * GB, total: 460 * GB }, { role: "system root", path: "/", free: 10 * GB, total: 59 * GB }] }) });
+  const r = runHeavyChild(proj, ["node", "-e", `require("fs").writeFileSync(${JSON.stringify(marker)}, "x")`], env);
+  assert.equal(r.status, 75, r.stderr);
+  assert.doesNotMatch(r.stderr, /running the automatic cleanup first/);
+  assert.match(r.stderr, /refused — disk: 10\.0 GB free at \/ \(system root\), a heavy job needs [\d.]+ GB free .* — waypost size --global/);
+  assert.ok(!existsSync(marker), "the job did not run");
+  assert.equal(existsSync(logPathOf(home)) ? autoRecords(home).length : 0, 0, "no cleanup");
 });
 
 test("disk: WAYPOST_DISK_CHECK=off admits below the floor and capacity says the disk was not checked", () => {

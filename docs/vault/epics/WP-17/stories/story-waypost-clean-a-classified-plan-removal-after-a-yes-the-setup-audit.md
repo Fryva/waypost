@@ -170,35 +170,35 @@ sources need a live run on each OS.
 
 - [x] A non-ignored `CACHEDIR.TAG` directory with no tracked file is removed
       by `--apply <id> --yes --reason "…"`; one that holds a tracked file or a
-      nested repository is not, and the report says why. — evidence: test "AC 1 (apply)…" tests/cleanup.test.mjs:880, "AC 1…" tests/cleanup.test.mjs:679
+      nested repository is not, and the report says why. — evidence: test "AC 1 (apply)…" tests/cleanup.test.mjs#"AC 1 (apply): of three tag directories — clean, holding a tracked", "AC 1…" tests/cleanup.test.mjs#"AC 1: a non-ignored CACHEDIR.TAG directory holding a tracked file is"
 - [x] An ignored build directory inside git is removed, and a tracked file
-      inside it survives. — evidence: test "AC 2 (apply)…" tests/cleanup.test.mjs:946 (removal through `git clean -X`), "AC 2: git clean -X -d -f itself never removes a tracked file…" tests/cleanup.test.mjs:983; through Waypost a directory holding a tracked file is not an item at all, so it is left whole
+      inside it survives. — evidence: test "AC 2 (apply)…" tests/cleanup.test.mjs#"AC 2 (apply): an ignored generic build/ directory (no tracked" (removal through `git clean -X`), "AC 2: git clean -X -d -f itself never removes a tracked file…" tests/cleanup.test.mjs#"AC 2: git clean -X -d -f itself never removes a tracked file"; through Waypost a directory holding a tracked file is not an item at all, so it is left whole
 - [x] A tool's output directory holding a force-added tracked file is not
-      removed by the tool's clean command either, and the report says why. — evidence: test "AC 3 (apply)…" tests/cleanup.test.mjs:1013 (fake registry; no shipped project artifact carries `clean_argv`)
+      removed by the tool's clean command either, and the report says why. — evidence: test "AC 3 (apply)…" tests/cleanup.test.mjs#"AC 3 (apply): a shipped artifact's own clean_argv runs (with cwd at" (fake registry; no shipped project artifact carries `clean_argv`)
 - [x] A project entry's artifact that git does not ignore is never removed,
-      even when it holds no tracked file. — evidence: tests "AC 4 (apply)…" tests/cleanup.test.mjs:1083 and the B1 extension, name, prefix and pattern cases tests/cleanup.test.mjs:1125–1355
+      even when it holds no tracked file. — evidence: tests "AC 4 (apply)…" tests/cleanup.test.mjs#"AC 4 (apply): a project's own toolchain artifact that git does not" and the B1 extension, name, prefix and pattern cases tests/cleanup.test.mjs#"B1: a project entry extending a shipped id's own artifact never"–1355
 - [x] A machine cache without `clean_argv` is removed by Waypost itself; one
-      whose clean text is prose is shown as manual and never run. — evidence: tests "AC 5 (apply)…" tests/cleanup.test.mjs:1356, :1386
+      whose clean text is prose is shown as manual and never run. — evidence: tests "AC 5 (apply)…" tests/cleanup.test.mjs#"AC 5 (apply): a machine cache with no clean_argv is removed by", tests/cleanup.test.mjs#"AC 5 (apply): a manual machine cache is refused by id, and its own"
 - [x] When one item fails (a locked or unreadable file), the rest are still
-      removed and the exit status is non-zero. — evidence: test "AC 6 (apply)…" tests/cleanup.test.mjs:1488 (POSIX, not as root)
+      removed and the exit status is non-zero. — evidence: test "AC 6 (apply)…" tests/cleanup.test.mjs#"AC 6 (apply): the middle of three items fails (EACCES, a read-only" (POSIX, not as root)
 - [x] With a harness detected, `--apply` without `--yes --reason` removes
       nothing and exits non-zero; on a terminal with no answer before the
-      timeout, nothing is removed. — evidence: tests "AC 7…" tests/cleanup.test.mjs:801, :815; `askYesNo` timeout/EOF tests/cleanup.test.mjs:831, :839; `consent` units tests/cleanup.test.mjs:549–571 (the terminal path is covered as units, not end to end)
+      timeout, nothing is removed. — evidence: tests "AC 7…" tests/cleanup.test.mjs#"AC 7: a detected harness (WAYPOST_HARNESS=claude), no --yes/--reason", tests/cleanup.test.mjs#"AC 7: no TTY (a spawned process has none) also refuses without --yes"; `askYesNo` timeout/EOF tests/cleanup.test.mjs#"askYesNo: silence past the timeout resolves false, well before a much", tests/cleanup.test.mjs#"askYesNo: EOF with no answer at all resolves false"; `consent` units tests/cleanup.test.mjs#"consent: --yes with a reason is a final yes; a terminal with no"–571 (the terminal path is covered as units, not end to end)
 - [x] An entry that does not state `regenerable: true` is `keep` and refused
-      by id. — evidence: test "AC 8…" tests/cleanup.test.mjs:194; refusal by id through the shared keep path, e.g. "AC 4 (apply)…" tests/cleanup.test.mjs:1083
+      by id. — evidence: test "AC 8…" tests/cleanup.test.mjs#"AC 8: an entry that does not state regenerable: true is keep"; refusal by id through the shared keep path, e.g. "AC 4 (apply)…" tests/cleanup.test.mjs#"AC 4 (apply): a project's own toolchain artifact that git does not"
 - [x] An item modified within 10 minutes, or leased by another session, is
       `keep`; with a live peer on the project, project artifacts are at most
-      `can`. — evidence: tests "AC 9…" tests/cleanup.test.mjs:207, :213, :252, :264, "AC 9 (e2e)…" :741 (a peer is another host sharing the checkout)
-- [x] A project root carrying `CACHEDIR.TAG` never appears in the plan. — evidence: test "AC 10…" tests/cleanup.test.mjs:705
+      `can`. — evidence: tests "AC 9…" tests/cleanup.test.mjs#"AC 9: an item modified within the last 10 minutes is keep, whatever", tests/cleanup.test.mjs#"AC 9: a running tool's own item is keep", tests/cleanup.test.mjs#"AC 9: leased by another session, overlapping the item's path in", tests/cleanup.test.mjs#"AC 9: a live peer on the project caps project artifacts at can, even", "AC 9 (e2e)…" tests/cleanup.test.mjs#"AC 9 (e2e): a directory leased by another live session shows keep" (a peer is another host sharing the checkout)
+- [x] A project root carrying `CACHEDIR.TAG` never appears in the plan. — evidence: test "AC 10…" tests/cleanup.test.mjs#"AC 10: a project root that itself carries CACHEDIR.TAG never appears"
 - [x] Given a limit, the plan picks from the idle (`should`) items, oldest
       first, those that bring the counted total under it; items used within
-      `stale_days` stay `can` and are never picked. — evidence: tests "AC 11…" tests/cleanup.test.mjs:402, `qualifiesForLimit` tests/cleanup.test.mjs:448–493 (pure; the CLI passes a limit with the next story)
+      `stale_days` stay `can` and are never picked. — evidence: tests "AC 11…" tests/cleanup.test.mjs#"AC 11: a limit picks should items of the counted kinds, oldest first", `qualifiesForLimit` tests/cleanup.test.mjs#"qualifiesForLimit: a project-origin artifact never qualifies, however"–493 (pure; the CLI passes a limit with the next story)
 - [x] An item that changed between plan and apply (now in use, now tracked,
-      replaced by a symlink) is skipped with the reason. — evidence: tests "AC 12…" tests/cleanup.test.mjs:1540, :1569, :1601; `recheck` units tests/cleanup.test.mjs:494–548
+      replaced by a symlink) is skipped with the reason. — evidence: tests "AC 12…" tests/cleanup.test.mjs#"AC 12: an item touched between plan and apply (mtime moved to just", tests/cleanup.test.mjs#"AC 12: a file force-added to git between plan and apply is refused", tests/cleanup.test.mjs#"AC 12: an item replaced by a symlink between plan and apply is"; `recheck` units tests/cleanup.test.mjs#"recheck: gone, or replaced by a symlink, is reported changed and"–548
 - [x] Each apply appends one log line with the reason given, the items and
-      their results; the report gives the space freed per filesystem. — evidence: test "AC 13…" tests/cleanup.test.mjs:1636
+      their results; the report gives the space freed per filesystem. — evidence: test "AC 13…" tests/cleanup.test.mjs#"AC 13: each --apply appends exactly one new log line naming the"
 - [x] `waypost setup` with no terminal, or under a harness, names
-      `waypost clean` and removes nothing. — evidence: tests "AC 14…" tests/cleanup.test.mjs:1720, :1742, :1765, :1778
+      `waypost clean` and removes nothing. — evidence: tests "AC 14…" tests/cleanup.test.mjs#"AC 14: waypost setup, with no TTY, names waypost clean for an idle", tests/cleanup.test.mjs#"AC 14: the same idle tag directory, with a harness detected", tests/cleanup.test.mjs#"AC 14: waypost setup --dry-run says it would audit, as its own last", tests/cleanup.test.mjs#"AC 14: an audit failure (machine state dir blocked by a file) is"
 - [x] `npm test` is green and `waypost doctor` reports 0 issues. — evidence: command `WAYPOST_HEAVY_WAIT=30m npm test` at 4660794: 707 tests, 703 pass, 0 fail, 4 skipped; `waypost doctor`: 0 issues
 
 ## Final Summary

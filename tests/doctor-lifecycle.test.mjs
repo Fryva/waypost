@@ -56,7 +56,7 @@ test("doctor lifecycle module: gated full findings preserve raw backticks, fence
   const before = JSON.stringify(input);
   const expected = [
     { group: "vault", level: "warn", check: "evidence",
-      message: 'Checked acceptance criterion carries no evidence suffix ("— evidence: <test | command | file:line>"): "`bare`".', file: story.rel },
+      message: 'Checked acceptance criterion carries no evidence suffix ("— evidence: <path>#\"<test title>\" | <command> | <file>:<line>"): "`bare`".', file: story.rel },
     { group: "vault", level: "warn", check: "plan-gate",
       message: "Story has an Implementation Plan section but no plan_updated_at — the plan bypassed the waypost story plan gate.", file: story.rel },
     { group: "vault", level: "warn", check: "final-summary",

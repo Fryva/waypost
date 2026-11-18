@@ -32,7 +32,7 @@ export function storageOf(path) {
   return { kind: "local", provider: fs || platform(), ...STORAGE.local };
 }
 
-function mountTypeOf(p) {
+export function mountTypeOf(p) {
   try {
     if (platform() === "win32") return null;
     const r = spawnSync("df", ["-P", "-T", p], { encoding: "utf8", timeout: 3000 });

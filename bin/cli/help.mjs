@@ -62,7 +62,8 @@ VAULT
   brief                    session-start orientation packet (run it when you
                            start work: where things live, what is in flight)
   doctor [flags]           deterministic diagnostics (--install|--vault [<path>]|--fix|--full);
-                           --vault <path> needs no binding (CI on a fresh clone)
+                           --vault <path> needs no binding (CI on a fresh clone);
+                           --memory: where Claude Code keeps Memory, its state and size
   diff-refs [flags]        changed-file evidence for code_refs
   handoff continue        opt-in bounded data-request rounds; delivery flags and --resume
   handoff transfer        export/import/report/gc for an explicit receiver content store
@@ -169,9 +170,11 @@ PROCEDURES
                            a preview before the [y/N]; off and loosening it
                            work from anywhere [--json]
   capacity [--json]        the machine's real free resources right now: cores,
-                           load, available memory, free disk (a 30 GB system
-                           reserve + 20 GB per job, capped at 15 %/20 % of the
-                           disk) and how many more heavy jobs it can take
+                           load, available memory, free disk on every
+                           filesystem a job writes to (working dir, /, home,
+                           temp, cargo/gradle dirs; a 30 GB system reserve +
+                           20 GB per job, capped at 15 %/20 % of each; the
+                           tightest binds) and how many more heavy jobs it can take
                            (never cached) [--json for detail]
   capacity --disk [<reserve>,<share>|default]
                            the owner's disk floor in GB; no value shows it;

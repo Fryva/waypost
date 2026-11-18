@@ -37,8 +37,8 @@ The failed revision-3 C1 retained only native-evaluation-moderation-binding, whi
 <!-- Granular checklist of concrete tasks. Each item should be small enough to complete in a session. -->
 
 - [x] Separate the existing rejection predicates into fixed, payload-free reasons. — evidence: scripts/codex-evaluation-surface.mjs:89
-- [x] Verify individual failure causes, unchanged strict admission and sticky invalidation. — evidence: 66/66 affected guard/transport fixtures; tests/evaluation-transport.test.mjs:195
-- [x] Verify the pre-binding event path through fake transport; independent reviewer before close/commit. — evidence: tests/evaluation-transport.test.mjs:220; fresh evaluation_final_review acceptance
+- [x] Verify individual failure causes, unchanged strict admission and sticky invalidation. — evidence: 66/66 affected guard/transport fixtures; tests/evaluation-transport.test.mjs#"moderation reasons distinguish params, ownership, envelope and"
+- [x] Verify the pre-binding event path through fake transport; independent reviewer before close/commit. — evidence: tests/evaluation-transport.test.mjs#"early moderation rejection survives later turn binding and owned drain"; fresh evaluation_final_review acceptance
 
 ## Implementation Plan
 

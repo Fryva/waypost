@@ -162,6 +162,8 @@ async function main() {
     if (!process.env.WAYPOST_SESSION_ID.endsWith(tag)) process.env.WAYPOST_SESSION_ID += tag;
   }
   await heartbeat(cmd);
+  // A closed reader (`| head`) ends the command quietly; `run` keeps its job's exit status.
+  if (cmd !== "run") for (const s of [process.stdout, process.stderr]) s.on("error", (e) => { if (e?.code === "EPIPE") process.exit(0); throw e; });
 
   switch (cmd) {
     case "": (0,(await import("./cli/status.mjs").catch(onFail("status")))["handleDefault"])(); break;

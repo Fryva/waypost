@@ -135,26 +135,26 @@ Written by the lead on 2026-09-15, from the ADR and the patterns of
       `kern.memorystatus_level` × total. When the sysctl is refused, it is
       `vm_stat`'s free + inactive + speculative + purgeable pages.
       `os.freemem()` is never used on macOS while a probe works.
-      — evidence: `tests/capacity.test.mjs:192`, `:201`, `:220`. On this Mac
+      — evidence: `tests/capacity.test.mjs:192`, `:201`, `tests/capacity.test.mjs#"readMemory: darwin, both sysctl and vm_stat fail falls back to"`. On this Mac
       the forced `vm_stat` fallback gave 4.7 GB against 9.0 GB through the
       sysctl.
 - [x] With injected Linux probes, `MemAvailable` is capped by a cgroup v2 and
       by a v1 memory limit, and the cores by a cgroup CPU quota.
-      — evidence: `tests/capacity.test.mjs:94`, `:102`, `:109`, `:116`,
-      `:126`, `:233`, `:245`, `:259`, `:271`
+      — evidence: `tests/capacity.test.mjs#"readCores: linux, cgroup v2 cpu.max caps and rounds up"`, `tests/capacity.test.mjs#"readCores: linux, cgroup v2 quota above base core count is capped by"`, `tests/capacity.test.mjs#"readCores: linux, cgroup v2 'max' means unlimited"`, `tests/capacity.test.mjs#"readCores: linux, cgroup v1 quota/period caps (v2 absent)"`,
+      `tests/capacity.test.mjs#"readCores: linux, cgroup v1 negative quota means unlimited"`, `tests/capacity.test.mjs#"readMemory: linux, MemAvailable capped by cgroup v2 memory.max"`, `tests/capacity.test.mjs#"readMemory: linux, cgroup v2 'max' is unlimited and does not fall"`, `tests/capacity.test.mjs#"readMemory: linux, MemAvailable capped by cgroup v1 limit - usage"`, `tests/capacity.test.mjs#"readMemory: linux, cgroup v1 limit above total memory means unlimited"`
 - [x] With injected Windows probes, busy comes from two `os.cpus()` samples
       and memory from `os.freemem()`.
-      — evidence: `tests/capacity.test.mjs:150`, `:170`, `:289`
+      — evidence: `tests/capacity.test.mjs#"readBusy: win32 samples os.cpus() twice, ~250ms apart by default"`, `tests/capacity.test.mjs#"readBusy: win32 busy scales with the idle share that vanished"`, `tests/capacity.test.mjs#"readMemory: win32 uses os.freemem()"`
 - [x] `can_start` follows the ADR's rules (a), (b) and (c) with the owner's
       defaults, on a 2-core, an 8-core and a 32-core machine, idle and
       loaded. `WAYPOST_HEAVY_MAX` lowers it but never raises it, and the
       reason names the binding limit.
-      — evidence: `tests/capacity.test.mjs:308`–`:366` (the matrix), `:374`,
-      `:381`, `:387` (`WAYPOST_HEAVY_MAX`), `:395`, `:402`, `:409`, `:416`
+      — evidence: `tests/capacity.test.mjs#"canStart: 2 cores, idle, plenty of memory -> 1 slot, can start 1"`–`tests/capacity.test.mjs#"canStart: 32 cores, heavily loaded -> fewer jobs fit, never below 0"` (the matrix), `tests/capacity.test.mjs#"canStart: WAYPOST_HEAVY_MAX lowers the slot count"`,
+      `tests/capacity.test.mjs#"canStart: WAYPOST_HEAVY_MAX never raises the slot count"`, `tests/capacity.test.mjs#"canStart: invalid WAYPOST_HEAVY_MAX values are ignored"` (`WAYPOST_HEAVY_MAX`), `tests/capacity.test.mjs#"canStart: can_start never goes below 0 even with more holders than"`, `tests/capacity.test.mjs#"canStart: busy above the core count clamps idle cores to 0 -> can"`, `tests/capacity.test.mjs#"canStart: zero available memory -> can start 0, memory reason"`, `tests/capacity.test.mjs#"canStart: an unknown figure (zero total, NaN busy or memory) means"`
       (the edges)
 - [x] `waypost capacity --json` on this machine returns every figure with
       its probe, well within a second.
-      — evidence: `tests/capacity.test.mjs:465`, `:489`. `waypost capacity`
+      — evidence: `tests/capacity.test.mjs#"waypost capacity --json: real run, shape and speed"`, `tests/capacity.test.mjs#"waypost capacity: real run, human output"`. `waypost capacity`
       ran in 0.14 s and printed "8 cores, load 2.80; 8.5 of 16.0 GB
       available (kern.memorystatus_level)".
 - [x] `npm test` is green at capped concurrency, and `waypost doctor` reports

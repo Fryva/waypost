@@ -265,7 +265,7 @@ Risks and follow-ups, none of them blockers:
 - live evidence, 2026-09-30: 0/784 rows parsed with `LANG=ru_RU.UTF-8`, 784/784
   with `LC_ALL=C`; the record
   `.git/waypost/docs-vault/presence/opencode-C-4608-…json` holds `"proc": null`;
-  `tests/presence.test.mjs:798` fails with `actual: null`
+  `tests/presence.test.mjs#"a beat records the harness process; on this host a gone process ends"` fails with `actual: null`
 - critic pass 2026-09-30: `revise` — the fake-`ps` test as first written was
   unpassable, and AC4's evidence could not exist; both corrected above
 - post-fix, 2026-09-30: `processTable()` → 718 rows under `LANG=ru_RU.UTF-8`,

@@ -5,15 +5,10 @@ import { isDeepStrictEqual } from 'node:util';
 import { CODEX_SURFACE_R1 } from './codex-surface.mjs';
 import { evaluationInputDigest } from './evaluation-source.mjs';
 
-const EVALUATION_FEATURES_OFF = ['code_mode_interrupt', 'instant_interrupt', 'cli_daybreak', 'api_key_cyber_access_programs'];
 export const CODEX_EVALUATION_SURFACE = Object.freeze({
   ...CODEX_SURFACE_R1,
   id: 'codex-read-snapshot-r1', version: '0.163.0-alpha.10.2',
   callback_method: 'item/tool/call',
-  turn_methods: [...CODEX_SURFACE_R1.turn_methods, 'turn/moderationMetadata'],
-  moderation_limits: Object.freeze({byteMetric:'wire-json-line-bytes-excluding-lf-v1',maxFrameBytes:65536,maxTotalBytes:262144,maxFrames:16}),
-  features_off: [...CODEX_SURFACE_R1.features_off, ...EVALUATION_FEATURES_OFF],
-  overrides: [...CODEX_SURFACE_R1.overrides, ...EVALUATION_FEATURES_OFF.map(name => `features.${name}=false`)],
   turn_items: [...CODEX_SURFACE_R1.turn_items, 'dynamicToolCall'],
   raw_items: [...CODEX_SURFACE_R1.raw_items, 'function_call', 'function_call_output'],
   residual_tools: ['snapshot.read', 'snapshot.search'],
