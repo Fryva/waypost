@@ -2,7 +2,7 @@
 
 kanban-plugin: board
 projectstore: derived
-generated_at: 2026-11-06T19:26:13.746Z
+generated_at: 2026-11-18T00:18:06.980Z
 
 ---
 
@@ -63,6 +63,7 @@ generated_at: 2026-11-06T19:26:13.746Z
 - [x] [[epics/WP-16/stories/story-adr-0011-accepted-guards-and-draftedby-in-adr-frontmatter|WP-16: ADR-0011 accepted: guards and drafted_by in ADR frontmatter]] #p1 #done
 - [x] [[epics/WP-16/stories/story-command-guards-opt-in-behind-vault-config-never-run-by-fix|WP-16: check guards name the project's own fitness command; doctor prints it and never runs it]] #p2 #done
 - [x] [[epics/WP-16/stories/story-doctor-evaluates-regex-guards-of-accepted-adrs|WP-16: doctor evaluates regex guards of accepted ADRs]] #p1 #done
+- [x] [[epics/WP-16/stories/story-evidence-names-a-test-by-an-anchor-that-doctor-can-check-not-by-a-line-number|WP-16: Evidence names a test by an anchor that doctor can check, not by a line number]] #p2 #done
 - [x] [[epics/WP-17/stories/story-discovery-and-the-profile-the-scheme-of-what-waypost-works-with|WP-17: Discovery and the profile: the scheme of what Waypost works with]] #p2 #done
 - [x] [[epics/WP-17/stories/story-waypost-clean-a-classified-plan-removal-after-a-yes-the-setup-audit|WP-17: waypost clean: a classified plan, removal after a yes, the setup audit]] #p2 #done
 - [x] [[epics/WP-17/stories/story-waypost-size-the-read-only-scan-project-and-global|WP-17: The toolchain registry and a tool-agnostic waypost size]] #p2 #done
@@ -76,6 +77,7 @@ generated_at: 2026-11-06T19:26:13.746Z
 - [x] [[epics/WP-18/stories/story-a-live-holder-started-through-a-differently-cased-path-still-reads-as-live-on-windows|WP-18: A live holder started through a differently cased path still reads as live on Windows]] #p2 #done
 - [x] [[epics/WP-18/stories/story-agents-waypost-starts-itself-see-a-live-heavy-job-and-brief-and-status-name-it|WP-18: Agents waypost starts itself see a live heavy job, and brief and status name it]] #p2 #done
 - [x] [[epics/WP-18/stories/story-a-heavy-job-started-while-waypost-team-peers-run-sees-them-and-does-not-start-beside-them|WP-18: A heavy job started while waypost team peers run sees them and does not start beside them]] #p2 #done
+- [x] [[epics/WP-18/stories/story-disk-admission-reads-every-filesystem-a-job-writes-to-not-only-the-working-directorys|WP-18: Disk admission reads every filesystem a job writes to, not only the working directory's]] #p2 #done
 - [x] [[epics/WP-19/stories/story-ps-in-the-c-locale-so-the-process-table-exists-on-any-host|WP-19: ps in the C locale, so the process table exists on any host]] #p1 #done
 - [x] [[epics/WP-19/stories/story-an-empty-team-authority-on-a-network-share-does-not-block-commits-from-another-machine|WP-19: An empty team authority on a network share does not block commits from another machine]] #p2 #done
 - [x] [[epics/WP-19/stories/story-same-named-machines-keep-each-others-live-records|WP-19: Same-named machines keep each other's live records]] #p2 #done
@@ -227,6 +229,7 @@ generated_at: 2026-11-06T19:26:13.746Z
 - [x] [[epics/WP-21/stories/story-link-parsing-moves-to-its-own-leaf-so-the-resolver-has-room-to-change|WP-21: Link parsing moves to its own leaf so the resolver has room to change]] #p2 #done
 - [x] [[epics/WP-21/stories/story-skip-code-stripping-phases-without-their-current-delimiters|WP-21: Skip code stripping phases without their current delimiters]] #p2 #done
 - [x] [[epics/WP-21/stories/story-skip-link-family-scans-without-their-prose-delimiters|WP-21: Skip link-family scans without their prose delimiters]] #p2 #done
+- [x] [[epics/WP-22/stories/story-doctor-memory-the-memory-directory-claude-code-loads-its-state-and-size|WP-22: doctor --memory: the Memory directory Claude Code loads, its state and size]] #p2 #done
 - [x] [[epics/WP-23/stories/story-a-vault-turns-briefs-self-install-off-for-every-clone|WP-23: A vault turns brief's self-install off for every clone]] #p2 #done
 - [x] [[epics/WP-23/stories/story-commit-carries-an-external-task-id-in-a-waypost-task-trailer|WP-23: Commit carries an external task id in a Waypost-Task trailer]] #p2 #done
 - [x] [[epics/WP-23/stories/story-doctor-vault-path-checks-a-vault-on-a-fresh-clone-without-a-binding|WP-23: doctor --vault <path> checks a vault on a fresh clone without a binding]] #p2 #done
