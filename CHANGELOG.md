@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-11-19
+
 ### Added
 
 - Heavy work is admitted against free disk space too (ADR "Disk space for heavy work", proposed): `waypost capacity` and `run --heavy` keep a system reserve, the smaller of 30 GiB and 15 % of the filesystem holding the working directory, and on top of it a share per job, the smaller of 20 GiB and 20 %, one share per live holder (a 460 GB disk: 50 GB free for the first job, 70 GB for a second); they refuse with `disk: <free> GB free, a heavy job needs <N> GB free (…)`. `WAYPOST_DISK_SHARE_GB` can only raise the share. A disk refusal of `run --heavy` runs the automatic cleanup once and asks again; `waypost clean`, `size --global` and `setup --audit` are never refused for disk. `capacity` prints the disk figure, and `--json` carries `disk`. `waypost capacity --disk <reserve>,<share>` sets the reserve and the share in GB for this machine (`default` returns to the defaults, no value shows them); raising works from anywhere, lowering only from the owner's own terminal with no harness detected, after a [y/N].
@@ -601,7 +603,9 @@ Initial public release.
 
 Hardened before release by a multi-agent audit and independent critic passes.
 
-[Unreleased]: https://github.com/Fryva/waypost/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/Fryva/waypost/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/Fryva/waypost/compare/v0.16.0...v0.17.0
+[0.16.0]: https://github.com/Fryva/waypost/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Fryva/waypost/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Fryva/waypost/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/Fryva/waypost/compare/v0.13.0...v0.13.1
